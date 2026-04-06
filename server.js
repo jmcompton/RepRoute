@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const path = require('path');
 const session = require('express-session');
 const pgSession = require('connect-pg-simple')(session);
 const { pool, initDB } = require('./db');
@@ -15,7 +16,7 @@ const managerRoutes = require('./routes/manager');
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
 
 app.use(session({
   store: new pgSession({ pool, tableName: 'sessions' }),
@@ -25,7 +26,6 @@ app.use(session({
   cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }
 }));
 
-// Auth middleware
 app.use((req, res, next) => {
   res.locals.user = req.session.user || null;
   next();
@@ -39,6 +39,15 @@ function requireManager(req, res, next) {
   if (!req.session.user || req.session.user.role !== 'manager') return res.redirect('/app');
   next();
 }
+
+app.get('/', (req, res) => {
+  if (req.session.user) return res.redirect('/app');
+  res.sendFile(path.join(__dirname, 'views', 'login.html'));
+});
+
+app.get('/app', requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'views', 'app.html'));
+});
 
 app.use('/', authRoutes);
 app.use('/app', requireAuth, dashRoutes);
