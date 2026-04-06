@@ -1,0 +1,55 @@
+require('dotenv').config();
+const express = require('express');
+const session = require('express-session');
+const pgSession = require('connect-pg-simple')(session);
+const { pool, initDB } = require('./db');
+const authRoutes = require('./routes/auth');
+const dashRoutes = require('./routes/dashboard');
+const prospectsRoutes = require('./routes/prospects');
+const callsRoutes = require('./routes/calls');
+const aiRoutes = require('./routes/ai');
+const onboardingRoutes = require('./routes/onboarding');
+const weeklyRoutes = require('./routes/weekly');
+const managerRoutes = require('./routes/manager');
+
+const app = express();
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static('public'));
+
+app.use(session({
+  store: new pgSession({ pool, tableName: 'sessions' }),
+  secret: process.env.SESSION_SECRET || 'reproute-secret-2025',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }
+}));
+
+// Auth middleware
+app.use((req, res, next) => {
+  res.locals.user = req.session.user || null;
+  next();
+});
+
+function requireAuth(req, res, next) {
+  if (!req.session.user) return res.redirect('/');
+  next();
+}
+function requireManager(req, res, next) {
+  if (!req.session.user || req.session.user.role !== 'manager') return res.redirect('/app');
+  next();
+}
+
+app.use('/', authRoutes);
+app.use('/app', requireAuth, dashRoutes);
+app.use('/api/prospects', requireAuth, prospectsRoutes);
+app.use('/api/calls', requireAuth, callsRoutes);
+app.use('/api/ai', requireAuth, aiRoutes);
+app.use('/api/onboarding', requireAuth, onboardingRoutes);
+app.use('/api/weekly', requireAuth, weeklyRoutes);
+app.use('/api/manager', requireAuth, requireManager, managerRoutes);
+
+const PORT = process.env.PORT || 3000;
+initDB().then(() => {
+  app.listen(PORT, () => console.log(`RepRoute running on port ${PORT}`));
+});

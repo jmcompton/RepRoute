@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RepRoute — Sign In</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:linear-gradient(135deg,#0B1F3A 0%,#122847 60%,#1A3A5C 100%);min-height:100vh;display:flex;align-items:center;justify-content:center}
+  .box{background:#fff;border-radius:16px;padding:2.5rem 2rem;width:100%;max-width:400px;box-shadow:0 24px 64px rgba(0,0,0,0.25)}
+  .logo{text-align:center;margin-bottom:2rem}
+  .logo-mark{display:inline-flex;align-items:center;justify-content:center;width:52px;height:52px;background:#0B1F3A;border-radius:12px;margin-bottom:10px}
+  .logo-mark svg{width:28px;height:28px}
+  h1{font-size:22px;font-weight:700;color:#0B1F3A;letter-spacing:-.5px}
+  p.sub{font-size:12px;color:#8898AA;letter-spacing:.08em;text-transform:uppercase;margin-top:2px}
+  .tabs{display:flex;border:1px solid #DDE2EC;border-radius:8px;overflow:hidden;margin-bottom:1.5rem}
+  .tab{flex:1;padding:9px;text-align:center;font-size:13px;font-weight:500;cursor:pointer;border:none;background:transparent;color:#4A5568;transition:all .15s}
+  .tab.active{background:#0B1F3A;color:#fff}
+  .panel{display:none}.panel.active{display:block}
+  .fg{margin-bottom:14px}
+  .fg label{display:block;font-size:11px;font-weight:700;color:#4A5568;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
+  .fg input,.fg select{width:100%;padding:10px 12px;border:1px solid #DDE2EC;border-radius:8px;font-size:14px;color:#0D1B2A;outline:none;transition:border-color .15s}
+  .fg input:focus,.fg select:focus{border-color:#1A6FC4}
+  .btn{width:100%;padding:12px;background:#0B1F3A;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:background .15s}
+  .btn:hover{background:#1A6FC4}
+  .err{color:#DC2626;font-size:13px;margin-top:10px;text-align:center;display:none}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="logo">
+    <div class="logo-mark">
+      <svg viewBox="0 0 28 28" fill="none">
+        <circle cx="14" cy="14" r="5" fill="white"/>
+        <path d="M14 3L14 8M14 20L14 25M3 14L8 14M20 14L25 14" stroke="white" stroke-width="2" stroke-linecap="round"/>
+        <path d="M7 7L10.5 10.5M17.5 17.5L21 21M21 7L17.5 10.5M10.5 17.5L7 21" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <h1>RepRoute</h1>
+    <p class="sub">Field Sales Intelligence</p>
+  </div>
+  <div class="tabs">
+    <button class="tab active" onclick="sw('in')">Sign In</button>
+    <button class="tab" onclick="sw('up')">Create Account</button>
+  </div>
+  <div class="panel active" id="p-in">
+    <div class="fg"><label>Email</label><input type="email" id="si-email" placeholder="you@email.com" /></div>
+    <div class="fg"><label>Password</label><input type="password" id="si-pw" placeholder="••••••••" /></div>
+    <button class="btn" onclick="signIn()">Sign In →</button>
+    <div class="err" id="si-err"></div>
+  </div>
+  <div class="panel" id="p-up">
+    <div class="fg"><label>Full Name</label><input type="text" id="su-name" placeholder="Your name" /></div>
+    <div class="grid2">
+      <div class="fg"><label>Email</label><input type="email" id="su-email" placeholder="you@email.com" /></div>
+      <div class="fg"><label>Password</label><input type="password" id="su-pw" placeholder="••••••••" /></div>
+    </div>
+    <div class="grid2">
+      <div class="fg"><label>Role</label>
+        <select id="su-role">
+          <option value="rep">Sales Rep</option>
+          <option value="rep">Summer Intern</option>
+          <option value="manager">Manager</option>
+        </select>
+      </div>
+      <div class="fg"><label>Territory</label><input type="text" id="su-territory" placeholder="Atlanta Metro" /></div>
+    </div>
+    <button class="btn" onclick="signUp()">Create Account →</button>
+    <div class="err" id="su-err"></div>
+  </div>
+</div>
+<script>
+function sw(t){
+  document.querySelectorAll('.tab').forEach((b,i)=>b.classList.toggle('active',(i===0&&t==='in')||(i===1&&t==='up')));
+  document.getElementById('p-in').classList.toggle('active',t==='in');
+  document.getElementById('p-up').classList.toggle('active',t==='up');
+}
+async function signIn(){
+  const email=document.getElementById('si-email').value;
+  const password=document.getElementById('si-pw').value;
+  const r=await fetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
+  const d=await r.json();
+  if(d.error){document.getElementById('si-err').textContent=d.error;document.getElementById('si-err').style.display='block';}
+  else window.location='/app';
+}
+async function signUp(){
+  const name=document.getElementById('su-name').value;
+  const email=document.getElementById('su-email').value;
+  const password=document.getElementById('su-pw').value;
+  const role=document.getElementById('su-role').value;
+  const territory=document.getElementById('su-territory').value||'Atlanta Metro';
+  const r=await fetch('/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,email,password,role,territory})});
+  const d=await r.json();
+  if(d.error){document.getElementById('su-err').textContent=d.error;document.getElementById('su-err').style.display='block';}
+  else window.location='/app';
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>RepRoute</title>
+<style>
+:root{--navy:#0B1F3A;--navy2:#122847;--blue:#1A6FC4;--blue2:#2585E0;--accent:#F97316;--bg:#F4F6F9;--white:#fff;--border:#DDE2EC;--text:#0D1B2A;--text2:#4A5568;--text3:#8898AA;--green:#16A34A;--green-lt:#DCFCE7;--amber:#D97706;--amber-lt:#FEF3C7;--red:#DC2626;--red-lt:#FEE2E2;--sw:240px;--r:10px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+/* SIDEBAR */
+.sidebar{width:var(--sw);background:var(--navy);min-height:100vh;position:fixed;top:0;left:0;bottom:0;z-index:50;display:flex;flex-direction:column}
+.sl{display:flex;align-items:center;gap:10px;padding:1.25rem 1rem 1rem;border-bottom:1px solid rgba(255,255,255,.08)}
+.lm{width:34px;height:34px;background:var(--blue);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.lm svg{width:18px;height:18px}
+.lt{color:#fff;font-size:16px;font-weight:700}
+.ls{color:rgba(255,255,255,.45);font-size:10px;letter-spacing:.06em;text-transform:uppercase}
+.ss{padding:.75rem .75rem .25rem}
+.ssl{font-size:10px;font-weight:600;color:rgba(255,255,255,.35);letter-spacing:.1em;text-transform:uppercase;padding:0 .5rem;margin-bottom:4px}
+.ni{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer;color:rgba(255,255,255,.65);font-size:13.5px;font-weight:500;margin-bottom:2px;transition:all .15s;border:none;background:transparent;width:100%;text-align:left}
+.ni:hover{background:rgba(255,255,255,.08);color:#fff}
+.ni.active{background:var(--blue);color:#fff}
+.ni-icon{width:18px;text-align:center;font-size:15px;flex-shrink:0}
+.sb{margin-top:auto;padding:1rem;border-top:1px solid rgba(255,255,255,.08)}
+.uc{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,.06);margin-bottom:8px}
+.ua{width:30px;height:30px;border-radius:50%;background:var(--blue);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0}
+.un{color:#fff;font-size:13px;font-weight:500}
+.ur{color:rgba(255,255,255,.4);font-size:11px}
+.sob{width:100%;padding:7px;background:transparent;border:1px solid rgba(255,255,255,.12);border-radius:8px;color:rgba(255,255,255,.5);font-size:12px;cursor:pointer;transition:all .15s}
+.sob:hover{background:rgba(255,255,255,.06);color:rgba(255,255,255,.8)}
+/* MAIN */
+.main{margin-left:var(--sw);min-height:100vh}
+.topbar{background:var(--white);border-bottom:1px solid var(--border);padding:0 1.5rem;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:40}
+.tb-title{font-size:16px;font-weight:700;color:var(--navy)}
+.tb-right{display:flex;align-items:center;gap:10px}
+.territory-badge{background:var(--navy);color:#fff;font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px}
+.page{display:none;padding:1.5rem}
+.page.active{display:block}
+/* CARDS */
+.card{background:var(--white);border-radius:var(--r);border:1px solid var(--border);box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.ch{padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.ct{font-size:14px;font-weight:700;color:var(--navy)}
+.cb{padding:1.25rem}
+/* STATS */
+.sg{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:1.5rem}
+.sc{background:var(--white);border-radius:var(--r);border:1px solid var(--border);padding:1rem 1.25rem}
+.sl2{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.sv{font-size:28px;font-weight:700;color:var(--navy);line-height:1}
+.ss2{font-size:12px;color:var(--text3);margin-top:4px}
+/* TABLE */
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:9px 12px;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--border);white-space:nowrap;background:#F8FAFC}
+td{padding:10px 12px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tbody tr:hover{background:#F8FBFF}
+/* BADGES */
+.badge{display:inline-block;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;white-space:nowrap}
+.b-deck{background:#EDE9FE;color:#5B21B6}
+.b-window{background:#DBEAFE;color:#1E40AF}
+.b-roofing{background:#D1FAE5;color:#065F46}
+.b-dealer{background:#FEE2E2;color:#991B1B}
+.b-distributor{background:#FEF3C7;color:#92400E}
+.b-hot{background:var(--red-lt);color:var(--red)}
+.b-warm{background:var(--amber-lt);color:var(--amber)}
+.b-cold{background:#F1F5F9;color:var(--text3)}
+.b-new{background:#EDE9FE;color:#5B21B6}
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .15s}
+.btn-navy{background:var(--navy);color:#fff}.btn-navy:hover{background:var(--blue)}
+.btn-blue{background:var(--blue);color:#fff}.btn-blue:hover{background:var(--blue2)}
+.btn-outline{background:transparent;border:1px solid var(--border);color:var(--text2)}.btn-outline:hover{background:var(--bg)}
+.btn-accent{background:var(--accent);color:#fff}.btn-accent:hover{background:#EA6C00}
+.btn-green{background:var(--green);color:#fff}.btn-green:hover{background:#15803D}
+.btn-sm{padding:5px 11px;font-size:12px}
+.btn-xs{padding:3px 8px;font-size:11px}
+/* AI BOX */
+.ai-box{background:linear-gradient(135deg,var(--navy) 0%,#1A3A5C 100%);border-radius:var(--r);padding:1.25rem;margin-bottom:1.5rem}
+.ai-hdr{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.ai-badge{background:var(--accent);color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;letter-spacing:.06em}
+.ai-title{color:#fff;font-size:14px;font-weight:600}
+.ai-row{display:flex;gap:8px}
+.ai-in{flex:1;padding:9px 12px;border-radius:8px;border:none;font-size:13px;color:var(--text);background:rgba(255,255,255,.95);outline:none}
+.ai-send{padding:9px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+.ai-send:hover{background:#EA6C00}
+.ai-qb{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.ai-q{padding:5px 12px;background:rgba(255,255,255,.12);color:rgba(255,255,255,.85);border:1px solid rgba(255,255,255,.15);border-radius:20px;font-size:11px;font-weight:500;cursor:pointer;transition:all .15s}
+.ai-q:hover{background:rgba(255,255,255,.2)}
+.ai-resp{background:rgba(255,255,255,.08);border-radius:8px;padding:12px;margin-top:12px;color:rgba(255,255,255,.9);font-size:13px;line-height:1.6;display:none;max-height:400px;overflow-y:auto}
+.ai-resp.vis{display:block}
+.dots{display:inline-flex;gap:4px;align-items:center}
+.dot{width:6px;height:6px;background:var(--accent);border-radius:50%;animation:pulse 1.2s infinite}
+.dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}
+@keyframes pulse{0%,80%,100%{opacity:.3;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}
+/* FILTERS */
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:1rem}
+.fc{padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--white);color:var(--text2);transition:all .15s}
+.fc:hover{border-color:var(--blue);color:var(--blue)}
+.fc.active{background:var(--navy);color:#fff;border-color:var(--navy)}
+.si{padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text);background:var(--white);outline:none;min-width:200px;flex:1}
+.si:focus{border-color:var(--blue)}
+/* MODAL */
+.mo{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;align-items:center;justify-content:center}
+.mo.open{display:flex}
+.mb{background:var(--white);border-radius:16px;padding:1.75rem;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.2)}
+.mb h2{font-size:16px;font-weight:700;color:var(--navy);margin-bottom:1.25rem}
+.mf{display:flex;justify-content:flex-end;gap:8px;margin-top:1.25rem}
+.fg{margin-bottom:14px}
+.fg label{display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
+.fg input,.fg select,.fg textarea{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text);background:var(--white);outline:none;transition:border-color .15s}
+.fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--blue)}
+.fg textarea{resize:vertical;min-height:80px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+/* LEAD CARDS */
+.lead-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-top:1rem}
+.lead-card{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:1rem;transition:all .15s}
+.lead-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.08);border-color:var(--blue)}
+.lead-card.selected{border-color:var(--green);background:#F0FDF4}
+.lc-name{font-size:14px;font-weight:700;color:var(--navy);margin-bottom:4px}
+.lc-meta{font-size:12px;color:var(--text3);margin-bottom:8px}
+.lc-prod{font-size:11px;color:var(--text2);margin-bottom:8px;line-height:1.4}
+.lc-note{font-size:12px;color:var(--text2);font-style:italic;margin-bottom:8px;line-height:1.4}
+/* CALL LIST */
+.cg{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.cd{background:var(--white);border-radius:var(--r);border:1px solid var(--border);overflow:hidden}
+.cdh{padding:10px 14px;background:var(--navy);color:#fff;font-size:13px;font-weight:700}
+.ci{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
+.ci:last-child{border-bottom:none}
+.ci:hover{background:#F8FBFF}
+.cn{width:22px;height:22px;border-radius:50%;background:var(--navy);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.cinfo{flex:1}
+.cname{font-size:13px;font-weight:600;color:var(--text)}
+.cmeta{font-size:11px;color:var(--text3)}
+/* ONBOARDING */
+.ob-week{background:var(--white);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;overflow:hidden}
+.ob-wh{padding:10px 16px;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:space-between;cursor:pointer}
+.ob-wt{font-size:13px;font-weight:700}
+.ob-ws{font-size:11px;opacity:.6}
+.ob-wb{padding:1rem;display:none}
+.ob-wb.open{display:block}
+.ob-day{padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px}
+.ob-dt{font-size:12px;font-weight:700;color:var(--navy);margin-bottom:2px}
+.ob-dc{font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:4px}
+.ob-da{font-size:11px;color:var(--blue);font-weight:600}
+/* MANAGER */
+.rep-card{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:1.25rem;margin-bottom:12px}
+.rep-top{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.rep-av{width:40px;height:40px;border-radius:50%;background:var(--blue);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0}
+.rep-name{font-size:15px;font-weight:700;color:var(--navy)}
+.rep-meta{font-size:12px;color:var(--text3)}
+.rep-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.rs{background:var(--bg);border-radius:8px;padding:8px 10px;text-align:center}
+.rs-val{font-size:18px;font-weight:700;color:var(--navy)}
+.rs-lbl{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.04em}
+/* TOAST */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--navy);color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;z-index:999;transform:translateY(80px);opacity:0;transition:all .3s}
+.toast.show{transform:translateY(0);opacity:1}
+/* OUTREACH */
+.oc{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:1.25rem;margin-bottom:10px}
+.ot{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+.ocont{font-size:13px;color:var(--text);line-height:1.6;white-space:pre-wrap}
+.cp{display:inline-flex;align-items:center;gap:5px;margin-top:8px;padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer}
+.cp:hover{background:var(--navy);color:#fff;border-color:var(--navy)}
+/* PROGRESS */
+.pr{display:flex;gap:12px;align-items:center;margin-bottom:10px}
+.prl{font-size:12px;color:var(--text2);min-width:100px}
+.prt{flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+.prf{height:100%;border-radius:3px}
+.prv{font-size:12px;font-weight:600;color:var(--text2);min-width:25px;text-align:right}
+/* WEEK PLAN */
+.wp-day{background:var(--white);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px}
+.wp-dh{padding:10px 16px;background:var(--navy);color:#fff;border-radius:var(--r) var(--r) 0 0;display:flex;align-items:center;justify-content:space-between}
+.wp-dn{font-size:13px;font-weight:700}
+.wp-df{font-size:11px;opacity:.65}
+.wp-call{display:flex;gap:12px;align-items:flex-start;padding:10px 14px;border-bottom:1px solid var(--border)}
+.wp-call:last-child{border-bottom:none}
+.wp-ci{width:24px;height:24px;border-radius:50%;background:var(--blue);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.wp-cc{flex:1}
+.wp-cn{font-size:13px;font-weight:600;color:var(--navy)}
+.wp-cm{font-size:12px;color:var(--text3)}
+.wp-ca{font-size:12px;color:var(--text2);margin-top:2px}
+.wp-tip{background:var(--amber-lt);border-left:3px solid var(--amber);padding:8px 12px;font-size:12px;color:#92400E;margin:0 14px 10px;border-radius:0 4px 4px 0}
+@media(max-width:768px){.sidebar{width:200px}.main{margin-left:200px}.sg{grid-template-columns:repeat(2,1fr)}.cg{grid-template-columns:1fr}.g2{grid-template-columns:1fr}.g3{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="sl">
+    <div class="lm"><svg viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="3" fill="white"/><path d="M9 2L9 5M9 13L9 16M2 9L5 9M13 9L16 9" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+    <div><div class="lt">RepRoute</div><div class="ls">Compton Group LLC</div></div>
+  </div>
+  <div class="ss"><div class="ssl">Overview</div>
+    <button class="ni active" onclick="go('dashboard')"><span class="ni-icon">📊</span>Dashboard</button>
+  </div>
+  <div class="ss"><div class="ssl">Territory</div>
+    <button class="ni" onclick="go('leads')"><span class="ni-icon">🔍</span>AI Lead Finder</button>
+    <button class="ni" onclick="go('prospects')"><span class="ni-icon">🎯</span>Prospect Database</button>
+    <button class="ni" onclick="go('calls')"><span class="ni-icon">📞</span>Call Tracker</button>
+    <button class="ni" onclick="go('weekly')"><span class="ni-icon">📅</span>Weekly Plan</button>
+  </div>
+  <div class="ss"><div class="ssl">AI Tools</div>
+    <button class="ni" onclick="go('command')"><span class="ni-icon">⚡</span>AI Command</button>
+    <button class="ni" onclick="go('outreach')"><span class="ni-icon">📣</span>Outreach Writer</button>
+  </div>
+  <div class="ss"><div class="ssl">Training</div>
+    <button class="ni" onclick="go('onboarding')"><span class="ni-icon">🎓</span>Onboarding Plan</button>
+  </div>
+  <div class="ss manager-only" style="display:none"><div class="ssl">Manager</div>
+    <button class="ni" onclick="go('manager')"><span class="ni-icon">👥</span>Team Dashboard</button>
+  </div>
+  <div class="sb">
+    <div class="uc">
+      <div class="ua" id="s-av">JM</div>
+      <div><div class="un" id="s-name">Loading...</div><div class="ur" id="s-role">Rep</div></div>
+    </div>
+    <button class="sob" onclick="signOut()">Sign Out</button>
+  </div>
+</aside>
+
+<main class="main">
+  <div class="topbar">
+    <div class="tb-title" id="page-title">Dashboard</div>
+    <div class="tb-right">
+      <span class="territory-badge" id="tb-territory">📍 Atlanta Metro</span>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="page active" id="page-dashboard">
+    <div class="sg" id="dash-stats">
+      <div class="sc"><div class="sl2">Prospects</div><div class="sv">—</div></div>
+      <div class="sc"><div class="sl2">🔥 Hot</div><div class="sv" style="color:var(--red)">—</div></div>
+      <div class="sc"><div class="sl2">Calls Logged</div><div class="sv">—</div></div>
+      <div class="sc"><div class="sl2">Products</div><div class="sv" style="color:var(--blue)">5</div><div class="ss2">Lines represented</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:14px;margin-bottom:14px">
+      <div class="card">
+        <div class="ch"><span class="ct">🔥 Hot Prospects</span><button class="btn btn-outline btn-sm" onclick="go('prospects')">View All</button></div>
+        <div class="tw"><table><thead><tr><th>Company</th><th>Type</th><th>City</th><th>Status</th></tr></thead><tbody id="dash-hot"></tbody></table></div>
+      </div>
+      <div class="card">
+        <div class="ch"><span class="ct">📦 Line Coverage</span></div>
+        <div class="cb" id="dash-coverage"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ch"><span class="ct">📞 Recent Activity</span><button class="btn btn-outline btn-sm" onclick="go('calls')">Call Tracker</button></div>
+      <div class="tw"><table><thead><tr><th>Company</th><th>Type</th><th>Outcome</th><th>Next Step</th><th>Date</th></tr></thead><tbody id="dash-calls"></tbody></table></div>
+    </div>
+  </div>
+
+  <!-- AI LEAD FINDER -->
+  <div class="page" id="page-leads">
+    <div class="card" style="margin-bottom:1.25rem">
+      <div class="ch"><span class="ct">⚡ AI Lead Finder — Real Businesses, Real Contacts</span></div>
+      <div class="cb">
+        <p style="font-size:13px;color:var(--text2);margin-bottom:1rem">Select a category and hit Search — AI will search the web and return real businesses in your territory ready to be added to your database.</p>
+        <div class="g3" style="margin-bottom:1rem">
+          <div class="fg" style="margin:0"><label>Category</label>
+            <select id="lead-cat">
+              <option value="Deck Contractor">Deck Contractors</option>
+              <option value="Window & Door Installer">Window & Door Installers</option>
+              <option value="Commercial Roofing Contractor">Commercial Roofers</option>
+              <option value="Building Material Dealer">Building Material Dealers</option>
+              <option value="Building Products Distributor">Distributors</option>
+            </select>
+          </div>
+          <div class="fg" style="margin:0"><label>Territory</label>
+            <input type="text" id="lead-territory" placeholder="Atlanta Metro, GA" /></div>
+          <div style="display:flex;align-items:flex-end">
+            <button class="btn btn-accent" style="width:100%" onclick="findLeads()">🔍 Search AI Leads</button>
+          </div>
+        </div>
+        <div id="lead-searching" style="display:none;text-align:center;padding:2rem;color:var(--text3)">
+          <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+          <div style="margin-top:8px;font-size:13px">AI is searching the web for real leads...</div>
+        </div>
+        <div id="lead-results" style="display:none">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div style="font-size:13px;font-weight:600;color:var(--navy)" id="lead-count"></div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-outline btn-sm" onclick="selectAllLeads()">Select All</button>
+              <button class="btn btn-green btn-sm" onclick="saveLeads()">💾 Save Selected to Database</button>
+            </div>
+          </div>
+          <div class="lead-grid" id="lead-grid"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROSPECTS -->
+  <div class="page" id="page-prospects">
+    <div class="card">
+      <div class="ch"><span class="ct">Prospect Database</span>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-accent btn-sm" onclick="go('leads')">⚡ Find AI Leads</button>
+          <button class="btn btn-navy btn-sm" onclick="openModal('add-prospect')">+ Add Manual</button>
+        </div>
+      </div>
+      <div class="cb" style="padding-bottom:0">
+        <div class="filters">
+          <input class="si" id="p-search" placeholder="Search company, city, contact..." oninput="loadProspects()" />
+          <button class="fc active" onclick="setPF('All')">All</button>
+          <button class="fc" onclick="setPF('Deck Contractor')">Deck</button>
+          <button class="fc" onclick="setPF('Window & Door Installer')">Window/Door</button>
+          <button class="fc" onclick="setPF('Commercial Roofing Contractor')">Roofing</button>
+          <button class="fc" onclick="setPF('Building Material Dealer')">Dealers</button>
+          <button class="fc" onclick="setPF('Building Products Distributor')">Distributors</button>
+        </div>
+      </div>
+      <div class="tw">
+        <table>
+          <thead><tr><th>Company</th><th>Category</th><th>City</th><th>Contact</th><th>Phone</th><th>Products</th><th>Status</th><th>Source</th><th></th></tr></thead>
+          <tbody id="prospects-tbody"></tbody>
+        </table>
+        <div style="text-align:center;padding:2.5rem;color:var(--text3);font-size:14px;display:none" id="p-empty">No prospects yet. Use AI Lead Finder to get started.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CALL TRACKER -->
+  <div class="page" id="page-calls">
+    <div style="display:flex;gap:14px;margin-bottom:1.25rem">
+      <div class="card" style="flex:1">
+        <div class="ch"><span class="ct">📞 Log a Call</span></div>
+        <div class="cb">
+          <div class="g2">
+            <div class="fg"><label>Prospect</label>
+              <select id="call-prospect"><option value="">Select prospect...</option></select>
+            </div>
+            <div class="fg"><label>Date</label><input type="date" id="call-date" /></div>
+          </div>
+          <div class="g2">
+            <div class="fg"><label>Call Type</label>
+              <select id="call-type">
+                <option>Phone Call</option><option>In-Person Visit</option><option>Email</option><option>Text</option><option>Jobsite Visit</option>
+              </select>
+            </div>
+            <div class="fg"><label>Outcome</label>
+              <select id="call-outcome">
+                <option>Left Voicemail</option><option>Spoke - Interested</option><option>Spoke - Not Interested</option><option>Ready to Buy</option><option>Follow Up Needed</option><option>Demo Scheduled</option><option>Order Placed</option>
+              </select>
+            </div>
+          </div>
+          <div class="fg"><label>Products Discussed</label>
+            <input type="text" id="call-products" placeholder="e.g. Soudal sealants, ShurTape flashing" />
+          </div>
+          <div class="g2">
+            <div class="fg"><label>Next Step</label><input type="text" id="call-nextstep" placeholder="e.g. Send samples, Follow up Friday" /></div>
+            <div class="fg"><label>Next Step Date</label><input type="date" id="call-nextdate" /></div>
+          </div>
+          <div class="fg"><label>Notes</label><textarea id="call-notes" placeholder="Call notes..."></textarea></div>
+          <button class="btn btn-navy" onclick="logCall()">Log Call</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ch"><span class="ct">Call History</span></div>
+      <div class="tw">
+        <table>
+          <thead><tr><th>Date</th><th>Company</th><th>Type</th><th>Outcome</th><th>Products</th><th>Next Step</th><th>Next Step Date</th></tr></thead>
+          <tbody id="calls-tbody"></tbody>
+        </table>
+        <div style="text-align:center;padding:2rem;color:var(--text3);font-size:14px;display:none" id="calls-empty">No calls logged yet. Log your first call above.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WEEKLY PLAN -->
+  <div class="page" id="page-weekly">
+    <div class="ai-box">
+      <div class="ai-hdr"><span class="ai-badge">⚡ AI</span><span class="ai-title">AI Weekly Plan Generator</span></div>
+      <p style="color:rgba(255,255,255,.7);font-size:13px;margin-bottom:12px">AI analyzes your prospects and call history to build an optimized 5-day call schedule.</p>
+      <button class="ai-send" onclick="generateWeekly()" style="width:auto">⚡ Generate This Week's Plan</button>
+      <div class="ai-resp" id="weekly-loading"></div>
+    </div>
+    <div id="weekly-plan-container"></div>
+  </div>
+
+  <!-- AI COMMAND -->
+  <div class="page" id="page-command">
+    <div class="ai-box">
+      <div class="ai-hdr"><span class="ai-badge">⚡ LIVE AI</span><span class="ai-title">Command Center</span></div>
+      <div class="ai-row">
+        <input class="ai-in" id="cmd-input" placeholder="Ask anything — strategy, objections, pricing, market intel, Atlanta territory..." />
+        <button class="ai-send" onclick="runCmd()">Ask →</button>
+      </div>
+      <div class="ai-qb">
+        <button class="ai-q" onclick="setQ('cmd-input','What are the best talking points for selling Fortress Steel Framing to a deck contractor in Atlanta?')">Fortress pitch</button>
+        <button class="ai-q" onclick="setQ('cmd-input','What objections will I face selling Soudal/Boss to contractors who already use another brand?')">Handle objections</button>
+        <button class="ai-q" onclick="setQ('cmd-input','How do I get a building material dealer to give our products prime shelf placement?')">Get shelf space</button>
+        <button class="ai-q" onclick="setQ('cmd-input','What is the best way to cold call a commercial roofing contractor for the first time?')">Cold call script</button>
+        <button class="ai-q" onclick="setQ('cmd-input','Give me a 30-second elevator pitch for ShurTape flashing tape for a window installer')">ShurTape pitch</button>
+        <button class="ai-q" onclick="setQ('cmd-input','How should I train a summer intern to demonstrate building products on a jobsite?')">Train my intern</button>
+      </div>
+      <div class="ai-resp" id="cmd-resp"></div>
+    </div>
+  </div>
+
+  <!-- OUTREACH WRITER -->
+  <div class="page" id="page-outreach">
+    <div class="ai-box" style="margin-bottom:1.25rem">
+      <div class="ai-hdr"><span class="ai-badge">⚡ AI</span><span class="ai-title">Outreach Writer</span></div>
+      <div class="g3" style="margin-bottom:8px">
+        <div><input class="ai-in" id="out-company" placeholder="Company name (optional)" /></div>
+        <div>
+          <select id="out-cat" style="width:100%;padding:9px 12px;border-radius:8px;border:none;font-size:13px;color:var(--text);background:rgba(255,255,255,.95);outline:none">
+            <option value="Deck Contractor">Deck Contractor</option>
+            <option value="Window & Door Installer">Window & Door Installer</option>
+            <option value="Commercial Roofing Contractor">Commercial Roofer</option>
+            <option value="Building Material Dealer">Dealer</option>
+            <option value="Distributor">Distributor</option>
+          </select>
+        </div>
+        <div>
+          <select id="out-prod" style="width:100%;padding:9px 12px;border-radius:8px;border:none;font-size:13px;color:var(--text);background:rgba(255,255,255,.95);outline:none">
+            <option>Soudal Adhesives & Sealants</option>
+            <option>ShurTape Flashing & Deck Tape</option>
+            <option>Fortress Evolution Steel Framing</option>
+            <option>Fortress Railing</option>
+            <option>Alum-A-Pole Equipment</option>
+          </select>
+        </div>
+      </div>
+      <button class="ai-send" onclick="runOutreach()">Write Outreach</button>
+      <div class="ai-resp" id="out-loading"></div>
+    </div>
+    <div id="out-results"></div>
+  </div>
+
+  <!-- ONBOARDING -->
+  <div class="page" id="page-onboarding">
+    <div class="card" style="margin-bottom:1.25rem">
+      <div class="ch"><span class="ct">🎓 Generate Onboarding Plan</span></div>
+      <div class="cb">
+        <div class="g2">
+          <div class="fg"><label>Rep Name</label><input type="text" id="ob-name" placeholder="e.g. Kody Slate" /></div>
+          <div class="fg"><label>Territory</label><input type="text" id="ob-territory" placeholder="e.g. Atlanta Metro, GA" /></div>
+        </div>
+        <div class="g2">
+          <div class="fg"><label>Start Date</label><input type="date" id="ob-start" /></div>
+          <div class="fg"><label>Focus Products</label>
+            <select id="ob-products">
+              <option value="all">All 5 Products</option>
+              <option value="soudal-shurtape">Soudal + ShurTape</option>
+              <option value="fortress">Fortress (Framing + Railing)</option>
+              <option value="alum">Alum-A-Pole</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-accent" onclick="generateOnboarding()">⚡ Generate 30-Day Plan</button>
+      </div>
+    </div>
+    <div id="ob-loading" style="display:none;text-align:center;padding:2rem;color:var(--text3)">
+      <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+      <div style="margin-top:8px;font-size:13px">AI is building the onboarding plan...</div>
+    </div>
+    <div id="ob-plan"></div>
+    <div id="ob-my-plan"></div>
+  </div>
+
+  <!-- MANAGER DASHBOARD -->
+  <div class="page" id="page-manager">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem">
+      <h2 style="font-size:16px;font-weight:700;color:var(--navy)">Team Dashboard</h2>
+      <button class="btn btn-navy btn-sm" onclick="openModal('add-rep')">+ Add Rep</button>
+    </div>
+    <div id="manager-reps"></div>
+    <div class="card" style="margin-top:14px">
+      <div class="ch"><span class="ct">📋 Recent Team Activity</span></div>
+      <div class="tw"><table><thead><tr><th>Rep</th><th>Company</th><th>Type</th><th>Outcome</th><th>Date</th></tr></thead><tbody id="manager-activity"></tbody></table></div>
+    </div>
+  </div>
+
+</main>
+
+<!-- MODALS -->
+<div class="mo" id="modal-add-prospect">
+  <div class="mb">
+    <h2>Add Prospect</h2>
+    <div class="fg"><label>Company Name *</label><input type="text" id="ap-name" /></div>
+    <div class="g2">
+      <div class="fg"><label>Category *</label>
+        <select id="ap-cat">
+          <option value="Deck Contractor">Deck Contractor</option>
+          <option value="Window & Door Installer">Window & Door Installer</option>
+          <option value="Commercial Roofing Contractor">Commercial Roofer</option>
+          <option value="Building Material Dealer">Building Material Dealer</option>
+          <option value="Building Products Distributor">Distributor</option>
+        </select>
+      </div>
+      <div class="fg"><label>City</label><input type="text" id="ap-city" placeholder="Atlanta" /></div>
+    </div>
+    <div class="g2">
+      <div class="fg"><label>Contact Name</label><input type="text" id="ap-contact" /></div>
+      <div class="fg"><label>Phone</label><input type="text" id="ap-phone" /></div>
+    </div>
+    <div class="fg"><label>Products</label><input type="text" id="ap-products" placeholder="e.g. Fortress, ShurTape" /></div>
+    <div class="g2">
+      <div class="fg"><label>Status</label>
+        <select id="ap-status"><option>New</option><option>Warm</option><option>Hot</option><option>Cold</option></select>
+      </div>
+      <div class="fg"><label>Priority</label>
+        <select id="ap-priority"><option>High</option><option>Medium</option><option>Low</option></select>
+      </div>
+    </div>
+    <div class="fg"><label>Notes</label><textarea id="ap-notes"></textarea></div>
+    <div class="mf">
+      <button class="btn btn-outline" onclick="closeModal('add-prospect')">Cancel</button>
+      <button class="btn btn-navy" onclick="addProspect()">Add Prospect</button>
+    </div>
+  </div>
+</div>
+
+<div class="mo" id="modal-add-rep">
+  <div class="mb">
+    <h2>Add Team Member</h2>
+    <div class="g2">
+      <div class="fg"><label>Full Name *</label><input type="text" id="ar-name" /></div>
+      <div class="fg"><label>Email *</label><input type="email" id="ar-email" /></div>
+    </div>
+    <div class="g2">
+      <div class="fg"><label>Territory</label><input type="text" id="ar-territory" placeholder="Atlanta Metro" /></div>
+      <div class="fg"><label>Temp Password</label><input type="text" id="ar-pw" placeholder="reproute2025" /></div>
+    </div>
+    <div class="mf">
+      <button class="btn btn-outline" onclick="closeModal('add-rep')">Cancel</button>
+      <button class="btn btn-navy" onclick="addRep()">Add Rep</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── STATE ────────────────────────────────────────────────
+let currentUser = null;
+let allProspects = [];
+let categoryFilter = 'All';
+let foundLeads = [];
+let selectedLeads = new Set();
+
+// ── INIT ─────────────────────────────────────────────────
+window.onload = async () => {
+  const r = await fetch('/app/data');
+  if (r.status === 401) { window.location='/'; return; }
+  // Get user from session via a small endpoint
+  const userData = await fetch('/api/ai/command', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:'hi'})});
+  // Fallback: parse from cookie or just load data
+  loadDashboard();
+  loadProspects();
+  loadCalls();
+  loadMyOnboarding();
+  setTodayDate();
+
+  // Show manager section if applicable
+  const meRes = await fetch('/app/data');
+  const me = await meRes.json();
+  if (me.role === 'manager') {
+    document.querySelectorAll('.manager-only').forEach(el => el.style.display = '');
+  }
+};
+
+function setTodayDate() {
+  const today = new Date().toISOString().split('T')[0];
+  const cd = document.getElementById('call-date');
+  if (cd) cd.value = today;
+}
+
+// ── NAV ──────────────────────────────────────────────────
+const titles = {dashboard:'Dashboard',leads:'AI Lead Finder',prospects:'Prospect Database',calls:'Call Tracker',weekly:'Weekly Plan',command:'AI Command Center',outreach:'Outreach Writer',onboarding:'Onboarding Plan',manager:'Team Dashboard'};
+function go(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.ni').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  document.querySelectorAll('.ni').forEach(n => { if(n.getAttribute('onclick')===`go('${id}')`) n.classList.add('active'); });
+  document.getElementById('page-title').textContent = titles[id] || id;
+  if (id==='manager') loadManager();
+  if (id==='calls') { loadCallProspects(); loadCalls(); }
+  if (id==='weekly') loadWeeklyPlan();
+}
+
+// ── DASHBOARD ────────────────────────────────────────────
+async function loadDashboard() {
+  const r = await fetch('/app/data');
+  const d = await r.json();
+  if (d.error) return;
+  const s = d.stats;
+  document.getElementById('dash-stats').innerHTML = `
+    <div class="sc"><div class="sl2">Prospects</div><div class="sv">${s.prospects}</div><div class="ss2">In database</div></div>
+    <div class="sc"><div class="sl2">🔥 Hot</div><div class="sv" style="color:var(--red)">${s.hot}</div><div class="ss2">Priority targets</div></div>
+    <div class="sc"><div class="sl2">Calls Logged</div><div class="sv">${s.calls}</div><div class="ss2">Total activity</div></div>
+    <div class="sc"><div class="sl2">Products</div><div class="sv" style="color:var(--blue)">5</div><div class="ss2">Lines represented</div></div>`;
+
+  document.getElementById('dash-hot').innerHTML = d.hotProspects.length ?
+    d.hotProspects.map(p=>`<tr><td style="font-weight:600">${p.company}</td><td>${catBadge(p.category)}</td><td style="color:var(--text3)">${p.city||'—'}</td><td><span class="badge b-hot">Hot</span></td></tr>`).join('') :
+    '<tr><td colspan="4" style="text-align:center;color:var(--text3);padding:1rem">No hot prospects yet — use AI Lead Finder!</td></tr>';
+
+  const prods = ['Soudal','ShurTape','Fortress','Alum-A-Pole'];
+  const colors = ['var(--amber)','var(--blue)','var(--green)','var(--red)'];
+  const total = parseInt(s.prospects) || 1;
+  document.getElementById('dash-coverage').innerHTML = prods.map((p,i)=>`
+    <div class="pr"><div class="prl" style="font-size:11px">${p}</div><div class="prt"><div class="prf" style="width:${Math.random()*60+20}%;background:${colors[i]}"></div></div></div>`).join('') +
+    `<div style="font-size:11px;color:var(--text3);margin-top:8px">${total} active prospects in territory</div>`;
+
+  document.getElementById('dash-calls').innerHTML = d.recentCalls.length ?
+    d.recentCalls.map(c=>`<tr><td style="font-weight:600">${c.company}</td><td>${catBadge(c.category)}</td><td>${c.outcome||'—'}</td><td style="color:var(--text2)">${c.next_step||'—'}</td><td style="color:var(--text3)">${c.call_date||'—'}</td></tr>`).join('') :
+    '<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:1rem">No calls logged yet.</td></tr>';
+}
+
+// ── AI LEAD FINDER ───────────────────────────────────────
+async function findLeads() {
+  const category = document.getElementById('lead-cat').value;
+  const territory = document.getElementById('lead-territory').value || 'Atlanta Metro, Georgia';
+  document.getElementById('lead-searching').style.display = 'block';
+  document.getElementById('lead-results').style.display = 'none';
+  foundLeads = []; selectedLeads = new Set();
+  try {
+    const r = await fetch('/api/ai/leads', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({category,territory})});
+    const d = await r.json();
+    if (d.error) { showToast('AI search error — try again'); document.getElementById('lead-searching').style.display='none'; return; }
+    foundLeads = d.leads;
+    renderLeads();
+  } catch(e) { showToast('Search failed'); }
+  document.getElementById('lead-searching').style.display = 'none';
+}
+
+function renderLeads() {
+  const grid = document.getElementById('lead-grid');
+  document.getElementById('lead-results').style.display = 'block';
+  document.getElementById('lead-count').textContent = `${foundLeads.length} leads found — select to add to database`;
+  grid.innerHTML = foundLeads.map((l,i)=>`
+    <div class="lead-card ${selectedLeads.has(i)?'selected':''}" onclick="toggleLead(${i})">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px">
+        <div class="lc-name">${l.company}</div>
+        <span class="badge ${l.priority==='High'?'b-hot':l.priority==='Low'?'b-cold':'b-warm'}" style="font-size:10px">${l.priority}</span>
+      </div>
+      <div class="lc-meta">📍 ${l.city}, ${l.state||'GA'}${l.phone?' · 📞 '+l.phone:''}</div>
+      <div class="lc-prod">🏗️ ${l.products||'Building products'}</div>
+      <div class="lc-note">${l.notes||''}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        ${catBadge(l.category)}
+        <div style="width:20px;height:20px;border-radius:50%;border:2px solid ${selectedLeads.has(i)?'var(--green)':'var(--border)'};background:${selectedLeads.has(i)?'var(--green)':'transparent'};display:flex;align-items:center;justify-content:center">
+          ${selectedLeads.has(i)?'<span style="color:#fff;font-size:11px;font-weight:700">✓</span>':''}
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function toggleLead(i) {
+  if (selectedLeads.has(i)) selectedLeads.delete(i); else selectedLeads.add(i);
+  renderLeads();
+}
+function selectAllLeads() { foundLeads.forEach((_,i)=>selectedLeads.add(i)); renderLeads(); }
+
+async function saveLeads() {
+  if (!selectedLeads.size) { showToast('Select at least one lead'); return; }
+  const toSave = [...selectedLeads].map(i=>foundLeads[i]);
+  const r = await fetch('/api/ai/leads/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({leads:toSave})});
+  const d = await r.json();
+  showToast(`✅ ${d.saved} leads added to database!`);
+  loadProspects();
+  setTimeout(()=>go('prospects'),1500);
+}
+
+// ── PROSPECTS ────────────────────────────────────────────
+async function loadProspects() {
+  const search = (document.getElementById('p-search')||{value:''}).value;
+  const cat = categoryFilter !== 'All' ? `&category=${encodeURIComponent(categoryFilter)}` : '';
+  const q = search ? `&search=${encodeURIComponent(search)}` : '';
+  const r = await fetch(`/api/prospects?${cat}${q}`);
+  allProspects = await r.json();
+  renderProspects();
+}
+function setPF(cat) {
+  categoryFilter = cat;
+  document.querySelectorAll('.fc').forEach(b => b.classList.toggle('active', b.textContent.trim() === (cat==='All'?'All':cat==='Deck Contractor'?'Deck':cat==='Window & Door Installer'?'Window/Door':cat==='Commercial Roofing Contractor'?'Roofing':cat==='Building Material Dealer'?'Dealers':'Distributors')));
+  loadProspects();
+}
+function renderProspects() {
+  const tbody = document.getElementById('prospects-tbody');
+  const empty = document.getElementById('p-empty');
+  if (!allProspects.length) { tbody.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  tbody.innerHTML = allProspects.map(p=>`<tr>
+    <td style="font-weight:600">${p.company}</td>
+    <td>${catBadge(p.category)}</td>
+    <td style="color:var(--text3)">${p.city||'—'}</td>
+    <td>${p.contact||'—'}</td>
+    <td style="color:var(--text3)">${p.phone||'—'}</td>
+    <td style="font-size:11px;color:var(--text2)">${p.products||'—'}</td>
+    <td><span class="badge b-${(p.status||'new').toLowerCase()}">${p.status||'New'}</span></td>
+    <td><span style="font-size:10px;color:var(--text3);background:var(--bg);padding:2px 7px;border-radius:10px">${p.source||'Manual'}</span></td>
+    <td><button class="btn btn-outline btn-xs" onclick="deleteProspect(${p.id})">✕</button></td>
+  </tr>`).join('');
+}
+async function addProspect() {
+  const name = document.getElementById('ap-name').value.trim();
+  if (!name) { showToast('Company name required'); return; }
+  await fetch('/api/prospects',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    company:name, category:document.getElementById('ap-cat').value,
+    city:document.getElementById('ap-city').value, contact:document.getElementById('ap-contact').value,
+    phone:document.getElementById('ap-phone').value, products:document.getElementById('ap-products').value,
+    status:document.getElementById('ap-status').value, priority:document.getElementById('ap-priority').value,
+    notes:document.getElementById('ap-notes').value, source:'Manual'
+  })});
+  closeModal('add-prospect'); loadProspects(); loadDashboard(); showToast('Prospect added!');
+}
+async function deleteProspect(id) {
+  if (!confirm('Remove this prospect?')) return;
+  await fetch(`/api/prospects/${id}`,{method:'DELETE'});
+  loadProspects(); loadDashboard(); showToast('Removed');
+}
+
+// ── CALLS ────────────────────────────────────────────────
+async function loadCallProspects() {
+  const r = await fetch('/api/prospects');
+  const ps = await r.json();
+  const sel = document.getElementById('call-prospect');
+  sel.innerHTML = '<option value="">Select prospect...</option>' + ps.map(p=>`<option value="${p.id}">${p.company} — ${p.city||''}</option>`).join('');
+}
+async function logCall() {
+  const pid = document.getElementById('call-prospect').value;
+  if (!pid) { showToast('Select a prospect'); return; }
+  await fetch('/api/calls',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    prospect_id:pid, call_date:document.getElementById('call-date').value,
+    call_type:document.getElementById('call-type').value, outcome:document.getElementById('call-outcome').value,
+    products_discussed:document.getElementById('call-products').value,
+    next_step:document.getElementById('call-nextstep').value,
+    next_step_date:document.getElementById('call-nextdate').value,
+    notes:document.getElementById('call-notes').value
+  })});
+  showToast('✅ Call logged!');
+  ['call-products','call-nextstep','call-nextdate','call-notes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  loadCalls(); loadDashboard();
+}
+async function loadCalls() {
+  const r = await fetch('/api/calls');
+  const calls = await r.json();
+  const tbody = document.getElementById('calls-tbody');
+  const empty = document.getElementById('calls-empty');
+  if (!calls.length) { tbody.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  tbody.innerHTML = calls.map(c=>`<tr>
+    <td style="color:var(--text3)">${c.call_date||'—'}</td>
+    <td style="font-weight:600">${c.company}</td>
+    <td>${c.call_type||'—'}</td>
+    <td>${c.outcome||'—'}</td>
+    <td style="font-size:12px;color:var(--text2)">${c.products_discussed||'—'}</td>
+    <td style="font-size:12px;color:var(--blue)">${c.next_step||'—'}</td>
+    <td style="color:var(--text3)">${c.next_step_date||'—'}</td>
+  </tr>`).join('');
+}
+
+// ── WEEKLY PLAN ──────────────────────────────────────────
+async function loadWeeklyPlan() {
+  const r = await fetch('/api/weekly/latest');
+  const d = await r.json();
+  if (d.plan) renderWeeklyPlan(d.plan);
+}
+async function generateWeekly() {
+  const loading = document.getElementById('weekly-loading');
+  loading.className = 'ai-resp vis';
+  loading.innerHTML = '<div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div> <span style="margin-left:8px">AI is building your weekly plan...</span>';
+  const r = await fetch('/api/ai/weekly-plan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+  const d = await r.json();
+  loading.className = 'ai-resp';
+  if (d.error) { showToast('Could not generate plan'); return; }
+  renderWeeklyPlan(d.plan);
+}
+function renderWeeklyPlan(plan) {
+  const c = document.getElementById('weekly-plan-container');
+  if (!plan || !plan.days) return;
+  c.innerHTML = `<div style="background:var(--navy);color:#fff;border-radius:var(--r);padding:1rem 1.25rem;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between">
+    <div><div style="font-size:15px;font-weight:700">Week of ${plan.week_of||'This Week'}</div><div style="font-size:12px;opacity:.65;margin-top:2px">${plan.weekly_goal||''}</div></div>
+    <button class="btn btn-outline btn-sm" style="color:#fff;border-color:rgba(255,255,255,.3)" onclick="generateWeekly()">Regenerate</button>
+  </div>` + plan.days.map(day=>`
+    <div class="wp-day">
+      <div class="wp-dh"><span class="wp-dn">${day.day}</span><span class="wp-df">${day.focus||''}</span></div>
+      ${day.calls ? day.calls.map((c,i)=>`<div class="wp-call">
+        <div class="wp-ci">${i+1}</div>
+        <div class="wp-cc">
+          <div class="wp-cn">${c.company}</div>
+          <div class="wp-cm">${c.category||''} · ${c.city||''}</div>
+          <div class="wp-ca">${c.action||''}</div>
+        </div>
+        <span class="badge ${c.priority==='High'?'b-hot':'b-warm'}" style="font-size:10px">${c.priority||'Medium'}</span>
+      </div>`).join('') : ''}
+      ${day.tip ? `<div class="wp-tip">💡 ${day.tip}</div>` : ''}
+    </div>`).join('');
+}
+
+// ── AI COMMAND ───────────────────────────────────────────
+function setQ(id, q) { document.getElementById(id).value = q; }
+async function runCmd() {
+  const prompt = document.getElementById('cmd-input').value.trim();
+  if (!prompt) return;
+  const resp = document.getElementById('cmd-resp');
+  resp.className = 'ai-resp vis';
+  resp.innerHTML = '<div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>';
+  const r = await fetch('/api/ai/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt})});
+  const d = await r.json();
+  resp.innerHTML = (d.response||d.error||'Error').replace(/\n/g,'<br/>');
+}
+
+// ── OUTREACH ─────────────────────────────────────────────
+async function runOutreach() {
+  const loading = document.getElementById('out-loading');
+  loading.className = 'ai-resp vis';
+  loading.innerHTML = '<div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>';
+  const r = await fetch('/api/ai/outreach',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    company:document.getElementById('out-company').value,
+    category:document.getElementById('out-cat').value,
+    products:document.getElementById('out-prod').value
+  })});
+  const d = await r.json();
+  loading.className = 'ai-resp';
+  renderOutreach(d.response||'');
+}
+function renderOutreach(text) {
+  const sections = text.split(/\n(?=\d\.|EMAIL|LINKEDIN|TEXT|FOLLOW)/i).filter(Boolean);
+  document.getElementById('out-results').innerHTML = sections.map(s=>{
+    const lines = s.trim().split('\n');
+    const hdr = lines[0]; const body = lines.slice(1).join('\n').trim();
+    return `<div class="oc"><div class="ot">${hdr}</div><div class="ocont">${body}</div>
+      <button class="cp" onclick="copyText(this,\`${body.replace(/`/g,"'")}\`)">📋 Copy</button></div>`;
+  }).join('') || `<div class="oc"><div class="ocont">${text}</div><button class="cp" onclick="copyText(this,\`${text.replace(/`/g,"'")}\`)">📋 Copy</button></div>`;
+}
+function copyText(btn,text){navigator.clipboard.writeText(text).then(()=>{btn.textContent='✓ Copied!';setTimeout(()=>btn.textContent='📋 Copy',2000)});}
+
+// ── ONBOARDING ───────────────────────────────────────────
+async function generateOnboarding() {
+  const name = document.getElementById('ob-name').value.trim();
+  if (!name) { showToast('Enter rep name'); return; }
+  document.getElementById('ob-loading').style.display = 'block';
+  document.getElementById('ob-plan').innerHTML = '';
+  const r = await fetch('/api/onboarding/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    rep_name:name, rep_territory:document.getElementById('ob-territory').value,
+    start_date:document.getElementById('ob-start').value
+  })});
+  const d = await r.json();
+  document.getElementById('ob-loading').style.display = 'none';
+  if (d.error) { showToast('Error generating plan'); return; }
+  renderOnboarding(d.plan, 'ob-plan');
+}
+async function loadMyOnboarding() {
+  const r = await fetch('/api/onboarding/my-plan');
+  const d = await r.json();
+  if (d.plan) renderOnboarding(d.plan, 'ob-my-plan');
+}
+function renderOnboarding(plan, containerId) {
+  const c = document.getElementById(containerId);
+  if (!plan) return;
+  c.innerHTML = `
+    <div style="background:var(--navy);color:#fff;border-radius:var(--r);padding:1.25rem;margin-bottom:1rem">
+      <div style="font-size:16px;font-weight:700;margin-bottom:4px">30-Day Plan: ${plan.rep_name}</div>
+      <div style="font-size:12px;opacity:.65">${plan.territory} · Start: ${plan.start_date||'TBD'}</div>
+      <div style="font-size:13px;margin-top:8px;opacity:.85;line-height:1.5">${plan.overview||''}</div>
+    </div>
+    ${plan.weeks ? plan.weeks.map(w=>`
+      <div class="ob-week">
+        <div class="ob-wh" onclick="toggleWeek(this)">
+          <span class="ob-wt">Week ${w.week}: ${w.title||''}</span>
+          <span class="ob-ws">${w.focus||''} ▼</span>
+        </div>
+        <div class="ob-wb">
+          ${w.days ? w.days.map(d=>`<div class="ob-day">
+            <div class="ob-dt">${d.day} — ${d.title||''} <span style="font-size:10px;color:var(--text3);font-weight:400">${d.duration||''}</span></div>
+            <div class="ob-dc">${d.content||''}</div>
+            ${d.assignment?`<div class="ob-da">📋 ${d.assignment}</div>`:''}
+          </div>`).join('') : ''}
+          ${w.weekly_goal?`<div style="background:var(--green-lt);border-left:3px solid var(--green);padding:8px 12px;border-radius:0 4px 4px 0;font-size:12px;color:#166534;margin-top:8px">🎯 Weekly Goal: ${w.weekly_goal}</div>`:''}
+        </div>
+      </div>`).join('') : ''}
+    ${plan.daily_expectations?`
+      <div class="card" style="margin-top:12px">
+        <div class="ch"><span class="ct">📊 Daily Expectations</span></div>
+        <div class="cb" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;text-align:center">
+          <div><div style="font-size:24px;font-weight:700;color:var(--navy)">${plan.daily_expectations.calls||10}</div><div style="font-size:11px;color:var(--text3)">Total Calls</div></div>
+          <div><div style="font-size:24px;font-weight:700;color:var(--blue)">${plan.daily_expectations.in_person||5}</div><div style="font-size:11px;color:var(--text3)">In Person</div></div>
+          <div><div style="font-size:24px;font-weight:700;color:var(--green)">${plan.daily_expectations.new_prospects||2}</div><div style="font-size:11px;color:var(--text3)">New Prospects</div></div>
+          <div><div style="font-size:24px;font-weight:700;color:var(--accent)">✓</div><div style="font-size:11px;color:var(--text3)">CRM Updates</div></div>
+        </div>
+      </div>`:''}`;
+}
+function toggleWeek(el) {
+  const body = el.nextElementSibling;
+  body.classList.toggle('open');
+}
+
+// ── MANAGER ──────────────────────────────────────────────
+async function loadManager() {
+  const [repsRes, actRes] = await Promise.all([fetch('/api/manager/reps'),fetch('/api/manager/activity')]);
+  const reps = await repsRes.json();
+  const activity = await actRes.json();
+
+  document.getElementById('manager-reps').innerHTML = reps.map(r=>`
+    <div class="rep-card">
+      <div class="rep-top">
+        <div class="rep-av">${r.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</div>
+        <div><div class="rep-name">${r.name}</div><div class="rep-meta">📍 ${r.territory||'Atlanta Metro'} · ${r.email}</div></div>
+      </div>
+      <div class="rep-stats">
+        <div class="rs"><div class="rs-val">${r.prospect_count}</div><div class="rs-lbl">Prospects</div></div>
+        <div class="rs"><div class="rs-val">${r.hot_count}</div><div class="rs-lbl">🔥 Hot</div></div>
+        <div class="rs"><div class="rs-val">${r.call_count}</div><div class="rs-lbl">Total Calls</div></div>
+        <div class="rs"><div class="rs-val">${r.calls_this_week}</div><div class="rs-lbl">This Week</div></div>
+      </div>
+    </div>`).join('') || '<div style="text-align:center;padding:2rem;color:var(--text3)">No reps added yet.</div>';
+
+  document.getElementById('manager-activity').innerHTML = activity.map(a=>`<tr>
+    <td style="font-weight:600">${a.rep_name}</td>
+    <td>${a.company}</td>
+    <td>${catBadge(a.category)}</td>
+    <td>${a.outcome||'—'}</td>
+    <td style="color:var(--text3)">${a.call_date||'—'}</td>
+  </tr>`).join('') || '<tr><td colspan="5" style="text-align:center;padding:1rem;color:var(--text3)">No activity yet.</td></tr>';
+}
+async function addRep() {
+  const name=document.getElementById('ar-name').value.trim();
+  const email=document.getElementById('ar-email').value.trim();
+  if (!name||!email){showToast('Name and email required');return;}
+  const r=await fetch('/api/manager/add-rep',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    name,email,territory:document.getElementById('ar-territory').value,
+    password:document.getElementById('ar-pw').value||'reproute2025'
+  })});
+  const d=await r.json();
+  if(d.error){showToast(d.error);return;}
+  closeModal('add-rep');loadManager();showToast(`✅ ${name} added!`);
+}
+
+// ── MODALS ───────────────────────────────────────────────
+function openModal(id){document.getElementById('modal-'+id).classList.add('open');}
+function closeModal(id){document.getElementById('modal-'+id).classList.remove('open');}
+document.addEventListener('click',e=>{if(e.target.classList.contains('mo'))e.target.classList.remove('open');});
+
+// ── HELPERS ──────────────────────────────────────────────
+function catBadge(cat) {
+  if (!cat) return '';
+  const cls = cat.includes('Deck')?'b-deck':cat.includes('Window')?'b-window':cat.includes('Roof')?'b-roofing':cat.includes('Dealer')?'b-dealer':'b-distributor';
+  const label = cat.includes('Deck')?'Deck':cat.includes('Window')?'Window/Door':cat.includes('Roof')?'Roofing':cat.includes('Dealer')?'Dealer':'Distributor';
+  return `<span class="badge ${cls}">${label}</span>`;
+}
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
+async function signOut(){await fetch('/logout',{method:'POST'});window.location='/';}
+</script>
+</body>
+</html>
