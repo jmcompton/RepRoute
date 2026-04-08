@@ -18,7 +18,7 @@ router.get('/data', async (req, res) => {
        WHERE c.user_id=$1 ORDER BY c.created_at DESC LIMIT 5`, [uid]);
     const hotProspects = await pool.query(
       "SELECT * FROM prospects WHERE user_id=$1 AND status='Hot' ORDER BY created_at DESC LIMIT 6", [uid]);
-    res.json({
+    res.json({ user: req.session.user,
       stats: {
         prospects: prospects.rows[0].count,
         hot: hot.rows[0].count,
