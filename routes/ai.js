@@ -6,94 +6,148 @@ const router = express.Router();
 const CLAUDE_API = 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-sonnet-4-20250514';
 
-async function callClaude(prompt, useWebSearch = false) {
-  const body = {
-    model: MODEL,
-    max_tokens: 4000,
-    messages: [{ role: 'user', content: prompt }]
-  };
-  if (useWebSearch) {
-    body.tools = [{ type: 'web_search_20250305', name: 'web_search' }];
-    body.max_tokens = 4000;
-  }
+// Standard Claude call (no web search)
+async function callClaude(prompt) {
+  const res = await fetch(CLAUDE_API, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': process.env.ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: 4000,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+  const data = await res.json();
+  if (!data.content) return '';
+  return data.content.filter(b => b.type === 'text').map(b => b.text || '').join('');
+}
+
+// Web search call — properly handles multi-turn tool use
+async function callClaudeWithSearch(prompt) {
   const headers = {
     'Content-Type': 'application/json',
     'x-api-key': process.env.ANTHROPIC_API_KEY,
-    'anthropic-version': '2023-06-01'
+    'anthropic-version': '2023-06-01',
+    'anthropic-beta': 'web-search-2025-03-05'
   };
-  if (useWebSearch) headers['anthropic-beta'] = 'web-search-2025-03-05';
+  const tools = [{ type: 'web_search_20250305', name: 'web_search' }];
+  let messages = [{ role: 'user', content: prompt }];
 
-  const res = await fetch(CLAUDE_API, { method: 'POST', headers, body: JSON.stringify(body) });
-  const data = await res.json();
+  // First call — Claude decides to search
+  const res1 = await fetch(CLAUDE_API, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ model: MODEL, max_tokens: 4000, tools, messages })
+  });
+  const data1 = await res1.json();
+  if (!data1.content) return '';
 
-  // Collect all text from all content blocks (handles web search tool responses)
-  if (!data.content) return '';
-  return data.content
-    .filter(b => b.type === 'text')
-    .map(b => b.text || '')
-    .join('');
+  // Collect any text from first response
+  const text1 = data1.content.filter(b => b.type === 'text').map(b => b.text).join('');
+
+  // If Claude stopped (no tool use), return what we have
+  if (data1.stop_reason !== 'tool_use') return text1;
+
+  // Build messages with assistant response + tool results
+  messages.push({ role: 'assistant', content: data1.content });
+
+  // Add tool results for each tool_use block
+  const toolResults = data1.content
+    .filter(b => b.type === 'tool_use')
+    .map(b => ({
+      type: 'tool_result',
+      tool_use_id: b.id,
+      content: b.input ? JSON.stringify(b.input) : 'search completed'
+    }));
+
+  if (toolResults.length > 0) {
+    messages.push({ role: 'user', content: toolResults });
+  }
+
+  // Second call — Claude processes search results and responds
+  const res2 = await fetch(CLAUDE_API, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ model: MODEL, max_tokens: 4000, tools, messages })
+  });
+  const data2 = await res2.json();
+  if (!data2.content) return text1;
+
+  const text2 = data2.content.filter(b => b.type === 'text').map(b => b.text).join('');
+  return text1 + text2;
 }
 
-// AI Lead Finder — single optimized search for ~25 leads
+// Extract JSON array from any text
+function extractJSON(text) {
+  const start = text.indexOf('[');
+  const end = text.lastIndexOf(']');
+  if (start === -1 || end === -1 || end < start) return null;
+  try {
+    return JSON.parse(text.substring(start, end + 1));
+  } catch(e) {
+    // Try to fix truncated JSON
+    const lastBrace = text.lastIndexOf('}');
+    if (lastBrace > start) {
+      try {
+        return JSON.parse(text.substring(start, lastBrace + 1) + ']');
+      } catch(e2) { return null; }
+    }
+    return null;
+  }
+}
+
+// AI Lead Finder
 router.post('/leads', async (req, res) => {
   const { category, territory } = req.body;
   const user = req.session.user;
   const loc = territory || user.territory || 'Atlanta Metro, Georgia';
   const product = req.body.product || category;
 
-  const prompt = `You are a field sales intelligence AI for Compton Group LLC, a manufacturer's rep company.
+  const prompt = `Search the web, Google Maps, LinkedIn, Facebook, and Instagram to find 25 real businesses in "${loc}" that are prospects for a manufacturer's rep selling ${product}.
 
-Search the web and find 25 REAL businesses across the entire "${loc}" area that are strong prospects for: "${category}".
-We sell: ${product}
+Target business type: ${category}
 
-Cover a wide geographic spread — include businesses from different cities across the metro area.
+Search specifically for businesses in these Atlanta area cities: Atlanta, Marietta, Kennesaw, Alpharetta, Roswell, Smyrna, Sandy Springs, Dunwoody, Decatur, Norcross, Duluth, Lawrenceville, Buford, Cumming, Woodstock, Canton, Peachtree City, Newnan.
 
-Return ONLY a valid JSON array, no markdown, no explanation, nothing before or after:
+For each business found, return its real contact information.
+
+YOU MUST return ONLY a JSON array starting with [ and ending with ]. No other text before or after. No markdown. Just the raw JSON array:
+
 [
   {
-    "company": "Exact Business Name",
+    "company": "Business Name",
     "category": "Business Type",
-    "address": "Street address or null",
-    "city": "City Name",
+    "address": "street address or null",
+    "city": "city name",
     "state": "GA",
-    "phone": "xxx-xxx-xxxx or null",
+    "phone": "phone number or null",
     "email": "email or null",
-    "website": "website.com or null",
-    "contact": "Owner or Manager name or null",
-    "products": "which of our products they need",
+    "website": "website or null",
+    "contact": "owner or manager name or null",
+    "products": "which products they would buy",
     "priority": "High or Medium or Low"
   }
 ]
 
-Rules:
-- Only REAL businesses that actually exist
-- Include phone number whenever findable
-- Include address whenever findable  
-- No descriptions, no summaries, no notes field
-- Spread across different cities in the metro area
-- Return valid JSON array only`;
+Start your response with [ immediately. No preamble.`;
 
   try {
-    const text = await callClaude(prompt, true);
-    // Try to find a JSON array anywhere in the response
-    const match = text.match(/\[[\s\S]*?\]/s) || text.match(/\[[\s\S]*/);
-    if (!match) {
-      return res.json({ error: 'Could not parse leads. Try again.', raw: 'No JSON found. Response: ' + text.substring(0, 200) });
+    const text = await callClaudeWithSearch(prompt);
+    const leads = extractJSON(text);
+    if (!leads) {
+      return res.json({ error: 'Could not parse leads. Try again.', raw: text.substring(0, 200) });
     }
-    let jsonStr = match[0];
-    // Make sure it ends with ]
-    if (!jsonStr.trim().endsWith(']')) {
-      const lastBrace = jsonStr.lastIndexOf('}');
-      if (lastBrace > -1) jsonStr = jsonStr.substring(0, lastBrace + 1) + ']';
-    }
-    const leads = JSON.parse(jsonStr);
     res.json({ leads: Array.isArray(leads) ? leads : [] });
   } catch (e) {
     res.json({ error: 'Could not parse leads. Try again.', raw: e.message });
   }
 });
 
-// Save AI leads to database
+// Save leads to CRM
 router.post('/leads/save', async (req, res) => {
   const uid = req.session.user.id;
   const { leads } = req.body;
@@ -102,9 +156,9 @@ router.post('/leads/save', async (req, res) => {
     try {
       const result = await pool.query(
         `INSERT INTO prospects (user_id, company, category, city, state, phone, contact, website, products, notes, priority, source)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'AI') 
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'AI')
          ON CONFLICT DO NOTHING RETURNING *`,
-        [uid, l.company, l.category, l.city, l.state || 'GA', l.phone, l.contact, l.website, l.products, l.notes, l.priority || 'Medium']
+        [uid, l.company, l.category, l.city, l.state || 'GA', l.phone, l.contact, l.website, l.products, l.notes || '', l.priority || 'Medium']
       );
       if (result.rows[0]) saved.push(result.rows[0]);
     } catch (e) {}
@@ -112,42 +166,34 @@ router.post('/leads/save', async (req, res) => {
   res.json({ saved: saved.length });
 });
 
-// AI Command — general Q&A
+// AI Command Center
 router.post('/command', async (req, res) => {
   const { prompt } = req.body;
   const user = req.session.user;
-  const full = `You are a field sales intelligence assistant for RepRoute, built by Compton Group LLC. 
-The rep's name is ${user.name}, territory: ${user.territory || 'Atlanta Metro'}.
-Product lines: Soudal Adhesives & Sealants, ShurTape Flashing & Deck Tape, Fortress Evolution Steel Framing, Fortress Railing, Alum-A-Pole Equipment.
-Target customers: Deck Contractors, Window & Door Installers, Commercial Roofers, Dealers & Distributors.
-
+  const full = `You are an expert sales coach for Compton Group LLC, a manufacturer's rep in Atlanta, GA.
+Products: Soudal Adhesives & Sealants, ShurTape Flashing & Deck Tape, Fortress Evolution Steel Framing, Fortress Railing, Alum-A-Pole Equipment.
+Customers: Deck Contractors, Window & Door Installers, Commercial Roofers, Building Material Dealers, Distributors.
+Rep: ${user.name}, Territory: ${user.territory || 'Atlanta Metro'}
 Question: ${prompt}
-
-Be specific, practical, and Atlanta/Southeast market focused.`;
+Give a specific, actionable, concise response.`;
   try {
-    const text = await callClaude(full, true);
+    const text = await callClaude(full);
     res.json({ response: text });
   } catch (e) {
     res.json({ error: 'AI error' });
   }
 });
 
-// AI Outreach writer
+// Outreach Writer
 router.post('/outreach', async (req, res) => {
-  const { company, category, products, contact } = req.body;
+  const { company, category, products } = req.body;
   const user = req.session.user;
-  const prompt = `Write 3 outreach messages for a manufacturer's rep at Compton Group LLC in ${user.territory || 'Atlanta Metro'}.
-
-Target: ${company || 'a ' + category} (${category})
-Products to pitch: ${products}
-Contact name: ${contact || 'the owner/manager'}
-
-Write:
-1. EMAIL — subject line + body (professional, 5-7 sentences)
-2. LINKEDIN MESSAGE — concise, 3-4 sentences  
-3. FOLLOW-UP TEXT — after a first call, 2-3 sentences
-
-Label each clearly. Be specific to building products industry.`;
+  const prompt = `Write 3 outreach messages for a manufacturer's rep selling ${products} to ${company || 'a ' + category} in Atlanta.
+Rep: ${user.name} from Compton Group LLC.
+1. EMAIL - subject + body (under 150 words)
+2. LINKEDIN - connection message (under 300 chars)
+3. TEXT - follow up text (under 160 chars)
+Keep it specific, relationship-based, not pushy.`;
   try {
     const text = await callClaude(prompt);
     res.json({ response: text });
@@ -156,60 +202,29 @@ Label each clearly. Be specific to building products industry.`;
   }
 });
 
-// AI Weekly Plan generator
+// Weekly Plan
 router.post('/weekly-plan', async (req, res) => {
   const uid = req.session.user.id;
   const user = req.session.user;
-
-  // Get prospects and recent calls
   const prospects = await pool.query(
-    "SELECT * FROM prospects WHERE user_id=$1 ORDER BY CASE priority WHEN 'High' THEN 1 WHEN 'Medium' THEN 2 ELSE 3 END, CASE status WHEN 'Hot' THEN 1 WHEN 'Warm' THEN 2 ELSE 3 END LIMIT 30", [uid]);
+    "SELECT * FROM prospects WHERE user_id=$1 ORDER BY CASE priority WHEN 'High' THEN 1 WHEN 'Medium' THEN 2 ELSE 3 END LIMIT 30", [uid]);
   const recentCalls = await pool.query(
     "SELECT c.*, p.company FROM calls c JOIN prospects p ON c.prospect_id=p.id WHERE c.user_id=$1 ORDER BY c.call_date DESC LIMIT 10", [uid]);
 
-  const prompt = `You are a sales manager AI for RepRoute. Build a 5-day weekly call plan for ${user.name}.
-
-Territory: ${user.territory || 'Atlanta Metro'}
-Products: Soudal Adhesives & Sealants, ShurTape Flashing & Deck Tape, Fortress Evolution Steel Framing, Fortress Railing, Alum-A-Pole Equipment
-
-Available prospects (prioritized):
-${prospects.rows.map(p => `- ${p.company} (${p.category}, ${p.city}, Status: ${p.status}, Priority: ${p.priority})`).join('\n')}
-
-Recent call history:
-${recentCalls.rows.map(c => `- ${c.company}: ${c.outcome} on ${c.call_date}, next step: ${c.next_step}`).join('\n') || 'No recent calls'}
-
-Weekly rhythm rules:
-- Monday: Dealer/Distributor focus + planning
-- Tuesday: Deck Contractor calls
-- Wednesday: Window & Door Installer calls
-- Thursday: Jobsite visits + Commercial Roofers
-- Friday: Follow-ups + prospects needing next step
-
-Return ONLY a JSON object (no markdown):
-{
-  "week_of": "Apr 7, 2025",
-  "days": [
-    {
-      "day": "Monday",
-      "focus": "Focus description",
-      "calls": [
-        { "company": "name", "category": "type", "city": "city", "action": "what to do/say", "priority": "High/Medium" }
-      ],
-      "tip": "Manager coaching tip for the day"
-    }
-  ],
-  "weekly_goal": "Overall goal statement for the week"
-}`;
+  const prompt = `Build a 5-day weekly call plan as JSON for ${user.name}, a manufacturer's rep in ${user.territory || 'Atlanta Metro'}.
+Products: Soudal, ShurTape, Fortress, Alum-A-Pole.
+Prospects: ${prospects.rows.map(p => p.company + ' (' + p.category + ', ' + p.city + ', ' + p.priority + ')').join('; ') || 'none yet'}
+Recent calls: ${recentCalls.rows.map(c => c.company + ': ' + c.outcome).join('; ') || 'none'}
+Return ONLY this JSON (start with { end with }):
+{"week_of":"April 2025","weekly_goal":"goal","days":[{"day":"Monday","focus":"focus","calls":[{"company":"name","category":"type","city":"city","action":"what to do","priority":"High"}],"tip":"tip"}]}`;
 
   try {
     const text = await callClaude(prompt);
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) return res.json({ error: 'Could not generate plan', raw: 'No JSON found' });
-    const plan = JSON.parse(match[0]);
-    await pool.query(
-      'INSERT INTO weekly_plans (user_id, week_start, plan_json) VALUES ($1, CURRENT_DATE, $2)',
-      [uid, JSON.stringify(plan)]
-    );
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start === -1) return res.json({ error: 'Could not generate plan' });
+    const plan = JSON.parse(text.substring(start, end + 1));
+    await pool.query('INSERT INTO weekly_plans (user_id, week_start, plan_json) VALUES ($1, CURRENT_DATE, $2)', [uid, JSON.stringify(plan)]);
     res.json({ plan });
   } catch (e) {
     res.json({ error: 'Could not generate plan', raw: e.message });
