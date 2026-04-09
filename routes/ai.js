@@ -24,31 +24,26 @@ async function callClaude(prompt, useWebSearch = false) {
   return data.content?.map(b => b.text || '').filter(Boolean).join('') || '';
 }
 
-// AI Lead Finder — runs 3 parallel searches for ~50 leads
+// AI Lead Finder — single optimized search for ~25 leads
 router.post('/leads', async (req, res) => {
   const { category, territory } = req.body;
   const user = req.session.user;
   const loc = territory || user.territory || 'Atlanta Metro, Georgia';
   const product = req.body.product || category;
 
-  // Split the Atlanta Metro into 3 zones for broader coverage
-  const zones = [
-    `Atlanta, Marietta, Smyrna, Sandy Springs, Dunwoody in ${loc}`,
-    `Alpharetta, Roswell, Kennesaw, Acworth, Canton in ${loc}`,
-    `Decatur, Tucker, Norcross, Duluth, Lawrenceville, Buford in ${loc}`
-  ];
+  const prompt = `You are a field sales intelligence AI for Compton Group LLC, a manufacturer's rep company.
 
-  const makePrompt = (zone) => `You are a field sales intelligence AI for Compton Group LLC.
-
-Search the web and find 17 REAL businesses in "${zone}" that are prospects for: "${category}".
+Search the web and find 25 REAL businesses across the entire "${loc}" area that are strong prospects for: "${category}".
 We sell: ${product}
 
-Return ONLY a valid JSON array, no markdown, no explanation, nothing before or after the array:
+Cover a wide geographic spread — include businesses from different cities across the metro area.
+
+Return ONLY a valid JSON array, no markdown, no explanation, nothing before or after:
 [
   {
     "company": "Exact Business Name",
     "category": "Business Type",
-    "address": "Full street address or null",
+    "address": "Street address or null",
     "city": "City Name",
     "state": "GA",
     "phone": "xxx-xxx-xxxx or null",
@@ -60,37 +55,21 @@ Return ONLY a valid JSON array, no markdown, no explanation, nothing before or a
   }
 ]
 
+Rules:
 - Only REAL businesses that actually exist
-- Include phone and address whenever findable
-- No descriptions, no summaries
+- Include phone number whenever findable
+- Include address whenever findable  
+- No descriptions, no summaries, no notes field
+- Spread across different cities in the metro area
 - Return valid JSON array only`;
 
   try {
-    // Run all 3 searches in parallel
-    const [r1, r2, r3] = await Promise.all([
-      callClaude(makePrompt(zones[0]), true),
-      callClaude(makePrompt(zones[1]), true),
-      callClaude(makePrompt(zones[2]), true)
-    ]);
-
-    const extractLeads = (text) => {
-      const match = text.match(/\[[\s\S]*\]/);
-      if (!match) return [];
-      try { return JSON.parse(match[0]); } catch(e) { return []; }
-    };
-
-    const all = [...extractLeads(r1), ...extractLeads(r2), ...extractLeads(r3)];
-
-    // Deduplicate by company name
-    const seen = new Set();
-    const leads = all.filter(l => {
-      if (!l.company) return false;
-      const key = l.company.toLowerCase().trim();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-
+    const text = await callClaude(prompt, true);
+    const match = text.match(/\[[\s\S]*\]/);
+    if (!match) {
+      return res.json({ error: 'Could not parse leads. Try again.', raw: 'No JSON array found' });
+    }
+    const leads = JSON.parse(match[0]);
     res.json({ leads });
   } catch (e) {
     res.json({ error: 'Could not parse leads. Try again.', raw: e.message });
