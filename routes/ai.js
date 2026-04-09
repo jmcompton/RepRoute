@@ -9,19 +9,29 @@ const MODEL = 'claude-sonnet-4-20250514';
 async function callClaude(prompt, useWebSearch = false) {
   const body = {
     model: MODEL,
-    max_tokens: 2000,
+    max_tokens: 4000,
     messages: [{ role: 'user', content: prompt }]
   };
   if (useWebSearch) {
     body.tools = [{ type: 'web_search_20250305', name: 'web_search' }];
+    body.max_tokens = 4000;
   }
-  const res = await fetch(CLAUDE_API, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', ...(useWebSearch ? { 'anthropic-beta': 'web-search-2025-03-05' } : {}) },
-    body: JSON.stringify(body)
-  });
+  const headers = {
+    'Content-Type': 'application/json',
+    'x-api-key': process.env.ANTHROPIC_API_KEY,
+    'anthropic-version': '2023-06-01'
+  };
+  if (useWebSearch) headers['anthropic-beta'] = 'web-search-2025-03-05';
+
+  const res = await fetch(CLAUDE_API, { method: 'POST', headers, body: JSON.stringify(body) });
   const data = await res.json();
-  return data.content?.map(b => b.text || '').filter(Boolean).join('') || '';
+
+  // Collect all text from all content blocks (handles web search tool responses)
+  if (!data.content) return '';
+  return data.content
+    .filter(b => b.type === 'text')
+    .map(b => b.text || '')
+    .join('');
 }
 
 // AI Lead Finder — single optimized search for ~25 leads
@@ -65,12 +75,19 @@ Rules:
 
   try {
     const text = await callClaude(prompt, true);
-    const match = text.match(/\[[\s\S]*\]/);
+    // Try to find a JSON array anywhere in the response
+    const match = text.match(/\[[\s\S]*?\]/s) || text.match(/\[[\s\S]*/);
     if (!match) {
-      return res.json({ error: 'Could not parse leads. Try again.', raw: 'No JSON array found' });
+      return res.json({ error: 'Could not parse leads. Try again.', raw: 'No JSON found. Response: ' + text.substring(0, 200) });
     }
-    const leads = JSON.parse(match[0]);
-    res.json({ leads });
+    let jsonStr = match[0];
+    // Make sure it ends with ]
+    if (!jsonStr.trim().endsWith(']')) {
+      const lastBrace = jsonStr.lastIndexOf('}');
+      if (lastBrace > -1) jsonStr = jsonStr.substring(0, lastBrace + 1) + ']';
+    }
+    const leads = JSON.parse(jsonStr);
+    res.json({ leads: Array.isArray(leads) ? leads : [] });
   } catch (e) {
     res.json({ error: 'Could not parse leads. Try again.', raw: e.message });
   }
