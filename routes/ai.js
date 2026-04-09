@@ -26,7 +26,7 @@ async function callClaude(prompt) {
   return data.content.filter(b => b.type === 'text').map(b => b.text || '').join('');
 }
 
-// Web search call — properly handles multi-turn tool use
+// Web search call — Anthropic handles the search internally, we just poll until done
 async function callClaudeWithSearch(prompt) {
   const headers = {
     'Content-Type': 'application/json',
@@ -36,49 +36,34 @@ async function callClaudeWithSearch(prompt) {
   };
   const tools = [{ type: 'web_search_20250305', name: 'web_search' }];
   let messages = [{ role: 'user', content: prompt }];
+  let fullText = '';
 
-  // First call — Claude decides to search
-  const res1 = await fetch(CLAUDE_API, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ model: MODEL, max_tokens: 4000, tools, messages })
-  });
-  const data1 = await res1.json();
-  if (!data1.content) return '';
+  // Loop up to 5 turns to handle tool use
+  for (let turn = 0; turn < 5; turn++) {
+    const res = await fetch(CLAUDE_API, {
+      method: 'POST', headers,
+      body: JSON.stringify({ model: MODEL, max_tokens: 4000, tools, messages })
+    });
+    const data = await res.json();
+    if (!data.content) break;
 
-  // Collect any text from first response
-  const text1 = data1.content.filter(b => b.type === 'text').map(b => b.text).join('');
+    // Collect any text from this turn
+    const text = data.content.filter(b => b.type === 'text').map(b => b.text).join('');
+    if (text) fullText += text;
 
-  // If Claude stopped (no tool use), return what we have
-  if (data1.stop_reason !== 'tool_use') return text1;
+    // If done, stop
+    if (data.stop_reason === 'end_turn' || data.stop_reason !== 'tool_use') break;
 
-  // Build messages with assistant response + tool results
-  messages.push({ role: 'assistant', content: data1.content });
-
-  // Add tool results for each tool_use block
-  const toolResults = data1.content
-    .filter(b => b.type === 'tool_use')
-    .map(b => ({
-      type: 'tool_result',
-      tool_use_id: b.id,
-      content: b.input ? JSON.stringify(b.input) : 'search completed'
-    }));
-
-  if (toolResults.length > 0) {
+    // Continue the conversation with the tool result
+    messages.push({ role: 'assistant', content: data.content });
+    const toolResults = data.content
+      .filter(b => b.type === 'tool_use')
+      .map(b => ({ type: 'tool_result', tool_use_id: b.id, content: '' }));
+    if (toolResults.length === 0) break;
     messages.push({ role: 'user', content: toolResults });
   }
 
-  // Second call — Claude processes search results and responds
-  const res2 = await fetch(CLAUDE_API, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ model: MODEL, max_tokens: 4000, tools, messages })
-  });
-  const data2 = await res2.json();
-  if (!data2.content) return text1;
-
-  const text2 = data2.content.filter(b => b.type === 'text').map(b => b.text).join('');
-  return text1 + text2;
+  return fullText;
 }
 
 // Extract JSON array from any text
