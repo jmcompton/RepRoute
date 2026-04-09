@@ -67,10 +67,9 @@ Return ONLY a JSON object (no markdown, no explanation):
 
   try {
     const text = await callClaude(prompt);
-    const clean = text.replace(/```json|```/g, '').trim();
-    const plan = JSON.parse(clean);
-
-    // Save plan
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) return res.json({ error: 'Could not generate plan', raw: 'No JSON found' });
+    const plan = JSON.parse(match[0]);
     const targetRep = rep_id || req.session.user.id;
     await pool.query(
       'INSERT INTO onboarding_plans (rep_id, plan_json, created_by) VALUES ($1, $2, $3)',

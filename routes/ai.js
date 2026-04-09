@@ -60,8 +60,12 @@ Rules:
 
   try {
     const text = await callClaude(prompt, true);
-    const clean = text.replace(/```json|```/g, '').trim();
-    const leads = JSON.parse(clean);
+    // Extract JSON array from anywhere in the response
+    const match = text.match(/\[[\s\S]*\]/);
+    if (!match) {
+      return res.json({ error: 'Could not parse leads. Try again.', raw: 'No JSON array found in response' });
+    }
+    const leads = JSON.parse(match[0]);
     res.json({ leads });
   } catch (e) {
     res.json({ error: 'Could not parse leads. Try again.', raw: e.message });
@@ -178,10 +182,9 @@ Return ONLY a JSON object (no markdown):
 
   try {
     const text = await callClaude(prompt);
-    const clean = text.replace(/```json|```/g, '').trim();
-    const plan = JSON.parse(clean);
-
-    // Save to DB
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) return res.json({ error: 'Could not generate plan', raw: 'No JSON found' });
+    const plan = JSON.parse(match[0]);
     await pool.query(
       'INSERT INTO weekly_plans (user_id, week_start, plan_json) VALUES ($1, CURRENT_DATE, $2)',
       [uid, JSON.stringify(plan)]
