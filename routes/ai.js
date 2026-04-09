@@ -24,48 +24,73 @@ async function callClaude(prompt, useWebSearch = false) {
   return data.content?.map(b => b.text || '').filter(Boolean).join('') || '';
 }
 
-// AI Lead Finder — searches real businesses
+// AI Lead Finder — runs 3 parallel searches for ~50 leads
 router.post('/leads', async (req, res) => {
   const { category, territory } = req.body;
   const user = req.session.user;
   const loc = territory || user.territory || 'Atlanta Metro, Georgia';
+  const product = req.body.product || category;
 
-  const prompt = `You are a field sales intelligence AI for a manufacturer's rep company called Compton Group LLC. 
-  
-Search the web and find 10 REAL, specific businesses in the "${loc}" area that match this category: "${category}".
+  // Split the Atlanta Metro into 3 zones for broader coverage
+  const zones = [
+    `Atlanta, Marietta, Smyrna, Sandy Springs, Dunwoody in ${loc}`,
+    `Alpharetta, Roswell, Kennesaw, Acworth, Canton in ${loc}`,
+    `Decatur, Tucker, Norcross, Duluth, Lawrenceville, Buford in ${loc}`
+  ];
 
-Product lines we sell: Soudal Adhesives & Sealants, ShurTape Flashing & Deck Tape, Fortress Evolution Steel Framing, Fortress Railing, Alum-A-Pole Equipment.
+  const makePrompt = (zone) => `You are a field sales intelligence AI for Compton Group LLC.
 
-For each business return ONLY a JSON array (no other text, no markdown) like this:
+Search the web and find 17 REAL businesses in "${zone}" that are prospects for: "${category}".
+We sell: ${product}
+
+Return ONLY a valid JSON array, no markdown, no explanation, nothing before or after the array:
 [
   {
     "company": "Exact Business Name",
-    "category": "${category}",
+    "category": "Business Type",
+    "address": "Full street address or null",
     "city": "City Name",
     "state": "GA",
     "phone": "xxx-xxx-xxxx or null",
+    "email": "email or null",
     "website": "website.com or null",
-    "contact": "Owner/Manager name if known or null",
-    "products": "which of our products they would use",
-    "notes": "why they are a good prospect, 1 sentence",
+    "contact": "Owner or Manager name or null",
+    "products": "which of our products they need",
     "priority": "High or Medium or Low"
   }
 ]
 
-Rules:
-- Only include REAL businesses that actually exist
-- Focus on ${loc} specifically
-- Prioritize businesses most likely to buy our products
-- Return valid JSON only, nothing else`;
+- Only REAL businesses that actually exist
+- Include phone and address whenever findable
+- No descriptions, no summaries
+- Return valid JSON array only`;
 
   try {
-    const text = await callClaude(prompt, true);
-    // Extract JSON array from anywhere in the response
-    const match = text.match(/\[[\s\S]*\]/);
-    if (!match) {
-      return res.json({ error: 'Could not parse leads. Try again.', raw: 'No JSON array found in response' });
-    }
-    const leads = JSON.parse(match[0]);
+    // Run all 3 searches in parallel
+    const [r1, r2, r3] = await Promise.all([
+      callClaude(makePrompt(zones[0]), true),
+      callClaude(makePrompt(zones[1]), true),
+      callClaude(makePrompt(zones[2]), true)
+    ]);
+
+    const extractLeads = (text) => {
+      const match = text.match(/\[[\s\S]*\]/);
+      if (!match) return [];
+      try { return JSON.parse(match[0]); } catch(e) { return []; }
+    };
+
+    const all = [...extractLeads(r1), ...extractLeads(r2), ...extractLeads(r3)];
+
+    // Deduplicate by company name
+    const seen = new Set();
+    const leads = all.filter(l => {
+      if (!l.company) return false;
+      const key = l.company.toLowerCase().trim();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
     res.json({ leads });
   } catch (e) {
     res.json({ error: 'Could not parse leads. Try again.', raw: e.message });

@@ -880,10 +880,18 @@ function renderLeads() {
   document.getElementById('lead-count').textContent = foundLeads.length + ' leads found — select to add to CRM';
   document.getElementById('lead-grid').innerHTML = foundLeads.map(function(l, i) {
     return '<div class="lead-card ' + (selectedLeads.has(i)?'sel':'') + '" onclick="toggleLead(' + i + ')">' +
-      '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px"><div class="lc-name">' + l.company + '</div><span class="badge ' + (l.priority==='High'?'b-hot':l.priority==='Low'?'b-cold':'b-warm') + '">' + (l.priority||'Medium') + '</span></div>' +
-      '<div class="lc-meta">📍 ' + (l.city||'') + ', ' + (l.state||'GA') + (l.phone?' · 📞 '+l.phone:'') + '</div>' +
-      '<div class="lc-note">' + (l.notes||'') + '</div>' +
-      '<div style="display:flex;align-items:center;justify-content:space-between">' + catBadge(l.category) + '<div class="lc-check ' + (selectedLeads.has(i)?'on':'') + '">' + (selectedLeads.has(i)?'✓':'') + '</div></div>' +
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px">' +
+      '<div class="lc-name">' + l.company + '</div>' +
+      '<span class="badge ' + (l.priority==='High'?'b-hot':l.priority==='Low'?'b-cold':'b-warm') + '">' + (l.priority||'Medium') + '</span></div>' +
+      (l.address ? '<div class="lc-meta">📍 ' + l.address + ', ' + (l.city||'') + ', ' + (l.state||'GA') + '</div>' :
+        '<div class="lc-meta">📍 ' + (l.city||'') + ', ' + (l.state||'GA') + '</div>') +
+      (l.phone ? '<div class="lc-meta">📞 ' + l.phone + '</div>' : '') +
+      (l.contact ? '<div class="lc-meta">👤 ' + l.contact + '</div>' : '') +
+      (l.email ? '<div class="lc-meta">✉️ ' + l.email + '</div>' : '') +
+      (l.website ? '<div class="lc-meta">🌐 ' + l.website + '</div>' : '') +
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">' +
+      catBadge(l.category) +
+      '<div class="lc-check ' + (selectedLeads.has(i)?'on':'') + '">' + (selectedLeads.has(i)?'✓':'') + '</div></div>' +
       '</div>';
   }).join('');
 }
