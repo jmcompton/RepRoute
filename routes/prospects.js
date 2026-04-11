@@ -9,7 +9,7 @@ router.get('/', async (req, res) => {
   const params = [uid];
   if (category && category !== 'All') { params.push(category); query += ` AND category=$${params.length}`; }
   if (status && status !== 'All') { params.push(status); query += ` AND status=$${params.length}`; }
-  if (search) { params.push(`%${search}%`); query += ` AND (company ILIKE $${params.length} OR city ILIKE $${params.length} OR contact ILIKE $${params.length})`; }
+  if (search) { params.push('%' + search + '%'); query += ` AND (company ILIKE $${params.length} OR city ILIKE $${params.length} OR contact ILIKE $${params.length})`; }
   query += ' ORDER BY created_at DESC';
   const result = await pool.query(query, params);
   res.json(result.rows);
@@ -27,12 +27,38 @@ router.post('/', async (req, res) => {
 });
 
 router.put('/:id', async (req, res) => {
-  const { status, priority, notes, contact, phone } = req.body;
+  const uid = req.session.user.id;
+  const id = req.params.id;
+  const { company, category, city, state, phone, email, contact, website, products, status, priority, notes, pipeline_stage } = req.body;
+
+  // Build dynamic update — only update fields that were sent
+  const fields = [];
+  const vals = [];
+  const add = (col, val) => { if (val !== undefined) { vals.push(val); fields.push(col + '=$' + vals.length); } };
+
+  add('company', company);
+  add('category', category);
+  add('city', city);
+  add('state', state);
+  add('phone', phone);
+  add('email', email);
+  add('contact', contact);
+  add('website', website);
+  add('products', products);
+  add('status', status);
+  add('priority', priority);
+  add('notes', notes);
+  add('pipeline_stage', pipeline_stage);
+
+  if (fields.length === 0) return res.json({ error: 'Nothing to update' });
+
+  vals.push(id);
+  vals.push(uid);
   const result = await pool.query(
-    'UPDATE prospects SET status=$1, priority=$2, notes=$3, contact=$4, phone=$5 WHERE id=$6 AND user_id=$7 RETURNING *',
-    [status, priority, notes, contact, phone, req.params.id, req.session.user.id]
+    'UPDATE prospects SET ' + fields.join(', ') + ' WHERE id=$' + (vals.length - 1) + ' AND user_id=$' + vals.length + ' RETURNING *',
+    vals
   );
-  res.json(result.rows[0]);
+  res.json(result.rows[0] || { error: 'Not found' });
 });
 
 router.delete('/:id', async (req, res) => {

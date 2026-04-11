@@ -2,7 +2,7 @@ const { Pool } = require('pg');
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
 async function initDB() {
@@ -25,15 +25,21 @@ async function initDB() {
       city TEXT,
       state TEXT DEFAULT 'GA',
       phone TEXT,
+      email TEXT,
       contact TEXT,
       website TEXT,
       products TEXT,
       status TEXT DEFAULT 'New',
       priority TEXT DEFAULT 'Medium',
+      pipeline_stage TEXT DEFAULT 'New Lead',
       notes TEXT,
       source TEXT DEFAULT 'AI',
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+
+    -- Add columns if they don't exist (for existing databases)
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS pipeline_stage TEXT DEFAULT 'New Lead';
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS email TEXT;
 
     CREATE TABLE IF NOT EXISTS calls (
       id SERIAL PRIMARY KEY,

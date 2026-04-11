@@ -204,6 +204,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .empty-msg{font-size:13px}
 .toast{position:fixed;bottom:20px;right:20px;background:var(--navy);color:#fff;padding:10px 18px;border-radius:6px;font-size:12.5px;font-weight:500;z-index:999;transform:translateY(60px);opacity:0;transition:all .25s}
 .toast.show{transform:translateY(0);opacity:1}
+.pipe-col{background:var(--bg);border-radius:var(--r);overflow:hidden;border:1px solid var(--border)}
+.pipe-col-hdr{padding:10px 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;display:flex;align-items:center;justify-content:space-between}
+.pipe-col-body{padding:8px;min-height:200px}
+.pipe-card{background:var(--white);border:1px solid var(--border);border-radius:5px;padding:10px;margin-bottom:7px;cursor:grab;transition:all .12s;border-left:3px solid var(--border)}
+.pipe-card:hover{box-shadow:0 2px 8px rgba(0,0,0,.1);transform:translateY(-1px)}
+.pipe-card.dragging{opacity:.5;cursor:grabbing}
+.pipe-col.drag-over .pipe-col-body{background:var(--blue-lt);border-radius:4px}
+.pipe-card-name{font-size:12.5px;font-weight:700;color:var(--navy);margin-bottom:3px}
+.pipe-card-meta{font-size:11px;color:var(--text3)}
+.pipe-card-badge{display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:8px;margin-top:4px}
+.pipe-cnt{background:rgba(0,0,0,.15);color:inherit;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:700}
 </style>
 </head>
 <body>
@@ -224,7 +235,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <button class="sb-item" onclick="go('leads')"><span class="ico">⚡</span>AI Lead Finder</button>
     <button class="sb-item" onclick="go('contacts')"><span class="ico">👤</span>Contacts</button>
     <button class="sb-item" onclick="go('contacts')"><span class="ico">🏢</span>Accounts</button>
-    <button class="sb-item" onclick="go('contacts')"><span class="ico">💼</span>Deals</button>
+    <button class="sb-item" onclick="go('deals')"><span class="ico">💼</span>Deal Pipeline</button>
     <button class="sb-item" onclick="go('weekly')"><span class="ico">📅</span>Forecasts</button>
     <button class="sb-item" onclick="go('outreach')"><span class="ico">📣</span>Campaigns</button>
   </div>
@@ -362,6 +373,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
           <div class="rec-btns">
             <button class="btn btn-primary btn-sm" onclick="logCallForRecord()">📞 Log Call</button>
             <button class="btn btn-secondary btn-sm" onclick="writeOutreachForRecord()">📣 Outreach</button>
+            <button class="btn btn-secondary btn-sm" onclick="openEditContact(currentRecord)">✏️ Edit</button>
             <button class="btn btn-secondary btn-sm" onclick="go('contacts')">✕ Close</button>
           </div>
         </div>
@@ -556,6 +568,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     </div>
   </div>
 
+  <!-- DEAL PIPELINE -->
+  <div class="page" id="page-deals">
+    <div style="padding:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div>
+          <div style="font-size:15px;font-weight:700;color:var(--navy)">Deal Pipeline</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px">Drag contacts between stages to track progress</div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="go('contacts')">+ Add Contact</button>
+      </div>
+      <div id="pipeline-board" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;align-items:start"></div>
+    </div>
+  </div>
+
   <!-- MANAGER -->
   <div class="page" id="page-manager">
     <div style="padding:16px">
@@ -596,6 +622,48 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   </div>
 </div>
 
+<!-- EDIT CONTACT MODAL -->
+<div class="mo" id="modal-edit-prospect">
+  <div class="mb">
+    <h2>Edit Contact</h2>
+    <input type="hidden" id="ep-id" />
+    <div class="fg"><label>Company Name *</label><input type="text" id="ep-name" /></div>
+    <div class="g2">
+      <div class="fg"><label>Category</label><select id="ep-cat"><option value="Deck Contractor">Deck Contractor</option><option value="Window & Door Installer">Window/Door</option><option value="Commercial Roofing Contractor">Roofing</option><option value="Building Material Dealer">Dealer</option><option value="Building Products Distributor">Distributor</option></select></div>
+      <div class="fg"><label>City</label><input type="text" id="ep-city" /></div>
+    </div>
+    <div class="g2">
+      <div class="fg"><label>Contact Name</label><input type="text" id="ep-contact" /></div>
+      <div class="fg"><label>Phone</label><input type="text" id="ep-phone" /></div>
+    </div>
+    <div class="g2">
+      <div class="fg"><label>Email</label><input type="email" id="ep-email" /></div>
+      <div class="fg"><label>Website</label><input type="text" id="ep-website" /></div>
+    </div>
+    <div class="fg"><label>Products</label><input type="text" id="ep-products" /></div>
+    <div class="g2">
+      <div class="fg"><label>Status</label><select id="ep-status"><option>New</option><option>Warm</option><option>Hot</option><option>Cold</option></select></div>
+      <div class="fg"><label>Priority</label><select id="ep-priority"><option>High</option><option>Medium</option><option>Low</option></select></div>
+    </div>
+    <div class="fg"><label>Pipeline Stage</label>
+      <select id="ep-stage">
+        <option value="">None</option>
+        <option value="New Lead">New Lead</option>
+        <option value="Contacted">Contacted</option>
+        <option value="Sampled">Sampled</option>
+        <option value="Quoted">Quoted</option>
+        <option value="Closed Won">Closed Won</option>
+      </select>
+    </div>
+    <div class="fg"><label>Notes</label><textarea id="ep-notes"></textarea></div>
+    <div class="mfoot">
+      <button class="btn btn-secondary" onclick="closeModal('edit-prospect')">Cancel</button>
+      <button class="btn btn-secondary" style="color:var(--red);border-color:var(--red)" onclick="deleteContact()">Delete</button>
+      <button class="btn btn-primary" onclick="saveEditContact()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -609,7 +677,7 @@ var pageTitles = {
   dashboard: 'Home', contacts: 'Contacts', record: 'Contact Detail',
   leads: 'AI Lead Finder', calls: 'Calls', weekly: 'Weekly Plan',
   command: 'AI Command Center', outreach: 'Outreach Writer',
-  onboarding: 'Onboarding', manager: 'Team Dashboard'
+  onboarding: 'Onboarding', manager: 'Team Dashboard', deals: 'Deal Pipeline'
 };
 
 window.addEventListener('load', function() {
@@ -673,6 +741,7 @@ function go(id) {
   if (id === 'manager') loadManager();
   if (id === 'contacts') loadProspects();
   if (id === 'onboarding') loadMyOnboarding();
+  if (id === 'deals') loadPipeline();
 }
 
 function setModTab(cat, el) {
@@ -1169,6 +1238,148 @@ function addRep() {
       if (d.error) { showToast(d.error); return; }
       closeModal('add-rep'); loadManager(); showToast(name + ' added!');
     });
+}
+
+function openEditContact(p) {
+  document.getElementById('ep-id').value = p.id;
+  document.getElementById('ep-name').value = p.company || '';
+  document.getElementById('ep-city').value = p.city || '';
+  document.getElementById('ep-contact').value = p.contact || '';
+  document.getElementById('ep-phone').value = p.phone || '';
+  document.getElementById('ep-email').value = p.email || '';
+  document.getElementById('ep-website').value = p.website || '';
+  document.getElementById('ep-products').value = p.products || '';
+  document.getElementById('ep-notes').value = p.notes || '';
+  var catSel = document.getElementById('ep-cat');
+  for (var i = 0; i < catSel.options.length; i++) {
+    if (catSel.options[i].value === p.category) { catSel.selectedIndex = i; break; }
+  }
+  var stSel = document.getElementById('ep-status');
+  for (var i = 0; i < stSel.options.length; i++) {
+    if (stSel.options[i].value === p.status) { stSel.selectedIndex = i; break; }
+  }
+  var prSel = document.getElementById('ep-priority');
+  for (var i = 0; i < prSel.options.length; i++) {
+    if (prSel.options[i].value === p.priority) { prSel.selectedIndex = i; break; }
+  }
+  var stageSel = document.getElementById('ep-stage');
+  for (var i = 0; i < stageSel.options.length; i++) {
+    if (stageSel.options[i].value === (p.pipeline_stage || '')) { stageSel.selectedIndex = i; break; }
+  }
+  openModal('edit-prospect');
+}
+
+function saveEditContact() {
+  var id = document.getElementById('ep-id').value;
+  var data = {
+    company: document.getElementById('ep-name').value.trim(),
+    category: document.getElementById('ep-cat').value,
+    city: document.getElementById('ep-city').value,
+    contact: document.getElementById('ep-contact').value,
+    phone: document.getElementById('ep-phone').value,
+    email: document.getElementById('ep-email').value,
+    website: document.getElementById('ep-website').value,
+    products: document.getElementById('ep-products').value,
+    status: document.getElementById('ep-status').value,
+    priority: document.getElementById('ep-priority').value,
+    pipeline_stage: document.getElementById('ep-stage').value,
+    notes: document.getElementById('ep-notes').value
+  };
+  if (!data.company) { showToast('Company name required'); return; }
+  fetch('/api/prospects/' + id, {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data)
+  }).then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.error) { showToast('Error saving'); return; }
+      closeModal('edit-prospect');
+      showToast('Contact updated!');
+      loadProspects();
+      loadDashboard();
+      if (currentRecord && currentRecord.id === parseInt(id)) viewRecord(parseInt(id));
+    });
+}
+
+function deleteContact() {
+  var id = document.getElementById('ep-id').value;
+  var name = document.getElementById('ep-name').value;
+  if (!confirm('Delete ' + name + '? This cannot be undone.')) return;
+  fetch('/api/prospects/' + id, { method: 'DELETE' })
+    .then(function(r) { return r.json(); })
+    .then(function() {
+      closeModal('edit-prospect');
+      showToast('Contact deleted');
+      loadProspects();
+      loadDashboard();
+      go('contacts');
+    });
+}
+
+// DEAL PIPELINE
+var pipelineStages = [
+  { id: 'New Lead', label: 'New Lead', color: '#8f96a3', bg: '#f1f5f9' },
+  { id: 'Contacted', label: 'Contacted', color: '#0066cc', bg: '#e8f0fe' },
+  { id: 'Sampled', label: 'Sampled', color: '#b45309', bg: '#fef3c7' },
+  { id: 'Quoted', label: 'Quoted', color: '#5b21b6', bg: '#ede9fe' },
+  { id: 'Closed Won', label: 'Closed Won', color: '#1a7f4b', bg: '#e6f4ec' }
+];
+
+function loadPipeline() {
+  fetch('/api/prospects')
+    .then(function(r) { return r.json(); })
+    .then(function(prospects) {
+      var board = document.getElementById('pipeline-board');
+      board.innerHTML = pipelineStages.map(function(stage) {
+        var cards = prospects.filter(function(p) {
+          return (p.pipeline_stage || 'New Lead') === stage.id;
+        });
+        return '<div class="pipe-col" id="col-' + stage.id.replace(/ /g,'-') + '" ' +
+          'ondragover="event.preventDefault();this.classList.add(\'drag-over\')" ' +
+          'ondragleave="this.classList.remove(\'drag-over\')" ' +
+          'ondrop="dropCard(event,\'' + stage.id + '\')">' +
+          '<div class="pipe-col-hdr" style="background:' + stage.bg + ';color:' + stage.color + '">' +
+          stage.label + '<span class="pipe-cnt">' + cards.length + '</span></div>' +
+          '<div class="pipe-col-body">' +
+          cards.map(function(p) {
+            return '<div class="pipe-card" draggable="true" ' +
+              'data-id="' + p.id + '" ' +
+              'ondragstart="dragCard(event,' + p.id + ')" ' +
+              'ondragend="this.classList.remove(\'dragging\')" ' +
+              'onclick="viewRecord(' + p.id + ')">' +
+              '<div class="pipe-card-name">' + p.company + '</div>' +
+              '<div class="pipe-card-meta">' + (p.city||'') + (p.category ? ' · ' + p.category.split(' ')[0] : '') + '</div>' +
+              (p.phone ? '<div class="pipe-card-meta">📞 ' + p.phone + '</div>' : '') +
+              '<span class="pipe-card-badge" style="background:' + stage.bg + ';color:' + stage.color + '">' +
+              (p.priority||'Medium') + '</span>' +
+              '</div>';
+          }).join('') +
+          '</div></div>';
+      }).join('');
+    });
+}
+
+var draggedId = null;
+
+function dragCard(event, id) {
+  draggedId = id;
+  event.target.classList.add('dragging');
+  event.dataTransfer.effectAllowed = 'move';
+}
+
+function dropCard(event, stage) {
+  event.preventDefault();
+  document.querySelectorAll('.pipe-col').forEach(function(c) { c.classList.remove('drag-over'); });
+  if (!draggedId) return;
+  fetch('/api/prospects/' + draggedId, {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ pipeline_stage: stage })
+  }).then(function() {
+    draggedId = null;
+    loadPipeline();
+    showToast('Moved to ' + stage);
+  });
 }
 
 function catBadge(cat) {
