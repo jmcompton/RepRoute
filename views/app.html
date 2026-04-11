@@ -264,11 +264,25 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
   <!-- DASHBOARD -->
   <div class="page active" id="page-dashboard">
+    <!-- FOLLOW-UP REMINDERS -->
+    <div id="followup-section" style="display:none;padding:12px 16px 0">
+      <div style="background:#fff;border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
+        <div style="padding:10px 14px;border-bottom:1px solid var(--border);background:#fafbfc;display:flex;align-items:center;justify-content:space-between">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:16px">🔔</span>
+            <span style="font-size:13px;font-weight:700;color:var(--navy)">Follow-Ups Due</span>
+            <span id="followup-badge" style="background:var(--red);color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px">0</span>
+          </div>
+          <span style="font-size:11px;color:var(--text3)">Based on your logged call next steps</span>
+        </div>
+        <div id="followup-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:0"></div>
+      </div>
+    </div>
     <div class="dash-stats" id="dash-stats">
       <div class="stat-card"><div class="stat-lbl">Total Contacts</div><div class="stat-val" id="st-total">—</div><div class="stat-sub">In CRM</div></div>
       <div class="stat-card"><div class="stat-lbl">🔥 Hot</div><div class="stat-val" id="st-hot" style="color:var(--red)">—</div><div class="stat-sub">Priority targets</div></div>
       <div class="stat-card"><div class="stat-lbl">Calls Logged</div><div class="stat-val" id="st-calls">—</div><div class="stat-sub">Total activity</div></div>
-      <div class="stat-card"><div class="stat-lbl">Product Lines</div><div class="stat-val" style="color:var(--blue)">5</div><div class="stat-sub">Represented</div></div>
+      <div class="stat-card" style="cursor:pointer" onclick="document.getElementById('followup-section').scrollIntoView({behavior:'smooth'})"><div class="stat-lbl">🔔 Follow-Ups Due</div><div class="stat-val" id="st-followups" style="color:var(--amber)">—</div><div class="stat-sub">Needs action today</div></div>
     </div>
     <div class="dash-grid">
       <div>
@@ -626,6 +640,19 @@ window.addEventListener('load', function() {
     });
 });
 
+function goLogCall(prospectId) {
+  go('calls');
+  loadCallProspects();
+  setTimeout(function() {
+    var sel = document.getElementById('call-prospect');
+    if (sel) {
+      for (var i = 0; i < sel.options.length; i++) {
+        if (parseInt(sel.options[i].value) === prospectId) { sel.selectedIndex = i; break; }
+      }
+    }
+  }, 400);
+}
+
 function go(id) {
   document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
   document.querySelectorAll('.sb-item').forEach(function(n) { n.classList.remove('active'); });
@@ -662,14 +689,54 @@ function loadDashboard() {
       document.getElementById('st-total').textContent = s.prospects || '0';
       document.getElementById('st-hot').textContent = s.hot || '0';
       document.getElementById('st-calls').textContent = s.calls || '0';
+      document.getElementById('st-followups').textContent = s.followUps || '0';
+
+      // Follow-up reminders
+      var followUps = d.followUps || [];
+      var due = followUps.filter(function(f) { return f.urgency === 'today' || f.urgency === 'overdue'; });
+      var upcoming = followUps.filter(function(f) { return f.urgency === 'upcoming'; });
+      var section = document.getElementById('followup-section');
+      var badge = document.getElementById('followup-badge');
+      var list = document.getElementById('followup-list');
+
+      if (due.length > 0 || upcoming.length > 0) {
+        section.style.display = 'block';
+        badge.textContent = due.length;
+        list.innerHTML = due.concat(upcoming).map(function(f) {
+          var isOverdue = f.urgency === 'overdue';
+          var isToday = f.urgency === 'today';
+          var bgColor = isOverdue ? '#fdecea' : isToday ? '#fef3c7' : '#f0f9ff';
+          var borderColor = isOverdue ? '#c0392b' : isToday ? '#d97706' : '#0066cc';
+          var label = isOverdue ? ('Overdue ' + f.days_overdue + ' day' + (f.days_overdue > 1 ? 's' : '')) : isToday ? 'Due Today' : 'Due Tomorrow';
+          var labelColor = isOverdue ? '#c0392b' : isToday ? '#d97706' : '#0066cc';
+          return '<div style="padding:12px 14px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);background:' + bgColor + ';border-left:3px solid ' + borderColor + '">' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">' +
+            '<span style="font-size:13px;font-weight:700;color:var(--navy)">' + f.company + '</span>' +
+            '<span style="font-size:10px;font-weight:700;color:' + labelColor + ';background:#fff;padding:2px 7px;border-radius:10px;border:1px solid ' + borderColor + '">' + label + '</span>' +
+            '</div>' +
+            '<div style="font-size:12px;color:var(--text2);margin-bottom:8px">→ ' + (f.next_step || '') + '</div>' +
+            '<div style="display:flex;gap:6px;align-items:center">' +
+            (f.phone ? '<a href="tel:' + f.phone + '" style="font-size:11px;color:var(--blue);text-decoration:none">📞 ' + f.phone + '</a>' : '') +
+            '<button onclick="goLogCall(' + f.prospect_id + ')" style="margin-left:auto;padding:4px 10px;background:var(--navy);color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer">Log Call</button>' +
+            '</div></div>';
+        }).join('');
+      } else {
+        section.style.display = 'none';
+      }
+
+      // Hot contacts
       var hot = d.hotProspects || [];
       document.getElementById('dash-hot').innerHTML = hot.length ?
         hot.map(function(p) { return '<tr onclick="viewRecord(' + p.id + ')"><td><span class="rec-link">' + p.company + '</span></td><td>' + catBadge(p.category) + '</td><td style="color:var(--text3)">' + (p.city||'—') + '</td><td style="font-size:11px">' + (p.products||'—') + '</td></tr>'; }).join('') :
         '<tr><td colspan="4" style="text-align:center;padding:16px;color:var(--text3)">No hot contacts yet — use AI Lead Finder!</td></tr>';
+
+      // Recent calls
       var rc = d.recentCalls || [];
       document.getElementById('dash-activity').innerHTML = rc.length ?
         rc.map(function(c) { return '<tr><td style="font-weight:600">' + c.company + '</td><td>' + (c.outcome||'—') + '</td><td style="color:var(--blue);font-size:11.5px">' + (c.next_step||'—') + '</td><td style="color:var(--text3)">' + (c.call_date||'—') + '</td></tr>'; }).join('') :
         '<tr><td colspan="4" style="text-align:center;padding:16px;color:var(--text3)">No activity yet.</td></tr>';
+
+      // Line coverage bars
       var prods = ['Soudal/Boss','ShurTape','Fortress Frame','Fortress Rail','Alum-A-Pole'];
       var colors = ['#d97706','#0066cc','#1a7f4b','#5b21b6','#c0392b'];
       document.getElementById('dash-coverage').innerHTML = prods.map(function(p, i) {
