@@ -358,10 +358,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div class="rec-layout">
       <div class="rec-left">
         <div class="rl-title">Related List</div>
-        <div class="rl-item active" onclick="setRecTab('overview',this)">Notes</div>
+        <div class="rl-item active" onclick="setRecTab('notes',this)">Notes</div>
         <div class="rl-item" onclick="setRecTab('overview',this)">Connected Records</div>
         <div class="rl-item" onclick="setRecTab('overview',this)">Attachments</div>
-        <div class="rl-item" onclick="setRecTab('overview',this)">Deals</div>
+        <div class="rl-item" onclick="setRecTab('deals',this)">Deals</div>
         <div class="rl-item" onclick="setRecTab('calls',this)">Open Activities <span class="rl-cnt" id="rec-call-count">0</span></div>
         <div class="rl-item" onclick="setRecTab('calls',this)">Closed Activities</div>
         <div class="rl-item" onclick="setRecTab('outreach',this)">Emails</div>
@@ -414,6 +414,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
             </div>
           </div>
           <div id="rec-tab-outreach" style="display:none"><div id="rec-outreach-body"></div></div>
+<div id="rec-tab-notes" style="display:none"><div style="padding:16px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-size:12px;font-weight:700;color:var(--navy)">Notes</div><button onclick="saveNote()" style="padding:6px 14px;background:var(--blue);color:#fff;border:none;border-radius:40px;font-size:11px;font-weight:700;cursor:pointer">+ Add Note</button></div><textarea id="note-input" placeholder="Write a note..." style="width:100%;height:80px;padding:10px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:12px;font-family:inherit;resize:vertical;margin-bottom:12px;box-sizing:border-box"></textarea><div id="notes-list"></div></div></div>
+<div id="rec-tab-deals" style="display:none"><div style="padding:16px"><div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:12px">Deals</div><div id="rec-deals-list"><div style="font-size:12px;color:var(--text3);text-align:center;padding:20px">No deals linked yet</div></div></div></div>
           <div id="rec-tab-ai" style="display:none">
             <div class="ai-panel">
               <div class="ai-phdr"><span class="ai-badge">⚡ AI</span><span class="ai-ptitle">Contact Intelligence</span></div>
@@ -1046,12 +1048,14 @@ function viewRecord(id) {
 }
 
 function setRecTab(tab, el) {
-  ['overview','calls','outreach','ai'].forEach(function(t) {
+  ['overview','calls','outreach','ai','notes','deals'].forEach(function(t) {
     var e = document.getElementById('rec-tab-' + t);
     if (e) e.style.display = t === tab ? '' : 'none';
   });
   document.querySelectorAll('.rl-item, .rt').forEach(function(i) { i.classList.remove('active'); });
   if (el) el.classList.add('active');
+  if (tab === 'notes') loadNotes();
+  if (tab === 'deals') loadRecordDeals();
 }
 
 function logCallForRecord() {
@@ -1534,6 +1538,43 @@ function globalSearch(q) {
     pSearch.value = q;
     loadProspects();
   }
+}
+
+function loadNotes() {
+  if (!currentRecord) return;
+  var notes = JSON.parse(localStorage.getItem('rr-notes-' + currentRecord.id) || '[]');
+  var list = document.getElementById('notes-list');
+  if (!list) return;
+  list.innerHTML = notes.length ? notes.map(function(n, i) {
+    return '<div style="background:#f8fafc;border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:8px">' +
+      '<div style="display:flex;justify-content:space-between;margin-bottom:4px">' +
+      '<div style="font-size:10px;color:var(--text3)">' + new Date(n.created).toLocaleString() + '</div>' +
+      '<button onclick="deleteNote(' + i + ')" style="background:transparent;border:none;color:var(--text3);cursor:pointer">x</button>' +
+      '</div><div style="font-size:12px;color:var(--navy);white-space:pre-wrap">' + n.text + '</div></div>';
+  }).join('') : '<div style="font-size:12px;color:var(--text3);text-align:center;padding:20px">No notes yet</div>';
+}
+function saveNote() {
+  if (!currentRecord) return;
+  var input = document.getElementById('note-input');
+  var text = input.value.trim();
+  if (!text) return;
+  var notes = JSON.parse(localStorage.getItem('rr-notes-' + currentRecord.id) || '[]');
+  notes.unshift({ text: text, created: new Date().toISOString() });
+  localStorage.setItem('rr-notes-' + currentRecord.id, JSON.stringify(notes));
+  input.value = '';
+  loadNotes();
+  showToast('Note saved');
+}
+function deleteNote(idx) {
+  if (!currentRecord) return;
+  var notes = JSON.parse(localStorage.getItem('rr-notes-' + currentRecord.id) || '[]');
+  notes.splice(idx, 1);
+  localStorage.setItem('rr-notes-' + currentRecord.id, JSON.stringify(notes));
+  loadNotes();
+}
+function loadRecordDeals() {
+  var list = document.getElementById('rec-deals-list');
+  if (list) list.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:20px">No deals linked yet</div>';
 }
 function signOut() { fetch('/logout',{method:'POST'}).then(function(){window.location='/';}) }
 
