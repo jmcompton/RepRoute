@@ -227,21 +227,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div class="sb-search-wrap"><div class="sb-search"><span style="font-size:12px;color:rgba(255,255,255,.35)">🔍</span><input placeholder="Search..." /></div></div>
   <div class="sb-section">
     <button class="sb-item active" onclick="go('dashboard')"><span class="ico">🏠</span>Home</button>
-    <button class="sb-item" onclick="go('dashboard')"><span class="ico">📊</span>Reports</button>
-    <button class="sb-item" onclick="go('dashboard')"><span class="ico">📈</span>Analytics</button>
+    <button class="sb-item" onclick="go('reports')"><span class="ico">📊</span>Reports</button>
+    <button class="sb-item" onclick="go('analytics')"><span class="ico">📈</span>Analytics</button>
   </div>
   <div class="sb-section">
     <div class="sb-sec-label">Sales</div>
     <button class="sb-item" onclick="go('leads')"><span class="ico">⚡</span>AI Lead Finder</button>
     <button class="sb-item" onclick="go('contacts')"><span class="ico">👤</span>Contacts</button>
-    <button class="sb-item" onclick="go('contacts')"><span class="ico">🏢</span>Accounts</button>
+    <button class="sb-item" onclick="go('accounts')"><span class="ico">🏢</span>Accounts</button>
     <button class="sb-item" onclick="go('deals')"><span class="ico">💼</span>Deal Pipeline</button>
-    <button class="sb-item" onclick="go('weekly')"><span class="ico">📅</span>Forecasts</button>
-    <button class="sb-item" onclick="go('outreach')"><span class="ico">📣</span>Campaigns</button>
+    <button class="sb-item" onclick="go('forecasts')"><span class="ico">📅</span>Forecasts</button>
+    <button class="sb-item" onclick="go('campaigns')"><span class="ico">📣</span>Campaigns</button>
   </div>
   <div class="sb-section">
     <div class="sb-sec-label">Activities</div>
-    <button class="sb-item" onclick="go('calls')"><span class="ico">✅</span>Tasks</button>
+    <button class="sb-item" onclick="go('tasks')"><span class="ico">✅</span>Tasks</button>
     <button class="sb-item" onclick="go('calls')"><span class="ico">📞</span>Calls</button>
     <button class="sb-item" onclick="go('command')"><span class="ico">⚡</span>AI Command</button>
     <button class="sb-item" onclick="go('weekly')"><span class="ico">📅</span>Weekly Plan</button>
@@ -583,6 +583,122 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   </div>
 
   <!-- MANAGER -->
+
+  <!-- REPORTS PAGE -->
+  <div class="page" id="page-reports">
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:24px" id="rep-kpis">
+      <div class="stat-card"><div class="stat-lbl">Total Calls Logged</div><div class="stat-val" id="rep-calls">—</div></div>
+      <div class="stat-card"><div class="stat-lbl">Contacts Added</div><div class="stat-val" id="rep-contacts">—</div></div>
+      <div class="stat-card"><div class="stat-lbl">Deals in Pipeline</div><div class="stat-val" id="rep-deals">—</div></div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px;margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;margin-bottom:16px">CALLS BY OUTCOME</div>
+      <div id="rep-outcome-chart" style="display:flex;gap:8px;align-items:flex-end;height:120px"></div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div style="font-size:12px;font-weight:700">CONTACTS BY CATEGORY</div>
+        <button onclick="exportReportsCSV()" style="padding:6px 14px;font-size:11px;background:transparent;border:1px solid var(--border);border-radius:40px;color:var(--text2);cursor:pointer">⬇ Export CSV</button>
+      </div>
+      <div id="rep-category-chart" style="display:flex;flex-direction:column;gap:8px"></div>
+    </div>
+  </div>
+
+  <!-- ANALYTICS PAGE -->
+  <div class="page" id="page-analytics">
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:24px">
+      <div class="stat-card"><div class="stat-lbl">Avg Days to Close</div><div class="stat-val" id="an-days">—</div></div>
+      <div class="stat-card"><div class="stat-lbl">Follow-up Rate</div><div class="stat-val" id="an-followup">—</div></div>
+      <div class="stat-card"><div class="stat-lbl">Hot Contact %</div><div class="stat-val" id="an-hot">—</div></div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px;margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;margin-bottom:16px">PIPELINE STAGE DISTRIBUTION</div>
+      <div id="an-pipeline-chart" style="display:flex;gap:8px;align-items:flex-end;height:120px"></div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px">
+      <div style="font-size:12px;font-weight:700;margin-bottom:16px">TOP CONTACTED ACCOUNTS</div>
+      <div id="an-top-accounts"></div>
+    </div>
+  </div>
+
+  <!-- ACCOUNTS PAGE -->
+  <div class="page" id="page-accounts">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div style="font-size:12px;color:var(--text2)">Companies grouped from your contacts</div>
+      <input id="acc-search" placeholder="Search accounts..." oninput="filterAccounts(this.value)" style="padding:8px 12px;font-size:12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text);width:200px">
+    </div>
+    <div id="accounts-list" style="display:grid;gap:10px"></div>
+  </div>
+
+  <!-- FORECASTS PAGE -->
+  <div class="page" id="page-forecasts">
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:24px">
+      <div class="stat-card"><div class="stat-lbl">Pipeline Value</div><div class="stat-val" id="fc-pipeline">$0</div></div>
+      <div class="stat-card"><div class="stat-lbl">Weighted Forecast</div><div class="stat-val" id="fc-weighted">$0</div></div>
+      <div class="stat-card"><div class="stat-lbl">Deals Closing Soon</div><div class="stat-val" id="fc-closing">0</div></div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px;margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;margin-bottom:16px">PIPELINE BY STAGE</div>
+      <div id="fc-stages" style="display:flex;flex-direction:column;gap:8px"></div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px">
+      <div style="font-size:12px;font-weight:700;margin-bottom:16px">DEALS CLOSING THIS MONTH</div>
+      <div id="fc-deals-list"></div>
+    </div>
+  </div>
+
+  <!-- CAMPAIGNS PAGE -->
+  <div class="page" id="page-campaigns">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:24px;margin-bottom:16px;text-align:center">
+      <div style="font-size:32px;margin-bottom:12px">📣</div>
+      <div style="font-size:15px;font-weight:700;margin-bottom:8px">Outreach Sequences</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:20px;max-width:400px;margin-left:auto;margin-right:auto">Build multi-step outreach sequences — email, call, LinkedIn — and track response rates across your contacts.</div>
+      <button onclick="go('outreach')" style="padding:10px 24px;background:var(--blue);color:#fff;border:none;border-radius:40px;font-size:12px;font-weight:700;cursor:pointer">Use Outreach Writer →</button>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px">
+      <div style="font-size:12px;font-weight:700;margin-bottom:4px">COMING SOON</div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.6">Sequence builder with step scheduling, open tracking, and bulk contact targeting is in development. For now, use the Outreach Writer to generate personalized messages for individual contacts.</div>
+    </div>
+  </div>
+
+  <!-- TASKS PAGE -->
+  <div class="page" id="page-tasks">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div style="display:flex;gap:8px">
+        <button onclick="setTaskFilter('all',this)" class="f-chip active" id="tf-all">All</button>
+        <button onclick="setTaskFilter('due',this)" class="f-chip" id="tf-due">Due Today</button>
+        <button onclick="setTaskFilter('overdue',this)" class="f-chip" id="tf-overdue">Overdue</button>
+        <button onclick="setTaskFilter('done',this)" class="f-chip" id="tf-done">Completed</button>
+      </div>
+      <button onclick="openAddTask()" style="padding:8px 16px;background:var(--blue);color:#fff;border:none;border-radius:40px;font-size:12px;font-weight:700;cursor:pointer">+ Add Task</button>
+    </div>
+    <div id="tasks-list" style="display:flex;flex-direction:column;gap:8px"></div>
+
+    <!-- Add Task Modal -->
+    <div id="task-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;align-items:center;justify-content:center;padding:20px">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:28px;width:100%;max-width:440px">
+        <div style="font-size:15px;font-weight:700;margin-bottom:16px">Add Task</div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <input id="task-title" placeholder="Task description *" style="padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text);font-size:13px">
+          <select id="task-type" style="padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text);font-size:13px">
+            <option value="call">Follow-up Call</option>
+            <option value="email">Send Email</option>
+            <option value="sample">Drop Sample</option>
+            <option value="literature">Deliver Literature</option>
+            <option value="meeting">Schedule Meeting</option>
+            <option value="other">Other</option>
+          </select>
+          <input id="task-contact" placeholder="Contact / Company (optional)" style="padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text);font-size:13px">
+          <input id="task-due" type="date" style="padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text);font-size:13px">
+        </div>
+        <div style="display:flex;gap:10px;margin-top:20px">
+          <button onclick="closeTaskModal()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);border-radius:40px;color:var(--text2);font-size:12px;cursor:pointer">Cancel</button>
+          <button onclick="saveTask()" style="flex:2;padding:10px;background:var(--blue);color:#fff;border:none;border-radius:40px;font-size:12px;font-weight:700;cursor:pointer">Save Task</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="page" id="page-manager">
     <div style="padding:16px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
@@ -674,6 +790,8 @@ var foundLeads = [];
 var selectedLeads = new Set();
 
 var pageTitles = {
+    reports: 'Reports', analytics: 'Analytics', accounts: 'Accounts',
+    forecasts: 'Forecasts', campaigns: 'Campaigns', tasks: 'Tasks',
   dashboard: 'Home', contacts: 'Contacts', record: 'Contact Detail',
   leads: 'AI Lead Finder', calls: 'Calls', weekly: 'Weekly Plan',
   command: 'AI Command Center', outreach: 'Outreach Writer',
@@ -742,6 +860,10 @@ function go(id) {
   if (id === 'contacts') loadProspects();
   if (id === 'onboarding') loadMyOnboarding();
   if (id === 'deals') loadPipeline();
+  if (id === 'reports') loadReports();
+  if (id === 'analytics') loadAnalytics();
+  if (id === 'tasks') loadTasks();
+  if (id === 'accounts') loadAccounts();
 }
 
 function setModTab(cat, el) {
@@ -1394,6 +1516,199 @@ function openModal(id) { document.getElementById('modal-'+id).classList.add('ope
 function closeModal(id) { document.getElementById('modal-'+id).classList.remove('open'); }
 document.addEventListener('click', function(e) { if(e.target.classList.contains('mo')) e.target.classList.remove('open'); });
 function signOut() { fetch('/logout',{method:'POST'}).then(function(){window.location='/';}) }
+
+// ── REPORTS ─────────────────────────────────────────────────
+async function loadReports() {
+  try {
+    const [data, calls] = await Promise.all([
+      fetch('/app/data').then(r=>r.json()),
+      fetch('/api/calls').then(r=>r.json())
+    ]);
+    const s = data.stats || {};
+    document.getElementById('rep-calls').textContent = s.calls || '0';
+    document.getElementById('rep-contacts').textContent = s.prospects || '0';
+    document.getElementById('rep-deals').textContent = s.deals || '0';
+
+    // Calls by outcome chart
+    const outcomes = {};
+    (calls.calls||[]).forEach(c => { outcomes[c.outcome||'Unknown'] = (outcomes[c.outcome||'Unknown']||0)+1; });
+    const maxV = Math.max(...Object.values(outcomes), 1);
+    document.getElementById('rep-outcome-chart').innerHTML = Object.entries(outcomes).map(([k,v]) =>
+      '<div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1">' +
+      '<div style="font-size:10px;color:var(--text2);font-weight:700">' + v + '</div>' +
+      '<div style="width:100%;background:var(--blue);border-radius:4px 4px 0 0;height:' + Math.round((v/maxV)*100) + 'px"></div>' +
+      '<div style="font-size:9px;color:var(--text2);text-align:center">' + k + '</div></div>'
+    ).join('');
+
+    // By category
+    const cats = {};
+    (data.prospects||[]).forEach(p => { cats[p.category||'Other'] = (cats[p.category||'Other']||0)+1; });
+    const total = Object.values(cats).reduce((a,b)=>a+b,0)||1;
+    document.getElementById('rep-category-chart').innerHTML = Object.entries(cats).sort((a,b)=>b[1]-a[1]).map(([k,v]) =>
+      '<div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px"><span>' + k + '</span><span style="color:var(--text2)">' + v + '</span></div>' +
+      '<div style="height:6px;background:var(--border);border-radius:3px"><div style="height:6px;background:var(--blue);border-radius:3px;width:' + Math.round((v/total)*100) + '%"></div></div></div>'
+    ).join('');
+  } catch(e) { console.error(e); }
+}
+
+function exportReportsCSV() {
+  fetch('/api/prospects').then(r=>r.json()).then(data => {
+    const rows = [['Company','Category','City','Priority','Phone','Email','Contact']];
+    (data.prospects||[]).forEach(p => rows.push([p.company,p.category,p.city,p.priority,p.phone||'',p.email||'',p.contact||'']));
+    const csv = rows.map(r=>r.map(v=>'"'+(v||'')+'"').join(',')).join('
+');
+    const a = document.createElement('a');
+    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+    a.download = 'reproute-contacts.csv';
+    a.click();
+  });
+}
+
+// ── ANALYTICS ───────────────────────────────────────────────
+async function loadAnalytics() {
+  try {
+    const [data, calls] = await Promise.all([
+      fetch('/app/data').then(r=>r.json()),
+      fetch('/api/calls').then(r=>r.json())
+    ]);
+    const prospects = data.prospects || [];
+    const callList = calls.calls || [];
+    const hot = prospects.filter(p=>p.priority==='High').length;
+    document.getElementById('an-hot').textContent = prospects.length ? Math.round((hot/prospects.length)*100)+'%' : '0%';
+    document.getElementById('an-followup').textContent = callList.length ? Math.round((callList.filter(c=>c.follow_up_date).length/callList.length)*100)+'%' : '0%';
+    document.getElementById('an-days').textContent = '—';
+
+    // Pipeline by stage
+    const stages = {};
+    prospects.forEach(p => { stages[p.status||'Lead'] = (stages[p.status||'Lead']||0)+1; });
+    const maxS = Math.max(...Object.values(stages),1);
+    document.getElementById('an-pipeline-chart').innerHTML = Object.entries(stages).map(([k,v]) =>
+      '<div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1">' +
+      '<div style="font-size:10px;color:var(--text2);font-weight:700">' + v + '</div>' +
+      '<div style="width:100%;background:var(--amber,#f59e0b);border-radius:4px 4px 0 0;height:' + Math.round((v/maxS)*100) + 'px"></div>' +
+      '<div style="font-size:9px;color:var(--text2);text-align:center">' + k + '</div></div>'
+    ).join('');
+
+    // Top contacted
+    const callCounts = {};
+    callList.forEach(c => { if(c.company) callCounts[c.company]=(callCounts[c.company]||0)+1; });
+    const top = Object.entries(callCounts).sort((a,b)=>b[1]-a[1]).slice(0,5);
+    document.getElementById('an-top-accounts').innerHTML = top.length ? top.map(([k,v]) =>
+      '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px"><span>' + k + '</span><span style="color:var(--blue);font-weight:700">' + v + ' calls</span></div>'
+    ).join('') : '<div style="color:var(--text2);font-size:12px">No call data yet</div>';
+  } catch(e) { console.error(e); }
+}
+
+// ── TASKS ────────────────────────────────────────────────────
+let tasks = JSON.parse(localStorage.getItem('reproute-tasks') || '[]');
+let taskFilter = 'all';
+
+function saveTasks() { localStorage.setItem('reproute-tasks', JSON.stringify(tasks)); }
+
+function openAddTask() { document.getElementById('task-modal').style.display='flex'; }
+function closeTaskModal() { document.getElementById('task-modal').style.display='none'; }
+
+function saveTask() {
+  const title = document.getElementById('task-title').value.trim();
+  if (!title) { alert('Task description required'); return; }
+  tasks.unshift({
+    id: Date.now(),
+    title,
+    type: document.getElementById('task-type').value,
+    contact: document.getElementById('task-contact').value.trim(),
+    due: document.getElementById('task-due').value,
+    done: false,
+    created: new Date().toISOString()
+  });
+  saveTasks();
+  closeTaskModal();
+  document.getElementById('task-title').value='';
+  document.getElementById('task-contact').value='';
+  document.getElementById('task-due').value='';
+  loadTasks();
+}
+
+function setTaskFilter(f, el) {
+  taskFilter = f;
+  document.querySelectorAll('#page-tasks .f-chip').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  loadTasks();
+}
+
+function toggleTask(id) {
+  const t = tasks.find(t=>t.id===id);
+  if (t) { t.done = !t.done; saveTasks(); loadTasks(); }
+}
+
+function deleteTask(id) {
+  tasks = tasks.filter(t=>t.id!==id);
+  saveTasks();
+  loadTasks();
+}
+
+function loadTasks() {
+  const today = new Date().toISOString().split('T')[0];
+  let filtered = tasks;
+  if (taskFilter==='due') filtered = tasks.filter(t=>!t.done && t.due===today);
+  else if (taskFilter==='overdue') filtered = tasks.filter(t=>!t.done && t.due && t.due<today);
+  else if (taskFilter==='done') filtered = tasks.filter(t=>t.done);
+  else filtered = tasks.filter(t=>!t.done);
+
+  const icons = {call:'📞',email:'✉️',sample:'📦',literature:'📄',meeting:'📅',other:'✅'};
+  document.getElementById('tasks-list').innerHTML = filtered.length ? filtered.map(t => {
+    const isOverdue = !t.done && t.due && t.due < today;
+    return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px 16px;display:flex;align-items:center;gap:12px">' +
+      '<input type="checkbox" ' + (t.done?'checked':'') + ' onchange="toggleTask(' + t.id + ')" style="width:16px;height:16px;cursor:pointer">' +
+      '<span style="font-size:14px">' + (icons[t.type]||'✅') + '</span>' +
+      '<div style="flex:1">' +
+        '<div style="font-size:13px;font-weight:500;color:var(--text);' + (t.done?'text-decoration:line-through;opacity:0.5':'') + '">' + t.title + '</div>' +
+        '<div style="font-size:11px;color:var(--text2)">' + (t.contact||'') + (t.due ? ' · <span style="color:' + (isOverdue?'#ef4444':'var(--text2)') + '">' + (isOverdue?'Overdue: ':'Due: ') + t.due + '</span>' : '') + '</div>' +
+      '</div>' +
+      '<button onclick="deleteTask(' + t.id + ')" style="background:transparent;border:none;color:var(--text2);cursor:pointer;font-size:14px">×</button>' +
+    '</div>';
+  }).join('') : '<div style="color:var(--text2);font-size:12px;padding:20px;text-align:center">No tasks ' + (taskFilter==='all'?'yet — add one above':'in this filter') + '</div>';
+}
+
+// ── ACCOUNTS ────────────────────────────────────────────────
+async function loadAccounts() {
+  try {
+    const data = await fetch('/api/prospects').then(r=>r.json());
+    const prospects = data.prospects || [];
+    const accounts = {};
+    prospects.forEach(p => {
+      const key = p.company || 'Unknown';
+      if (!accounts[key]) accounts[key] = { name:key, category:p.category, city:p.city, contacts:[], priority:p.priority };
+      accounts[key].contacts.push(p);
+    });
+    renderAccounts(Object.values(accounts));
+  } catch(e) {}
+}
+
+function renderAccounts(list) {
+  document.getElementById('accounts-list').innerHTML = list.length ? list.map(a =>
+    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px 16px;cursor:pointer" onclick="go('contacts')">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center">' +
+    '<div><div style="font-size:13px;font-weight:600">' + a.name + '</div>' +
+    '<div style="font-size:11px;color:var(--text2)">' + (a.category||'') + ' · ' + (a.city||'') + '</div></div>' +
+    '<div style="font-size:11px;color:var(--blue)">' + a.contacts.length + ' contact' + (a.contacts.length!==1?'s':'') + '</div>' +
+    '</div></div>'
+  ).join('') : '<div style="color:var(--text2);font-size:12px;padding:20px;text-align:center">No accounts yet</div>';
+}
+
+function filterAccounts(q) {
+  fetch('/api/prospects').then(r=>r.json()).then(data => {
+    const accounts = {};
+    (data.prospects||[]).forEach(p => {
+      const key = p.company||'Unknown';
+      if (!accounts[key]) accounts[key]={name:key,category:p.category,city:p.city,contacts:[],priority:p.priority};
+      accounts[key].contacts.push(p);
+    });
+    const filtered = Object.values(accounts).filter(a=>a.name.toLowerCase().includes(q.toLowerCase())||
+      (a.category||'').toLowerCase().includes(q.toLowerCase()));
+    renderAccounts(filtered);
+  });
+}
+
 </script>
 </body>
 </html>
