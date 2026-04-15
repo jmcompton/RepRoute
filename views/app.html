@@ -1562,8 +1562,7 @@ function exportReportsCSV() {
   fetch('/api/prospects').then(r=>r.json()).then(data => {
     const rows = [['Company','Category','City','Priority','Phone','Email','Contact']];
     (data.prospects||[]).forEach(p => rows.push([p.company,p.category,p.city,p.priority,p.phone||'',p.email||'',p.contact||'']));
-    const csv = rows.map(r=>r.map(v=>'"'+(v||'')+'"').join(',')).join('
-');
+    const csv = rows.map(r=>r.map(v=>'"'+(v||'')+'"').join(',')).join('\n');
     const a = document.createElement('a');
     a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
     a.download = 'reproute-contacts.csv';
