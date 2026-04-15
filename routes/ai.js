@@ -147,22 +147,16 @@ Start with [ immediately. No other text.`;
 
 
   try {
-    const text = await callClaudeWithSearch(prompt);
+    const text = await callClaude(prompt);
     const leads = extractJSON(text);
     if (!leads) {
-      // Wait 3 seconds before retry to avoid rate limit
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      const retry = await callClaudeWithSearch(prompt + ' Return ONLY the JSON array starting with [. No other text.');
+      const retry = await callClaude(prompt + ' Return ONLY the JSON array starting with [. No other text.');
       const leads2 = extractJSON(retry);
-      if (!leads2) return res.json({ error: 'Could not parse leads. Try again.', raw: retry.substring(0, 200) });
+      if (!leads2) return res.json({ error: 'Could not parse leads. Try again.' });
       return res.json({ leads: Array.isArray(leads2) ? leads2 : [] });
     }
     res.json({ leads: Array.isArray(leads) ? leads : [] });
   } catch (e) {
-    // Check for rate limit error
-    if (e.message && (e.message.includes('529') || e.message.includes('rate') || e.message.includes('overloaded'))) {
-      return res.json({ error: 'AI is busy — please wait 30 seconds and try again.', raw: e.message });
-    }
     res.json({ error: 'Could not parse leads. Try again.', raw: e.message });
   }
 });
