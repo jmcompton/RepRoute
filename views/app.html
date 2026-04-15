@@ -740,7 +740,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div class="mb">
     <h2>Add Team Member</h2>
     <div class="g2"><div class="fg"><label>Full Name *</label><input type="text" id="ar-name" /></div><div class="fg"><label>Email *</label><input type="email" id="ar-email" /></div></div>
-    <div class="g2"><div class="fg"><label>Territory</label><input type="text" id="ar-territory" placeholder="Atlanta Metro" /></div><div class="fg"><label>Temp Password</label><input type="text" id="ar-pw" placeholder="reproute2025" /></div></div>
+    <div class="g2"><div class="fg"><label>Territory</label><input type="text" id="ar-territory" placeholder="Atlanta Metro" /></div><div class="fg"><label>Temp Password</label><input type="password" id="ar-pw" placeholder="Set a password" /></div></div>
     <div class="mfoot"><button class="btn btn-secondary" onclick="closeModal('add-rep')">Cancel</button><button class="btn btn-primary" onclick="addRep()">Add Rep</button></div>
   </div>
 </div>
@@ -1361,7 +1361,7 @@ function addRep() {
   if (!name || !email) { showToast('Name and email required'); return; }
   fetch('/api/manager/add-rep', {
     method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ name:name, email:email, territory:document.getElementById('ar-territory').value, password:document.getElementById('ar-pw').value||'reproute2025' })
+    body: JSON.stringify({ name:name, email:email, territory:document.getElementById('ar-territory').value, password:document.getElementById('ar-pw').value||'ChangeMe123!' })
   }).then(function(r) { return r.json(); })
     .then(function(d) {
       if (d.error) { showToast(d.error); return; }
