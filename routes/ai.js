@@ -5,6 +5,7 @@ const router = express.Router();
 
 const CLAUDE_API = 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-sonnet-4-20250514';
+const SEARCH_MODEL = 'claude-haiku-4-5-20251001';
 
 // Standard Claude call (no web search)
 async function callClaude(prompt) {
@@ -42,11 +43,14 @@ async function callClaudeWithSearch(prompt) {
   for (let turn = 0; turn < 5; turn++) {
     const res = await fetch(CLAUDE_API, {
       method: 'POST', headers,
-      body: JSON.stringify({ model: MODEL, max_tokens: 4000, tools, messages })
+      body: JSON.stringify({ model: SEARCH_MODEL, max_tokens: 2000, tools, messages })
     });
     const data = await res.json();
-    if (data.error) { console.log('API ERROR:', JSON.stringify(data.error)); throw new Error(data.error.message || 'API error'); }
-    if (!data.content) { console.log('NO CONTENT:', JSON.stringify(data)); break; }
+    if (data.error) {
+      if (data.error.type === 'rate_limit_error') throw new Error('Rate limit hit — please wait 60 seconds and try again.');
+      throw new Error(data.error.message || 'API error');
+    }
+    if (!data.content) break;
 
     // Collect any text from this turn
     const text = data.content.filter(b => b.type === 'text').map(b => b.text).join('');
