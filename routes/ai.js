@@ -85,18 +85,39 @@ function extractJSON(text) {
   }
 }
 
+// Territory city lookup
+function getTerritoryContext(territory) {
+  const t = (territory || "").toLowerCase();
+  if (t.includes("atlanta") || t.includes("georgia") || t.includes(" ga") || t === "ga")
+    return { state: "GA", cities: "Atlanta, Marietta, Kennesaw, Alpharetta, Roswell, Smyrna, Sandy Springs, Dunwoody, Decatur, Norcross, Duluth, Lawrenceville, Buford, Cumming, Woodstock, Canton, Peachtree City, Newnan" };
+  if (t.includes("birmingham") || t.includes("alabama") || t.includes(" al") || t === "al")
+    return { state: "AL", cities: "Birmingham, Hoover, Vestavia Hills, Homewood, Bessemer, Tuscaloosa, Huntsville, Montgomery, Auburn, Decatur, Florence, Dothan, Gadsden" };
+  if (t.includes("charlotte") || t.includes("north carolina") || t.includes(" nc") || t === "nc")
+    return { state: "NC", cities: "Charlotte, Raleigh, Durham, Greensboro, Winston-Salem, Cary, High Point, Wilmington, Concord, Gastonia, Fayetteville, Asheville" };
+  if (t.includes("nashville") || t.includes("tennessee") || t.includes(" tn") || t === "tn")
+    return { state: "TN", cities: "Nashville, Memphis, Knoxville, Chattanooga, Clarksville, Murfreesboro, Franklin, Brentwood, Hendersonville" };
+  if (t.includes("dallas") || t.includes("fort worth") || t.includes("dfw"))
+    return { state: "TX", cities: "Dallas, Fort Worth, Arlington, Plano, Frisco, McKinney, Irving, Garland, Grand Prairie, Carrollton, Richardson, Lewisville, Denton" };
+  if (t.includes("houston"))
+    return { state: "TX", cities: "Houston, Sugar Land, Pearland, Pasadena, The Woodlands, Katy, Baytown, League City, Friendswood, Missouri City, Conroe" };
+  if (t.includes("florida") || t.includes(" fl") || t === "fl" || t.includes("tampa") || t.includes("orlando") || t.includes("miami"))
+    return { state: "FL", cities: "Miami, Orlando, Tampa, Jacksonville, Fort Lauderdale, St. Petersburg, Tallahassee, Cape Coral, Pembroke Pines" };
+  return { state: "", cities: territory };
+}
+
 // AI Lead Finder
 router.post('/leads', async (req, res) => {
   const { category, territory } = req.body;
   const user = req.session.user;
   const loc = territory || user.territory || 'Atlanta Metro, Georgia';
+  const { state, cities } = getTerritoryContext(loc);
   const product = req.body.product || category;
 
   const prompt = `Search the web, Google Maps, LinkedIn, Facebook, and Instagram to find 25 real businesses in "${loc}" that are prospects for a manufacturer's rep selling ${product}.
 
 Target business type: ${category}
 
-Search specifically for businesses in these Atlanta area cities: Atlanta, Marietta, Kennesaw, Alpharetta, Roswell, Smyrna, Sandy Springs, Dunwoody, Decatur, Norcross, Duluth, Lawrenceville, Buford, Cumming, Woodstock, Canton, Peachtree City, Newnan.
+Search specifically in these cities: ${cities}
 
 For each business found, return its real contact information.
 

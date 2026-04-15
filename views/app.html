@@ -253,6 +253,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <button class="sb-item" onclick="go('manager')"><span class="ico">👥</span>Team Dashboard</button>
   </div>
   <div class="sb-bottom">
+    <div style="padding:8px 10px;background:var(--light);border-radius:var(--r-sm);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em">Territory</div>
+        <div style="font-size:12px;font-weight:600;color:var(--navy)" id="sb-territory-label">Atlanta Metro</div>
+      </div>
+      <button onclick="openTerritoryModal()" style="font-size:10px;padding:3px 8px;background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--blue);cursor:pointer">Change</button>
+    </div>
     <div class="sb-user"><div class="sb-av" id="s-av">JM</div><div><div class="sb-uname" id="s-name">Loading...</div><div class="sb-urole" id="s-role">Rep</div></div></div>
     <button class="sb-out" onclick="signOut()">Sign Out</button>
   </div>
@@ -1710,5 +1717,77 @@ function filterAccounts(q) {
 }
 
 </script>
+
+<!-- Territory Modal -->
+<div id="territory-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:300;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--white);border-radius:var(--r);padding:28px;width:100%;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,0.15)">
+    <div style="font-size:15px;font-weight:700;color:var(--navy);margin-bottom:6px">Change Territory</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:16px">Updates your AI Lead Finder and weekly plan targeting.</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">
+      <div style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.08em">Quick Select</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        <button onclick="setTerritory('Atlanta Metro, GA')" class="terr-chip">Atlanta Metro, GA</button>
+        <button onclick="setTerritory('Birmingham, AL')" class="terr-chip">Birmingham, AL</button>
+        <button onclick="setTerritory('Nashville, TN')" class="terr-chip">Nashville, TN</button>
+        <button onclick="setTerritory('Charlotte, NC')" class="terr-chip">Charlotte, NC</button>
+        <button onclick="setTerritory('Dallas, TX')" class="terr-chip">Dallas, TX</button>
+        <button onclick="setTerritory('Tampa, FL')" class="terr-chip">Tampa, FL</button>
+      </div>
+    </div>
+    <div style="margin-bottom:16px">
+      <div style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">Or Enter Custom</div>
+      <input id="territory-input" placeholder="e.g. Houston, TX" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:13px;box-sizing:border-box">
+    </div>
+    <div style="display:flex;gap:10px">
+      <button onclick="closeTerritoryModal()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);border-radius:40px;font-size:12px;cursor:pointer">Cancel</button>
+      <button onclick="saveTerritoryChange()" style="flex:2;padding:10px;background:var(--blue);color:#fff;border:none;border-radius:40px;font-size:12px;font-weight:700;cursor:pointer">Save Territory</button>
+    </div>
+  </div>
+</div>
+<style>
+.terr-chip{padding:5px 12px;border:1px solid var(--border);border-radius:40px;font-size:11px;background:transparent;color:var(--navy);cursor:pointer}
+.terr-chip:hover{background:var(--blue);color:#fff;border-color:var(--blue)}
+</style>
+<script>
+function openTerritoryModal() {
+  document.getElementById('territory-modal').style.display='flex';
+  document.getElementById('territory-input').value = window.currentTerritory || '';
+}
+function closeTerritoryModal() {
+  document.getElementById('territory-modal').style.display='none';
+}
+function setTerritory(t) {
+  document.getElementById('territory-input').value = t;
+}
+async function saveTerritoryChange() {
+  const t = document.getElementById('territory-input').value.trim();
+  if (!t) { alert('Enter a territory'); return; }
+  try {
+    await fetch('/app/update-territory', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ territory: t })
+    });
+    window.currentTerritory = t;
+    document.getElementById('sb-territory-label').textContent = t;
+    var leadTerr = document.getElementById('lead-territory');
+    if (leadTerr) leadTerr.value = t;
+    closeTerritoryModal();
+  } catch(e) { alert('Error saving territory'); }
+}
+// Init territory on load
+window.addEventListener('load', function() {
+  setTimeout(function() {
+    var userData = window.__userData;
+    if (userData && userData.territory) {
+      window.currentTerritory = userData.territory;
+      document.getElementById('sb-territory-label').textContent = userData.territory;
+      var leadTerr = document.getElementById('lead-territory');
+      if (leadTerr) leadTerr.value = userData.territory;
+    }
+  }, 500);
+});
+</script>
+
 </body>
 </html>

@@ -62,3 +62,15 @@ const PORT = process.env.PORT || 3000;
 initDB().then(() => {
   app.listen(PORT, () => console.log(`RepRoute running on port ${PORT}`));
 });
+// Update territory
+app.post('/app/update-territory', requireAuth, async (req, res) => {
+  const { territory } = req.body;
+  if (!territory) return res.status(400).json({ error: 'Territory required' });
+  try {
+    await pool.query('UPDATE users SET territory=$1 WHERE id=$2', [territory, req.session.user.id]);
+    req.session.user.territory = territory;
+    res.json({ ok: true, territory });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
