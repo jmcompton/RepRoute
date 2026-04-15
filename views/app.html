@@ -1050,7 +1050,7 @@ function viewRecord(id) {
 function setRecTab(tab, el) {
   ['overview','calls','outreach','ai','notes','deals'].forEach(function(t) {
     var e = document.getElementById('rec-tab-' + t);
-    if (e) e.style.display = t === tab ? '' : 'none';
+    if (e) e.style.display = t === tab ? 'block' : 'none';
   });
   document.querySelectorAll('.rl-item, .rt').forEach(function(i) { i.classList.remove('active'); });
   if (el) el.classList.add('active');
