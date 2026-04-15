@@ -90,23 +90,46 @@ function extractJSON(text) {
   }
 }
 
-// Territory city lookup
+// Territory city lookup — Compton Group Southeast coverage
 function getTerritoryContext(territory) {
   const t = (territory || "").toLowerCase();
-  if (t.includes("atlanta") || t.includes("georgia") || t.includes(" ga") || t === "ga")
-    return { state: "GA", cities: "Atlanta, Marietta, Kennesaw, Alpharetta, Roswell, Smyrna, Sandy Springs, Dunwoody, Decatur, Norcross, Duluth, Lawrenceville, Buford, Cumming, Woodstock, Canton, Peachtree City, Newnan" };
-  if (t.includes("birmingham") || t.includes("alabama") || t.includes(" al") || t === "al")
-    return { state: "AL", cities: "Birmingham, Hoover, Vestavia Hills, Homewood, Bessemer, Tuscaloosa, Huntsville, Montgomery, Auburn, Decatur, Florence, Dothan, Gadsden" };
-  if (t.includes("charlotte") || t.includes("north carolina") || t.includes(" nc") || t === "nc")
-    return { state: "NC", cities: "Charlotte, Raleigh, Durham, Greensboro, Winston-Salem, Cary, High Point, Wilmington, Concord, Gastonia, Fayetteville, Asheville" };
-  if (t.includes("nashville") || t.includes("tennessee") || t.includes(" tn") || t === "tn")
-    return { state: "TN", cities: "Nashville, Memphis, Knoxville, Chattanooga, Clarksville, Murfreesboro, Franklin, Brentwood, Hendersonville" };
-  if (t.includes("dallas") || t.includes("fort worth") || t.includes("dfw"))
-    return { state: "TX", cities: "Dallas, Fort Worth, Arlington, Plano, Frisco, McKinney, Irving, Garland, Grand Prairie, Carrollton, Richardson, Lewisville, Denton" };
-  if (t.includes("houston"))
-    return { state: "TX", cities: "Houston, Sugar Land, Pearland, Pasadena, The Woodlands, Katy, Baytown, League City, Friendswood, Missouri City, Conroe" };
-  if (t.includes("florida") || t.includes(" fl") || t === "fl" || t.includes("tampa") || t.includes("orlando") || t.includes("miami"))
-    return { state: "FL", cities: "Miami, Orlando, Tampa, Jacksonville, Fort Lauderdale, St. Petersburg, Tallahassee, Cape Coral, Pembroke Pines" };
+
+  // Georgia
+  if (t.includes("atlanta") || t === "ga" || t.includes(" ga") || t.includes("georgia"))
+    return { state: "GA", cities: "Atlanta, Marietta, Kennesaw, Alpharetta, Roswell, Smyrna, Sandy Springs, Dunwoody, Decatur, Norcross, Duluth, Lawrenceville, Buford, Cumming, Woodstock, Canton, Peachtree City, Newnan, Augusta, Savannah, Columbus, Macon, Athens, Warner Robins, Valdosta, Gainesville, Albany, Rome" };
+  if (t.includes("savannah"))
+    return { state: "GA", cities: "Savannah, Brunswick, Statesboro, Hinesville, Valdosta, Waycross, Jesup, Pooler, Richmond Hill" };
+  if (t.includes("augusta"))
+    return { state: "GA", cities: "Augusta, Evans, Martinez, Grovetown, Aiken, North Augusta, Thomson, Waynesboro, Harlem" };
+
+  // Alabama
+  if (t === "al" || t.includes(" al") || t.includes("alabama") || t.includes("birmingham") || t.includes("huntsville") || t.includes("montgomery") || t.includes("tuscaloosa") || t.includes("mobile"))
+    return { state: "AL", cities: "Birmingham, Hoover, Vestavia Hills, Homewood, Bessemer, Tuscaloosa, Huntsville, Madison, Decatur, Montgomery, Mobile, Auburn, Opelika, Dothan, Florence, Muscle Shoals, Sheffield, Gadsden, Anniston, Talladega, Selma, Phenix City, Northport, Prattville, Enterprise" };
+  if (t.includes("jackson") && t.includes("al"))
+    return { state: "AL", cities: "Jackson, Chatom, Grove Hill, Evergreen, Brewton, Atmore, Bay Minette, Daphne, Fairhope, Foley" };
+
+  // Mississippi
+  if (t === "ms" || t.includes(" ms") || t.includes("mississippi") || t.includes("jackson ms") || t.includes("jackson, ms"))
+    return { state: "MS", cities: "Jackson, Ridgeland, Madison, Brandon, Pearl, Flowood, Hattiesburg, Gulfport, Biloxi, Southaven, Olive Branch, Tupelo, Meridian, Greenville, Vicksburg, Columbus, Starkville, Natchez, Pascagoula, Ocean Springs, Laurel, Clarksdale, Corinth, Brookhaven" };
+  if (t.includes("gulfport") || t.includes("biloxi") || t.includes("gulf coast"))
+    return { state: "MS", cities: "Gulfport, Biloxi, Ocean Springs, Pascagoula, Gautier, D'Iberville, Long Beach, Pass Christian, Bay St. Louis, Waveland" };
+
+  // Tennessee
+  if (t === "tn" || t.includes(" tn") || t.includes("tennessee") || t.includes("nashville") || t.includes("memphis") || t.includes("knoxville") || t.includes("chattanooga"))
+    return { state: "TN", cities: "Nashville, Brentwood, Franklin, Murfreesboro, Smyrna, La Vergne, Hendersonville, Gallatin, Clarksville, Memphis, Germantown, Collierville, Bartlett, Cordova, Knoxville, Maryville, Oak Ridge, Chattanooga, Cleveland, Cookeville, Jackson, Kingsport, Bristol, Johnson City" };
+
+  // North Carolina
+  if (t === "nc" || t.includes(" nc") || t.includes("north carolina") || t.includes("charlotte") || t.includes("raleigh"))
+    return { state: "NC", cities: "Charlotte, Concord, Gastonia, Rock Hill, Mooresville, Huntersville, Matthews, Raleigh, Durham, Cary, Chapel Hill, Apex, Greensboro, Winston-Salem, High Point, Burlington, Wilmington, Fayetteville, Asheville, Hickory, Greenville, Jacksonville, Rocky Mount, Wilson" };
+
+  // South Carolina
+  if (t === "sc" || t.includes(" sc") || t.includes("south carolina") || t.includes("columbia sc") || t.includes("charleston") || t.includes("greenville sc") || t.includes("spartanburg"))
+    return { state: "SC", cities: "Columbia, Lexington, Irmo, West Columbia, Cayce, Greenville, Spartanburg, Greer, Mauldin, Simpsonville, Taylors, Anderson, Charleston, North Charleston, Mount Pleasant, Summerville, Goose Creek, Myrtle Beach, Conway, Florence, Rock Hill, Aiken, Hilton Head" };
+
+  // Southeast region-wide
+  if (t.includes("southeast") || t.includes("south east"))
+    return { state: "", cities: "Atlanta GA, Birmingham AL, Jackson MS, Nashville TN, Charlotte NC, Columbia SC, Greenville SC, Chattanooga TN, Knoxville TN, Memphis TN, Savannah GA, Augusta GA, Huntsville AL, Montgomery AL, Tupelo MS, Hattiesburg MS, Asheville NC, Raleigh NC, Charleston SC" };
+
   return { state: "", cities: territory };
 }
 
