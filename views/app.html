@@ -1686,7 +1686,7 @@ async function loadAccounts() {
 
 function renderAccounts(list) {
   document.getElementById('accounts-list').innerHTML = list.length ? list.map(a =>
-    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px 16px;cursor:pointer" onclick="go('contacts')">' +
+    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px 16px;cursor:pointer" onclick="go(\'contacts\')">' +
     '<div style="display:flex;justify-content:space-between;align-items:center">' +
     '<div><div style="font-size:13px;font-weight:600">' + a.name + '</div>' +
     '<div style="font-size:11px;color:var(--text2)">' + (a.category||'') + ' · ' + (a.city||'') + '</div></div>' +
