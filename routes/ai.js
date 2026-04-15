@@ -145,7 +145,11 @@ Start your response with [ immediately. No preamble.`;
     const text = await callClaudeWithSearch(prompt);
     const leads = extractJSON(text);
     if (!leads) {
-      return res.json({ error: 'Could not parse leads. Try again.', raw: text.substring(0, 200) });
+      // Retry with a stricter prompt if first attempt fails
+      const retry = await callClaudeWithSearch(prompt + ' Remember: output ONLY the JSON array, nothing else.');
+      const leads2 = extractJSON(retry);
+      if (!leads2) return res.json({ error: 'Could not parse leads. Try again.', raw: retry.substring(0, 200) });
+      return res.json({ leads: Array.isArray(leads2) ? leads2 : [] });
     }
     res.json({ leads: Array.isArray(leads) ? leads : [] });
   } catch (e) {
