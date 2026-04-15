@@ -45,9 +45,8 @@ async function callClaudeWithSearch(prompt) {
       body: JSON.stringify({ model: MODEL, max_tokens: 4000, tools, messages })
     });
     const data = await res.json();
-    if (data.error && data.error.type === 'overloaded_error') throw new Error('overloaded');
-    if (data.error && data.error.type === 'rate_limit_error') throw new Error('rate limit');
-    if (!data.content) break;
+    if (data.error) { console.log('API ERROR:', JSON.stringify(data.error)); throw new Error(data.error.message || 'API error'); }
+    if (!data.content) { console.log('NO CONTENT:', JSON.stringify(data)); break; }
 
     // Collect any text from this turn
     const text = data.content.filter(b => b.type === 'text').map(b => b.text).join('');
