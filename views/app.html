@@ -1516,7 +1516,7 @@ function dropCard(event, stage) {
 function catBadge(cat) {
   if (!cat) return '';
   var cls = cat.indexOf('Deck')!==-1?'b-deck':cat.indexOf('Window')!==-1?'b-window':cat.indexOf('Roof')!==-1?'b-roofing':cat.indexOf('Dealer')!==-1?'b-dealer':'b-distributor';
-  var lbl = cat.indexOf('Deck')!==-1?'Deck':cat.indexOf('Window')!==-1?'Window/Door':cat.indexOf('Roof')!==-1?'Roofing':cat.indexOf('Dealer')!==-1?'Dealer':'Distributor';
+  var lbl = cat.indexOf('Deck')!==-1?'Deck':cat.indexOf('Window')!==-1?'Window/Door':cat.indexOf('Roof')!==-1?'Roofing':cat.indexOf('Dealer')!==-1?'Dealer':cat.indexOf('Insul')!==-1?'Insulation':cat.indexOf('Spray')!==-1?'Spray Foam':cat.indexOf('Paint')!==-1?'Painting':cat.indexOf('General')!==-1?'GC':cat.indexOf('Contractor')!==-1?'Contractor':cat.length>15?cat.substring(0,15)+'...':cat||'Contractor';
   return '<span class="badge ' + cls + '">' + lbl + '</span>';
 }
 
