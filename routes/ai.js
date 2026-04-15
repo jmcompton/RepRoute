@@ -143,9 +143,11 @@ Start your response with [ immediately. No preamble.`;
 
   try {
     const text = await callClaudeWithSearch(prompt);
+    console.log('LEADS RAW RESPONSE:', text.substring(0, 500));
     const leads = extractJSON(text);
     if (!leads) {
-      return res.json({ error: 'Could not parse leads. Try again.', raw: text.substring(0, 200) });
+      console.log('LEADS PARSE FAILED. Full text:', text.substring(0, 1000));
+      return res.json({ error: 'Could not parse leads. Try again.', raw: text.substring(0, 500) });
     }
     res.json({ leads: Array.isArray(leads) ? leads : [] });
   } catch (e) {
