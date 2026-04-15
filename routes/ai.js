@@ -45,6 +45,8 @@ async function callClaudeWithSearch(prompt) {
       body: JSON.stringify({ model: MODEL, max_tokens: 4000, tools, messages })
     });
     const data = await res.json();
+    if (data.error && data.error.type === 'overloaded_error') throw new Error('overloaded');
+    if (data.error && data.error.type === 'rate_limit_error') throw new Error('rate limit');
     if (!data.content) break;
 
     // Collect any text from this turn
@@ -146,14 +148,19 @@ Return ONLY a JSON array. No markdown. No preamble. Start with [ immediately:
     const text = await callClaudeWithSearch(prompt);
     const leads = extractJSON(text);
     if (!leads) {
-      // Retry with a stricter prompt if first attempt fails
-      const retry = await callClaudeWithSearch(prompt + ' Remember: output ONLY the JSON array, nothing else.');
+      // Wait 3 seconds before retry to avoid rate limit
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      const retry = await callClaudeWithSearch(prompt + ' Return ONLY the JSON array starting with [. No other text.');
       const leads2 = extractJSON(retry);
       if (!leads2) return res.json({ error: 'Could not parse leads. Try again.', raw: retry.substring(0, 200) });
       return res.json({ leads: Array.isArray(leads2) ? leads2 : [] });
     }
     res.json({ leads: Array.isArray(leads) ? leads : [] });
   } catch (e) {
+    // Check for rate limit error
+    if (e.message && (e.message.includes('529') || e.message.includes('rate') || e.message.includes('overloaded'))) {
+      return res.json({ error: 'AI is busy — please wait 30 seconds and try again.', raw: e.message });
+    }
     res.json({ error: 'Could not parse leads. Try again.', raw: e.message });
   }
 });
