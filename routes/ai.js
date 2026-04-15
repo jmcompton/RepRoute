@@ -40,7 +40,7 @@ async function callClaudeWithSearch(prompt) {
   let fullText = '';
 
   // Loop up to 5 turns to handle tool use
-  for (let turn = 0; turn < 5; turn++) {
+  for (let turn = 0; turn < 2; turn++) {
     const res = await fetch(CLAUDE_API, {
       method: 'POST', headers,
       body: JSON.stringify({ model: SEARCH_MODEL, max_tokens: 2000, tools, messages })
