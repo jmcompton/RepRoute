@@ -113,33 +113,34 @@ router.post('/leads', async (req, res) => {
   const { state, cities } = getTerritoryContext(loc);
   const product = req.body.product || category;
 
-  const prompt = `Search the web, Google Maps, LinkedIn, Facebook, and Instagram to find 25 real businesses in "${loc}" that are prospects for a manufacturer's rep selling ${product}.
-
+  const prompt = `You are a B2B sales researcher. Search the web to find 25 real businesses in "${loc}" that buy ${product}.
 Target business type: ${category}
+Search in these cities: ${cities}
 
-Search specifically in these cities: ${cities}
+For EACH business you find, you MUST search for:
+1. Their website (Google: company name + city)
+2. Their phone number (Google Maps, their website contact page)
+3. Their email (Google: company name + "email" OR "contact us", check their website contact page)
+4. Owner or manager name (LinkedIn, Google: "owner of" + company name)
 
-For each business found, return its real contact information.
-
-YOU MUST return ONLY a JSON array starting with [ and ending with ]. No other text before or after. No markdown. Just the raw JSON array:
-
+IMPORTANT: Do not return null for phone or email if you can find it. Search each company individually.
+Return ONLY a JSON array. No markdown. No preamble. Start with [ immediately:
 [
   {
-    "company": "Business Name",
+    "company": "Exact Business Name",
     "category": "Business Type",
     "address": "street address or null",
     "city": "city name",
-    "state": "GA",
-    "phone": "phone number or null",
-    "email": "email or null",
-    "website": "website or null",
-    "contact": "owner or manager name or null",
-    "products": "which products they would buy",
+    "state": "${state}",
+    "phone": "real phone number — search hard for this",
+    "email": "real email — check website contact page",
+    "website": "full URL or null",
+    "contact": "owner or manager first and last name or null",
+    "products": "which of these products they would buy: ${product}",
     "priority": "High or Medium or Low"
   }
-]
+]`;
 
-Start your response with [ immediately. No preamble.`;
 
   try {
     const text = await callClaudeWithSearch(prompt);
