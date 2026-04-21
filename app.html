@@ -215,12 +215,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .pipe-card-meta{font-size:11px;color:var(--text3)}
 .pipe-card-badge{display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:8px;margin-top:4px}
 .pipe-cnt{background:rgba(0,0,0,.15);color:inherit;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:700}
+
+/* Calendar styles */
+.cal-event-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px;flex-shrink:0}
 .fc .fc-toolbar-title{font-size:14px!important;font-weight:700;color:var(--navy)}
 .fc .fc-button{background:var(--blue)!important;border-color:var(--blue)!important;font-size:11px!important;padding:4px 10px!important;text-transform:capitalize!important;box-shadow:none!important}
 .fc .fc-button-active,.fc .fc-button:focus{background:#0052a3!important;border-color:#0052a3!important;box-shadow:none!important}
 .fc .fc-daygrid-event{border-radius:3px!important;font-size:11px!important;padding:1px 4px!important}
 .fc .fc-col-header-cell{background:#fafbfc;font-size:11px;font-weight:700;color:var(--text2);padding:6px 0}
 .fc .fc-day-today{background:#f0f6ff!important}
+.fc-event-mine{border-left:3px solid #0066cc!important}
+.fc-event-other{border-left:3px solid #8f96a3!important;opacity:.85}
 </style>
 <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
@@ -735,16 +740,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <!-- CALENDAR PAGE -->
   <div class="page" id="page-calendar">
     <div style="padding:16px">
+      <!-- Header bar -->
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
-        <div style="display:flex;gap:8px">
-          <button id="cal-filter-all" onclick="setCalFilter('all')" style="padding:6px 14px;font-size:12px;font-weight:600;border:none;background:var(--blue);color:#fff;cursor:pointer;border-radius:4px 0 0 4px">All Events</button>
-          <button id="cal-filter-mine" onclick="setCalFilter('mine')" style="padding:6px 14px;font-size:12px;font-weight:600;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;border-radius:0 4px 4px 0">My Events</button>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="display:flex;background:var(--light);border-radius:var(--r-sm);overflow:hidden;border:1px solid var(--border)">
+            <button id="cal-filter-all" onclick="setCalFilter('all')" style="padding:6px 14px;font-size:12px;font-weight:600;border:none;background:var(--blue);color:#fff;cursor:pointer">All Events</button>
+            <button id="cal-filter-mine" onclick="setCalFilter('mine')" style="padding:6px 14px;font-size:12px;font-weight:600;border:none;background:transparent;color:var(--text2);cursor:pointer">My Events</button>
+          </div>
         </div>
         <div style="display:flex;gap:8px">
           <button class="btn btn-secondary btn-sm" onclick="openCalAppleModal()">🍎 Apple Calendar</button>
           <button class="btn btn-primary btn-sm" onclick="openModal('add-event')">+ Add Event</button>
         </div>
       </div>
+
+      <!-- FullCalendar container -->
       <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:16px">
         <div id="fullcalendar"></div>
       </div>
@@ -777,7 +787,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   </div>
 </div>
 
-<!-- EDIT CONTACT MODAL -->
+<!-- ADD EVENT MODAL -->
 <div class="mo" id="modal-add-event">
   <div class="mb">
     <h2>Add Calendar Event</h2>
@@ -808,6 +818,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   </div>
 </div>
 
+<!-- APPLE CALENDAR MODAL -->
 <div class="mo" id="modal-apple-cal">
   <div class="mb">
     <h2>🍎 Sync with Apple Calendar</h2>
@@ -816,13 +827,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <label>Your iCal Feed URL</label>
       <div style="display:flex;gap:8px">
         <input type="text" id="ical-url" readonly style="font-size:11px;color:var(--text2)" placeholder="Loading..." />
-        <button class="btn btn-secondary btn-sm" onclick="copyIcalUrl()">Copy</button>
+        <button class="btn btn-secondary btn-sm" onclick="copyIcalUrl()" style="white-space:nowrap">Copy</button>
       </div>
     </div>
     <div style="background:var(--light);border-radius:var(--r-sm);padding:12px;margin-top:12px;font-size:12px;color:var(--text2);line-height:1.7">
       <strong style="color:var(--navy)">How to add in Apple Calendar:</strong><br>
       1. Open <strong>Calendar</strong> on your Mac or iPhone<br>
-      2. Mac: File → New Calendar Subscription | iPhone: Paste URL in Safari, tap "Subscribe"<br>
+      2. Mac: File → New Calendar Subscription &nbsp;|&nbsp; iPhone: Paste URL in Safari, tap "Subscribe"<br>
       3. Paste your feed URL above<br>
       4. Set auto-refresh to <strong>Every 15 minutes</strong>
     </div>
@@ -830,6 +841,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   </div>
 </div>
 
+<!-- EDIT CONTACT MODAL -->
 <div class="mo" id="modal-edit-prospect">
   <div class="mb">
     <h2>Edit Contact</h2>
@@ -1912,41 +1924,86 @@ async function saveTerritoryChange() {
     closeTerritoryModal();
   } catch(e) { alert('Error saving territory'); }
 }
+// Init territory on load
+window.addEventListener('load', function() {
+  setTimeout(function() {
+    var userData = window.__userData;
+    if (userData && userData.territory) {
+      window.currentTerritory = userData.territory;
+      document.getElementById('sb-territory-label').textContent = userData.territory;
+      var leadTerr = document.getElementById('lead-territory');
+      if (leadTerr) leadTerr.value = userData.territory;
+    }
+  }, 500);
+});
+
 // ============================================================
 // TEAM CALENDAR
 // ============================================================
 var calendarInstance = null;
 var calCurrentFilter = 'all';
+var calEvents = [];
 
 var eventTypeColors = {
-  general: '#6b7280', meeting: '#0066cc', call: '#1a7f4b',
-  demo: '#7c3aed', travel: '#b45309', training: '#0891b2'
+  general:  '#6b7280',
+  meeting:  '#0066cc',
+  call:     '#1a7f4b',
+  demo:     '#7c3aed',
+  travel:   '#b45309',
+  training: '#0891b2'
 };
 
 function loadCalendar() {
   fetch('/api/calendar/events?filter=' + calCurrentFilter)
     .then(function(r) { return r.json(); })
-    .then(function(events) { renderCalendar(events); })
-    .catch(function() { console.error('Failed to load calendar'); });
+    .then(function(events) {
+      calEvents = events;
+      renderCalendar(events);
+    })
+    .catch(function() { console.error('Failed to load calendar events'); });
 }
 
 function renderCalendar(events) {
   var el = document.getElementById('fullcalendar');
   if (!el) return;
+
+  // Get current user id from session data if available
   var myUserId = window.__userData ? window.__userData.id : null;
+
   var fcEvents = events.map(function(e) {
     var isMine = myUserId && e.user_id === myUserId;
     var color = eventTypeColors[e.event_type] || eventTypeColors.general;
     return {
-      id: e.id, title: e.title, start: e.start_time, end: e.end_time,
-      backgroundColor: color, borderColor: color,
-      extendedProps: { description: e.description, location: e.location, event_type: e.event_type, creator_name: e.creator_name, user_id: e.user_id, isMine: isMine }
+      id: e.id,
+      title: e.title,
+      start: e.start_time,
+      end: e.end_time,
+      backgroundColor: color,
+      borderColor: color,
+      extendedProps: {
+        description: e.description,
+        location: e.location,
+        event_type: e.event_type,
+        creator_name: e.creator_name,
+        user_id: e.user_id,
+        isMine: isMine
+      },
+      classNames: isMine ? ['fc-event-mine'] : ['fc-event-other']
     };
   });
-  if (calendarInstance) { calendarInstance.destroy(); calendarInstance = null; }
+
+  if (calendarInstance) {
+    calendarInstance.destroy();
+    calendarInstance = null;
+  }
+
   calendarInstance = new FullCalendar.Calendar(el, {
     initialView: 'dayGridMonth',
-    headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,listWeek' },
+    headerToolbar: {
+      left: 'prev,next today',
+      center: 'title',
+      right: 'dayGridMonth,timeGridWeek,listWeek'
+    },
     height: 'auto',
     events: fcEvents,
     eventClick: function(info) {
@@ -1954,18 +2011,27 @@ function renderCalendar(events) {
       var start = new Date(info.event.start).toLocaleString();
       var end = info.event.end ? new Date(info.event.end).toLocaleString() : '';
       var msg = info.event.title + '\n\nCreated by: ' + (p.creator_name || 'Unknown') +
-        '\nType: ' + (p.event_type || 'General') + '\nStart: ' + start +
+        '\nType: ' + (p.event_type || 'General') +
+        '\nStart: ' + start +
         (end ? '\nEnd: ' + end : '') +
         (p.location ? '\nLocation: ' + p.location : '') +
         (p.description ? '\n\nNotes: ' + p.description : '');
+
       if (p.isMine) {
-        if (confirm(msg + '\n\nDelete this event?')) deleteCalendarEvent(info.event.id);
-      } else { alert(msg); }
+        var action = confirm(msg + '\n\nDelete this event?');
+        if (action) deleteCalendarEvent(info.event.id);
+      } else {
+        alert(msg);
+      }
     },
     eventDidMount: function(info) {
-      if (!info.event.extendedProps.isMine) info.el.style.opacity = '0.75';
+      // Dim other people's events slightly
+      if (!info.event.extendedProps.isMine) {
+        info.el.style.opacity = '0.75';
+      }
     }
   });
+
   calendarInstance.render();
 }
 
@@ -1991,12 +2057,17 @@ function saveCalendarEvent() {
   var type = document.getElementById('ev-type').value;
   var location = document.getElementById('ev-location').value.trim();
   var desc = document.getElementById('ev-desc').value.trim();
+
   if (!title || !start || !end) { alert('Title, start, and end are required'); return; }
   if (new Date(end) <= new Date(start)) { alert('End time must be after start time'); return; }
+
   var btn = document.getElementById('ev-save-btn');
-  btn.disabled = true; btn.textContent = 'Saving...';
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+
   var method = id ? 'PUT' : 'POST';
   var url = id ? '/api/calendar/events/' + id : '/api/calendar/events';
+
   fetch(url, {
     method: method,
     headers: { 'Content-Type': 'application/json' },
@@ -2005,10 +2076,17 @@ function saveCalendarEvent() {
   .then(function(r) { return r.json(); })
   .then(function(data) {
     if (data.error) { alert('Error: ' + data.error); }
-    else { closeModal('add-event'); resetEventForm(); loadCalendar(); }
+    else {
+      closeModal('add-event');
+      resetEventForm();
+      loadCalendar();
+    }
   })
   .catch(function() { alert('Failed to save event'); })
-  .finally(function() { btn.disabled = false; btn.textContent = 'Save Event'; });
+  .finally(function() {
+    btn.disabled = false;
+    btn.textContent = 'Save Event';
+  });
 }
 
 function deleteCalendarEvent(id) {
@@ -2048,19 +2126,6 @@ function copyIcalUrl() {
     setTimeout(function() { btn.textContent = 'Copy'; }, 2000);
   });
 }
-
-// Init territory on load
-window.addEventListener('load', function() {
-  setTimeout(function() {
-    var userData = window.__userData;
-    if (userData && userData.territory) {
-      window.currentTerritory = userData.territory;
-      document.getElementById('sb-territory-label').textContent = userData.territory;
-      var leadTerr = document.getElementById('lead-territory');
-      if (leadTerr) leadTerr.value = userData.territory;
-    }
-  }, 500);
-});
 </script>
 
 </body>

@@ -37,7 +37,6 @@ async function initDB() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
 
-    -- Add columns if they don't exist (for existing databases)
     ALTER TABLE prospects ADD COLUMN IF NOT EXISTS pipeline_stage TEXT DEFAULT 'New Lead';
     ALTER TABLE prospects ADD COLUMN IF NOT EXISTS email TEXT;
 
@@ -79,6 +78,20 @@ async function initDB() {
     );
 
     CREATE INDEX IF NOT EXISTS IDX_session_expire ON sessions(expire);
+
+    CREATE TABLE IF NOT EXISTS calendar_events (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      start_time TIMESTAMPTZ NOT NULL,
+      end_time TIMESTAMPTZ NOT NULL,
+      event_type TEXT DEFAULT 'general',
+      location TEXT DEFAULT '',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS ical_token TEXT;
   `);
   console.log('Database initialized');
 }

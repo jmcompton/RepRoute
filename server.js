@@ -12,6 +12,7 @@ const aiRoutes = require('./routes/ai');
 const onboardingRoutes = require('./routes/onboarding');
 const weeklyRoutes = require('./routes/weekly');
 const managerRoutes = require('./routes/manager');
+const calendarRoutes = require('./routes/calendar');
 
 const app = express();
 app.use(express.json());
@@ -57,12 +58,13 @@ app.use('/api/ai', requireAuth, aiRoutes);
 app.use('/api/onboarding', requireAuth, onboardingRoutes);
 app.use('/api/weekly', requireAuth, weeklyRoutes);
 app.use('/api/manager', requireAuth, requireManager, managerRoutes);
+app.use('/api/calendar', requireAuth, calendarRoutes);
 
 const PORT = process.env.PORT || 3000;
 initDB().then(() => {
   app.listen(PORT, () => console.log(`RepRoute running on port ${PORT}`));
 });
-// Update territory
+
 app.post('/app/update-territory', requireAuth, async (req, res) => {
   const { territory } = req.body;
   if (!territory) return res.status(400).json({ error: 'Territory required' });
