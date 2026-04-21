@@ -1662,7 +1662,10 @@ function catBadge(cat) {
 
 function showToast(msg) { var t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(function(){t.classList.remove('show');},2500); }
 function openModal(id) { document.getElementById('modal-'+id).classList.add('open'); }
-function closeModal(id) { document.getElementById('modal-'+id).classList.remove('open'); }
+function closeModal(id) {
+  var m = document.getElementById('modal-' + id);
+  if (m) { m.classList.remove('open'); m.classList.remove('active'); m.style.display = 'none'; }
+  return; document.getElementById('modal-'+id).classList.remove('open'); }
 document.addEventListener('click', function(e) { if(e.target.classList.contains('mo')) e.target.classList.remove('open'); });
 function globalSearch(q) {
   q = q.trim();
