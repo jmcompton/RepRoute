@@ -754,6 +754,58 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </div>
 
 <!-- MODALS -->
+<div class="mo" id="modal-add-event">
+  <div class="mb">
+    <h2>Add Calendar Event</h2>
+    <input type="hidden" id="ev-id" value="" />
+    <div class="fg"><label>Title *</label><input type="text" id="ev-title" placeholder="e.g. Client Meeting - ABC Supply" /></div>
+    <div class="g2">
+      <div class="fg"><label>Start *</label><input type="datetime-local" id="ev-start" /></div>
+      <div class="fg"><label>End *</label><input type="datetime-local" id="ev-end" /></div>
+    </div>
+    <div class="g2">
+      <div class="fg"><label>Type</label>
+        <select id="ev-type">
+          <option value="general">General</option>
+          <option value="meeting">Client Meeting</option>
+          <option value="call">Sales Call</option>
+          <option value="demo">Product Demo</option>
+          <option value="travel">Travel</option>
+          <option value="training">Training</option>
+        </select>
+      </div>
+      <div class="fg"><label>Location</label><input type="text" id="ev-location" placeholder="City or address" /></div>
+    </div>
+    <div class="fg"><label>Description</label><textarea id="ev-desc" rows="3" placeholder="Notes or details..."></textarea></div>
+    <div class="mfoot">
+      <button class="btn btn-secondary" onclick="closeModal('add-event')">Cancel</button>
+      <button class="btn btn-primary" id="ev-save-btn" onclick="saveCalendarEvent()">Save Event</button>
+    </div>
+  </div>
+</div>
+
+<div class="mo" id="modal-apple-cal">
+  <div class="mb">
+    <h2>Apple Calendar Sync</h2>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:16px">Subscribe to your personal iCal feed to see all Compton Sales events in Apple Calendar. It stays live — new events appear automatically.</p>
+    <div class="fg">
+      <label>Your iCal Feed URL</label>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="ical-url" readonly style="font-size:11px;color:var(--text2)" placeholder="Loading..." />
+        <button class="btn btn-secondary btn-sm" onclick="copyIcalUrl()">Copy</button>
+      </div>
+    </div>
+    <div style="background:var(--bg);border-radius:var(--r-sm);padding:12px;margin-top:12px;font-size:12px;color:var(--text2);line-height:1.7">
+      <strong style="color:var(--navy)">How to add in Apple Calendar:</strong><br>
+      1. Open Calendar on your Mac or iPhone<br>
+      2. Mac: File > New Calendar Subscription | iPhone: Paste URL in Safari, tap Subscribe<br>
+      3. Paste your feed URL above<br>
+      4. Set auto-refresh to Every 15 minutes
+    </div>
+    <div class="mfoot"><button class="btn btn-primary" onclick="closeModal('apple-cal')">Done</button></div>
+  </div>
+</div>
+
 <div class="mo" id="modal-add-prospect">
   <div class="mb">
     <h2>New Contact</h2>
