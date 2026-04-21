@@ -299,7 +299,7 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
       <div style="background:#fff;border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
         <div style="padding:10px 14px;border-bottom:1px solid var(--border);background:#fafbfc;display:flex;align-items:center;justify-content:space-between">
           <div style="display:flex;align-items:center;gap:8px">
-            <span style="font-size:16px">🔔</span>
+            <span style="font-size:16px"></span>
             <span style="font-size:13px;font-weight:700;color:var(--navy)">Follow-Ups Due</span>
             <span id="followup-badge" style="background:var(--red);color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px">0</span>
           </div>
@@ -310,9 +310,9 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
     </div>
     <div class="dash-stats" id="dash-stats">
       <div class="stat-card"><div class="stat-lbl">Total Contacts</div><div class="stat-val" id="st-total">—</div><div class="stat-sub">In CRM</div></div>
-      <div class="stat-card"><div class="stat-lbl">🔥 Hot</div><div class="stat-val" id="st-hot" style="color:var(--red)">—</div><div class="stat-sub">Priority targets</div></div>
+      <div class="stat-card"><div class="stat-lbl"> Hot</div><div class="stat-val" id="st-hot" style="color:var(--red)">—</div><div class="stat-sub">Priority targets</div></div>
       <div class="stat-card"><div class="stat-lbl">Calls Logged</div><div class="stat-val" id="st-calls">—</div><div class="stat-sub">Total activity</div></div>
-      <div class="stat-card" style="cursor:pointer" onclick="document.getElementById('followup-section').scrollIntoView({behavior:'smooth'})"><div class="stat-lbl">🔔 Follow-Ups Due</div><div class="stat-val" id="st-followups" style="color:var(--amber)">—</div><div class="stat-sub">Needs action today</div></div>
+      <div class="stat-card" style="cursor:pointer" onclick="document.getElementById('followup-section').scrollIntoView({behavior:'smooth'})"><div class="stat-lbl"> Follow-Ups Due</div><div class="stat-val" id="st-followups" style="color:var(--amber)">—</div><div class="stat-sub">Needs action today</div></div>
     </div>
     <div class="dash-grid">
       <div>
@@ -327,7 +327,7 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
       </div>
       <div>
         <div class="dash-card" style="margin-bottom:12px">
-          <div class="dash-card-hdr"><span class="dash-card-title">📦 Line Coverage</span></div>
+          <div class="dash-card-hdr"><span class="dash-card-title"> Line Coverage</span></div>
           <div style="padding:14px" id="dash-coverage"></div>
         </div>
         <div class="dash-card">
@@ -443,7 +443,7 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
     <div style="padding:16px">
       <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
         <div style="padding:12px 16px;border-bottom:1px solid var(--border);background:#fafbfc">
-          <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:3px">⚡ AI Lead Finder</div>
+          <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:3px">AI Lead Finder</div>
           <div style="font-size:12px;color:var(--text3)">Select a target category — AI searches the web and finds real businesses in your territory.</div>
         </div>
         <div style="padding:14px 16px">
@@ -504,7 +504,7 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
       <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
         <div style="padding:10px 14px;border-bottom:1px solid var(--border);background:#fafbfc;font-size:12.5px;font-weight:700;color:var(--navy)">Call History</div>
         <table class="ltable"><thead><tr><th>Date</th><th>Company</th><th>Type</th><th>Outcome</th><th>Products</th><th>Next Step</th><th>Next Step Date</th></tr></thead><tbody id="calls-tbody"></tbody></table>
-        <div class="empty-state" id="calls-empty" style="display:none"><div class="empty-icon">📞</div><div class="empty-msg">No calls logged yet.</div></div>
+        <div class="empty-state" id="calls-empty" style="display:none"><div class="empty-icon"></div><div class="empty-msg">No calls logged yet.</div></div>
       </div>
     </div>
   </div>
@@ -574,7 +574,7 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
   <div class="page" id="page-onboarding">
     <div style="padding:16px">
       <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:14px">
-        <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--border)">🎓 Generate 30-Day Onboarding Plan</div>
+        <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--border)">Generate 30-Day Onboarding Plan</div>
         <div class="g2">
           <div class="fg"><label>Rep Name *</label><input type="text" id="ob-name" placeholder="e.g. Kody Slate" /></div>
           <div class="fg"><label>Territory</label><input type="text" id="ob-territory" placeholder="Atlanta Metro, GA" /></div>
@@ -1056,7 +1056,7 @@ function loadDashboard() {
             '</div>' +
             '<div style="font-size:12px;color:var(--text2);margin-bottom:8px">→ ' + (f.next_step || '') + '</div>' +
             '<div style="display:flex;gap:6px;align-items:center">' +
-            (f.phone ? '<a href="tel:' + f.phone + '" style="font-size:11px;color:var(--blue);text-decoration:none">📞 ' + f.phone + '</a>' : '') +
+            (f.phone ? '<a href="tel:' + f.phone + '" style="font-size:11px;color:var(--blue);text-decoration:none"> ' + f.phone + '</a>' : '') +
             '<button onclick="goLogCall(' + f.prospect_id + ')" style="margin-left:auto;padding:4px 10px;background:var(--navy);color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer">Log Call</button>' +
             '</div></div>';
         }).join('');
@@ -1172,7 +1172,7 @@ function viewRecord(id) {
           document.getElementById('rec-call-count').textContent = rc.length;
           document.getElementById('rec-timeline').innerHTML = rc.length ?
             rc.map(function(c) {
-              return '<div class="tl-item"><div class="tl-ico">' + (c.call_type && (c.call_type.indexOf('Person')!==-1||c.call_type.indexOf('Jobsite')!==-1) ? '🤝' : '📞') + '</div>' +
+              return '<div class="tl-item"><div class="tl-ico">' + (c.call_type && (c.call_type.indexOf('Person')!==-1||c.call_type.indexOf('Jobsite')!==-1) ? '' : '') + '</div>' +
                 '<div class="tl-body"><div class="tl-title">' + (c.call_type||'Call') + ' — ' + (c.outcome||'—') + '</div>' +
                 '<div class="tl-meta">' + (c.call_date||'—') + ' · Products: ' + (c.products_discussed||'—') + '</div>' +
                 (c.notes ? '<div class="tl-note">' + c.notes + '</div>' : '') +
@@ -1297,7 +1297,7 @@ function renderLeads() {
         '<div class="lc-meta">📍 ' + (l.city||'') + ', ' + (l.state||'GA') + '</div>') +
       (l.phone ? '<div class="lc-meta">' + l.phone + '</div>' : '') +
       (l.contact ? '<div class="lc-meta">' + l.contact + '</div>' : '') +
-      (l.email ? '<div class="lc-meta">✉️ ' + l.email + '</div>' : '') +
+      (l.email ? '<div class="lc-meta"> ' + l.email + '</div>' : '') +
       (l.website ? '<div class="lc-meta">🌐 ' + l.website + '</div>' : '') +
       '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">' +
       catBadge(l.category) +
@@ -1467,12 +1467,12 @@ function renderOnboarding(plan, cid) {
       html += '<div class="ob-day"><div class="ob-dt">' + d.day + ' — ' + (d.title||'') + ' <span style="font-size:10px;color:var(--text3);font-weight:400">' + (d.duration||'') + '</span></div>' +
         '<div class="ob-dc">' + (d.content||'') + '</div>' + (d.assignment ? '<div class="ob-da">📋 ' + d.assignment + '</div>' : '') + '</div>';
     });
-    if (w.weekly_goal) html += '<div style="background:var(--green-lt);border-left:3px solid var(--green);padding:7px 10px;border-radius:0 4px 4px 0;font-size:11.5px;color:var(--green);margin-top:8px">🎯 ' + w.weekly_goal + '</div>';
+    if (w.weekly_goal) html += '<div style="background:var(--green-lt);border-left:3px solid var(--green);padding:7px 10px;border-radius:0 4px 4px 0;font-size:11.5px;color:var(--green);margin-top:8px"> ' + w.weekly_goal + '</div>';
     html += '</div></div>';
   });
   if (plan.daily_expectations) {
     html += '<div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-top:10px">' +
-      '<div style="font-size:12.5px;font-weight:700;color:var(--navy);margin-bottom:10px">📊 Daily Expectations</div>' +
+      '<div style="font-size:12.5px;font-weight:700;color:var(--navy);margin-bottom:10px">Daily Expectations</div>' +
       '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center">' +
       '<div class="rs"><div class="rs-val">' + (plan.daily_expectations.calls||10) + '</div><div class="rs-lbl">Total Calls</div></div>' +
       '<div class="rs"><div class="rs-val">' + (plan.daily_expectations.in_person||5) + '</div><div class="rs-lbl">In Person</div></div>' +
@@ -1490,7 +1490,7 @@ function loadManager() {
       var reps = results[0]; var activity = results[1];
       document.getElementById('manager-reps').innerHTML = reps.length ? reps.map(function(r) {
         var initials = r.name.split(' ').map(function(w){return w[0];}).join('').slice(0,2).toUpperCase();
-        return '<div class="rep-card"><div class="rep-top"><div class="rep-av">' + initials + '</div><div><div class="rep-name">' + r.name + '</div><div class="rep-meta">📍 ' + (r.territory||'Atlanta Metro') + ' · ' + r.email + '</div></div><button class="btn btn-secondary btn-sm" style="margin-left:auto" onclick="go(\'onboarding\')">Onboarding</button></div><div class="rep-stats"><div class="rs"><div class="rs-val">' + r.prospect_count + '</div><div class="rs-lbl">Contacts</div></div><div class="rs"><div class="rs-val">' + r.hot_count + '</div><div class="rs-lbl">🔥 Hot</div></div><div class="rs"><div class="rs-val">' + r.call_count + '</div><div class="rs-lbl">Calls</div></div><div class="rs"><div class="rs-val">' + r.calls_this_week + '</div><div class="rs-lbl">This Week</div></div></div></div>';
+        return '<div class="rep-card"><div class="rep-top"><div class="rep-av">' + initials + '</div><div><div class="rep-name">' + r.name + '</div><div class="rep-meta">📍 ' + (r.territory||'Atlanta Metro') + ' · ' + r.email + '</div></div><button class="btn btn-secondary btn-sm" style="margin-left:auto" onclick="go(\'onboarding\')">Onboarding</button></div><div class="rep-stats"><div class="rs"><div class="rs-val">' + r.prospect_count + '</div><div class="rs-lbl">Contacts</div></div><div class="rs"><div class="rs-val">' + r.hot_count + '</div><div class="rs-lbl"> Hot</div></div><div class="rs"><div class="rs-val">' + r.call_count + '</div><div class="rs-lbl">Calls</div></div><div class="rs"><div class="rs-val">' + r.calls_this_week + '</div><div class="rs-lbl">This Week</div></div></div></div>';
       }).join('') : '<div style="text-align:center;padding:24px;color:var(--text3)">No reps added yet.</div>';
       document.getElementById('manager-activity').innerHTML = activity.length ? activity.map(function(a) {
         return '<tr><td style="font-weight:600">' + a.rep_name + '</td><td>' + a.company + '</td><td>' + (a.outcome||'—') + '</td><td style="color:var(--text3)">' + (a.call_date||'—') + '</td></tr>';
