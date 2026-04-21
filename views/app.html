@@ -2032,7 +2032,7 @@ function setCalFilter(filter) {
 
 function openModal(id) {
   var m = document.getElementById('modal-' + id);
-  if (m) m.classList.add('active');
+  if (m) { m.classList.add('open'); m.style.display = 'flex'; }
 }
 
 function saveCalendarEvent() {
