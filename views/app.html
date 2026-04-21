@@ -4,10 +4,11 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>RepRoute CRM</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
 <style>
-:root{--sw:240px;--navy:#1f2d3d;--blue:#0066cc;--white:#fff;--bg:#f5f6f8;--border:#e0e2e7;--text:#1a1a2e;--text2:#555e6c;--text3:#8f96a3;--green:#1a7f4b;--green-lt:#e6f4ec;--amber:#b45309;--amber-lt:#fef3c7;--red:#c0392b;--red-lt:#fdecea;--purple:#5b21b6;--purple-lt:#ede9fe;--r:6px}
+:root{--sw:220px;--navy:#0f1923;--accent:#1d6aff;--accent2:#0d4fd4;--blue:#1d6aff;--blue-lt:#e8f0ff;--white:#ffffff;--bg:#f7f8fa;--surface:#ffffff;--border:#e2e5ea;--border2:#d0d4db;--text:#0f1923;--text2:#4a5568;--text3:#8a95a3;--green:#0a7c52;--green-lt:#edf7f3;--amber:#92600a;--amber-lt:#fef6e4;--red:#c0392b;--red-lt:#fdf0ef;--purple:#5b21b6;--purple-lt:#ede9fe;--r:6px;--r2:8px}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:13px;min-height:100vh}
+body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:13px;min-height:100vh}
 .sidebar{width:var(--sw);background:var(--navy);min-height:100vh;position:fixed;top:0;left:0;bottom:0;z-index:100;display:flex;flex-direction:column;overflow-y:auto}
 .sb-brand{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.08)}
 .sb-logo{width:32px;height:32px;background:var(--blue);border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
@@ -21,7 +22,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .sb-sec-label{font-size:10px;font-weight:700;color:rgba(255,255,255,.3);letter-spacing:.08em;text-transform:uppercase;padding:6px 16px 4px}
 .sb-item{display:flex;align-items:center;gap:9px;padding:7px 16px;cursor:pointer;color:rgba(255,255,255,.65);font-size:12.5px;border:none;background:transparent;width:100%;text-align:left;transition:all .1s;border-left:3px solid transparent}
 .sb-item:hover{background:rgba(255,255,255,.07);color:#fff}
-.sb-item.active{background:rgba(255,255,255,.1);color:#fff;border-left-color:var(--blue);font-weight:500}
+.sb-item.active{background:rgba(255,255,255,.1);color:#fff;border-left-color:var(--accent);font-weight:500}
 .sb-item .ico{width:16px;font-size:13px;text-align:center;flex-shrink:0}
 .sb-bottom{margin-top:auto;padding:10px 12px;border-top:1px solid rgba(255,255,255,.08)}
 .sb-user{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:6px;background:rgba(255,255,255,.06);margin-bottom:7px}
@@ -34,7 +35,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .topbar{background:var(--white);border-bottom:1px solid var(--border);height:50px;display:flex;align-items:center;padding:0 16px;gap:10px;position:sticky;top:0;z-index:50}
 .tb-title{font-size:15px;font-weight:700;color:var(--navy);flex:1}
 .btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:none;transition:all .12s;white-space:nowrap}
-.btn-primary{background:var(--blue);color:#fff}.btn-primary:hover{background:#0057b0}
+.btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:var(--accent2)}
 .btn-secondary{background:#fff;border:1px solid var(--border);color:var(--text2)}.btn-secondary:hover{background:var(--bg)}
 .btn-sm{padding:5px 11px;font-size:11.5px}
 .mod-tabs{background:var(--white);border-bottom:1px solid var(--border);padding:0 16px;display:flex;gap:2px}
@@ -52,16 +53,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .ltable th{background:#f8f9fb;border-bottom:1px solid var(--border);padding:9px 14px;text-align:left;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;position:sticky;top:0;z-index:10}
 .ltable td{padding:10px 14px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:middle}
 .ltable tbody tr{background:var(--white);cursor:pointer;transition:background .08s}
-.ltable tbody tr:hover{background:#f0f5ff}
+.ltable tbody tr:hover{background:#f2f5ff}
 .ltable tbody tr:last-child td{border-bottom:none}
 .rec-link{color:var(--blue);font-weight:600;cursor:pointer}
-.badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:12px;white-space:nowrap}
+.badge{display:inline-block;font-size:11px;font-weight:500;padding:2px 8px;border-radius:4px;white-space:nowrap;letter-spacing:.01em}
 .b-deck{background:var(--purple-lt);color:var(--purple)}
 .b-window{background:#e8f0fe;color:#1558b0}
 .b-roofing{background:var(--green-lt);color:var(--green)}
 .b-dealer{background:var(--red-lt);color:var(--red)}
 .b-distributor{background:var(--amber-lt);color:var(--amber)}
-.b-hot{background:var(--red-lt);color:var(--red)}
+.b-hot{background:#fde8e8;color:#b91c1c}
 .b-warm{background:var(--amber-lt);color:var(--amber)}
 .b-cold{background:#f1f5f9;color:var(--text3)}
 .b-new{background:var(--purple-lt);color:var(--purple)}
@@ -74,8 +75,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .rec-left{width:200px;flex-shrink:0;background:var(--white);border-right:1px solid var(--border);overflow-y:auto;padding:8px 0}
 .rl-title{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;padding:4px 16px 6px}
 .rl-item{padding:8px 16px;font-size:12.5px;color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:space-between;transition:background .1s}
-.rl-item:hover{background:#e8f0fe;color:var(--blue)}
-.rl-item.active{background:#e8f0fe;color:var(--blue);font-weight:600}
+.rl-item:hover{background:var(--blue-lt);color:var(--accent)}
+.rl-item.active{background:var(--blue-lt);color:var(--accent);font-weight:600}
 .rl-cnt{background:var(--border);color:var(--text3);font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600}
 .rec-main{flex:1;overflow-y:auto}
 .rec-hdr{background:var(--white);border-bottom:1px solid var(--border);padding:14px 20px;display:flex;align-items:flex-start;gap:14px}
@@ -232,16 +233,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div class="sb-logo"><svg viewBox="0 0 17 17" fill="none"><circle cx="8.5" cy="8.5" r="3" fill="white"/><path d="M8.5 1v3M8.5 13v3M1 8.5h3M13 8.5h3" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg></div>
     <div><div class="sb-name">RepRoute</div><div class="sb-sub">Compton Group LLC</div></div>
   </div>
-  <div class="sb-search-wrap"><div class="sb-search"><span style="font-size:12px;color:rgba(255,255,255,.35)">🔍</span><input id="sb-search-input" placeholder="Search contacts..." oninput="globalSearch(this.value)" onkeydown="if(event.key==='Escape')this.value=''" /></div></div>
+  <div class="sb-search-wrap"><div class="sb-search"><svg viewBox="0 0 16 16" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" style="width:13px;height:13px;flex-shrink:0;opacity:.3"><circle cx="7" cy="7" r="4"/><path d="M10.5 10.5l2.5 2.5"/></svg><input id="sb-search-input" placeholder="Search contacts..." oninput="globalSearch(this.value)" onkeydown="if(event.key==='Escape')this.value=''" /></div></div>
   <div class="sb-section">
-    <button class="sb-item active" onclick="go('dashboard')"><span class="ico">🏠</span>Home</button>
+    <button class="sb-item active" onclick="go('dashboard')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 6l6-4 6 4v8H2V6z"/><path d="M6 14v-4h4v4"/></svg>Home</button>
     <button class="sb-item" onclick="go('reports')"><span class="ico">📊</span>Reports</button>
     <button class="sb-item" onclick="go('analytics')"><span class="ico">📈</span>Analytics</button>
   </div>
   <div class="sb-section">
     <div class="sb-sec-label">Sales</div>
     <button class="sb-item" onclick="go('leads')"><span class="ico">⚡</span>AI Lead Finder</button>
-    <button class="sb-item" onclick="go('contacts')"><span class="ico">👤</span>Contacts</button>
+    <button class="sb-item" onclick="go('contacts')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg>Contacts</button>
     <button class="sb-item" onclick="go('accounts')"><span class="ico">🏢</span>Accounts</button>
     <button class="sb-item" onclick="go('deals')"><span class="ico">💼</span>Deal Pipeline</button>
     <button class="sb-item" onclick="go('forecasts')"><span class="ico">📅</span>Forecasts</button>
@@ -262,12 +263,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <button class="sb-item" onclick="go('manager')"><span class="ico">👥</span>Team Dashboard</button>
   </div>
   <div class="sb-bottom">
-    <div style="padding:8px 10px;background:var(--light);border-radius:var(--r-sm);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">
+    <div style="padding:8px 10px;background:rgba(255,255,255,.05);border-radius:5px;margin-bottom:7px;display:flex;align-items:center;justify-content:space-between">
       <div>
-        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em">Territory</div>
-        <div style="font-size:12px;font-weight:600;color:var(--navy)" id="sb-territory-label">Atlanta Metro</div>
+        <div style="font-size:9px;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:.08em;font-weight:600">Territory</div>
+        <div style="font-size:12px;font-weight:500;color:#fff" id="sb-territory-label">Atlanta Metro</div>
       </div>
-      <button onclick="openTerritoryModal()" style="font-size:10px;padding:3px 8px;background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--blue);cursor:pointer">Change</button>
+      <button onclick="openTerritoryModal()" style="font-size:10px;padding:3px 8px;background:transparent;border:1px solid var(--border);border-radius:4px;color:rgba(255,255,255,.5);cursor:pointer;font-family:inherit">Change</button>
     </div>
     <div class="sb-user"><div class="sb-av" id="s-av">JM</div><div><div class="sb-uname" id="s-name">Loading...</div><div class="sb-urole" id="s-role">Rep</div></div></div>
     <button class="sb-out" onclick="signOut()">Sign Out</button>
@@ -278,7 +279,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div class="topbar">
     <div class="tb-title" id="page-title">Home</div>
     <button class="btn btn-secondary btn-sm" onclick="openModal('add-prospect')">+ New Contact</button>
-    <button class="btn btn-primary btn-sm" onclick="go('leads')">⚡ AI Find Leads</button>
+    <button class="btn btn-primary btn-sm" onclick="go('leads')">AI Find Leads</button>
     <span style="font-size:11px;color:var(--text3);background:var(--bg);border:1px solid var(--border);padding:4px 10px;border-radius:12px">📍 Atlanta Metro</span>
   </div>
 
@@ -316,11 +317,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div class="dash-grid">
       <div>
         <div class="dash-card" style="margin-bottom:12px">
-          <div class="dash-card-hdr"><span class="dash-card-title">🔥 Hot Contacts</span><button class="f-chip" onclick="go('contacts')">View All →</button></div>
+          <div class="dash-card-hdr"><span class="dash-card-title">Priority Contacts</span><button class="f-chip" onclick="go('contacts')">View All →</button></div>
           <table class="ltable"><thead><tr><th>Company</th><th>Category</th><th>City</th><th>Products</th></tr></thead><tbody id="dash-hot"></tbody></table>
         </div>
         <div class="dash-card">
-          <div class="dash-card-hdr"><span class="dash-card-title">📞 Recent Activity</span><button class="f-chip" onclick="go('calls')">Call Log →</button></div>
+          <div class="dash-card-hdr"><span class="dash-card-title">Recent Activity</span><button class="f-chip" onclick="go('calls')">Call Log →</button></div>
           <table class="ltable"><thead><tr><th>Company</th><th>Outcome</th><th>Next Step</th><th>Date</th></tr></thead><tbody id="dash-activity"></tbody></table>
         </div>
       </div>
@@ -350,7 +351,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div class="sb-in"><span style="font-size:12px;color:var(--text3)">🔍</span><input id="p-search" placeholder="Search contacts..." oninput="loadProspects()" /></div>
       <div style="display:flex;gap:6px;margin-left:auto">
         <button class="btn btn-secondary btn-sm" onclick="openModal('add-prospect')">+ New</button>
-        <button class="btn btn-primary btn-sm" onclick="go('leads')">⚡ AI Find Leads</button>
+        <button class="btn btn-primary btn-sm" onclick="go('leads')">AI Find Leads</button>
       </div>
     </div>
     <div class="list-wrap">
@@ -374,7 +375,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <div class="rl-item" onclick="setRecTab('calls',this)">Open Activities <span class="rl-cnt" id="rec-call-count">0</span></div>
         <div class="rl-item" onclick="setRecTab('calls',this)">Closed Activities</div>
         <div class="rl-item" onclick="setRecTab('outreach',this)">Emails</div>
-        <div class="rl-item" onclick="setRecTab('ai',this)">⚡ AI Intel</div>
+        <div class="rl-item" onclick="setRecTab('ai',this)">AI Intel</div>
       </div>
       <div class="rec-main">
         <div class="rec-hdr">
@@ -387,8 +388,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
             <div class="rec-cat" id="rec-subtitle"></div>
           </div>
           <div class="rec-btns">
-            <button class="btn btn-primary btn-sm" onclick="logCallForRecord()">📞 Log Call</button>
-            <button class="btn btn-secondary btn-sm" onclick="writeOutreachForRecord()">📣 Outreach</button>
+            <button class="btn btn-primary btn-sm" onclick="logCallForRecord()">Log Call</button>
+            <button class="btn btn-secondary btn-sm" onclick="writeOutreachForRecord()">Outreach</button>
             <button class="btn btn-secondary btn-sm" onclick="openEditContact(currentRecord)">✏️ Edit</button>
             <button class="btn btn-secondary btn-sm" onclick="go('contacts')">✕ Close</button>
           </div>
@@ -396,7 +397,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <div class="rec-tabs">
           <div class="rt active" onclick="setRecTab('overview',this)">Overview</div>
           <div class="rt" onclick="setRecTab('calls',this)">Timeline</div>
-          <div class="rt" onclick="setRecTab('ai',this)">⚡ AI Intel</div>
+          <div class="rt" onclick="setRecTab('ai',this)">AI Intel</div>
           <div style="margin-left:auto;font-size:11px;color:var(--text3)" id="rec-last-update"></div>
         </div>
         <div class="rec-quick">
@@ -427,7 +428,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <div id="rec-tab-deals" style="display:none"><div style="padding:16px"><div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:12px">Deals</div><div id="rec-deals-list"><div style="font-size:12px;color:var(--text3);text-align:center;padding:20px">No deals linked yet</div></div></div></div>
           <div id="rec-tab-ai" style="display:none">
             <div class="ai-panel">
-              <div class="ai-phdr"><span class="ai-badge">⚡ AI</span><span class="ai-ptitle">Contact Intelligence</span></div>
+              <div class="ai-phdr"><span class="ai-badge">AI</span><span class="ai-ptitle">Contact Intelligence</span></div>
               <button class="ai-send" onclick="runRecordAI()">Get AI Strategy for this Contact →</button>
               <div class="ai-resp" id="rec-ai-resp"></div>
             </div>
@@ -483,7 +484,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div class="page" id="page-calls">
     <div style="padding:16px">
       <div class="call-card">
-        <div class="call-card-title">📞 Log a Call</div>
+        <div class="call-card-title">Log a Call</div>
         <div class="g2">
           <div class="fg"><label>Contact *</label><select id="call-prospect"><option value="">Select contact...</option></select></div>
           <div class="fg"><label>Date *</label><input type="date" id="call-date" /></div>
@@ -512,9 +513,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div class="page" id="page-weekly">
     <div style="padding:16px">
       <div class="ai-panel" style="margin-bottom:14px">
-        <div class="ai-phdr"><span class="ai-badge">⚡ AI</span><span class="ai-ptitle">Weekly Call Plan Generator</span></div>
+        <div class="ai-phdr"><span class="ai-badge">AI</span><span class="ai-ptitle">Weekly Call Plan Generator</span></div>
         <p style="color:rgba(255,255,255,.6);font-size:12px;margin-bottom:10px">AI builds your Mon–Fri call schedule based on your contacts and call history.</p>
-        <button class="ai-send" onclick="generateWeekly()">⚡ Generate This Week's Plan</button>
+        <button class="ai-send" onclick="generateWeekly()">Generate This Week's Plan</button>
         <div class="ai-resp" id="weekly-loading"></div>
       </div>
       <div id="weekly-plan-container"></div>
@@ -525,7 +526,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div class="page" id="page-command">
     <div style="padding:16px">
       <div class="ai-panel">
-        <div class="ai-phdr"><span class="ai-badge">⚡ LIVE AI</span><span class="ai-ptitle">AI Command Center</span></div>
+        <div class="ai-phdr"><span class="ai-badge">LIVE AI</span><span class="ai-ptitle">AI Command Center</span></div>
         <div class="ai-row"><input class="ai-in" id="cmd-input" placeholder="Ask about strategy, pricing, objections, Atlanta market..." /><button class="ai-send" onclick="runCmd()">Ask →</button></div>
         <div class="ai-qb">
           <button class="ai-q" onclick="setQ('Fortress Steel Framing pitch for deck contractor')">Fortress pitch</button>
@@ -544,7 +545,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div class="page" id="page-outreach">
     <div style="padding:16px">
       <div class="ai-panel" style="margin-bottom:14px">
-        <div class="ai-phdr"><span class="ai-badge">⚡ AI</span><span class="ai-ptitle">Outreach Writer</span></div>
+        <div class="ai-phdr"><span class="ai-badge">AI</span><span class="ai-ptitle">Outreach Writer</span></div>
         <div class="g3" style="margin-bottom:8px">
           <input class="ai-in" id="out-company" placeholder="Company name (optional)" />
           <select id="out-cat" style="padding:8px;border-radius:5px;border:none;font-size:12.5px;background:rgba(255,255,255,.95)">
@@ -579,7 +580,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
           <div class="fg"><label>Territory</label><input type="text" id="ob-territory" placeholder="Atlanta Metro, GA" /></div>
         </div>
         <div class="fg"><label>Start Date</label><input type="date" id="ob-start" style="width:200px" /></div>
-        <button class="btn btn-primary" onclick="generateOnboarding()">⚡ Generate Plan</button>
+        <button class="btn btn-primary" onclick="generateOnboarding()">Generate Plan</button>
       </div>
       <div id="ob-loading" style="display:none;text-align:center;padding:24px;color:var(--text3)"><div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div><div style="margin-top:8px;font-size:12px">Building 30-day plan...</div></div>
       <div id="ob-plan"></div>
@@ -1294,8 +1295,8 @@ function renderLeads() {
       '<span class="badge ' + (l.priority==='High'?'b-hot':l.priority==='Low'?'b-cold':'b-warm') + '">' + (l.priority||'Medium') + '</span></div>' +
       (l.address ? '<div class="lc-meta">📍 ' + l.address + ', ' + (l.city||'') + ', ' + (l.state||'GA') + '</div>' :
         '<div class="lc-meta">📍 ' + (l.city||'') + ', ' + (l.state||'GA') + '</div>') +
-      (l.phone ? '<div class="lc-meta">📞 ' + l.phone + '</div>' : '') +
-      (l.contact ? '<div class="lc-meta">👤 ' + l.contact + '</div>' : '') +
+      (l.phone ? '<div class="lc-meta">' + l.phone + '</div>' : '') +
+      (l.contact ? '<div class="lc-meta">' + l.contact + '</div>' : '') +
       (l.email ? '<div class="lc-meta">✉️ ' + l.email + '</div>' : '') +
       (l.website ? '<div class="lc-meta">🌐 ' + l.website + '</div>' : '') +
       '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">' +
@@ -1389,7 +1390,7 @@ function renderWeeklyPlan(plan) {
     plan.days.map(function(day) {
       return '<div class="wp-day"><div class="wp-dh"><span class="wp-dn">' + day.day + '</span><span class="wp-df">' + (day.focus||'') + '</span></div>' +
         (day.calls||[]).map(function(c,i) { return '<div class="wp-item"><div class="wp-num">' + (i+1) + '</div><div class="wp-co"><div class="wp-cn">' + c.company + '</div><div class="wp-cm">' + (c.category||'') + ' · ' + (c.city||'') + '</div><div class="wp-ca">' + (c.action||'') + '</div></div><span class="badge ' + (c.priority==='High'?'b-hot':'b-warm') + '">' + (c.priority||'Medium') + '</span></div>'; }).join('') +
-        (day.tip ? '<div class="wp-tip">💡 ' + day.tip + '</div>' : '') + '</div>';
+        (day.tip ? '<div class="wp-tip">' + day.tip + '</div>' : '') + '</div>';
     }).join('');
 }
 
@@ -1620,7 +1621,7 @@ function loadPipeline() {
               'onclick="viewRecord(' + p.id + ')">' +
               '<div class="pipe-card-name">' + p.company + '</div>' +
               '<div class="pipe-card-meta">' + (p.city||'') + (p.category ? ' · ' + p.category.split(' ')[0] : '') + '</div>' +
-              (p.phone ? '<div class="pipe-card-meta">📞 ' + p.phone + '</div>' : '') +
+              (p.phone ? '<div class="pipe-card-meta">' + p.phone + '</div>' : '') +
               '<span class="pipe-card-badge" style="background:' + stage.bg + ';color:' + stage.color + '">' +
               (p.priority||'Medium') + '</span>' +
               '</div>';
@@ -1853,7 +1854,7 @@ function loadTasks() {
   else if (taskFilter==='done') filtered = tasks.filter(t=>t.done);
   else filtered = tasks.filter(t=>!t.done);
 
-  const icons = {call:'📞',email:'✉️',sample:'📦',literature:'📄',meeting:'📅',other:'✅'};
+  const icons = {call:'Call',email:'Email',sample:'Sample',literature:'Lit',meeting:'Meeting',other:'Other'};
   document.getElementById('tasks-list').innerHTML = filtered.length ? filtered.map(t => {
     const isOverdue = !t.done && t.due && t.due < today;
     return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px 16px;display:flex;align-items:center;gap:12px">' +
@@ -1936,6 +1937,7 @@ function filterAccounts(q) {
     </div>
   </div>
 </div>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
 <style>
 .terr-chip{padding:5px 12px;border:1px solid var(--border);border-radius:40px;font-size:11px;background:transparent;color:var(--navy);cursor:pointer}
 .terr-chip:hover{background:var(--blue);color:#fff;border-color:var(--blue)}
