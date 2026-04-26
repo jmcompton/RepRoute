@@ -92,6 +92,22 @@ async function initDB() {
     );
 
     ALTER TABLE users ADD COLUMN IF NOT EXISTS ical_token TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS outlook_access_token TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS outlook_refresh_token TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS outlook_token_expiry TIMESTAMPTZ;
+
+    CREATE TABLE IF NOT EXISTS email_logs (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      prospect_id INTEGER REFERENCES prospects(id) ON DELETE CASCADE,
+      direction TEXT DEFAULT 'out',
+      subject TEXT,
+      body TEXT,
+      to_email TEXT,
+      from_email TEXT,
+      sent_at TIMESTAMPTZ DEFAULT NOW(),
+      source TEXT DEFAULT 'manual'
+    );
   `);
   console.log('Database initialized');
 }
