@@ -4885,7 +4885,7 @@ function renderInboxList(emails) {
     div.style.cssText = 'padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;background:' + (isUnread ? '#f0f5ff' : 'var(--white)');
     var date = new Date(e.receivedDateTime);
     var dateStr = date.toLocaleDateString('en-US', { month:'short', day:'numeric' });
-    div.innerHTML = 
+    div.innerHTML =
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">' +
         '<div style="font-size:12px;font-weight:' + (isUnread?'700':'500') + ';color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px">' + (e.from && e.from.emailAddress ? e.from.emailAddress.name || e.from.emailAddress.address : 'Unknown') + '</div>' +
         '<div style="font-size:10px;color:var(--text3);white-space:nowrap">' + dateStr + '</div>' +
