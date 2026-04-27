@@ -2465,7 +2465,7 @@ function renderEmailContactList(contacts) {
     return;
   }
   el.innerHTML = contacts.map(function(c) {
-    return '<div class="email-contact-item" onclick="selectEmailContact(' + c.id + ','' + (c.company||'').replace(/'/g,"\'") + '','' + (c.email||'') + '')" style="padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s" onmouseover="this.style.background='#f2f5ff'" onmouseout="this.style.background=''">'+
+    return '<div class="email-contact-item" onclick="selectEmailContact(' + c.id + ',&quot;' + (c.company||'').replace(/&quot;/g,'') + '&quot;,&quot;' + (c.email||'') + '&quot;)" style="padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s" onmouseover="this.style.background='#f2f5ff'" onmouseout="this.style.background=''">'+
       '<div style="font-size:12.5px;font-weight:600;color:var(--navy)">' + (c.company||'') + '</div>'+
       '<div style="font-size:11px;color:var(--text3)">' + (c.email||'') + '</div>'+
     '</div>';
