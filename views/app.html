@@ -254,6 +254,7 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
     <button class="sb-item" onclick="go('calls')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><path d="M3 3h3l1.5 3.5-2 1.2a8 8 0 003.8 3.8l1.2-2L14 11v3c-6.3 0-11-4.7-11-11z"/></svg>Call Log</button>
     <button class="sb-item" onclick="go('calendar')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><rect x="2" y="3" width="12" height="11" rx="1"/><path d="M5 2v2M11 2v2M2 7h12"/></svg>Team Calendar</button>
     <button class="sb-item" onclick="go('email')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><rect x="1" y="3" width="14" height="10" rx="1"/><path d="M1 4l7 5 7-5"/></svg>Email</button>
+    <button class="sb-item" onclick="go('samples')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><rect x="3" y="1" width="10" height="14" rx="1"/><path d="M6 5h4M6 8h4M6 11h2"/></svg>Sample Tracker</button>
     <button class="sb-item" onclick="go('command')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><path d="M9 2L7 14M3 6l-2 2 2 2M13 6l2 2-2 2"/></svg>AI Command</button>
     <button class="sb-item" onclick="go('weekly')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><rect x="2" y="2" width="12" height="12" rx="1"/><path d="M2 6h12M6 2v12"/></svg>Weekly Plan</button>
     <button class="sb-item" onclick="go('outreach')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 12V4l12 4-12 4z"/></svg>Outreach Writer</button>
@@ -734,6 +735,46 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
     </div>
   </div>
 
+  <!-- SAMPLE TRACKER PAGE -->
+  <div class="page" id="page-samples">
+    <div style="padding:16px">
+
+      <!-- Stats row -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
+        <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r2);padding:14px 16px">
+          <div style="font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Total Out</div>
+          <div style="font-size:24px;font-weight:600;color:var(--navy)" id="s-total">0</div>
+        </div>
+        <div style="background:#fef6e4;border:1px solid #fde68a;border-radius:var(--r2);padding:14px 16px">
+          <div style="font-size:10.5px;font-weight:600;color:var(--amber);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Needs Follow-up</div>
+          <div style="font-size:24px;font-weight:600;color:var(--amber)" id="s-overdue">0</div>
+        </div>
+        <div style="background:var(--green-lt);border:1px solid #a7f3d0;border-radius:var(--r2);padding:14px 16px">
+          <div style="font-size:10.5px;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Converted</div>
+          <div style="font-size:24px;font-weight:600;color:var(--green)" id="s-converted">0</div>
+        </div>
+        <div style="background:var(--red-lt);border:1px solid #fca5a5;border-radius:var(--r2);padding:14px 16px">
+          <div style="font-size:10.5px;font-weight:600;color:var(--red);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">No Interest</div>
+          <div style="font-size:24px;font-weight:600;color:var(--red)" id="s-noint">0</div>
+        </div>
+      </div>
+
+      <!-- Filter bar -->
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden">
+        <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:#f9fafc">
+          <div style="display:flex;gap:6px">
+            <button onclick="setSampleFilter('all',this)" id="sf-all" style="padding:5px 12px;font-size:12px;font-weight:500;border-radius:4px;border:none;background:var(--accent);color:#fff;cursor:pointer">All</button>
+            <button onclick="setSampleFilter('pending',this)" id="sf-pending" style="padding:5px 12px;font-size:12px;font-weight:500;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer">Pending</button>
+            <button onclick="setSampleFilter('overdue',this)" id="sf-overdue" style="padding:5px 12px;font-size:12px;font-weight:500;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer">Needs Follow-up</button>
+            <button onclick="setSampleFilter('converted',this)" id="sf-converted" style="padding:5px 12px;font-size:12px;font-weight:500;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer">Converted</button>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openModal('add-sample')">+ Log Sample</button>
+        </div>
+        <div id="samples-list" style="min-height:200px"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- EMAIL PAGE -->
   <div class="page" id="page-email">
     <div style="padding:16px">
@@ -802,6 +843,63 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 </div>
 
 <!-- MODALS -->
+<div class="mo" id="modal-add-sample">
+  <div class="mb">
+    <h2>Log Product Sample</h2>
+    <div class="fg"><label>Contact *</label>
+      <select id="smp-prospect">
+        <option value="">Select a contact...</option>
+      </select>
+    </div>
+    <div class="g2">
+      <div class="fg"><label>Product Line *</label>
+        <select id="smp-product">
+          <option value="Soudal/Boss">Soudal / Boss</option>
+          <option value="ShurTape">ShurTape</option>
+          <option value="Fortress Frame">Fortress Frame</option>
+          <option value="Fortress Rail">Fortress Rail</option>
+          <option value="Alum-A-Pole">Alum-A-Pole</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="fg"><label>Quantity</label>
+        <input type="number" id="smp-qty" value="1" min="1" />
+      </div>
+    </div>
+    <div class="fg"><label>Date Sent</label>
+      <input type="date" id="smp-date" />
+    </div>
+    <div class="fg"><label>Notes</label>
+      <textarea id="smp-notes" rows="3" placeholder="What is the sample for? Any context..."></textarea>
+    </div>
+    <div class="mfoot">
+      <button class="btn btn-secondary" onclick="closeModal('add-sample')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveSample()">Log Sample</button>
+    </div>
+  </div>
+</div>
+
+<div class="mo" id="modal-close-sample">
+  <div class="mb">
+    <h2>Update Sample Status</h2>
+    <input type="hidden" id="cs-id" />
+    <div class="fg"><label>Outcome</label>
+      <select id="cs-status">
+        <option value="converted">Converted to Order</option>
+        <option value="no_interest">No Interest</option>
+        <option value="pending">Still Pending</option>
+      </select>
+    </div>
+    <div class="fg"><label>Notes</label>
+      <textarea id="cs-notes" rows="3" placeholder="What did they say?"></textarea>
+    </div>
+    <div class="mfoot">
+      <button class="btn btn-secondary" onclick="closeModal('close-sample')">Cancel</button>
+      <button class="btn btn-primary" onclick="updateSampleStatus()">Save</button>
+    </div>
+  </div>
+</div>
+
 <div class="mo" id="modal-compose-email">
   <div class="mb">
     <h2>Compose Email</h2>
@@ -918,6 +1016,63 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 </div>
 
 <!-- EDIT CONTACT MODAL -->
+<div class="mo" id="modal-add-sample">
+  <div class="mb">
+    <h2>Log Product Sample</h2>
+    <div class="fg"><label>Contact *</label>
+      <select id="smp-prospect">
+        <option value="">Select a contact...</option>
+      </select>
+    </div>
+    <div class="g2">
+      <div class="fg"><label>Product Line *</label>
+        <select id="smp-product">
+          <option value="Soudal/Boss">Soudal / Boss</option>
+          <option value="ShurTape">ShurTape</option>
+          <option value="Fortress Frame">Fortress Frame</option>
+          <option value="Fortress Rail">Fortress Rail</option>
+          <option value="Alum-A-Pole">Alum-A-Pole</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="fg"><label>Quantity</label>
+        <input type="number" id="smp-qty" value="1" min="1" />
+      </div>
+    </div>
+    <div class="fg"><label>Date Sent</label>
+      <input type="date" id="smp-date" />
+    </div>
+    <div class="fg"><label>Notes</label>
+      <textarea id="smp-notes" rows="3" placeholder="What is the sample for? Any context..."></textarea>
+    </div>
+    <div class="mfoot">
+      <button class="btn btn-secondary" onclick="closeModal('add-sample')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveSample()">Log Sample</button>
+    </div>
+  </div>
+</div>
+
+<div class="mo" id="modal-close-sample">
+  <div class="mb">
+    <h2>Update Sample Status</h2>
+    <input type="hidden" id="cs-id" />
+    <div class="fg"><label>Outcome</label>
+      <select id="cs-status">
+        <option value="converted">Converted to Order</option>
+        <option value="no_interest">No Interest</option>
+        <option value="pending">Still Pending</option>
+      </select>
+    </div>
+    <div class="fg"><label>Notes</label>
+      <textarea id="cs-notes" rows="3" placeholder="What did they say?"></textarea>
+    </div>
+    <div class="mfoot">
+      <button class="btn btn-secondary" onclick="closeModal('close-sample')">Cancel</button>
+      <button class="btn btn-primary" onclick="updateSampleStatus()">Save</button>
+    </div>
+  </div>
+</div>
+
 <div class="mo" id="modal-compose-email">
   <div class="mb">
     <h2>Compose Email</h2>
@@ -1068,7 +1223,8 @@ var pageTitles = {
   command: 'AI Command Center', outreach: 'Outreach Writer',
   onboarding: 'Onboarding', manager: 'Team Dashboard', deals: 'Deal Pipeline',
   calendar: 'Team Calendar',
-  email: 'Email'
+  email: 'Email',
+  samples: 'Sample Tracker'
 };
 
 window.addEventListener('load', function() {
@@ -1140,6 +1296,7 @@ function go(id) {
   if (id === 'accounts') loadAccounts();
   if (id === 'calendar') loadCalendar();
   if (id === 'email') loadEmailPage();
+  if (id === 'samples') loadSamples();
 }
 
 function setModTab(cat, el) {
@@ -2098,6 +2255,179 @@ async function saveTerritoryChange() {
     closeTerritoryModal();
   } catch(e) { alert('Error saving territory'); }
 }
+
+
+// ============================================================
+// SAMPLE TRACKER
+// ============================================================
+var allSamples = [];
+var sampleFilter = 'all';
+
+function loadSamples() {
+  fetch('/api/samples')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      allSamples = data;
+      updateSampleStats();
+      renderSamples();
+      loadSampleContacts();
+    })
+    .catch(function() { console.error('Failed to load samples'); });
+}
+
+function loadSampleContacts() {
+  fetch('/api/prospects')
+    .then(function(r) { return r.json(); })
+    .then(function(prospects) {
+      var sel = document.getElementById('smp-prospect');
+      if (!sel) return;
+      sel.innerHTML = '<option value="">Select a contact...</option>';
+      prospects.forEach(function(p) {
+        var opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.company + (p.city ? ' — ' + p.city : '');
+        sel.appendChild(opt);
+      });
+    });
+}
+
+function updateSampleStats() {
+  var total = allSamples.filter(function(s) { return s.status === 'pending'; }).length;
+  var overdue = allSamples.filter(function(s) { return s.status === 'pending' && new Date(s.follow_up_date) <= new Date(); }).length;
+  var converted = allSamples.filter(function(s) { return s.status === 'converted'; }).length;
+  var noint = allSamples.filter(function(s) { return s.status === 'no_interest'; }).length;
+  document.getElementById('s-total').textContent = total + converted + noint;
+  document.getElementById('s-overdue').textContent = overdue;
+  document.getElementById('s-converted').textContent = converted;
+  document.getElementById('s-noint').textContent = noint;
+}
+
+function setSampleFilter(filter, btn) {
+  sampleFilter = filter;
+  ['all','pending','overdue','converted'].forEach(function(f) {
+    var b = document.getElementById('sf-' + f);
+    if (b) { b.style.background = 'transparent'; b.style.color = 'var(--text2)'; b.style.border = '1px solid var(--border)'; }
+  });
+  if (btn) { btn.style.background = 'var(--accent)'; btn.style.color = '#fff'; btn.style.border = 'none'; }
+  renderSamples();
+}
+
+function renderSamples() {
+  var el = document.getElementById('samples-list');
+  var now = new Date();
+
+  var filtered = allSamples.filter(function(s) {
+    if (sampleFilter === 'pending') return s.status === 'pending';
+    if (sampleFilter === 'overdue') return s.status === 'pending' && new Date(s.follow_up_date) <= now;
+    if (sampleFilter === 'converted') return s.status === 'converted';
+    return true;
+  });
+
+  if (!filtered.length) {
+    el.innerHTML = '<div style="text-align:center;padding:48px 20px;color:var(--text3);font-size:13px">No samples found. Click "+ Log Sample" to add one.</div>';
+    return;
+  }
+
+  var html = '<table class="ltable"><thead><tr><th>Company</th><th>Product Line</th><th>Qty</th><th>Rep</th><th>Sent</th><th>Follow-up</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+
+  filtered.forEach(function(s) {
+    var followUp = new Date(s.follow_up_date);
+    var isOverdue = s.status === 'pending' && followUp <= now;
+    var daysLeft = Math.ceil((followUp - now) / (1000*60*60*24));
+
+    var statusHtml = '';
+    if (s.status === 'converted') statusHtml = '<span class="badge" style="background:var(--green-lt);color:var(--green)">Converted</span>';
+    else if (s.status === 'no_interest') statusHtml = '<span class="badge" style="background:var(--red-lt);color:var(--red)">No Interest</span>';
+    else if (isOverdue) statusHtml = '<span class="badge" style="background:var(--amber-lt);color:var(--amber)">Follow-up Due</span>';
+    else statusHtml = '<span class="badge" style="background:var(--blue-lt);color:var(--accent)">Pending — ' + daysLeft + 'd</span>';
+
+    var followUpHtml = followUp.toLocaleDateString('en-US', {month:'short',day:'numeric'});
+    if (isOverdue) followUpHtml = '<span style="color:var(--amber);font-weight:500">' + followUpHtml + '</span>';
+
+    var actionsHtml = s.status === 'pending' ?
+      '<button onclick="openCloseSample(' + s.id + ')" style="font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--text2);cursor:pointer">Update</button>' : '';
+
+    html += '<tr>' +
+      '<td><span style="font-weight:600;color:var(--navy)">' + (s.company || '') + '</span>' + (s.city ? '<div style="font-size:11px;color:var(--text3)">' + s.city + '</div>' : '') + '</td>' +
+      '<td style="color:var(--text2)">' + s.product_line + '</td>' +
+      '<td style="color:var(--text2)">' + s.quantity + '</td>' +
+      '<td style="color:var(--text2)">' + (s.rep_name || '') + '</td>' +
+      '<td style="color:var(--text2)">' + new Date(s.sent_date).toLocaleDateString('en-US', {month:'short',day:'numeric'}) + '</td>' +
+      '<td>' + followUpHtml + '</td>' +
+      '<td>' + statusHtml + '</td>' +
+      '<td>' + actionsHtml + '</td>' +
+    '</tr>';
+    if (s.notes) html += '<tr><td colspan="8" style="padding:4px 14px 10px;font-size:11.5px;color:var(--text3);border-bottom:1px solid var(--border)">' + s.notes + '</td></tr>';
+  });
+
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+function saveSample() {
+  var prospectId = document.getElementById('smp-prospect').value;
+  var product = document.getElementById('smp-product').value;
+  var qty = document.getElementById('smp-qty').value;
+  var date = document.getElementById('smp-date').value;
+  var notes = document.getElementById('smp-notes').value;
+
+  if (!prospectId) { alert('Please select a contact'); return; }
+  if (!date) { alert('Please enter the date sent'); return; }
+
+  fetch('/api/samples', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prospect_id: prospectId, product_line: product, quantity: qty, notes: notes, sent_date: date })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.error) { alert('Error: ' + d.error); return; }
+    closeModal('add-sample');
+    document.getElementById('smp-prospect').value = '';
+    document.getElementById('smp-qty').value = '1';
+    document.getElementById('smp-date').value = '';
+    document.getElementById('smp-notes').value = '';
+    loadSamples();
+    showToast('Sample logged successfully');
+  })
+  .catch(function() { alert('Failed to log sample'); });
+}
+
+function openCloseSample(id) {
+  document.getElementById('cs-id').value = id;
+  document.getElementById('cs-notes').value = '';
+  openModal('close-sample');
+}
+
+function updateSampleStatus() {
+  var id = document.getElementById('cs-id').value;
+  var status = document.getElementById('cs-status').value;
+  var notes = document.getElementById('cs-notes').value;
+
+  fetch('/api/samples/' + id + '/status', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status: status, outcome_notes: notes })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function() {
+    closeModal('close-sample');
+    loadSamples();
+    showToast('Sample updated');
+  })
+  .catch(function() { alert('Failed to update sample'); });
+}
+
+// Set today as default date on sample modal open
+var origOpenModal = openModal;
+openModal = function(id) {
+  if (id === 'add-sample') {
+    var dateEl = document.getElementById('smp-date');
+    if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().split('T')[0];
+    loadSampleContacts();
+  }
+  origOpenModal(id);
+};
 
 // ============================================================
 // EMAIL

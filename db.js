@@ -92,6 +92,21 @@ async function initDB() {
     );
 
     ALTER TABLE users ADD COLUMN IF NOT EXISTS ical_token TEXT;
+
+    CREATE TABLE IF NOT EXISTS samples (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      prospect_id INTEGER REFERENCES prospects(id) ON DELETE CASCADE,
+      product_line TEXT NOT NULL,
+      quantity INTEGER DEFAULT 1,
+      notes TEXT DEFAULT '',
+      sent_date DATE NOT NULL,
+      follow_up_date DATE,
+      status TEXT DEFAULT 'pending',
+      outcome_notes TEXT DEFAULT '',
+      closed_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
     ALTER TABLE users ADD COLUMN IF NOT EXISTS outlook_access_token TEXT;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS outlook_refresh_token TEXT;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS outlook_token_expiry TIMESTAMPTZ;

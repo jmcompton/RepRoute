@@ -13,7 +13,6 @@ const onboardingRoutes = require('./routes/onboarding');
 const weeklyRoutes = require('./routes/weekly');
 const managerRoutes = require('./routes/manager');
 const calendarRoutes = require('./routes/calendar');
-const { router: emailRoutes } = require('./routes/email');
 
 const app = express();
 app.use(express.json());
@@ -60,8 +59,6 @@ app.use('/api/onboarding', requireAuth, onboardingRoutes);
 app.use('/api/weekly', requireAuth, weeklyRoutes);
 app.use('/api/manager', requireAuth, requireManager, managerRoutes);
 app.use('/api/calendar', requireAuth, calendarRoutes);
-app.use('/api/email', requireAuth, emailRoutes);
-app.use('/auth', emailRoutes);
 
 const PORT = process.env.PORT || 3000;
 initDB().then(() => {
