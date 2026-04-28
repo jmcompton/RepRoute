@@ -789,30 +789,43 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
       </div>
 
       <div id="email-connected-banner" style="display:none;background:var(--green-lt);border:1px solid #a7f3d0;border-radius:var(--r2);padding:10px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between">
-        <div style="font-size:12.5px;color:var(--green);font-weight:500">Outlook connected — emails syncing automatically</div>
+        <div style="font-size:12.5px;color:var(--green);font-weight:500">✓ Outlook connected — emails syncing automatically</div>
         <button class="btn btn-secondary btn-sm" onclick="connectOutlook()">Reconnect</button>
       </div>
 
-      <div style="display:grid;grid-template-columns:280px 1fr;gap:16px;height:calc(100vh - 140px)">
+      <div style="display:grid;grid-template-columns:300px 1fr;gap:16px;height:calc(100vh - 140px)">
 
-        <!-- Contact list -->
+        <!-- Left panel: inbox + contacts -->
         <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden;display:flex;flex-direction:column">
-          <div style="padding:12px;border-bottom:1px solid var(--border);background:#f9fafc">
-            <div style="font-size:12.5px;font-weight:600;color:var(--navy);margin-bottom:8px">Contacts</div>
-            <input type="text" placeholder="Search contacts..." oninput="filterEmailContacts(this.value)" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;outline:none;font-family:inherit" />
+          
+          <!-- View toggle -->
+          <div style="display:flex;border-bottom:1px solid var(--border)">
+            <button id="email-tab-inbox" onclick="setEmailTab('inbox')" style="flex:1;padding:10px;font-size:12px;font-weight:600;border:none;background:var(--blue);color:#fff;cursor:pointer">📥 Inbox</button>
+            <button id="email-tab-contacts" onclick="setEmailTab('contacts')" style="flex:1;padding:10px;font-size:12px;font-weight:600;border:none;background:transparent;color:var(--text2);cursor:pointer;border-left:1px solid var(--border)">👥 Contacts</button>
           </div>
-          <div id="email-contact-list" style="flex:1;overflow-y:auto"></div>
+
+          <!-- Search -->
+          <div style="padding:10px;border-bottom:1px solid var(--border);background:#f9fafc">
+            <input type="text" id="email-search-input" placeholder="Search..." oninput="handleEmailSearch(this.value)" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;outline:none;font-family:inherit;box-sizing:border-box" />
+          </div>
+
+          <!-- List -->
+          <div id="email-left-list" style="flex:1;overflow-y:auto"></div>
         </div>
 
-        <!-- Email thread -->
+        <!-- Right panel: thread -->
         <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden;display:flex;flex-direction:column">
           <div id="email-thread-header" style="padding:14px 18px;border-bottom:1px solid var(--border);background:#f9fafc;display:flex;align-items:center;justify-content:space-between">
-            <div style="font-size:13px;font-weight:600;color:var(--navy)" id="email-thread-title">Select a contact</div>
-            <button class="btn btn-primary btn-sm" onclick="openModal('compose-email')" id="compose-btn" style="display:none">Compose Email</button>
+            <div style="font-size:13px;font-weight:600;color:var(--navy)" id="email-thread-title">Select a contact or email</div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-secondary btn-sm" onclick="loadEmailInbox()" id="refresh-btn" style="display:none">↻ Refresh</button>
+              <button class="btn btn-primary btn-sm" onclick="openModal('compose-email')" id="compose-btn" style="display:none">+ Compose</button>
+            </div>
           </div>
           <div id="email-thread-body" style="flex:1;overflow-y:auto;padding:16px">
             <div style="text-align:center;padding:48px 20px;color:var(--text3)">
-              <div style="font-size:13px">Select a contact to view email history</div>
+              <div style="font-size:32px;margin-bottom:12px">✉️</div>
+              <div style="font-size:13px">Select a contact to view thread or switch to Inbox to see all emails</div>
             </div>
           </div>
         </div>
@@ -2434,55 +2447,206 @@ openModal = function(id) {
 // ============================================================
 var emailCurrentProspectId = null;
 var emailContacts = [];
+var emailInboxItems = [];
+var emailCurrentTab = 'inbox';
+var emailOutlookConnected = false;
 
 function loadEmailPage() {
-  // Check outlook connection status
   fetch('/api/email/status')
     .then(function(r) { return r.json(); })
     .then(function(d) {
+      emailOutlookConnected = d.connected;
       if (d.connected) {
         document.getElementById('email-connect-banner').style.display = 'none';
         document.getElementById('email-connected-banner').style.display = 'flex';
+        loadEmailInbox();
+        loadAllEmailContacts();
       } else {
         document.getElementById('email-connect-banner').style.display = 'flex';
         document.getElementById('email-connected-banner').style.display = 'none';
+        loadAllEmailContacts();
       }
-    });
-
-  // Load contacts with emails
-  fetch('/api/prospects')
-    .then(function(r) { return r.json(); })
-    .then(function(prospects) {
-      emailContacts = prospects.filter(function(p) { return p.email; });
-      renderEmailContactList(emailContacts);
     });
 }
 
+function setEmailTab(tab) {
+  emailCurrentTab = tab;
+  var inboxBtn = document.getElementById('email-tab-inbox');
+  var contactsBtn = document.getElementById('email-tab-contacts');
+  if (tab === 'inbox') {
+    inboxBtn.style.background = 'var(--blue)';
+    inboxBtn.style.color = '#fff';
+    contactsBtn.style.background = 'transparent';
+    contactsBtn.style.color = 'var(--text2)';
+    renderInboxList(emailInboxItems);
+  } else {
+    contactsBtn.style.background = 'var(--blue)';
+    contactsBtn.style.color = '#fff';
+    inboxBtn.style.background = 'transparent';
+    inboxBtn.style.color = 'var(--text2)';
+    renderEmailContactList(emailContacts);
+  }
+  document.getElementById('email-search-input').value = '';
+}
+
+function loadEmailInbox() {
+  if (!emailOutlookConnected) return;
+  var list = document.getElementById('email-left-list');
+  list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Loading inbox...</div>';
+  fetch('/api/email/inbox')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      emailInboxItems = d.emails || [];
+      if (emailCurrentTab === 'inbox') renderInboxList(emailInboxItems);
+    })
+    .catch(function() {
+      list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Failed to load inbox</div>';
+    });
+}
+
+function loadAllEmailContacts() {
+  // Load RepRoute prospects
+  fetch('/api/prospects')
+    .then(function(r) { return r.json(); })
+    .then(function(prospects) {
+      var repContacts = prospects.filter(function(p) { return p.email; }).map(function(p) {
+        return { id: p.id, name: p.company || p.name || '', email: p.email, source: 'reprouete' };
+      });
+
+      if (!emailOutlookConnected) {
+        emailContacts = repContacts;
+        if (emailCurrentTab === 'contacts') renderEmailContactList(emailContacts);
+        return;
+      }
+
+      // Also load Outlook contacts and merge
+      fetch('/api/email/outlook-contacts')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          var outlookContacts = (d.contacts || [])
+            .filter(function(c) { return c.emailAddresses && c.emailAddresses.length; })
+            .map(function(c) {
+              return { id: null, name: c.displayName || '', email: c.emailAddresses[0].address, company: c.companyName || '', source: 'outlook' };
+            });
+
+          // Merge — dedupe by email
+          var seen = {};
+          var merged = [];
+          repContacts.forEach(function(c) { seen[c.email.toLowerCase()] = true; merged.push(c); });
+          outlookContacts.forEach(function(c) {
+            if (!seen[c.email.toLowerCase()]) {
+              seen[c.email.toLowerCase()] = true;
+              merged.push(c);
+            }
+          });
+          merged.sort(function(a,b) { return (a.name||'').localeCompare(b.name||''); });
+          emailContacts = merged;
+          if (emailCurrentTab === 'contacts') renderEmailContactList(emailContacts);
+        });
+    });
+}
+
+function renderInboxList(emails) {
+  var el = document.getElementById('email-left-list');
+  if (!emails.length) {
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">No emails in inbox</div>';
+    return;
+  }
+  el.innerHTML = '';
+  emails.forEach(function(e) {
+    var div = document.createElement('div');
+    var isUnread = !e.isRead;
+    div.style.cssText = 'padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;background:' + (isUnread ? '#f0f5ff' : 'var(--white)');
+    var date = new Date(e.receivedDateTime);
+    var dateStr = date.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+    div.innerHTML = 
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">' +
+        '<div style="font-size:12px;font-weight:' + (isUnread?'700':'500') + ';color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px">' + (e.from && e.from.emailAddress ? e.from.emailAddress.name || e.from.emailAddress.address : 'Unknown') + '</div>' +
+        '<div style="font-size:10px;color:var(--text3);white-space:nowrap">' + dateStr + '</div>' +
+      '</div>' +
+      '<div style="font-size:11.5px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px;font-weight:' + (isUnread?'600':'400') + '">' + (e.subject || '(No subject)') + '</div>' +
+      '<div style="font-size:11px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + (e.bodyPreview || '') + '</div>';
+    div.addEventListener('mouseover', function() { this.style.background = '#f2f5ff'; });
+    div.addEventListener('mouseout', function() { this.style.background = isUnread ? '#f0f5ff' : 'var(--white)'; });
+    div.addEventListener('click', function() { showInboxEmail(e); });
+    el.appendChild(div);
+  });
+}
+
+function showInboxEmail(e) {
+  var body = document.getElementById('email-thread-body');
+  var from = e.from && e.from.emailAddress ? e.from.emailAddress : {};
+  var date = new Date(e.receivedDateTime).toLocaleString();
+  document.getElementById('email-thread-title').textContent = e.subject || '(No subject)';
+  document.getElementById('compose-btn').style.display = 'inline-flex';
+  document.getElementById('refresh-btn').style.display = 'inline-flex';
+  document.getElementById('ce-to').value = from.address || '';
+
+  body.innerHTML =
+    '<div style="border:1px solid var(--border);border-radius:var(--r2);padding:16px;margin-bottom:12px">' +
+      '<div style="display:flex;justify-content:space-between;margin-bottom:10px">' +
+        '<div>' +
+          '<div style="font-size:13px;font-weight:600;color:var(--navy)">' + (from.name || from.address || '') + '</div>' +
+          '<div style="font-size:11px;color:var(--text3)">' + (from.address || '') + '</div>' +
+        '</div>' +
+        '<div style="font-size:11px;color:var(--text3)">' + date + '</div>' +
+      '</div>' +
+      '<div style="font-size:13px;color:var(--text1);line-height:1.6;white-space:pre-wrap">' + (e.bodyPreview || '') + '</div>' +
+      (e.webLink ? '<div style="margin-top:12px"><a href="' + e.webLink + '" target="_blank" style="font-size:12px;color:var(--blue)">Open in Outlook →</a></div>' : '') +
+    '</div>' +
+    '<div style="margin-top:8px">' +
+      '<button class="btn btn-secondary btn-sm" onclick="openReplyModal('' + (from.address||'') + '')" style="margin-right:8px">↩ Reply</button>' +
+    '</div>';
+}
+
+function openReplyModal(toEmail) {
+  document.getElementById('ce-to').value = toEmail;
+  openModal('compose-email');
+}
+
 function renderEmailContactList(contacts) {
-  var el = document.getElementById('email-contact-list');
+  var el = document.getElementById('email-left-list');
   if (!contacts.length) {
-    el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">No contacts with email addresses.<br>Add emails to your contacts first.</div>';
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">No contacts found.<br>Add emails to your contacts or connect Outlook.</div>';
     return;
   }
   el.innerHTML = '';
   contacts.forEach(function(c) {
     var div = document.createElement('div');
     div.style.cssText = 'padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;background:var(--white)';
-    div.innerHTML = '<div style="font-size:12.5px;font-weight:600;color:var(--navy)">' + (c.company||'') + '</div><div style="font-size:11px;color:var(--text3)">' + (c.email||'') + '</div>';
+    var badge = c.source === 'outlook' ? '<span style="font-size:9px;background:#e0e7ff;color:#4f46e5;padding:1px 5px;border-radius:10px;margin-left:4px">Outlook</span>' : '<span style="font-size:9px;background:#d1fae5;color:#065f46;padding:1px 5px;border-radius:10px;margin-left:4px">CRM</span>';
+    div.innerHTML = 
+      '<div style="display:flex;align-items:center;margin-bottom:2px">' +
+        '<div style="font-size:12.5px;font-weight:600;color:var(--navy)">' + (c.name||c.company||'Unknown') + '</div>' + badge +
+      '</div>' +
+      '<div style="font-size:11px;color:var(--text3)">' + (c.email||'') + '</div>';
     div.addEventListener('mouseover', function() { this.style.background = '#f2f5ff'; });
     div.addEventListener('mouseout', function() { this.style.background = 'var(--white)'; });
-    div.addEventListener('click', function() { selectEmailContact(c.id, c.company||'', c.email||''); });
+    div.addEventListener('click', function() { selectEmailContact(c.id, c.name||c.company||'', c.email||''); });
     el.appendChild(div);
   });
 }
 
-function filterEmailContacts(query) {
-  var filtered = emailContacts.filter(function(c) {
-    return (c.company||'').toLowerCase().includes(query.toLowerCase()) ||
-           (c.email||'').toLowerCase().includes(query.toLowerCase());
-  });
-  renderEmailContactList(filtered);
+function handleEmailSearch(query) {
+  if (emailCurrentTab === 'inbox') {
+    var filtered = emailInboxItems.filter(function(e) {
+      var from = e.from && e.from.emailAddress ? e.from.emailAddress.name + ' ' + e.from.emailAddress.address : '';
+      return from.toLowerCase().includes(query.toLowerCase()) ||
+             (e.subject||'').toLowerCase().includes(query.toLowerCase()) ||
+             (e.bodyPreview||'').toLowerCase().includes(query.toLowerCase());
+    });
+    renderInboxList(filtered);
+  } else {
+    var filtered = emailContacts.filter(function(c) {
+      return (c.name||'').toLowerCase().includes(query.toLowerCase()) ||
+             (c.email||'').toLowerCase().includes(query.toLowerCase()) ||
+             (c.company||'').toLowerCase().includes(query.toLowerCase());
+    });
+    renderEmailContactList(filtered);
+  }
 }
+
+function filterEmailContacts(query) { handleEmailSearch(query); }
 
 function selectEmailContact(id, name, email) {
   emailCurrentProspectId = id;

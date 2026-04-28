@@ -213,3 +213,37 @@ router.get('/status', async (req, res) => {
 });
 
 module.exports = { router, getValidToken };
+
+// Get full inbox
+router.get('/inbox', async (req, res) => {
+  const userId = req.session.user.id;
+  try {
+    const token = await getValidToken(userId);
+    const response = await fetch(
+      'https://graph.microsoft.com/v1.0/me/messages?$top=50&$orderby=receivedDateTime desc&$select=subject,from,toRecipients,receivedDateTime,bodyPreview,webLink,isRead',
+      { headers: { Authorization: 'Bearer ' + token } }
+    );
+    const data = await response.json();
+    if (data.error) throw new Error(data.error.message);
+    res.json({ emails: data.value || [] });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Get Outlook contacts
+router.get('/outlook-contacts', async (req, res) => {
+  const userId = req.session.user.id;
+  try {
+    const token = await getValidToken(userId);
+    const response = await fetch(
+      'https://graph.microsoft.com/v1.0/me/contacts?$top=100&$select=displayName,emailAddresses,companyName',
+      { headers: { Authorization: 'Bearer ' + token } }
+    );
+    const data = await response.json();
+    if (data.error) throw new Error(data.error.message);
+    res.json({ contacts: data.value || [] });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
