@@ -39,7 +39,7 @@ router.get('/outlook/callback', async (req, res) => {
       })
     });
     const tokens = await tokenRes.json();
-    if (tokens.error) throw new Error(tokens.error_description);
+    if (tokens.error) { console.error('Token error:', JSON.stringify(tokens)); throw new Error(tokens.error_description || tokens.error); }
 
     const userId = parseInt(state);
     await pool.query(
@@ -53,7 +53,7 @@ router.get('/outlook/callback', async (req, res) => {
     res.redirect('/app?outlook=connected');
   } catch (e) {
     console.error('Outlook auth error:', e.message);
-    res.redirect('/app?error=auth_failed');
+    res.redirect('/app?error=' + encodeURIComponent(e.message));
   }
 });
 
