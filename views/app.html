@@ -2464,12 +2464,16 @@ function renderEmailContactList(contacts) {
     el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">No contacts with email addresses.<br>Add emails to your contacts first.</div>';
     return;
   }
-  el.innerHTML = contacts.map(function(c) {
-    return '<div class="email-contact-item" onclick="selectEmailContact(' + c.id + ',&quot;' + (c.company||'').replace(/&quot;/g,'') + '&quot;,&quot;' + (c.email||'') + '&quot;)" style="padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s" onmouseover="this.style.background='#f2f5ff'" onmouseout="this.style.background=''">'+
-      '<div style="font-size:12.5px;font-weight:600;color:var(--navy)">' + (c.company||'') + '</div>'+
-      '<div style="font-size:11px;color:var(--text3)">' + (c.email||'') + '</div>'+
-    '</div>';
-  }).join('');
+  el.innerHTML = '';
+  contacts.forEach(function(c) {
+    var div = document.createElement('div');
+    div.style.cssText = 'padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;background:var(--white)';
+    div.innerHTML = '<div style="font-size:12.5px;font-weight:600;color:var(--navy)">' + (c.company||'') + '</div><div style="font-size:11px;color:var(--text3)">' + (c.email||'') + '</div>';
+    div.addEventListener('mouseover', function() { this.style.background = '#f2f5ff'; });
+    div.addEventListener('mouseout', function() { this.style.background = 'var(--white)'; });
+    div.addEventListener('click', function() { selectEmailContact(c.id, c.company||'', c.email||''); });
+    el.appendChild(div);
+  });
 }
 
 function filterEmailContacts(query) {
