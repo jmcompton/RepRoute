@@ -2508,8 +2508,6 @@ function selectEmailContact(id, name, email) {
 
 function renderEmailThread(logged, outlook, name) {
   var body = document.getElementById('email-thread-body');
-
-  // Merge and sort all emails
   var all = [];
   logged.forEach(function(e) {
     all.push({ date: new Date(e.sent_at), subject: e.subject, preview: e.body, direction: e.direction, source: e.source, from: e.from_email, to: e.to_email });
@@ -2520,38 +2518,83 @@ function renderEmailThread(logged, outlook, name) {
   all.sort(function(a,b) { return b.date - a.date; });
 
   if (!all.length) {
-    body.innerHTML = '<div style="text-align:center;padding:48px 20px;color:var(--text3)">' +
-      '<div style="font-size:13px;margin-bottom:12px">No emails found for this contact</div>' +
-      '<button class="btn btn-secondary btn-sm" onclick="openModal('log-email')">Log Email Manually</button>' +
-    '</div>';
+    var emptyDiv = document.createElement('div');
+    emptyDiv.style.cssText = 'text-align:center;padding:48px 20px;color:var(--text3)';
+    var msgDiv = document.createElement('div');
+    msgDiv.style.fontSize = '13px';
+    msgDiv.style.marginBottom = '12px';
+    msgDiv.textContent = 'No emails found for this contact';
+    var logBtn = document.createElement('button');
+    logBtn.className = 'btn btn-secondary btn-sm';
+    logBtn.textContent = 'Log Email Manually';
+    logBtn.onclick = function() { openModal('log-email'); };
+    emptyDiv.appendChild(msgDiv);
+    emptyDiv.appendChild(logBtn);
+    body.innerHTML = '';
+    body.appendChild(emptyDiv);
     return;
   }
 
-  var html = '<div style="display:flex;justify-content:flex-end;margin-bottom:12px;gap:8px">' +
-    '<button class="btn btn-secondary btn-sm" onclick="openModal('log-email')">Log Manually</button>' +
-    '</div>';
+  body.innerHTML = '';
+  var topBar = document.createElement('div');
+  topBar.style.cssText = 'display:flex;justify-content:flex-end;margin-bottom:12px;gap:8px';
+  var logBtn = document.createElement('button');
+  logBtn.className = 'btn btn-secondary btn-sm';
+  logBtn.textContent = 'Log Manually';
+  logBtn.onclick = function() { openModal('log-email'); };
+  topBar.appendChild(logBtn);
+  body.appendChild(topBar);
 
   all.forEach(function(e) {
     var isOut = e.direction === 'out';
-    var bgColor = isOut ? '#f0f5ff' : '#f9fafc';
-    var borderColor = isOut ? 'var(--accent)' : 'var(--border)';
-    var sourceTag = e.source === 'outlook' ? '<span style="font-size:10px;background:#e8f0ff;color:var(--accent);padding:1px 6px;border-radius:3px;font-weight:500">Outlook</span>' :
-                    '<span style="font-size:10px;background:var(--bg);color:var(--text3);padding:1px 6px;border-radius:3px;font-weight:500">Manual</span>';
-    var dirTag = isOut ? '<span style="font-size:10px;color:var(--text3)">Sent</span>' : '<span style="font-size:10px;color:var(--green)">Received</span>';
+    var card = document.createElement('div');
+    card.style.cssText = 'border:1px solid ' + (isOut ? 'var(--accent)' : 'var(--border)') + ';border-radius:var(--r2);padding:14px;margin-bottom:10px;background:' + (isOut ? '#f0f5ff' : '#f9fafc');
 
-    html += '<div style="border:1px solid ' + borderColor + ';border-radius:var(--r2);padding:14px;margin-bottom:10px;background:' + bgColor + '">' +
-      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">' +
-        '<div style="font-size:13px;font-weight:600;color:var(--navy)">' + (e.subject || '(No subject)') + '</div>' +
-        '<div style="display:flex;gap:6px;align-items:center">' + dirTag + sourceTag + '</div>' +
-      '</div>' +
-      '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">' + e.date.toLocaleString() + '</div>' +
-      '<div style="font-size:12.5px;color:var(--text2);line-height:1.5">' + (e.preview || '').substring(0, 200) + (e.preview && e.preview.length > 200 ? '...' : '') + '</div>' +
-      (e.link ? '<a href="' + e.link + '" target="_blank" style="font-size:11px;color:var(--accent);margin-top:6px;display:inline-block">Open in Outlook</a>' : '') +
-    '</div>';
+    var header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:6px';
+
+    var subj = document.createElement('div');
+    subj.style.cssText = 'font-size:13px;font-weight:600;color:var(--navy)';
+    subj.textContent = e.subject || '(No subject)';
+
+    var tags = document.createElement('div');
+    tags.style.cssText = 'display:flex;gap:6px;align-items:center';
+    var dirTag = document.createElement('span');
+    dirTag.style.cssText = 'font-size:10px;color:' + (isOut ? 'var(--text3)' : 'var(--green)');
+    dirTag.textContent = isOut ? 'Sent' : 'Received';
+    var srcTag = document.createElement('span');
+    srcTag.style.cssText = 'font-size:10px;padding:1px 6px;border-radius:3px;font-weight:500;background:' + (e.source === 'outlook' ? '#e8f0ff' : 'var(--bg)') + ';color:' + (e.source === 'outlook' ? 'var(--accent)' : 'var(--text3)');
+    srcTag.textContent = e.source === 'outlook' ? 'Outlook' : 'Manual';
+    tags.appendChild(dirTag);
+    tags.appendChild(srcTag);
+    header.appendChild(subj);
+    header.appendChild(tags);
+
+    var dateDiv = document.createElement('div');
+    dateDiv.style.cssText = 'font-size:11px;color:var(--text3);margin-bottom:8px';
+    dateDiv.textContent = e.date.toLocaleString();
+
+    var preview = document.createElement('div');
+    preview.style.cssText = 'font-size:12.5px;color:var(--text2);line-height:1.5';
+    preview.textContent = (e.preview || '').substring(0, 200) + (e.preview && e.preview.length > 200 ? '...' : '');
+
+    card.appendChild(header);
+    card.appendChild(dateDiv);
+    card.appendChild(preview);
+
+    if (e.link) {
+      var link = document.createElement('a');
+      link.href = e.link;
+      link.target = '_blank';
+      link.style.cssText = 'font-size:11px;color:var(--accent);margin-top:6px;display:inline-block';
+      link.textContent = 'Open in Outlook';
+      card.appendChild(link);
+    }
+
+    body.appendChild(card);
   });
-
-  body.innerHTML = html;
 }
+
 
 function connectOutlook() {
   window.location.href = '/auth/connect/outlook';
