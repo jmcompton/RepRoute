@@ -23,7 +23,7 @@ router.get('/connect/outlook', (req, res) => {
 });
 
 // Step 2: Handle callback, exchange code for tokens
-router.get('/callback/outlook', async (req, res) => {
+router.get('/outlook/callback', async (req, res) => {
   const { code, state } = req.query;
   if (!code) return res.redirect('/app?error=no_code');
   try {
