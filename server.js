@@ -53,19 +53,6 @@ app.get('/app', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'views', 'app.html'));
 });
 
-app.use('/', authRoutes);
-app.use('/app', requireAuth, dashRoutes);
-app.use('/api/prospects', requireAuth, prospectsRoutes);
-app.use('/api/calls', requireAuth, callsRoutes);
-app.use('/api/ai', requireAuth, aiRoutes);
-app.use('/api/onboarding', requireAuth, onboardingRoutes);
-app.use('/api/weekly', requireAuth, weeklyRoutes);
-app.use('/api/manager', requireAuth, requireManager, managerRoutes);
-app.use('/api/calendar', requireAuth, calendarRoutes);
-app.use('/api/email', requireAuth, emailRoutes);
-app.use('/api/samples', requireAuth, samplesRoutes);
-app.use('/auth', emailRoutes);
-
 // Landing page (public)
 app.get('/landing', (req, res) => res.sendFile(path.join(__dirname, 'views', 'landing.html')));
 
@@ -94,6 +81,20 @@ app.use('/admin', (req, res, next) => {
   if (!req.session.user || req.session.user.role !== 'manager') return res.status(403).json({ error: 'Forbidden' });
   next();
 }, adminRoutes);
+
+app.use('/', authRoutes);
+app.use('/app', requireAuth, dashRoutes);
+app.use('/api/prospects', requireAuth, prospectsRoutes);
+app.use('/api/calls', requireAuth, callsRoutes);
+app.use('/api/ai', requireAuth, aiRoutes);
+app.use('/api/onboarding', requireAuth, onboardingRoutes);
+app.use('/api/weekly', requireAuth, weeklyRoutes);
+app.use('/api/manager', requireAuth, requireManager, managerRoutes);
+app.use('/api/calendar', requireAuth, calendarRoutes);
+app.use('/api/email', requireAuth, emailRoutes);
+app.use('/api/samples', requireAuth, samplesRoutes);
+app.use('/auth', emailRoutes);
+
 
 const PORT = process.env.PORT || 3000;
 initDB().then(() => {
