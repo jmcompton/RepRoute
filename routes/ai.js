@@ -214,31 +214,61 @@ Find REAL businesses only. Return exactly ${batchCount} results.`;
   }
 
   try {
-    // Run two searches in parallel across different city sets
-    const [text1, text2] = await Promise.all([
-      callClaudeWithSearch(buildPrompt(cities1, batchSize, 0)),
-      callClaudeWithSearch(buildPrompt(cities2, numLeads - batchSize, batchSize))
-    ]);
+    // Split cities into 5 groups, run up to 5 batches of 10 each
+    const BATCH = 10;
+    const numBatches = Math.ceil(numLeads / BATCH);
+    const cityArr = cities.split(',').map(c => c.trim()).filter(Boolean);
+    const groupSize = Math.max(1, Math.ceil(cityArr.length / numBatches));
 
-    let leads1 = extractJSON(text1) || [];
-    let leads2 = extractJSON(text2) || [];
+    // Build city groups
+    const cityGroups = [];
+    for (let i = 0; i < numBatches; i++) {
+      const slice = cityArr.slice(i * groupSize, (i + 1) * groupSize);
+      cityGroups.push(slice.length ? slice.join(', ') : cities);
+    }
 
-    // Deduplicate by company name
-    const seen = new Set(leads1.map(l => l.company?.toLowerCase()));
-    const unique2 = leads2.filter(l => !seen.has(l.company?.toLowerCase()));
-    let leads = [...leads1, ...unique2];
+    // Run all batches in parallel, each asking for max 10
+    const batchPromises = cityGroups.map((cg, i) => {
+      const batchCount = Math.min(BATCH, numLeads - i * BATCH);
+      if (batchCount <= 0) return Promise.resolve('[]');
+      return callClaudeWithSearch(buildPrompt(cg, batchCount, i * BATCH))
+        .catch(() => '[]');
+    });
 
-    // If still short, do a third search for remaining
-    if (leads.length < numLeads) {
+    const texts = await Promise.all(batchPromises);
+
+    // Merge and deduplicate
+    let leads = [];
+    const seen = new Set();
+    for (const text of texts) {
+      const batch = extractJSON(text) || [];
+      for (const l of batch) {
+        const key = (l.company || '').toLowerCase().trim();
+        if (key && !seen.has(key)) {
+          seen.add(key);
+          leads.push(l);
+        }
+      }
+    }
+
+    // If still short after all batches, do one more fill run
+    if (leads.length < numLeads && leads.length > 0) {
       const remaining = numLeads - leads.length;
       const existingNames = leads.map(l => l.company).join(', ');
-      const fill = await callClaudeWithSearch(
-        buildPrompt(cities, remaining, 0) +
-        ` Do NOT include these already found: ${existingNames}`
-      );
-      const leads3 = extractJSON(fill) || [];
-      const seen2 = new Set(leads.map(l => l.company?.toLowerCase()));
-      leads = [...leads, ...leads3.filter(l => !seen2.has(l.company?.toLowerCase()))];
+      try {
+        const fill = await callClaudeWithSearch(
+          buildPrompt(cities, Math.min(remaining, BATCH), 0) +
+          ` IMPORTANT: Do NOT return any of these companies: ${existingNames}`
+        );
+        const fillLeads = extractJSON(fill) || [];
+        for (const l of fillLeads) {
+          const key = (l.company || '').toLowerCase().trim();
+          if (key && !seen.has(key)) {
+            seen.add(key);
+            leads.push(l);
+          }
+        }
+      } catch(e) {}
     }
 
     if (leads.length === 0) return res.json({ error: 'Could not find leads. Try a different category or territory.' });
