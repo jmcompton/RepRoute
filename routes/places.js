@@ -77,6 +77,7 @@ router.post('/places-leads', async (req, res) => {
     if (geoData.status !== 'OK') return res.json({ error: 'Could not find location: ' + loc });
     const { lat, lng } = geoData.results[0].geometry.location;
     console.log('Geocoded:', lat, lng);
+    if (!lat || !lng) return res.json({ error: 'Could not geocode location' });
 
     const leadsMap = new Map();
     const perTerm = Math.max(Math.ceil(numLeads / searchTerms.length), 10);
@@ -93,11 +94,10 @@ router.post('/places-leads', async (req, res) => {
           'X-Goog-Api-Key': PLACES_KEY,
           'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.businessStatus'
         },
-        {
-          textQuery: term + ' in ' + loc,
-          maxResultCount: 20,
-          locationBias: { circle: { center: { latitude: lat, longitude: lng }, radius: 80000 } }
-        }
+        Object.assign(
+          { textQuery: term + ' in ' + loc, maxResultCount: 20 },
+          (lat && lng) ? { locationBias: { circle: { center: { latitude: lat, longitude: lng }, radius: 50000 } } } : {}
+        )
       );
 
       console.log('Results for', term, ':', searchData.places?.length || 0, searchData.error?.message || '');
