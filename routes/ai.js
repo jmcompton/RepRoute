@@ -150,27 +150,67 @@ router.post('/leads', async (req, res) => {
   const cities1 = cityList.slice(0, mid).join(', ') || cities;
   const cities2 = cityList.slice(mid).join(', ') || cities;
 
+  // Product-specific targeting context
+  function getProductContext(prod) {
+    const p = (prod || '').toLowerCase();
+    if (p.includes('soudal') || p.includes('boss') || p.includes('sealant') || p.includes('adhesive')) return {
+      who: 'window and door installers, insulation contractors, commercial contractors, after-paint installers, glazing contractors, waterproofing contractors',
+      why: 'Soudal BOSS sealants and adhesives are used for window and door installation, weatherproofing, firestopping, bonding, and gap sealing on commercial and residential jobs. They need high-performance sealants that are paintable, waterproof, and code-compliant.',
+      signals: 'Look for companies that install windows, doors, siding, roofing, or do commercial construction. They buy sealants and adhesives in bulk.'
+    };
+    if (p.includes('shurtape') || p.includes('flashing') || p.includes('deck tape')) return {
+      who: 'window and door installers, roofing contractors, deck contractors, home builders, remodelers',
+      why: 'ShurTape flashing and deck tape is used for window rough openings, door flashing, deck waterproofing, and moisture barriers. Installers need code-compliant tape that bonds to OSB, housewrap, and concrete.',
+      signals: 'Target companies installing windows, doors, or decks. They go through flashing tape on every job.'
+    };
+    if (p.includes('alum-a-pole') || p.includes('alumapole') || p.includes('scaffolding') || p.includes('scaffold')) return {
+      who: 'siding contractors, exterior painters, James Hardie installers, fiber cement siding contractors, stucco contractors, soffit and fascia contractors',
+      why: 'Alum-A-Pole makes pump jack scaffolding, one-man scaffolding, and siding brakes used by siding pros working at heights up to 50 feet. OSHA-compliant, lightweight aluminum, made in USA. Siding contractors need reliable scaffolding on every job.',
+      signals: 'Look for siding companies, exterior renovation contractors, James Hardie preferred installers, painting contractors who work on multi-story homes.'
+    };
+    if (p.includes('fortress') && (p.includes('framing') || p.includes('steel frame') || p.includes('evolution'))) return {
+      who: 'deck builders, deck contractors, remodelers, general contractors, custom home builders',
+      why: 'Fortress Evolution steel deck framing is rot-proof, termite-proof, and stronger than wood. Deck builders use it for substructure framing on residential and commercial decks and stairs. It eliminates callbacks from rot and termite damage.',
+      signals: 'Target dedicated deck builders and remodelers who build multiple decks per year. They care about warranties and eliminating callbacks.'
+    };
+    if (p.includes('fortress') && p.includes('railing')) return {
+      who: 'deck contractors, fence contractors, builders, remodelers, commercial contractors',
+      why: 'Fortress Railing systems are aluminum and steel railing for decks, stairs, and commercial applications. Low maintenance, code-compliant, and aesthetically superior to wood. Deck contractors and builders install railing on every project.',
+      signals: 'Any company building decks, porches, balconies, or commercial walkways needs railing. Target deck builders and fence contractors first.'
+    };
+    return {
+      who: custType,
+      why: 'They regularly purchase building products for construction and renovation projects.',
+      signals: 'Active construction company with ongoing projects.'
+    };
+  }
+
   function buildPrompt(citySet, batchCount, offset) {
-    return `You are a B2B sales researcher for Compton Group LLC, a manufacturer's rep selling building products across the Southeast US.
+    const ctx = getProductContext(product);
+    return `You are an expert B2B sales researcher for Compton Group LLC, a manufacturer's rep in the Southeast US.
 
-Find exactly ${batchCount} REAL ${custType} businesses in these cities: ${citySet}
-These businesses should be strong prospects for: ${product}
+PRODUCT TO SELL: ${product}
+WHO BUYS THIS: ${ctx.who}
+WHY THEY NEED IT: ${ctx.why}
+WHAT TO LOOK FOR: ${ctx.signals}
 
-Search Google, company websites, and directories. For EACH business return:
-- Real verified company name (must exist)
-- Exact business type
+YOUR TASK: Find exactly ${batchCount} REAL ${custType !== 'any building products buyer' ? custType : ctx.who} businesses in: ${citySet}
+
+For each business search Google Maps, their website, and contractor directories (Houzz, Angi, BuildZoom, Yelp, their state contractor license board). Find:
+- Real verified company name
+- Exact business type (be specific: "James Hardie Siding Contractor" not just "contractor")
 - City and state
-- Phone number from their Google listing or website
-- Email from their contact page
-- Owner or purchasing manager name if findable
+- Phone from Google listing or website
+- Email from their contact or about page
+- Owner or decision maker name
 - Website URL
-- One specific reason they need ${product} (reference their actual work)
-- Priority: High (large active jobs, growing company), Medium (steady established), Low (small or unclear)
+- One specific sentence why THIS company needs ${product} based on their actual work
+- Priority: High (large volume, active, growing), Medium (steady established), Low (small or unclear volume)
 
-Return ONLY a JSON array starting with [ — no markdown, no explanation, no preamble:
-[{"company":"Name","category":"Type","city":"City","state":"${state}","phone":"number or null","email":"email or null","website":"url or null","contact":"name or null","products":"${product}","why":"specific reason","priority":"High or Medium or Low"}]
+Return ONLY a valid JSON array, no markdown, start with [:
+[{"company":"Exact Real Name","category":"Specific Type","city":"City","state":"${state}","phone":"number or null","email":"email or null","website":"url or null","contact":"name or null","products":"${product}","why":"specific reason referencing their work","priority":"High or Medium or Low"}]
 
-IMPORTANT: Return exactly ${batchCount} businesses. Real businesses only. No duplicates.`;
+Find REAL businesses only. Return exactly ${batchCount} results.`;
   }
 
   try {
