@@ -141,6 +141,23 @@ router.post('/places-leads', async (req, res) => {
 router.get('/test', async (req, res) => {
   console.log('PLACES KEY exists:', !!process.env.GOOGLE_PLACES_API_KEY);
   console.log('PLACES KEY length:', (process.env.GOOGLE_PLACES_API_KEY || '').length);
+  try {
+    const result = await httpsPost(
+      'places.googleapis.com',
+      '/v1/places:searchText',
+      {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': process.env.GOOGLE_PLACES_API_KEY,
+        'X-Goog-FieldMask': 'places.id,places.displayName,places.nationalPhoneNumber'
+      },
+      { textQuery: 'siding contractor Atlanta GA', maxResultCount: 3 }
+    );
+    console.log('Places API result:', JSON.stringify(result).slice(0, 500));
+    return res.json({ ok: true, result });
+  } catch(e) {
+    console.error('Places test error:', e.message);
+    return res.json({ ok: false, error: e.message });
+  }
   const https = require('https');
   https.get('https://places.googleapis.com/', (r) => {
     res.json({ status: r.statusCode, ok: true });
