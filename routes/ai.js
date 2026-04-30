@@ -90,46 +90,99 @@ function extractJSON(text) {
   }
 }
 
-// Territory city lookup — Compton Group Southeast coverage
+// Territory city lookup — tight radius lists for driveable territories
 function getTerritoryContext(territory) {
   const t = (territory || "").toLowerCase();
 
-  // Georgia
-  if (t.includes("atlanta") || t === "ga" || t.includes(" ga") || t.includes("georgia"))
-    return { state: "GA", cities: "Atlanta, Marietta, Kennesaw, Alpharetta, Roswell, Smyrna, Sandy Springs, Dunwoody, Decatur, Norcross, Duluth, Lawrenceville, Buford, Cumming, Woodstock, Canton, Peachtree City, Newnan, Augusta, Savannah, Columbus, Macon, Athens, Warner Robins, Valdosta, Gainesville, Albany, Rome" };
+  // Atlanta Metro — 45 min radius only
+  if (t.includes("atlanta metro") || t === "atlanta" || t === "atl")
+    return { state: "GA", cities: "Atlanta, Marietta, Kennesaw, Alpharetta, Roswell, Smyrna, Sandy Springs, Dunwoody, Decatur, Norcross, Duluth, Lawrenceville, Buford, Cumming, Woodstock, Canton, Peachtree City, Newnan, Douglasville, Acworth, Powder Springs, Stockbridge, McDonough, Fayetteville, Cartersville" };
+
+  // Georgia statewide
+  if (t === "georgia" || t === "ga" || (t.includes("georgia") && !t.includes("atlanta")))
+    return { state: "GA", cities: "Atlanta, Marietta, Alpharetta, Roswell, Kennesaw, Smyrna, Decatur, Lawrenceville, Augusta, Savannah, Columbus, Macon, Athens, Warner Robins, Valdosta, Gainesville, Albany, Rome, Dalton, Brunswick, Statesboro, Newnan, Peachtree City, Douglasville, Cartersville" };
+
+  // Savannah metro — 45 min radius
   if (t.includes("savannah"))
-    return { state: "GA", cities: "Savannah, Brunswick, Statesboro, Hinesville, Valdosta, Waycross, Jesup, Pooler, Richmond Hill" };
+    return { state: "GA", cities: "Savannah, Pooler, Richmond Hill, Hinesville, Statesboro, Brunswick, Jesup, Rincon, Bluffton SC, Hilton Head SC" };
+
+  // Augusta metro — 45 min radius
   if (t.includes("augusta"))
-    return { state: "GA", cities: "Augusta, Evans, Martinez, Grovetown, Aiken, North Augusta, Thomson, Waynesboro, Harlem" };
+    return { state: "GA", cities: "Augusta, Evans, Martinez, Grovetown, Aiken SC, North Augusta SC, Thomson, Harlem, Waynesboro, Edgefield SC" };
 
-  // Alabama
-  if (t === "al" || t.includes(" al") || t.includes("alabama") || t.includes("birmingham") || t.includes("huntsville") || t.includes("montgomery") || t.includes("tuscaloosa") || t.includes("mobile"))
-    return { state: "AL", cities: "Birmingham, Hoover, Vestavia Hills, Homewood, Bessemer, Tuscaloosa, Huntsville, Madison, Decatur, Montgomery, Mobile, Auburn, Opelika, Dothan, Florence, Muscle Shoals, Sheffield, Gadsden, Anniston, Talladega, Selma, Phenix City, Northport, Prattville, Enterprise" };
-  if (t.includes("jackson") && t.includes("al"))
-    return { state: "AL", cities: "Jackson, Chatom, Grove Hill, Evergreen, Brewton, Atmore, Bay Minette, Daphne, Fairhope, Foley" };
+  // Macon / Middle Georgia
+  if (t.includes("macon") || t.includes("middle georgia"))
+    return { state: "GA", cities: "Macon, Warner Robins, Byron, Perry, Forsyth, Milledgeville, Dublin, Cochran, Gray, Kathleen" };
 
-  // Mississippi
-  if (t === "ms" || t.includes(" ms") || t.includes("mississippi") || t.includes("jackson ms") || t.includes("jackson, ms"))
-    return { state: "MS", cities: "Jackson, Ridgeland, Madison, Brandon, Pearl, Flowood, Hattiesburg, Gulfport, Biloxi, Southaven, Olive Branch, Tupelo, Meridian, Greenville, Vicksburg, Columbus, Starkville, Natchez, Pascagoula, Ocean Springs, Laurel, Clarksdale, Corinth, Brookhaven" };
-  if (t.includes("gulfport") || t.includes("biloxi") || t.includes("gulf coast"))
-    return { state: "MS", cities: "Gulfport, Biloxi, Ocean Springs, Pascagoula, Gautier, D'Iberville, Long Beach, Pass Christian, Bay St. Louis, Waveland" };
+  // Birmingham metro — 45 min radius
+  if (t.includes("birmingham"))
+    return { state: "AL", cities: "Birmingham, Hoover, Vestavia Hills, Homewood, Bessemer, Pelham, Alabaster, Helena, Trussville, Gardendale, Moody, Leeds, Pell City, Calera, Clanton, Anniston, Talladega, Northport" };
 
-  // Tennessee
-  if (t === "tn" || t.includes(" tn") || t.includes("tennessee") || t.includes("nashville") || t.includes("memphis") || t.includes("knoxville") || t.includes("chattanooga"))
-    return { state: "TN", cities: "Nashville, Brentwood, Franklin, Murfreesboro, Smyrna, La Vergne, Hendersonville, Gallatin, Clarksville, Memphis, Germantown, Collierville, Bartlett, Cordova, Knoxville, Maryville, Oak Ridge, Chattanooga, Cleveland, Cookeville, Jackson, Kingsport, Bristol, Johnson City" };
+  // Alabama statewide
+  if (t === "al" || t === "alabama" || t.includes("alabama") || t.includes("huntsville") || t.includes("montgomery") || t.includes("tuscaloosa") || t.includes("mobile"))
+    return { state: "AL", cities: "Birmingham, Hoover, Huntsville, Madison, Decatur, Montgomery, Mobile, Tuscaloosa, Northport, Auburn, Opelika, Dothan, Florence, Muscle Shoals, Gadsden, Anniston, Phenix City, Prattville, Enterprise, Daphne, Fairhope, Foley" };
 
-  // North Carolina
-  if (t === "nc" || t.includes(" nc") || t.includes("north carolina") || t.includes("charlotte") || t.includes("raleigh"))
-    return { state: "NC", cities: "Charlotte, Concord, Gastonia, Rock Hill, Mooresville, Huntersville, Matthews, Raleigh, Durham, Cary, Chapel Hill, Apex, Greensboro, Winston-Salem, High Point, Burlington, Wilmington, Fayetteville, Asheville, Hickory, Greenville, Jacksonville, Rocky Mount, Wilson" };
+  // Nashville metro — 45 min radius
+  if (t.includes("nashville"))
+    return { state: "TN", cities: "Nashville, Brentwood, Franklin, Murfreesboro, Smyrna, La Vergne, Hendersonville, Gallatin, Mount Juliet, Nolensville, Spring Hill, Columbia, Dickson, Clarksville, Lebanon" };
 
-  // South Carolina
-  if (t === "sc" || t.includes(" sc") || t.includes("south carolina") || t.includes("columbia sc") || t.includes("charleston") || t.includes("greenville sc") || t.includes("spartanburg"))
-    return { state: "SC", cities: "Columbia, Lexington, Irmo, West Columbia, Cayce, Greenville, Spartanburg, Greer, Mauldin, Simpsonville, Taylors, Anderson, Charleston, North Charleston, Mount Pleasant, Summerville, Goose Creek, Myrtle Beach, Conway, Florence, Rock Hill, Aiken, Hilton Head" };
+  // Memphis metro — 45 min radius
+  if (t.includes("memphis"))
+    return { state: "TN", cities: "Memphis, Germantown, Collierville, Bartlett, Cordova, Southaven MS, Olive Branch MS, Horn Lake MS, Hernando MS, Millington, Arlington, Lakeland" };
+
+  // Chattanooga metro — 45 min radius
+  if (t.includes("chattanooga"))
+    return { state: "TN", cities: "Chattanooga, Cleveland, East Ridge, Soddy-Daisy, Red Bank, Signal Mountain, Ringgold GA, Dalton GA, Fort Oglethorpe GA, Rossville GA, LaFayette GA" };
+
+  // Knoxville metro — 45 min radius
+  if (t.includes("knoxville"))
+    return { state: "TN", cities: "Knoxville, Maryville, Oak Ridge, Alcoa, Farragut, Powell, Lenoir City, Sevierville, Gatlinburg, Clinton, Morristown, Jefferson City" };
+
+  // Tennessee statewide
+  if (t === "tn" || t === "tennessee" || t.includes("tennessee"))
+    return { state: "TN", cities: "Nashville, Brentwood, Franklin, Murfreesboro, Memphis, Germantown, Knoxville, Maryville, Chattanooga, Cleveland, Clarksville, Cookeville, Jackson, Kingsport, Johnson City, Bristol" };
+
+  // Charlotte metro — 45 min radius
+  if (t.includes("charlotte"))
+    return { state: "NC", cities: "Charlotte, Concord, Kannapolis, Gastonia, Belmont, Mount Holly, Huntersville, Cornelius, Davidson, Mooresville, Matthews, Mint Hill, Monroe, Waxhaw, Rock Hill SC, Fort Mill SC, Tega Cay SC" };
+
+  // Raleigh / Triangle metro — 45 min radius
+  if (t.includes("raleigh") || t.includes("triangle") || t.includes("durham") || t.includes("chapel hill"))
+    return { state: "NC", cities: "Raleigh, Durham, Cary, Chapel Hill, Apex, Holly Springs, Fuquay-Varina, Morrisville, Wake Forest, Garner, Clayton, Smithfield, Burlington, Mebane, Hillsborough" };
+
+  // North Carolina statewide
+  if (t === "nc" || t === "north carolina" || t.includes("north carolina"))
+    return { state: "NC", cities: "Charlotte, Concord, Gastonia, Raleigh, Durham, Cary, Greensboro, Winston-Salem, High Point, Wilmington, Fayetteville, Asheville, Hickory, Greenville, Jacksonville, Rocky Mount, Wilson, Burlington, Mooresville, Huntersville" };
+
+  // Columbia SC metro — 45 min radius
+  if (t.includes("columbia sc") || t.includes("columbia, sc"))
+    return { state: "SC", cities: "Columbia, Lexington, Irmo, West Columbia, Cayce, Chapin, Blythewood, Lugoff, Elgin, Sumter, Orangeburg, Newberry, Camden" };
+
+  // Greenville SC / Upstate — 45 min radius
+  if (t.includes("greenville sc") || t.includes("greenville, sc") || t.includes("spartanburg") || t.includes("upstate sc"))
+    return { state: "SC", cities: "Greenville, Spartanburg, Greer, Mauldin, Simpsonville, Taylors, Anderson, Easley, Seneca, Duncan, Boiling Springs, Gaffney, Union, Laurens" };
+
+  // Charleston SC metro — 45 min radius
+  if (t.includes("charleston"))
+    return { state: "SC", cities: "Charleston, North Charleston, Mount Pleasant, Summerville, Goose Creek, Hanahan, Ladson, Moncks Corner, Walterboro, Beaufort, Bluffton, Hilton Head" };
+
+  // South Carolina statewide
+  if (t === "sc" || t === "south carolina" || t.includes("south carolina"))
+    return { state: "SC", cities: "Columbia, Lexington, Greenville, Spartanburg, Greer, Mauldin, Simpsonville, Anderson, Charleston, North Charleston, Mount Pleasant, Summerville, Myrtle Beach, Conway, Florence, Rock Hill, Aiken, Hilton Head, Beaufort" };
+
+  // Mississippi statewide
+  if (t === "ms" || t === "mississippi" || t.includes("mississippi") || t.includes("jackson ms"))
+    return { state: "MS", cities: "Jackson, Ridgeland, Madison, Brandon, Pearl, Flowood, Hattiesburg, Laurel, Gulfport, Biloxi, Ocean Springs, Southaven, Olive Branch, Tupelo, Meridian, Vicksburg, Natchez, Pascagoula, Columbus, Starkville" };
+
+  // Gulf Coast MS
+  if (t.includes("gulf coast") || t.includes("gulfport") || t.includes("biloxi"))
+    return { state: "MS", cities: "Gulfport, Biloxi, Ocean Springs, Pascagoula, Gautier, D'Iberville, Long Beach, Pass Christian, Bay St. Louis, Waveland, Slidell LA" };
 
   // Southeast region-wide
   if (t.includes("southeast") || t.includes("south east"))
-    return { state: "", cities: "Atlanta GA, Birmingham AL, Jackson MS, Nashville TN, Charlotte NC, Columbia SC, Greenville SC, Chattanooga TN, Knoxville TN, Memphis TN, Savannah GA, Augusta GA, Huntsville AL, Montgomery AL, Tupelo MS, Hattiesburg MS, Asheville NC, Raleigh NC, Charleston SC" };
+    return { state: "", cities: "Atlanta GA, Marietta GA, Alpharetta GA, Birmingham AL, Hoover AL, Huntsville AL, Nashville TN, Brentwood TN, Franklin TN, Charlotte NC, Concord NC, Gastonia NC, Columbia SC, Greenville SC, Spartanburg SC, Chattanooga TN, Knoxville TN, Memphis TN, Jackson MS, Hattiesburg MS, Savannah GA, Augusta GA, Montgomery AL, Raleigh NC, Charleston SC" };
 
+  // Default — just use what they typed
   return { state: "", cities: territory };
 }
 
