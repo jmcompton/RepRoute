@@ -449,7 +449,7 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
           <div style="font-size:12px;color:var(--text3)">Select a target category — AI searches the web and finds real businesses in your territory.</div>
         </div>
         <div style="padding:14px 16px">
-          <div class="g3" style="margin-bottom:12px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
             <div class="fg" style="margin:0"><label>Product Line</label>
               <select id="lead-cat">
                 <option value="Soudal Sealants and Adhesives">Soudal — Sealants & Adhesives</option>
@@ -457,11 +457,33 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
                 <option value="Alum-A-Pole Scaffolding and Equipment">Alum-A-Pole — Scaffolding & Equipment</option>
                 <option value="Fortress Evolution Steel Framing">Fortress — Steel Framing</option>
                 <option value="Fortress Railing Systems">Fortress — Railing Systems</option>
-                <option value="Insulation Contractor and After-Paint Installer">Insulation & After-Paint</option>
+                <option value="All Building Products">All Product Lines</option>
               </select>
             </div>
+            <div class="fg" style="margin:0"><label>Customer Type</label>
+              <select id="lead-customer-type">
+                <option value="any building products buyer">Any / All Types</option>
+                <option value="Deck Contractor">Deck Contractors</option>
+                <option value="Window and Door Installer">Window & Door Installers</option>
+                <option value="Commercial Roofing Contractor">Commercial Roofers</option>
+                <option value="General Contractor">General Contractors</option>
+                <option value="Building Material Dealer">Building Material Dealers</option>
+                <option value="Building Products Distributor">Distributors</option>
+                <option value="Framing Contractor">Framing Contractors</option>
+                <option value="Insulation Contractor">Insulation Contractors</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;margin-bottom:12px;align-items:flex-end">
             <div class="fg" style="margin:0"><label>Territory</label><input type="text" id="lead-territory" placeholder="Atlanta Metro, GA" /></div>
-            <div style="display:flex;align-items:flex-end"><button class="btn btn-primary" style="width:100%;justify-content:center" onclick="findLeads()">🔍 Search for Leads</button></div>
+            <div class="fg" style="margin:0"><label>Number of Leads</label>
+              <select id="lead-count">
+                <option value="10">10 leads</option>
+                <option value="20" selected>20 leads</option>
+                <option value="30">30 leads</option>
+              </select>
+            </div>
+            <button class="btn btn-primary" style="justify-content:center;white-space:nowrap" onclick="findLeads()">🔍 Find Leads</button>
           </div>
           <div id="lead-searching" style="display:none;text-align:center;padding:32px;color:var(--text3)">
             <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
@@ -578,11 +600,30 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
       <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:14px">
         <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--border)">Generate 30-Day Onboarding Plan</div>
         <div class="g2">
-          <div class="fg"><label>Rep Name *</label><input type="text" id="ob-name" placeholder="e.g. Kody Slate" /></div>
-          <div class="fg"><label>Territory</label><input type="text" id="ob-territory" placeholder="Atlanta Metro, GA" /></div>
+          <div class="fg"><label>Rep Name *</label><input type="text" id="ob-name" placeholder="e.g. Daniel Compton" /></div>
+          <div class="fg"><label>Territory</label><input type="text" id="ob-territory" placeholder="Southeast" /></div>
         </div>
         <div class="fg"><label>Start Date</label><input type="date" id="ob-start" style="width:200px" /></div>
-        <button class="btn btn-primary" onclick="generateOnboarding()">Generate Plan</button>
+        <div class="fg">
+          <label>Product Lines to Train On</label>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">
+            <label style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:400;cursor:pointer"><input type="checkbox" id="ob-soudal" checked> Soudal Sealants & Adhesives</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:400;cursor:pointer"><input type="checkbox" id="ob-shurtape" checked> ShurTape Flashing & Deck Tape</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:400;cursor:pointer"><input type="checkbox" id="ob-fortress-frame" checked> Fortress Steel Framing</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:400;cursor:pointer"><input type="checkbox" id="ob-fortress-rail"> Fortress Railing</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:400;cursor:pointer"><input type="checkbox" id="ob-alumapole"> Alum-A-Pole Scaffolding</label>
+          </div>
+        </div>
+        <div class="fg">
+          <label>Focus Level</label>
+          <select id="ob-focus" style="width:200px">
+            <option value="balanced">Balanced (all products equal)</option>
+            <option value="heavy field">Heavy Field — lots of in-person visits</option>
+            <option value="product knowledge first">Product Knowledge First — learn before selling</option>
+            <option value="fast ramp">Fast Ramp — close first deal by week 2</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="generateOnboarding()">Generate 30-Day Plan</button>
       </div>
       <div id="ob-loading" style="display:none;text-align:center;padding:24px;color:var(--text3)"><div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div><div style="margin-top:8px;font-size:12px">Building 30-day plan...</div></div>
       <div id="ob-plan"></div>
@@ -1737,7 +1778,19 @@ function generateOnboarding() {
   document.getElementById('ob-plan').innerHTML = '';
   fetch('/api/onboarding/generate', {
     method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ rep_name:name, rep_territory:document.getElementById('ob-territory').value, start_date:document.getElementById('ob-start').value })
+    body: JSON.stringify({
+      rep_name: name,
+      rep_territory: document.getElementById('ob-territory').value,
+      start_date: document.getElementById('ob-start').value,
+      focus_products: [
+        document.getElementById('ob-soudal').checked ? 'Soudal Sealants & Adhesives' : null,
+        document.getElementById('ob-shurtape').checked ? 'ShurTape Flashing & Deck Tape' : null,
+        document.getElementById('ob-fortress-frame').checked ? 'Fortress Evolution Steel Framing' : null,
+        document.getElementById('ob-fortress-rail').checked ? 'Fortress Railing Systems' : null,
+        document.getElementById('ob-alumapole').checked ? 'Alum-A-Pole Scaffolding & Equipment' : null
+      ].filter(Boolean).join(', '),
+      focus_level: document.getElementById('ob-focus').value
+    })
   }).then(function(r) { return r.json(); })
     .then(function(d) {
       document.getElementById('ob-loading').style.display = 'none';
@@ -1763,8 +1816,14 @@ function renderOnboarding(plan, cid) {
     html += '<div class="ob-week"><div class="ob-wh" onclick="this.nextElementSibling.classList.toggle(\'open\')">' +
       '<span class="ob-wt">Week ' + w.week + ': ' + (w.title||'') + '</span><span style="font-size:11px;opacity:.55">' + (w.focus||'') + ' ▼</span></div><div class="ob-wb">';
     (w.days||[]).forEach(function(d) {
-      html += '<div class="ob-day"><div class="ob-dt">' + d.day + ' — ' + (d.title||'') + ' <span style="font-size:10px;color:var(--text3);font-weight:400">' + (d.duration||'') + '</span></div>' +
-        '<div class="ob-dc">' + (d.content||'') + '</div>' + (d.assignment ? '<div class="ob-da">📋 ' + d.assignment + '</div>' : '') + '</div>';
+      var dayKey = 'w' + w.week + '_' + d.day.replace(/\s/g,'_');
+      var isChecked = (plan.progress && plan.progress[dayKey]) ? 'checked' : '';
+      html += '<div class="ob-day" id="obday-' + dayKey + '" style="' + (isChecked ? 'opacity:0.6' : '') + '">' +
+        '<div class="ob-dt" style="display:flex;align-items:center;gap:8px">' +
+        '<input type="checkbox" ' + isChecked + ' onchange="markObDay(\'' + dayKey + '\',this.checked)" style="cursor:pointer">' +
+        d.day + ' — ' + (d.title||'') + ' <span style="font-size:10px;color:var(--text3);font-weight:400">' + (d.duration||'') + '</span></div>' +
+        '<div class="ob-dc">' + (d.content||'') + '</div>' +
+        (d.assignment ? '<div class="ob-da">📋 ' + d.assignment + '</div>' : '') + '</div>';
     });
     if (w.weekly_goal) html += '<div style="background:var(--green-lt);border-left:3px solid var(--green);padding:7px 10px;border-radius:0 4px 4px 0;font-size:11.5px;color:var(--green);margin-top:8px"> ' + w.weekly_goal + '</div>';
     html += '</div></div>';
@@ -1780,6 +1839,17 @@ function renderOnboarding(plan, cid) {
       '</div></div>';
   }
   c.innerHTML = html;
+}
+
+function markObDay(dayKey, completed) {
+  fetch('/api/onboarding/progress', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ day_key: dayKey, completed: completed })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    var el = document.getElementById('obday-' + dayKey);
+    if (el) el.style.opacity = completed ? '0.6' : '1';
+    showToast(completed ? '✅ Day marked complete' : 'Day unmarked');
+  });
 }
 
 function loadManager() {

@@ -23,8 +23,16 @@ router.post('/generate', async (req, res) => {
 Create a detailed 30-day onboarding plan for a new sales rep named ${rep_name}.
 Territory: ${rep_territory || 'Atlanta Metro, Georgia'}
 Start date: ${start_date || 'Monday'}
-Product lines to learn: ${focus_products || 'Soudal Adhesives & Sealants, ShurTape Flashing & Deck Tape, Fortress Evolution Steel Framing, Fortress Railing, Alum-A-Pole Equipment'}
-Target customers: Deck Contractors, Window & Door Installers, Commercial Roofers, Dealers & Distributors
+Product lines to focus on: ${focus_products || 'Soudal Adhesives & Sealants, ShurTape Flashing & Deck Tape, Fortress Evolution Steel Framing, Fortress Railing, Alum-A-Pole Equipment'}
+Target customers in the Southeast: Deck Contractors, Window & Door Installers, Commercial Roofers, General Contractors, Building Material Dealers & Distributors
+Company: Compton Group LLC — manufacturer's rep for the Southeast region
+Key selling points per product:
+- Soudal: #1 global sealant brand, superior adhesion, paintable, waterproof
+- ShurTape: premium flashing and deck tape, code compliant, easy application
+- Fortress Steel Framing: rot-proof, termite-proof, stronger than wood
+- Fortress Railing: aluminum and steel, low maintenance, code compliant
+- Alum-A-Pole: lightweight scaffolding, OSHA compliant, contractor favorite
+Make each day's content SPECIFIC to these products and the Southeast market. Include real objections they will hear and how to handle them. Include specific talking points for each product.
 
 Return ONLY a JSON object (no markdown, no explanation):
 {
@@ -96,6 +104,23 @@ router.get('/all', async (req, res) => {
     `SELECT o.*, u.name as rep_name, u.territory FROM onboarding_plans o
      JOIN users u ON o.rep_id=u.id ORDER BY o.created_at DESC`);
   res.json(result.rows);
+});
+
+// Save progress on onboarding plan
+router.post('/progress', async (req, res) => {
+  const uid = req.session.user.id;
+  const { day_key, completed } = req.body;
+  try {
+    const result = await pool.query(
+      'SELECT * FROM onboarding_plans WHERE rep_id=$1 ORDER BY created_at DESC LIMIT 1', [uid]);
+    if (!result.rows[0]) return res.json({ error: 'No plan found' });
+    let plan = JSON.parse(result.rows[0].plan_json);
+    if (!plan.progress) plan.progress = {};
+    plan.progress[day_key] = completed;
+    await pool.query('UPDATE onboarding_plans SET plan_json=$1 WHERE id=$2',
+      [JSON.stringify(plan), result.rows[0].id]);
+    res.json({ ok: true, progress: plan.progress });
+  } catch(e) { res.json({ error: e.message }); }
 });
 
 module.exports = router;

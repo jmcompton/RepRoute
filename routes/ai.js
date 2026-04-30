@@ -135,29 +135,47 @@ function getTerritoryContext(territory) {
 
 // AI Lead Finder
 router.post('/leads', async (req, res) => {
-  const { category, territory } = req.body;
+  const { category, territory, count, customer_type } = req.body;
   const user = req.session.user;
   const loc = territory || user.territory || 'Atlanta Metro, Georgia';
   const { state, cities } = getTerritoryContext(loc);
   const product = req.body.product || category;
+  const numLeads = parseInt(count) || 20;
+  const custType = customer_type || 'any building products buyer';
 
-  const prompt = `Find 20 real ${category} businesses in ${cities} that would buy ${product}. Search Google Maps and company websites. For each, find their phone, email, and owner name. Return ONLY a JSON array:
-[{"company":"Name","category":"Type","address":"addr or null","city":"city","state":"${state}","phone":"number or null","email":"email or null","website":"url or null","contact":"name or null","products":"${product}","priority":"High or Medium or Low"}]
-Start with [ immediately. No other text.`;
+  const prompt = `You are a B2B sales researcher for a manufacturer's rep company selling building products in the Southeast US.
 
+Find ${numLeads} REAL businesses in ${cities} that are likely buyers of ${product}.
+Target customer type: ${custType}
+
+For EACH business find:
+- Real company name
+- Specific business category (e.g. "Deck Contractor", "Commercial Roofer")
+- City and state
+- Phone number (search their website or Google listing)
+- Email address (search their website contact page)
+- Owner or decision maker name if findable
+- Their website URL
+- WHY they need ${product} specifically (1 sentence)
+- Priority score: High (active construction, growing, large jobs), Medium (established, steady), Low (small or unclear)
+
+Return ONLY a valid JSON array, no markdown, no explanation, start immediately with [:
+[{"company":"Real Business Name","category":"Specific Type","city":"City","state":"${state}","phone":"(555) 555-5555 or null","email":"email@domain.com or null","website":"https://url or null","contact":"Owner Name or null","products":"${product}","why":"One sentence why they need this product","priority":"High or Medium or Low","score":85}]
+
+Find REAL businesses only. No made up names. Search thoroughly.`;
 
   try {
-    const text = await callClaude(prompt);
-    const leads = extractJSON(text);
-    if (!leads) {
-      const retry = await callClaude(prompt + ' Return ONLY the JSON array starting with [. No other text.');
-      const leads2 = extractJSON(retry);
-      if (!leads2) return res.json({ error: 'Could not parse leads. Try again.' });
-      return res.json({ leads: Array.isArray(leads2) ? leads2 : [] });
+    const text = await callClaudeWithSearch(prompt);
+    let leads = extractJSON(text);
+    if (!leads || leads.length === 0) {
+      const retry = await callClaude(prompt + ' Return ONLY the JSON array starting with [.');
+      leads = extractJSON(retry);
+      if (!leads) return res.json({ error: 'Could not find leads. Try a different category or territory.' });
     }
     res.json({ leads: Array.isArray(leads) ? leads : [] });
   } catch (e) {
-    res.json({ error: 'Could not parse leads. Try again.', raw: e.message });
+    if (e.message && e.message.includes('rate limit')) return res.json({ error: e.message });
+    res.json({ error: 'Could not find leads. Try again.', raw: e.message });
   }
 });
 
