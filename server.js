@@ -16,6 +16,7 @@ const calendarRoutes = require('./routes/calendar');
 const { router: emailRoutes } = require('./routes/email');
 const samplesRoutes = require('./routes/samples');
 const adminRoutes = require('./routes/admin');
+const placesRoutes = require('./routes/places');
 
 const app = express();
 app.use(express.json());
@@ -93,6 +94,7 @@ app.use('/api/manager', requireAuth, requireManager, managerRoutes);
 app.use('/api/calendar', requireAuth, calendarRoutes);
 app.use('/api/email', requireAuth, emailRoutes);
 app.use('/api/samples', requireAuth, samplesRoutes);
+app.use('/api/places', requireAuth, placesRoutes);
 app.use('/auth', emailRoutes);
 
 
