@@ -34,9 +34,9 @@ function httpsGet(url) {
 function getSearchTerms(product, customerType) {
   const p = (product || '').toLowerCase();
   const ct = (customerType || '').toLowerCase();
-  if (ct && ct !== 'any building products buyer') return [customerType, customerType + ' contractor', customerType + ' company'];
+  if (ct && ct !== 'any building products buyer') return [customerType, customerType + ' company', customerType + ' services'];
   if (p.includes('alum') || p.includes('scaffolding'))
-    return ['siding contractor', 'James Hardie installer', 'exterior siding', 'stucco contractor', 'fiber cement siding contractor'];
+    return ['siding contractor', 'James Hardie installer', 'exterior siding contractor', 'stucco contractor', 'fiber cement siding'];
   if (p.includes('soudal') || p.includes('sealant') || p.includes('adhesive'))
     return ['window installation contractor', 'door installation contractor', 'glazing contractor', 'waterproofing contractor', 'insulation contractor'];
   if (p.includes('shurtape') || p.includes('flashing'))
@@ -58,6 +58,22 @@ function getProductWhy(product) {
   return 'purchases building products for construction projects';
 }
 
+function getCities(loc) {
+  const t = (loc || '').toLowerCase();
+  if (t.includes('atlanta metro') || t === 'atlanta' || t === 'atl' || t.includes('atlanta ga') || t.includes('atlanta, ga'))
+    return ['Atlanta GA', 'Marietta GA', 'Kennesaw GA', 'Alpharetta GA', 'Roswell GA', 'Smyrna GA', 'Dunwoody GA', 'Decatur GA', 'Norcross GA', 'Duluth GA', 'Lawrenceville GA', 'Buford GA', 'Cumming GA', 'Woodstock GA', 'Acworth GA', 'Canton GA', 'Peachtree City GA', 'Newnan GA', 'Douglasville GA', 'Stockbridge GA', 'McDonough GA', 'Fayetteville GA', 'Cartersville GA', 'Powder Springs GA', 'Sandy Springs GA'];
+  if (t.includes('birmingham'))
+    return ['Birmingham AL', 'Hoover AL', 'Vestavia Hills AL', 'Homewood AL', 'Bessemer AL', 'Pelham AL', 'Alabaster AL', 'Helena AL', 'Trussville AL', 'Gardendale AL', 'Leeds AL', 'Pell City AL', 'Calera AL', 'Northport AL', 'Anniston AL'];
+  if (t.includes('nashville'))
+    return ['Nashville TN', 'Brentwood TN', 'Franklin TN', 'Murfreesboro TN', 'Smyrna TN', 'Hendersonville TN', 'Gallatin TN', 'Mount Juliet TN', 'Nolensville TN', 'Spring Hill TN', 'Columbia TN', 'Clarksville TN', 'Lebanon TN'];
+  if (t.includes('charlotte'))
+    return ['Charlotte NC', 'Concord NC', 'Kannapolis NC', 'Gastonia NC', 'Huntersville NC', 'Cornelius NC', 'Mooresville NC', 'Matthews NC', 'Monroe NC', 'Waxhaw NC', 'Rock Hill SC', 'Fort Mill SC', 'Tega Cay SC'];
+  if (t.includes('southeast') || t.includes('south east'))
+    return ['Atlanta GA', 'Marietta GA', 'Birmingham AL', 'Hoover AL', 'Nashville TN', 'Franklin TN', 'Charlotte NC', 'Concord NC', 'Columbia SC', 'Greenville SC', 'Chattanooga TN', 'Knoxville TN', 'Memphis TN', 'Savannah GA', 'Augusta GA', 'Huntsville AL', 'Raleigh NC', 'Charleston SC', 'Jackson MS', 'Hattiesburg MS'];
+  // Default - use the territory as-is with surrounding area
+  return [loc, loc + ' suburbs', loc + ' area'];
+}
+
 router.post('/places-leads', async (req, res) => {
   const { category, territory, count, customer_type } = req.body;
   const user = req.session.user;
@@ -66,73 +82,81 @@ router.post('/places-leads', async (req, res) => {
   const loc = territory || user.territory || 'Atlanta, GA';
   const searchTerms = getSearchTerms(product, customer_type);
   const why = getProductWhy(product);
+  const cityList = getCities(loc);
 
-  console.log('Lead search:', { product, loc, numLeads, searchTerms });
+  console.log('Lead search:', product, loc, numLeads, 'leads requested');
+  console.log('Cities:', cityList.slice(0,5).join(', '), '...');
+  console.log('Terms:', searchTerms.join(', '));
 
   try {
-    // Geocode
-    const geoData = await httpsGet(
-      'https://maps.googleapis.com/maps/api/geocode/json?address=' + encodeURIComponent(loc) + '&key=' + PLACES_KEY
-    );
-    if (geoData.status !== 'OK') return res.json({ error: 'Could not find location: ' + loc });
-    const { lat, lng } = geoData.results[0].geometry.location;
-    console.log('Geocoded:', lat, lng);
-    if (!lat || !lng) return res.json({ error: 'Could not geocode location' });
-
     const leadsMap = new Map();
-    const perTerm = Math.max(Math.ceil(numLeads / searchTerms.length), 10);
 
+    // Build all job combos: term x city
+    const jobs = [];
     for (const term of searchTerms) {
-      if (leadsMap.size >= numLeads) break;
-      console.log('Searching term:', term, '- current leads:', leadsMap.size);
+      for (const city of cityList) {
+        jobs.push({ term, city });
+      }
+    }
 
-      const searchData = await httpsPost(
-        'places.googleapis.com',
-        '/v1/places:searchText',
-        {
-          'Content-Type': 'application/json',
-          'X-Goog-Api-Key': PLACES_KEY,
-          'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.businessStatus'
-        },
-        Object.assign(
-          { textQuery: term + ' in ' + loc, maxResultCount: 20 },
-          (lat && lng) ? { locationBias: { circle: { center: { latitude: lat, longitude: lng }, radius: 50000 } } } : {}
-        )
-      );
+    // Run in parallel batches of 5 until we have enough leads
+    const BATCH = 5;
+    for (let i = 0; i < jobs.length && leadsMap.size < numLeads; i += BATCH) {
+      const batch = jobs.slice(i, i + BATCH);
 
-      console.log('Results for', term, ':', searchData.places?.length || 0, searchData.error?.message || '');
+      const batchResults = await Promise.all(batch.map(async ({ term, city }) => {
+        try {
+          const data = await httpsPost(
+            'places.googleapis.com',
+            '/v1/places:searchText',
+            {
+              'Content-Type': 'application/json',
+              'X-Goog-Api-Key': PLACES_KEY,
+              'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.businessStatus'
+            },
+            { textQuery: term + ' in ' + city, maxResultCount: 20 }
+          );
+          return { term, city, places: data.places || [] };
+        } catch(e) {
+          console.error('Batch error:', term, city, e.message);
+          return { term, city, places: [] };
+        }
+      }));
 
-      for (const place of (searchData.places || [])) {
+      for (const { term, city, places } of batchResults) {
+        console.log(term, 'in', city, '->', places.length, 'results, total so far:', leadsMap.size);
+        for (const place of places) {
+          if (leadsMap.size >= numLeads) break;
+          if (leadsMap.has(place.id)) continue;
+          if (place.businessStatus === 'CLOSED_PERMANENTLY') continue;
+          const addrParts = (place.formattedAddress || '').split(',');
+          leadsMap.set(place.id, {
+            company: place.displayName?.text || 'Unknown',
+            category: term,
+            city: addrParts[1]?.trim() || city,
+            state: addrParts[2]?.trim().split(' ')[0] || '',
+            phone: place.nationalPhoneNumber || null,
+            email: null,
+            website: place.websiteUri || null,
+            contact: null,
+            products: product,
+            why: 'This ' + term + ' ' + why,
+            priority: (place.rating >= 4.5 && place.userRatingCount > 20) ? 'High' : (place.rating >= 3.5) ? 'Medium' : 'Low',
+            rating: place.rating || null,
+            reviews: place.userRatingCount || 0,
+            address: place.formattedAddress || null
+          });
+        }
         if (leadsMap.size >= numLeads) break;
-        if (leadsMap.has(place.id)) continue;
-        if (place.businessStatus === 'CLOSED_PERMANENTLY') continue;
-
-        const addrParts = (place.formattedAddress || '').split(',');
-        leadsMap.set(place.id, {
-          company: place.displayName?.text || 'Unknown',
-          category: term,
-          city: addrParts[1]?.trim() || '',
-          state: addrParts[2]?.trim().split(' ')[0] || '',
-          phone: place.nationalPhoneNumber || null,
-          email: null,
-          website: place.websiteUri || null,
-          contact: null,
-          products: product,
-          why: 'This ' + term + ' ' + why,
-          priority: (place.rating >= 4.5 && place.userRatingCount > 20) ? 'High' : (place.rating >= 3.5) ? 'Medium' : 'Low',
-          rating: place.rating || null,
-          reviews: place.userRatingCount || 0,
-          address: place.formattedAddress || null
-        });
       }
     }
 
     const leads = Array.from(leadsMap.values());
-    console.log('Total leads:', leads.length);
+    console.log('Final lead count:', leads.length);
     if (leads.length === 0) return res.json({ error: 'No results found. Try a different territory or product.' });
     res.json({ leads, source: 'google' });
   } catch(e) {
-    console.error('Places error:', e.message);
+    console.error('Places route error:', e.message);
     res.json({ error: 'Search failed: ' + e.message });
   }
 });
