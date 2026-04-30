@@ -1,9 +1,34 @@
 const express = require('express');
-const fetch = require('node-fetch');
+const https = require('https');
 const { pool } = require('../db');
 const router = express.Router();
 
 const PLACES_KEY = process.env.GOOGLE_PLACES_API_KEY;
+
+function httpsPost(hostname, path, headers, body) {
+  return new Promise((resolve, reject) => {
+    const data = JSON.stringify(body);
+    const options = { hostname, path, method: 'POST', headers: { ...headers, 'Content-Length': Buffer.byteLength(data) } };
+    const req = https.request(options, (res) => {
+      let raw = '';
+      res.on('data', chunk => raw += chunk);
+      res.on('end', () => { try { resolve(JSON.parse(raw)); } catch(e) { reject(new Error('JSON parse error: ' + raw.slice(0,200))); } });
+    });
+    req.on('error', reject);
+    req.write(data);
+    req.end();
+  });
+}
+
+function httpsGet(url) {
+  return new Promise((resolve, reject) => {
+    https.get(url, (res) => {
+      let raw = '';
+      res.on('data', chunk => raw += chunk);
+      res.on('end', () => { try { resolve(JSON.parse(raw)); } catch(e) { reject(new Error('JSON parse: ' + raw.slice(0,200))); } });
+    }).on('error', reject);
+  });
+}
 
 function getSearchTerms(product, customerType) {
   const p = (product || '').toLowerCase();
@@ -42,87 +67,74 @@ router.post('/places-leads', async (req, res) => {
   const loc = territory || user.territory || 'Atlanta, GA';
 
   try {
-    // Geocode location
-    const geoRes = await fetch(
+    // Geocode
+    const geoData = await httpsGet(
       `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(loc)}&key=${PLACES_KEY}`
     );
-    const geoData = await geoRes.json();
-    if (geoData.status !== 'OK') {
-      return res.json({ error: 'Could not find that location. Try a city name like "Atlanta, GA"' });
-    }
+    if (geoData.status !== 'OK') return res.json({ error: 'Could not find location: ' + loc });
     const { lat, lng } = geoData.results[0].geometry.location;
-    console.log('Geocoded:', loc, '->', lat, lng);
-    console.log('Search terms:', searchTerms);
-    console.log('Num leads requested:', numLeads);
+    console.log('Geocoded OK:', lat, lng);
 
-    // Use new Places API text search
     const leadsMap = new Map();
     const perTerm = Math.ceil(numLeads / searchTerms.length);
 
     for (const term of searchTerms) {
       if (leadsMap.size >= numLeads) break;
+      console.log('Searching:', term, '- need', perTerm);
 
-      const searchRes = await fetch(
-        'https://places.googleapis.com/v1/places:searchText',
-        {
-          method: 'POST',
-          headers: {
+      try {
+        const searchData = await httpsPost(
+          'places.googleapis.com',
+          '/v1/places:searchText',
+          {
             'Content-Type': 'application/json',
             'X-Goog-Api-Key': PLACES_KEY,
-            'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.businessStatus,places.location'
+            'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.businessStatus'
           },
-          body: JSON.stringify({
-            textQuery: `${term} in ${loc}`,
+          {
+            textQuery: term + ' in ' + loc,
             maxResultCount: Math.min(perTerm, 20),
-            locationBias: {
-              circle: {
-                center: { latitude: lat, longitude: lng },
-                radius: 80000
-              }
-            }
-          })
+            locationBias: { circle: { center: { latitude: lat, longitude: lng }, radius: 80000 } }
+          }
+        );
+
+        console.log('Got results for', term, ':', searchData.places?.length || 0);
+        if (!searchData.places) continue;
+
+        for (const place of searchData.places) {
+          if (leadsMap.size >= numLeads) break;
+          if (leadsMap.has(place.id)) continue;
+          if (place.businessStatus === 'CLOSED_PERMANENTLY') continue;
+          const addrParts = (place.formattedAddress || '').split(',');
+          leadsMap.set(place.id, {
+            company: place.displayName?.text || 'Unknown',
+            category: term,
+            city: addrParts[1]?.trim() || '',
+            state: addrParts[2]?.trim().split(' ')[0] || '',
+            phone: place.nationalPhoneNumber || null,
+            email: null,
+            website: place.websiteUri || null,
+            contact: null,
+            products: product,
+            why: 'This ' + term + ' ' + why,
+            priority: (place.rating >= 4.5 && place.userRatingCount > 20) ? 'High' : (place.rating >= 3.5) ? 'Medium' : 'Low',
+            rating: place.rating || null,
+            reviews: place.userRatingCount || 0,
+            address: place.formattedAddress || null
+          });
         }
-      );
-
-      const searchData = await searchRes.json();
-      if (!searchData.places) continue;
-
-      for (const place of searchData.places) {
-        if (leadsMap.size >= numLeads) break;
-        if (leadsMap.has(place.id)) continue;
-        if (place.businessStatus === 'CLOSED_PERMANENTLY') continue;
-
-        const addrParts = (place.formattedAddress || '').split(',');
-        const city = addrParts[1]?.trim() || '';
-        const stateZip = addrParts[2]?.trim() || '';
-        const state = stateZip.split(' ')[0] || '';
-
-        leadsMap.set(place.id, {
-          company: place.displayName?.text || 'Unknown',
-          category: term,
-          city,
-          state,
-          phone: place.nationalPhoneNumber || null,
-          email: null,
-          website: place.websiteUri || null,
-          contact: null,
-          products: product,
-          why: `This ${term} ${why}`,
-          priority: (place.rating >= 4.5 && place.userRatingCount > 20) ? 'High' :
-                    (place.rating >= 3.5) ? 'Medium' : 'Low',
-          rating: place.rating || null,
-          reviews: place.userRatingCount || 0,
-          address: place.formattedAddress || null
-        });
+      } catch(termErr) {
+        console.error('Error searching term:', term, termErr.message);
       }
     }
 
     const leads = Array.from(leadsMap.values()).slice(0, numLeads);
-    if (leads.length === 0) return res.json({ error: 'No results found. Try a different territory or product.' });
+    console.log('Total leads found:', leads.length);
+    if (leads.length === 0) return res.json({ error: 'No results found. Try a different territory.' });
     res.json({ leads, source: 'google' });
   } catch(e) {
-    console.error('Places API error full:', e);
-    res.json({ error: 'Google Places search failed: ' + e.message, stack: e.stack });
+    console.error('Places route error:', e.message);
+    res.json({ error: 'Search failed: ' + e.message });
   }
 });
 
