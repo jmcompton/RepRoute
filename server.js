@@ -15,6 +15,7 @@ const managerRoutes = require('./routes/manager');
 const calendarRoutes = require('./routes/calendar');
 const { router: emailRoutes } = require('./routes/email');
 const samplesRoutes = require('./routes/samples');
+const adminRoutes = require('./routes/admin');
 
 const app = express();
 app.use(express.json());
@@ -64,6 +65,35 @@ app.use('/api/calendar', requireAuth, calendarRoutes);
 app.use('/api/email', requireAuth, emailRoutes);
 app.use('/api/samples', requireAuth, samplesRoutes);
 app.use('/auth', emailRoutes);
+
+// Landing page (public)
+app.get('/landing', (req, res) => res.sendFile(path.join(__dirname, 'views', 'landing.html')));
+
+// Request access (public POST)
+app.post('/request-access', async (req, res) => {
+  const { name, email, company, reason } = req.body;
+  if (!name || !email) return res.json({ error: 'Name and email required' });
+  try {
+    await pool.query(
+      'INSERT INTO access_requests (name, email, company, reason) VALUES ($1,$2,$3,$4)',
+      [name, email, company || '', reason || '']
+    );
+    res.json({ ok: true });
+  } catch(e) {
+    if (e.code === '23505') return res.json({ error: 'This email already submitted a request' });
+    res.json({ error: 'Failed to submit request' });
+  }
+});
+
+// Admin dashboard (manager only)
+app.get('/admin', (req, res) => {
+  if (!req.session.user || req.session.user.role !== 'manager') return res.redirect('/');
+  res.sendFile(path.join(__dirname, 'views', 'admin.html'));
+});
+app.use('/admin', (req, res, next) => {
+  if (!req.session.user || req.session.user.role !== 'manager') return res.status(403).json({ error: 'Forbidden' });
+  next();
+}, adminRoutes);
 
 const PORT = process.env.PORT || 3000;
 initDB().then(() => {

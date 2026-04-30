@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>RepRoute Admin</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#060D18;color:#fff;min-height:100vh}
+header{display:flex;align-items:center;justify-content:space-between;padding:18px 40px;border-bottom:1px solid rgba(255,255,255,0.07)}
+.logo{font-size:15px;font-weight:600;color:#fff}.logo span{color:#2563EB}
+.header-r{display:flex;align-items:center;gap:16px}
+.header-r a{font-size:13px;color:#4B6A96;text-decoration:none}.header-r a:hover{color:#fff}
+.logout-btn{padding:7px 16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#fff;font-size:13px;cursor:pointer}
+.logout-btn:hover{background:rgba(255,255,255,0.08)}
+.main{max-width:1000px;margin:0 auto;padding:48px 24px}
+h1{font-size:26px;font-weight:700;letter-spacing:-.5px;margin-bottom:4px}
+.sub{font-size:14px;color:#4B6A96;margin-bottom:36px}
+.stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:40px}
+.stat{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:20px}
+.stat-val{font-size:30px;font-weight:700;color:#2563EB;letter-spacing:-1px}
+.stat-label{font-size:12px;color:#4B6A96;margin-top:4px}
+.section-hd{font-size:14px;font-weight:600;color:#fff;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600}
+.bp{background:rgba(245,158,11,0.15);color:#F59E0B}
+.ba{background:rgba(16,185,129,0.15);color:#10B981}
+.bd{background:rgba(239,68,68,0.12);color:#EF4444}
+.brep{background:rgba(37,99,235,0.15);color:#60A5FA}
+.bmgr{background:rgba(139,92,246,0.15);color:#A78BFA}
+table{width:100%;border-collapse:collapse;margin-bottom:40px}
+th{text-align:left;font-size:11px;font-weight:600;color:#2A4A70;text-transform:uppercase;letter-spacing:.06em;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,0.07)}
+td{padding:12px;border-bottom:1px solid rgba(255,255,255,0.04);font-size:13px;color:#fff;vertical-align:middle}
+tr:hover td{background:rgba(255,255,255,0.02)}
+.action-btns{display:flex;gap:6px}
+.btn-approve{padding:5px 12px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);color:#10B981;border-radius:5px;font-size:12px;font-weight:500;cursor:pointer}
+.btn-approve:hover{background:rgba(16,185,129,0.2)}
+.btn-deny{padding:5px 12px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#EF4444;border-radius:5px;font-size:12px;font-weight:500;cursor:pointer}
+.btn-deny:hover{background:rgba(239,68,68,0.15)}
+.empty{text-align:center;padding:32px;color:#2A4A70;font-size:13px}
+.add-user-btn{padding:8px 18px;background:#2563EB;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;margin-bottom:16px}
+.add-user-btn:hover{background:#1D4ED8}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:100;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:#0B1628;border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:28px;width:100%;max-width:380px;position:relative}
+.modal-x{position:absolute;top:12px;right:14px;background:none;border:none;color:#2A3F5F;font-size:16px;cursor:pointer}
+.modal-x:hover{color:#fff}
+.modal h2{font-size:17px;font-weight:700;color:#fff;letter-spacing:-.3px;margin-bottom:18px}
+.fg{margin-bottom:10px}
+.fg label{display:block;font-size:10px;font-weight:700;color:#2A4A70;margin-bottom:4px;text-transform:uppercase;letter-spacing:.07em}
+.fg input,.fg select{width:100%;padding:9px 11px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:6px;font-size:13px;color:#fff;outline:none;font-family:inherit}
+.fg input:focus,.fg select:focus{border-color:#2563EB}
+.fg select option{background:#0B1628}
+.modal-btn{width:100%;padding:10px;background:#2563EB;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;margin-top:4px;font-family:inherit}
+.modal-btn:hover{background:#1D4ED8}
+.cu-err{color:#EF4444;font-size:12px;margin-top:6px;display:none}
+.toast{position:fixed;bottom:24px;right:24px;background:#0B1628;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:12px 18px;font-size:13px;font-weight:500;z-index:200;display:none}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Rep<span>Route</span> <span style="font-size:12px;color:#2A4A70;font-weight:400;margin-left:6px">/ Admin</span></div>
+  <div class="header-r">
+    <a href="/app">← Back to app</a>
+    <button class="logout-btn" onclick="logout()">Sign out</button>
+  </div>
+</header>
+<div class="main">
+  <h1>Admin dashboard</h1>
+  <p class="sub">Manage access requests and user accounts</p>
+  <div class="stats-row">
+    <div class="stat"><div class="stat-val" id="stat-pending">—</div><div class="stat-label">Pending requests</div></div>
+    <div class="stat"><div class="stat-val" id="stat-users">—</div><div class="stat-label">Active users</div></div>
+    <div class="stat"><div class="stat-val" id="stat-approved">—</div><div class="stat-label">Total approved</div></div>
+  </div>
+  <div class="section-hd">Pending requests <span class="badge bp" id="pending-count">0</span></div>
+  <table>
+    <thead><tr><th>Name</th><th>Email</th><th>Company / role</th><th>Reason</th><th>Submitted</th><th>Actions</th></tr></thead>
+    <tbody id="pending-body"><tr><td colspan="6" class="empty">Loading...</td></tr></tbody>
+  </table>
+  <div class="section-hd">Active users</div>
+  <button class="add-user-btn" onclick="openCreate()">+ Create user</button>
+  <table>
+    <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Territory</th><th>Joined</th></tr></thead>
+    <tbody id="users-body"><tr><td colspan="5" class="empty">Loading...</td></tr></tbody>
+  </table>
+</div>
+<div class="modal-overlay" id="createModal">
+  <div class="modal">
+    <button class="modal-x" onclick="closeCreate()">✕</button>
+    <h2>Create user</h2>
+    <div class="fg"><label>Full name</label><input type="text" id="cu-name" placeholder="John Smith"/></div>
+    <div class="fg"><label>Email</label><input type="email" id="cu-email" placeholder="john@email.com"/></div>
+    <div class="fg"><label>Password</label><input type="password" id="cu-pw" placeholder="Temporary password"/></div>
+    <div class="fg"><label>Role</label><select id="cu-role"><option value="rep">Sales Rep</option><option value="manager">Manager</option></select></div>
+    <div class="fg"><label>Territory</label><input type="text" id="cu-territory" placeholder="Atlanta Metro"/></div>
+    <button class="modal-btn" onclick="createUser()">Create account →</button>
+    <div class="cu-err" id="cu-err"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+async function load(){
+  const [reqRes,userRes]=await Promise.all([fetch('/admin/requests'),fetch('/admin/users')]);
+  const reqs=await reqRes.json();
+  const users=await userRes.json();
+  const pending=reqs.filter(r=>r.status==='pending');
+  document.getElementById('stat-pending').textContent=pending.length;
+  document.getElementById('stat-users').textContent=users.length;
+  document.getElementById('stat-approved').textContent=reqs.filter(r=>r.status==='approved').length;
+  document.getElementById('pending-count').textContent=pending.length;
+  const pb=document.getElementById('pending-body');
+  pb.innerHTML=pending.length?pending.map(r=>`
+    <tr>
+      <td>${r.name}</td>
+      <td style="color:#4B6A96">${r.email}</td>
+      <td style="color:#4B6A96">${r.company||'—'}</td>
+      <td style="color:#4B6A96;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.reason||'—'}</td>
+      <td style="color:#2A4A70;font-size:12px">${new Date(r.created_at).toLocaleDateString()}</td>
+      <td><div class="action-btns">
+        <button class="btn-approve" onclick="decide(${r.id},'approved')">Approve</button>
+        <button class="btn-deny" onclick="decide(${r.id},'denied')">Deny</button>
+      </div></td>
+    </tr>`).join(''):'<tr><td colspan="6" class="empty">No pending requests</td></tr>';
+  const ub=document.getElementById('users-body');
+  ub.innerHTML=users.length?users.map(u=>`
+    <tr>
+      <td>${u.name}</td>
+      <td style="color:#4B6A96">${u.email}</td>
+      <td><span class="badge ${u.role==='manager'?'bmgr':'brep'}">${u.role}</span></td>
+      <td style="color:#4B6A96">${u.territory||'—'}</td>
+      <td style="color:#2A4A70;font-size:12px">${new Date(u.created_at).toLocaleDateString()}</td>
+    </tr>`).join(''):'<tr><td colspan="5" class="empty">No users yet</td></tr>';
+}
+async function decide(id,status){
+  await fetch('/admin/requests/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});
+  showToast(status==='approved'?'✅ Request approved':'❌ Request denied');
+  load();
+}
+function openCreate(){document.getElementById('createModal').classList.add('open')}
+function closeCreate(){document.getElementById('createModal').classList.remove('open')}
+async function createUser(){
+  const name=document.getElementById('cu-name').value.trim();
+  const email=document.getElementById('cu-email').value.trim();
+  const password=document.getElementById('cu-pw').value;
+  const role=document.getElementById('cu-role').value;
+  const territory=document.getElementById('cu-territory').value||'Atlanta Metro';
+  const err=document.getElementById('cu-err');
+  if(!name||!email||!password){err.textContent='All fields required.';err.style.display='block';return;}
+  const r=await fetch('/admin/create-user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,email,password,role,territory})});
+  const d=await r.json();
+  if(d.error){err.textContent=d.error;err.style.display='block';}
+  else{closeCreate();showToast('✅ User created!');load();}
+}
+async function logout(){await fetch('/logout',{method:'POST'});window.location='/';}
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';setTimeout(()=>t.style.display='none',3000);}
+load();
+</script>
+</body>
+</html>
