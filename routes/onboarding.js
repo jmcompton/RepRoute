@@ -7,7 +7,7 @@ async function callClaude(prompt) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 3000, messages: [{ role: 'user', content: prompt }] })
+    body: JSON.stringify({ model: 'claude-sonnet-4-5-20251001', max_tokens: 3000, messages: [{ role: 'user', content: prompt }] })
   });
   const data = await res.json();
   return data.content?.map(b => b.text || '').join('') || '';
@@ -74,9 +74,15 @@ Return ONLY a JSON object (no markdown, no explanation):
 }`;
 
   try {
+    console.log('Generating onboarding plan for:', rep_name);
     const text = await callClaude(prompt);
+    console.log('Claude response length:', text.length);
+    console.log('Claude response preview:', text.slice(0, 200));
     const match = text.match(/\{[\s\S]*\}/);
-    if (!match) return res.json({ error: 'Could not generate plan', raw: 'No JSON found' });
+    if (!match) {
+      console.error('No JSON found in response:', text.slice(0, 500));
+      return res.json({ error: 'Could not generate plan', raw: 'No JSON found' });
+    }
     const plan = JSON.parse(match[0]);
     const targetRep = rep_id || req.session.user.id;
     await pool.query(
@@ -85,6 +91,7 @@ Return ONLY a JSON object (no markdown, no explanation):
     );
     res.json({ plan });
   } catch (e) {
+    console.error('Onboarding error:', e.message, e.stack);
     res.json({ error: 'Could not generate plan', raw: e.message });
   }
 });
