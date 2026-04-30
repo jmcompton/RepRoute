@@ -143,138 +143,123 @@ router.post('/leads', async (req, res) => {
   const numLeads = parseInt(count) || 20;
   const custType = customer_type || 'any building products buyer';
 
-  // Split city list into batches for multiple searches
-  const cityList = cities.split(',').map(c => c.trim());
-  const batchSize = Math.ceil(numLeads / 2);
-  const mid = Math.floor(cityList.length / 2);
-  const cities1 = cityList.slice(0, mid).join(', ') || cities;
-  const cities2 = cityList.slice(mid).join(', ') || cities;
-
-  // Product-specific targeting context
   function getProductContext(prod) {
     const p = (prod || '').toLowerCase();
     if (p.includes('soudal') || p.includes('boss') || p.includes('sealant') || p.includes('adhesive')) return {
       who: 'window and door installers, insulation contractors, commercial contractors, after-paint installers, glazing contractors, waterproofing contractors',
-      why: 'Soudal BOSS sealants and adhesives are used for window and door installation, weatherproofing, firestopping, bonding, and gap sealing on commercial and residential jobs. They need high-performance sealants that are paintable, waterproof, and code-compliant.',
-      signals: 'Look for companies that install windows, doors, siding, roofing, or do commercial construction. They buy sealants and adhesives in bulk.'
+      why: 'Soudal BOSS sealants and adhesives are used for window and door installation, weatherproofing, firestopping, bonding, and gap sealing on commercial and residential jobs.',
+      signals: 'Companies that install windows, doors, siding, roofing, or do commercial construction. They buy sealants in bulk.'
     };
     if (p.includes('shurtape') || p.includes('flashing') || p.includes('deck tape')) return {
       who: 'window and door installers, roofing contractors, deck contractors, home builders, remodelers',
-      why: 'ShurTape flashing and deck tape is used for window rough openings, door flashing, deck waterproofing, and moisture barriers. Installers need code-compliant tape that bonds to OSB, housewrap, and concrete.',
-      signals: 'Target companies installing windows, doors, or decks. They go through flashing tape on every job.'
+      why: 'ShurTape flashing and deck tape is used for window rough openings, door flashing, deck waterproofing, and moisture barriers.',
+      signals: 'Target companies installing windows, doors, or decks. They use flashing tape on every job.'
     };
-    if (p.includes('alum-a-pole') || p.includes('alumapole') || p.includes('scaffolding') || p.includes('scaffold')) return {
-      who: 'siding contractors, exterior painters, James Hardie installers, fiber cement siding contractors, stucco contractors, soffit and fascia contractors',
-      why: 'Alum-A-Pole makes pump jack scaffolding, one-man scaffolding, and siding brakes used by siding pros working at heights up to 50 feet. OSHA-compliant, lightweight aluminum, made in USA. Siding contractors need reliable scaffolding on every job.',
-      signals: 'Look for siding companies, exterior renovation contractors, James Hardie preferred installers, painting contractors who work on multi-story homes.'
+    if (p.includes('alum') || p.includes('scaffolding') || p.includes('scaffold')) return {
+      who: 'siding contractors, James Hardie installers, fiber cement siding contractors, exterior painters, stucco contractors, soffit and fascia contractors',
+      why: 'Alum-A-Pole pump jack scaffolding is used by siding pros working at heights up to 50 feet. OSHA-compliant, lightweight aluminum, made in USA.',
+      signals: 'Siding companies, exterior renovation contractors, James Hardie preferred installers, painting contractors on multi-story homes.'
     };
     if (p.includes('fortress') && (p.includes('framing') || p.includes('steel frame') || p.includes('evolution'))) return {
       who: 'deck builders, deck contractors, remodelers, general contractors, custom home builders',
-      why: 'Fortress Evolution steel deck framing is rot-proof, termite-proof, and stronger than wood. Deck builders use it for substructure framing on residential and commercial decks and stairs. It eliminates callbacks from rot and termite damage.',
-      signals: 'Target dedicated deck builders and remodelers who build multiple decks per year. They care about warranties and eliminating callbacks.'
+      why: 'Fortress Evolution steel deck framing is rot-proof, termite-proof, stronger than wood. Eliminates callbacks from rot and termite damage.',
+      signals: 'Dedicated deck builders and remodelers who build multiple decks per year.'
     };
     if (p.includes('fortress') && p.includes('railing')) return {
       who: 'deck contractors, fence contractors, builders, remodelers, commercial contractors',
-      why: 'Fortress Railing systems are aluminum and steel railing for decks, stairs, and commercial applications. Low maintenance, code-compliant, and aesthetically superior to wood. Deck contractors and builders install railing on every project.',
-      signals: 'Any company building decks, porches, balconies, or commercial walkways needs railing. Target deck builders and fence contractors first.'
+      why: 'Fortress Railing aluminum and steel systems are low maintenance, code-compliant, and aesthetically superior to wood.',
+      signals: 'Any company building decks, porches, balconies, or commercial walkways.'
     };
-    return {
-      who: custType,
-      why: 'They regularly purchase building products for construction and renovation projects.',
-      signals: 'Active construction company with ongoing projects.'
-    };
+    return { who: custType, why: 'They regularly purchase building products.', signals: 'Active construction company.' };
   }
 
-  function buildPrompt(citySet, batchCount, offset) {
-    const ctx = getProductContext(product);
-    return `You are an expert B2B sales researcher for Compton Group LLC, a manufacturer's rep in the Southeast US.
+  const ctx = getProductContext(product);
+  const targetType = custType !== 'any building products buyer' ? custType : ctx.who;
 
-PRODUCT TO SELL: ${product}
-WHO BUYS THIS: ${ctx.who}
-WHY THEY NEED IT: ${ctx.why}
-WHAT TO LOOK FOR: ${ctx.signals}
+  // Split cities into chunks of ~4 cities each for reliable 10-lead batches
+  const cityArr = cities.split(',').map(c => c.trim()).filter(Boolean);
+  const CHUNK = 4;
+  const BATCH_SIZE = 10;
+  const numBatches = Math.ceil(numLeads / BATCH_SIZE);
 
-YOUR TASK: Find exactly ${batchCount} REAL ${custType !== 'any building products buyer' ? custType : ctx.who} businesses in: ${citySet}
+  const batches = [];
+  for (let i = 0; i < numBatches; i++) {
+    const start = (i * CHUNK) % cityArr.length;
+    const citySlice = [...cityArr.slice(start, start + CHUNK), ...cityArr.slice(0, Math.max(0, (start + CHUNK) - cityArr.length))];
+    batches.push(citySlice.join(', ') || cities);
+  }
 
-For each business search Google Maps, their website, and contractor directories (Houzz, Angi, BuildZoom, Yelp, their state contractor license board). Find:
-- Real verified company name
-- Exact business type (be specific: "James Hardie Siding Contractor" not just "contractor")
-- City and state
-- Phone from Google listing or website
-- Email from their contact or about page
+  function makePrompt(citySet, n, exclude = []) {
+    const excludeStr = exclude.length > 0 ? `\nDo NOT include these companies: ${exclude.slice(0,20).join(', ')}` : '';
+    return `You are a B2B sales researcher for Compton Group LLC, a building products manufacturer's rep in the Southeast US.
+
+Find exactly ${n} REAL ${targetType} businesses currently operating in: ${citySet}
+
+Product to sell: ${product}
+Why they need it: ${ctx.why}
+What to look for: ${ctx.signals}
+
+Search Google Maps, Houzz, Angi, BuildZoom, and company websites. For each return verified:
+- Company name (must be a real operating business)
+- Specific business type
+- City, state
+- Phone from Google listing
+- Email from their website contact page  
 - Owner or decision maker name
 - Website URL
-- One specific sentence why THIS company needs ${product} based on their actual work
-- Priority: High (large volume, active, growing), Medium (steady established), Low (small or unclear volume)
+- Why this specific company needs ${product} (1 sentence based on their actual work)
+- Priority: High / Medium / Low${excludeStr}
 
-Return ONLY a valid JSON array, no markdown, start with [:
-[{"company":"Exact Real Name","category":"Specific Type","city":"City","state":"${state}","phone":"number or null","email":"email or null","website":"url or null","contact":"name or null","products":"${product}","why":"specific reason referencing their work","priority":"High or Medium or Low"}]
-
-Find REAL businesses only. Return exactly ${batchCount} results.`;
+Return ONLY a JSON array starting with [ with exactly ${n} entries:
+[{"company":"Name","category":"Type","city":"City","state":"${state}","phone":"number or null","email":"email or null","website":"url or null","contact":"name or null","products":"${product}","why":"specific reason","priority":"High or Medium or Low"}]`;
   }
 
   try {
-    // Split cities into 5 groups, run up to 5 batches of 10 each
-    const BATCH = 10;
-    const numBatches = Math.ceil(numLeads / BATCH);
-    const cityArr = cities.split(',').map(c => c.trim()).filter(Boolean);
-    const groupSize = Math.max(1, Math.ceil(cityArr.length / numBatches));
+    // Run all batches in parallel
+    const results = await Promise.all(
+      batches.map((citySet, i) => {
+        const n = Math.min(BATCH_SIZE, numLeads - i * BATCH_SIZE);
+        return n > 0
+          ? callClaudeWithSearch(makePrompt(citySet, n)).catch(() => '[]')
+          : Promise.resolve('[]');
+      })
+    );
 
-    // Build city groups
-    const cityGroups = [];
-    for (let i = 0; i < numBatches; i++) {
-      const slice = cityArr.slice(i * groupSize, (i + 1) * groupSize);
-      cityGroups.push(slice.length ? slice.join(', ') : cities);
-    }
-
-    // Run all batches in parallel, each asking for max 10
-    const batchPromises = cityGroups.map((cg, i) => {
-      const batchCount = Math.min(BATCH, numLeads - i * BATCH);
-      if (batchCount <= 0) return Promise.resolve('[]');
-      return callClaudeWithSearch(buildPrompt(cg, batchCount, i * BATCH))
-        .catch(() => '[]');
-    });
-
-    const texts = await Promise.all(batchPromises);
-
-    // Merge and deduplicate
-    let leads = [];
+    // Merge + dedupe
     const seen = new Set();
-    for (const text of texts) {
-      const batch = extractJSON(text) || [];
-      for (const l of batch) {
+    let leads = [];
+    for (const text of results) {
+      for (const l of (extractJSON(text) || [])) {
         const key = (l.company || '').toLowerCase().trim();
-        if (key && !seen.has(key)) {
+        if (key && !seen.has(key) && leads.length < numLeads) {
           seen.add(key);
           leads.push(l);
         }
       }
     }
 
-    // If still short after all batches, do one more fill run
-    if (leads.length < numLeads && leads.length > 0) {
-      const remaining = numLeads - leads.length;
-      const existingNames = leads.map(l => l.company).join(', ');
+    // Fill gap with extra searches if needed
+    let attempts = 0;
+    while (leads.length < numLeads && attempts < 3) {
+      attempts++;
+      const need = Math.min(BATCH_SIZE, numLeads - leads.length);
+      const exclude = leads.map(l => l.company);
       try {
-        const fill = await callClaudeWithSearch(
-          buildPrompt(cities, Math.min(remaining, BATCH), 0) +
-          ` IMPORTANT: Do NOT return any of these companies: ${existingNames}`
-        );
-        const fillLeads = extractJSON(fill) || [];
-        for (const l of fillLeads) {
+        const fill = await callClaudeWithSearch(makePrompt(cities, need, exclude));
+        for (const l of (extractJSON(fill) || [])) {
           const key = (l.company || '').toLowerCase().trim();
-          if (key && !seen.has(key)) {
+          if (key && !seen.has(key) && leads.length < numLeads) {
             seen.add(key);
             leads.push(l);
           }
         }
-      } catch(e) {}
+      } catch(e) { break; }
     }
 
     if (leads.length === 0) return res.json({ error: 'Could not find leads. Try a different category or territory.' });
-    res.json({ leads: leads.slice(0, numLeads) });
+    res.json({ leads });
   } catch (e) {
-    if (e.message && e.message.includes('rate limit')) return res.json({ error: e.message });
+    if (e.message?.includes('rate limit')) return res.json({ error: e.message });
     res.json({ error: 'Could not find leads. Try again.', raw: e.message });
   }
 });
