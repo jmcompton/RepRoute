@@ -139,6 +139,8 @@ router.post('/places-leads', async (req, res) => {
 });
 
 router.get('/test', async (req, res) => {
+  console.log('PLACES KEY exists:', !!process.env.GOOGLE_PLACES_API_KEY);
+  console.log('PLACES KEY length:', (process.env.GOOGLE_PLACES_API_KEY || '').length);
   const https = require('https');
   https.get('https://places.googleapis.com/', (r) => {
     res.json({ status: r.statusCode, ok: true });
