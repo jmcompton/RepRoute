@@ -51,6 +51,9 @@ router.post('/places-leads', async (req, res) => {
       return res.json({ error: 'Could not find that location. Try a city name like "Atlanta, GA"' });
     }
     const { lat, lng } = geoData.results[0].geometry.location;
+    console.log('Geocoded:', loc, '->', lat, lng);
+    console.log('Search terms:', searchTerms);
+    console.log('Num leads requested:', numLeads);
 
     // Use new Places API text search
     const leadsMap = new Map();
@@ -118,8 +121,8 @@ router.post('/places-leads', async (req, res) => {
     if (leads.length === 0) return res.json({ error: 'No results found. Try a different territory or product.' });
     res.json({ leads, source: 'google' });
   } catch(e) {
-    console.error('Places API error:', e.message);
-    res.json({ error: 'Google Places search failed: ' + e.message });
+    console.error('Places API error full:', e);
+    res.json({ error: 'Google Places search failed: ' + e.message, stack: e.stack });
   }
 });
 
