@@ -7,7 +7,7 @@ async function callClaude(prompt) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 3000, messages: [{ role: 'user', content: prompt }] })
+    body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 8000, messages: [{ role: 'user', content: prompt }] })
   });
   const data = await res.json();
   return data.content?.map(b => b.text || '').join('') || '';
@@ -78,12 +78,23 @@ Return ONLY a JSON object (no markdown, no explanation):
     const text = await callClaude(prompt);
     console.log('Claude response length:', text.length);
     console.log('Claude response preview:', text.slice(0, 200));
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) {
+    // Strip markdown code fences if present
+    let clean = text.replace(/```json\n?/g, '').replace(/```/g, '').trim();
+    const start = clean.indexOf('{');
+    const end = clean.lastIndexOf('}');
+    if (start === -1 || end === -1) {
       console.error('No JSON found in response:', text.slice(0, 500));
       return res.json({ error: 'Could not generate plan', raw: 'No JSON found' });
     }
-    const plan = JSON.parse(match[0]);
+    clean = clean.substring(start, end + 1);
+    let plan;
+    try {
+      plan = JSON.parse(clean);
+    } catch(parseErr) {
+      console.error('JSON parse error:', parseErr.message);
+      console.error('JSON preview:', clean.slice(-200));
+      return res.json({ error: 'Could not generate plan', raw: 'JSON truncated - try again' });
+    }
     const targetRep = rep_id || req.session.user.id;
     await pool.query(
       'INSERT INTO onboarding_plans (rep_id, plan_json, created_by) VALUES ($1, $2, $3)',
