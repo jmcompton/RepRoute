@@ -138,4 +138,13 @@ router.post('/places-leads', async (req, res) => {
   }
 });
 
+router.get('/test', async (req, res) => {
+  const https = require('https');
+  https.get('https://places.googleapis.com/', (r) => {
+    res.json({ status: r.statusCode, ok: true });
+  }).on('error', (e) => {
+    res.json({ error: e.message, ok: false });
+  });
+});
+
 module.exports = router;
