@@ -1614,7 +1614,7 @@ function findLeads() {
   foundLeads = []; selectedLeads = new Set();
   fetch('/api/places/places-leads', {
     method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({category: category, territory: territory, product: product})
+    body: JSON.stringify({category: category, territory: territory, product: product, count: document.getElementById('lead-count-select').value, customer_type: document.getElementById('lead-customer-type').value})
   })
     .then(function(r) { return r.json(); })
     .then(function(d) {
