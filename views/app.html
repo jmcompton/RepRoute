@@ -1612,7 +1612,7 @@ function findLeads() {
   document.getElementById('lead-searching').style.display = 'block';
   document.getElementById('lead-results').style.display = 'none';
   foundLeads = []; selectedLeads = new Set();
-  fetch('/api/ai/leads', {
+  fetch('/api/places/places-leads', {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({category: category, territory: territory, product: product})
   })
