@@ -40,4 +40,11 @@ router.post('/create-user', async (req, res) => {
   }
 });
 
+router.delete('/delete-user/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM users WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  } catch(e) { res.json({ error: e.message }); }
+});
+
 module.exports = router;

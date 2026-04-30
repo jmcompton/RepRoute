@@ -80,7 +80,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
   <div class="section-hd">Active users</div>
   <button class="add-user-btn" onclick="openCreate()">+ Create user</button>
   <table>
-    <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Territory</th><th>Joined</th></tr></thead>
+    <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Territory</th><th>Joined</th><th>Actions</th></tr></thead>
     <tbody id="users-body"><tr><td colspan="5" class="empty">Loading...</td></tr></tbody>
   </table>
 </div>
@@ -129,6 +129,7 @@ async function load(){
       <td><span class="badge ${u.role==='manager'?'bmgr':'brep'}">${u.role}</span></td>
       <td style="color:#4B6A96">${u.territory||'—'}</td>
       <td style="color:#2A4A70;font-size:12px">${new Date(u.created_at).toLocaleDateString()}</td>
+      <td><button class="btn-deny" onclick="deleteUser(${u.id}, '${u.name}')">Delete</button></td>
     </tr>`).join(''):'<tr><td colspan="5" class="empty">No users yet</td></tr>';
 }
 async function decide(id,status){
@@ -150,6 +151,13 @@ async function createUser(){
   const d=await r.json();
   if(d.error){err.textContent=d.error;err.style.display='block';}
   else{closeCreate();showToast('✅ User created!');load();}
+}
+async function deleteUser(id, name){
+  if(!confirm('Delete ' + name + '? This cannot be undone.')) return;
+  const r = await fetch('/admin/delete-user/' + id, {method:'DELETE'});
+  const d = await r.json();
+  if(d.error) alert('Error: ' + d.error);
+  else { showToast('🗑️ ' + name + ' deleted'); load(); }
 }
 async function logout(){await fetch('/logout',{method:'POST'});window.location='/';}
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';setTimeout(()=>t.style.display='none',3000);}
