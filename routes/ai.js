@@ -143,36 +143,66 @@ router.post('/leads', async (req, res) => {
   const numLeads = parseInt(count) || 20;
   const custType = customer_type || 'any building products buyer';
 
-  const prompt = `You are a B2B sales researcher for a manufacturer's rep company selling building products in the Southeast US.
+  // Split city list into batches for multiple searches
+  const cityList = cities.split(',').map(c => c.trim());
+  const batchSize = Math.ceil(numLeads / 2);
+  const mid = Math.floor(cityList.length / 2);
+  const cities1 = cityList.slice(0, mid).join(', ') || cities;
+  const cities2 = cityList.slice(mid).join(', ') || cities;
 
-Find ${numLeads} REAL businesses in ${cities} that are likely buyers of ${product}.
-Target customer type: ${custType}
+  function buildPrompt(citySet, batchCount, offset) {
+    return `You are a B2B sales researcher for Compton Group LLC, a manufacturer's rep selling building products across the Southeast US.
 
-For EACH business find:
-- Real company name
-- Specific business category (e.g. "Deck Contractor", "Commercial Roofer")
+Find exactly ${batchCount} REAL ${custType} businesses in these cities: ${citySet}
+These businesses should be strong prospects for: ${product}
+
+Search Google, company websites, and directories. For EACH business return:
+- Real verified company name (must exist)
+- Exact business type
 - City and state
-- Phone number (search their website or Google listing)
-- Email address (search their website contact page)
-- Owner or decision maker name if findable
-- Their website URL
-- WHY they need ${product} specifically (1 sentence)
-- Priority score: High (active construction, growing, large jobs), Medium (established, steady), Low (small or unclear)
+- Phone number from their Google listing or website
+- Email from their contact page
+- Owner or purchasing manager name if findable
+- Website URL
+- One specific reason they need ${product} (reference their actual work)
+- Priority: High (large active jobs, growing company), Medium (steady established), Low (small or unclear)
 
-Return ONLY a valid JSON array, no markdown, no explanation, start immediately with [:
-[{"company":"Real Business Name","category":"Specific Type","city":"City","state":"${state}","phone":"(555) 555-5555 or null","email":"email@domain.com or null","website":"https://url or null","contact":"Owner Name or null","products":"${product}","why":"One sentence why they need this product","priority":"High or Medium or Low","score":85}]
+Return ONLY a JSON array starting with [ — no markdown, no explanation, no preamble:
+[{"company":"Name","category":"Type","city":"City","state":"${state}","phone":"number or null","email":"email or null","website":"url or null","contact":"name or null","products":"${product}","why":"specific reason","priority":"High or Medium or Low"}]
 
-Find REAL businesses only. No made up names. Search thoroughly.`;
+IMPORTANT: Return exactly ${batchCount} businesses. Real businesses only. No duplicates.`;
+  }
 
   try {
-    const text = await callClaudeWithSearch(prompt);
-    let leads = extractJSON(text);
-    if (!leads || leads.length === 0) {
-      const retry = await callClaude(prompt + ' Return ONLY the JSON array starting with [.');
-      leads = extractJSON(retry);
-      if (!leads) return res.json({ error: 'Could not find leads. Try a different category or territory.' });
+    // Run two searches in parallel across different city sets
+    const [text1, text2] = await Promise.all([
+      callClaudeWithSearch(buildPrompt(cities1, batchSize, 0)),
+      callClaudeWithSearch(buildPrompt(cities2, numLeads - batchSize, batchSize))
+    ]);
+
+    let leads1 = extractJSON(text1) || [];
+    let leads2 = extractJSON(text2) || [];
+
+    // Deduplicate by company name
+    const seen = new Set(leads1.map(l => l.company?.toLowerCase()));
+    const unique2 = leads2.filter(l => !seen.has(l.company?.toLowerCase()));
+    let leads = [...leads1, ...unique2];
+
+    // If still short, do a third search for remaining
+    if (leads.length < numLeads) {
+      const remaining = numLeads - leads.length;
+      const existingNames = leads.map(l => l.company).join(', ');
+      const fill = await callClaudeWithSearch(
+        buildPrompt(cities, remaining, 0) +
+        ` Do NOT include these already found: ${existingNames}`
+      );
+      const leads3 = extractJSON(fill) || [];
+      const seen2 = new Set(leads.map(l => l.company?.toLowerCase()));
+      leads = [...leads, ...leads3.filter(l => !seen2.has(l.company?.toLowerCase()))];
     }
-    res.json({ leads: Array.isArray(leads) ? leads : [] });
+
+    if (leads.length === 0) return res.json({ error: 'Could not find leads. Try a different category or territory.' });
+    res.json({ leads: leads.slice(0, numLeads) });
   } catch (e) {
     if (e.message && e.message.includes('rate limit')) return res.json({ error: e.message });
     res.json({ error: 'Could not find leads. Try again.', raw: e.message });
