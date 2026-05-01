@@ -410,73 +410,73 @@ router.post('/route-planner', async (req, res) => {
   let crmContacts = [];
   if (!crm_only) {
     const prospects = await pool.query(
-      "SELECT company, category, city, state, phone, priority, pipeline_stage FROM prospects WHERE user_id=$1 AND city IS NOT NULL AND city != '' ORDER BY CASE priority WHEN 'High' THEN 1 WHEN 'Medium' THEN 2 ELSE 3 END",
+      "SELECT company, category, city, state, phone, priority FROM prospects WHERE user_id=$1 AND city IS NOT NULL AND city != '' ORDER BY CASE priority WHEN 'High' THEN 1 WHEN 'Medium' THEN 2 ELSE 3 END",
       [uid]
     );
     crmContacts = prospects.rows;
   }
 
-  // If leads passed directly use those, otherwise combine CRM + extras
-  const allLeads = extra_leads && extra_leads.length > 0
+  const rawLeads = extra_leads && extra_leads.length > 0
     ? extra_leads.slice(0, 50)
-    : [...crmContacts, ...(extra_leads || [])];
+    : [...crmContacts, ...(extra_leads || [])].slice(0, 50);
+
+  const allLeads = rawLeads.map(l => ({
+    company: l.company || 'Unknown',
+    category: l.category || 'Contractor',
+    city: l.city || '',
+    state: l.state || '',
+    phone: l.phone || null,
+    priority: l.priority || 'Medium'
+  }));
 
   if (allLeads.length === 0) return res.json({ error: 'No contacts found. Add prospects to your CRM or search for leads first.' });
+  console.log('Building route for', allLeads.length, 'leads');
 
-  const contactList = allLeads.map((p, i) =>
-    `${i+1}. ${p.company} — ${p.category || 'Contractor'} — ${p.city}, ${p.state || 'GA'} — Priority: ${p.priority || 'Medium'} — Phone: ${p.phone || 'unknown'}`
-  ).join('\n');
+  const sorted = [...allLeads].sort((a, b) => (a.city || '').localeCompare(b.city || ''));
+  const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  const chunks = dayNames.map((day, i) => ({
+    day, leads: sorted.slice(i * 10, (i + 1) * 10)
+  })).filter(c => c.leads.length > 0);
 
-  const prompt = `You are a route planning expert for a manufacturer's rep in the Southeast US.
-
-Rep: ${user.name}
-Territory: ${user.territory || 'Southeast'}
-
-Here are all the prospects and contacts to visit this week:
-${contactList}
-
-Build an optimized Mon-Fri drive route that:
-1. Groups nearby cities/areas together on the same day
-2. Prioritizes High priority contacts
-3. Minimizes total drive time by clustering geographically
-4. Puts 8-10 stops per day minimum
-5. Considers that the rep starts and ends each day at home base in the territory
-
-Return ONLY valid JSON, no markdown, no backticks:
-{
-  "week_summary": "Brief description of the routing strategy",
-  "total_stops": 0,
-  "days": [
-    {
-      "day": "Monday",
-      "focus_area": "City/area focus for the day",
-      "estimated_drive": "e.g. ~45 min total",
-      "stops": [
-        {
-          "order": 1,
-          "company": "Company name",
-          "category": "Type",
-          "city": "City",
-          "state": "ST",
-          "phone": "number or null",
-          "priority": "High/Medium/Low",
-          "goal": "What to accomplish at this stop"
-        }
-      ]
-    }
-  ]
-}`;
+  function makeDayPrompt(dayName, leads) {
+    const list = leads.map((l, i) =>
+      (i+1) + '. ' + l.company + ' — ' + l.category + ' — ' + l.city + ', ' + l.state + ' — ' + l.priority + ' priority — ' + (l.phone || 'no phone')
+    ).join('\n');
+    return 'You are a route planning expert for a manufacturer rep. Order these ' + leads.length + ' stops for ' + dayName + ' to minimize drive time, grouping nearby cities together:\n' + list + '\n\nReturn ONLY valid JSON starting with { and ending with }:\n{"day":"' + dayName + '","focus_area":"main area","estimated_drive":"est time","stops":[{"order":1,"company":"name","category":"type","city":"city","state":"ST","phone":"number or null","priority":"High/Medium/Low","goal":"visit goal"}]}';
+  }
 
   try {
-    const text = await callClaude(prompt);
-    let clean = text.replace(/\`\`\`json\n?/g, '').replace(/\`\`\`/g, '').trim();
-    const startIdx = clean.indexOf('{');
-    const endIdx = clean.lastIndexOf('}');
-    if (startIdx === -1 || endIdx === -1) return res.json({ error: 'Could not build route. Try again.' });
-    const route = JSON.parse(clean.substring(startIdx, endIdx + 1));
-    res.json({ route });
+    const dayResults = await Promise.all(
+      chunks.map(async ({ day, leads }) => {
+        try {
+          const text = await callClaude(makeDayPrompt(day, leads));
+          let clean = text.replace(/```json
+?/g, '').replace(/```/g, '').trim();
+          const si = clean.indexOf('{');
+          const ei = clean.lastIndexOf('}');
+          if (si === -1 || ei === -1) throw new Error('No JSON');
+          return JSON.parse(clean.substring(si, ei + 1));
+        } catch(e) {
+          console.error('Day error:', day, e.message);
+          return {
+            day, focus_area: leads[0]?.city || 'Territory', estimated_drive: 'varies',
+            stops: leads.map((l, i) => ({ order: i+1, ...l, goal: 'Introduce products and build relationship' }))
+          };
+        }
+      })
+    );
+
+    res.json({
+      route: {
+        week_summary: 'Optimized ' + allLeads.length + '-stop weekly route for ' + (user.territory || 'your territory') + ' — 10 stops per day',
+        total_stops: allLeads.length,
+        days: dayResults
+      }
+    });
   } catch(e) {
+    console.error('Route error:', e.message);
     res.json({ error: 'Could not build route: ' + e.message });
+  }
   }
 });
 
