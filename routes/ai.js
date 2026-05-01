@@ -401,4 +401,78 @@ Return ONLY this JSON (start with { end with }):
   }
 });
 
+// Weekly Route Planner
+router.post('/route-planner', async (req, res) => {
+  const uid = req.session.user.id;
+  const user = req.session.user;
+  const { extra_leads } = req.body;
+
+  // Pull CRM contacts
+  const prospects = await pool.query(
+    "SELECT company, category, city, state, phone, address, priority, pipeline_stage FROM prospects WHERE user_id=$1 AND city IS NOT NULL AND city != '' ORDER BY CASE priority WHEN 'High' THEN 1 WHEN 'Medium' THEN 2 ELSE 3 END",
+    [uid]
+  );
+
+  const crmContacts = prospects.rows;
+  const allLeads = [...crmContacts, ...(extra_leads || [])];
+
+  if (allLeads.length === 0) return res.json({ error: 'No contacts found. Add prospects to your CRM or search for leads first.' });
+
+  const contactList = allLeads.map((p, i) =>
+    `${i+1}. ${p.company} — ${p.category || 'Contractor'} — ${p.city}, ${p.state || 'GA'} — Priority: ${p.priority || 'Medium'} — Phone: ${p.phone || 'unknown'}`
+  ).join('\n');
+
+  const prompt = `You are a route planning expert for a manufacturer's rep in the Southeast US.
+
+Rep: ${user.name}
+Territory: ${user.territory || 'Southeast'}
+
+Here are all the prospects and contacts to visit this week:
+${contactList}
+
+Build an optimized Mon-Fri drive route that:
+1. Groups nearby cities/areas together on the same day
+2. Prioritizes High priority contacts
+3. Minimizes total drive time by clustering geographically
+4. Puts 4-6 stops per day maximum
+5. Considers that the rep starts and ends each day at home base in the territory
+
+Return ONLY valid JSON, no markdown, no backticks:
+{
+  "week_summary": "Brief description of the routing strategy",
+  "total_stops": 0,
+  "days": [
+    {
+      "day": "Monday",
+      "focus_area": "City/area focus for the day",
+      "estimated_drive": "e.g. ~45 min total",
+      "stops": [
+        {
+          "order": 1,
+          "company": "Company name",
+          "category": "Type",
+          "city": "City",
+          "state": "ST",
+          "phone": "number or null",
+          "priority": "High/Medium/Low",
+          "goal": "What to accomplish at this stop"
+        }
+      ]
+    }
+  ]
+}`;
+
+  try {
+    const text = await callClaude(prompt);
+    let clean = text.replace(/\`\`\`json\n?/g, '').replace(/\`\`\`/g, '').trim();
+    const startIdx = clean.indexOf('{');
+    const endIdx = clean.lastIndexOf('}');
+    if (startIdx === -1 || endIdx === -1) return res.json({ error: 'Could not build route. Try again.' });
+    const route = JSON.parse(clean.substring(startIdx, endIdx + 1));
+    res.json({ route });
+  } catch(e) {
+    res.json({ error: 'Could not build route: ' + e.message });
+  }
+});
+
 module.exports = router;
