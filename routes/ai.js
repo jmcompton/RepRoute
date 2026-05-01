@@ -405,16 +405,21 @@ Return ONLY this JSON (start with { end with }):
 router.post('/route-planner', async (req, res) => {
   const uid = req.session.user.id;
   const user = req.session.user;
-  const { extra_leads } = req.body;
+  const { extra_leads, crm_only } = req.body;
 
-  // Pull CRM contacts
-  const prospects = await pool.query(
-    "SELECT company, category, city, state, phone, address, priority, pipeline_stage FROM prospects WHERE user_id=$1 AND city IS NOT NULL AND city != '' ORDER BY CASE priority WHEN 'High' THEN 1 WHEN 'Medium' THEN 2 ELSE 3 END",
-    [uid]
-  );
+  let crmContacts = [];
+  if (!crm_only) {
+    const prospects = await pool.query(
+      "SELECT company, category, city, state, phone, priority, pipeline_stage FROM prospects WHERE user_id=$1 AND city IS NOT NULL AND city != '' ORDER BY CASE priority WHEN 'High' THEN 1 WHEN 'Medium' THEN 2 ELSE 3 END",
+      [uid]
+    );
+    crmContacts = prospects.rows;
+  }
 
-  const crmContacts = prospects.rows;
-  const allLeads = [...crmContacts, ...(extra_leads || [])];
+  // If leads passed directly use those, otherwise combine CRM + extras
+  const allLeads = extra_leads && extra_leads.length > 0
+    ? extra_leads.slice(0, 50)
+    : [...crmContacts, ...(extra_leads || [])];
 
   if (allLeads.length === 0) return res.json({ error: 'No contacts found. Add prospects to your CRM or search for leads first.' });
 
