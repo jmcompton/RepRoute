@@ -1343,7 +1343,7 @@ function go(id) {
   if (id === 'weekly') loadWeeklyPlan();
   if (id === 'manager') loadManager();
   if (id === 'contacts') loadProspects();
-  if (id === 'onboarding') loadMyOnboarding();
+  // if (id === 'onboarding') loadMyOnboarding(); // disabled - show only newly generated plans
   if (id === 'deals') loadPipeline();
   if (id === 'reports') loadReports();
   if (id === 'analytics') loadAnalytics();
@@ -1773,6 +1773,7 @@ function copyText(btn, text) {
 }
 
 function generateOnboarding() {
+  document.getElementById('ob-my-plan').innerHTML = '';
   var name = document.getElementById('ob-name').value.trim();
   if (!name) { showToast('Enter rep name'); return; }
   document.getElementById('ob-loading').style.display = 'block';
