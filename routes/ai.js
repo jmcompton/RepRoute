@@ -450,8 +450,7 @@ router.post('/route-planner', async (req, res) => {
       chunks.map(async ({ day, leads }) => {
         try {
           const text = await callClaude(makeDayPrompt(day, leads));
-          let clean = text.replace(/```json
-?/g, '').replace(/```/g, '').trim();
+          let clean = text.replace(/```json[\n]?/g, '').replace(/```/g, '').trim();
           const si = clean.indexOf('{');
           const ei = clean.lastIndexOf('}');
           if (si === -1 || ei === -1) throw new Error('No JSON');
@@ -476,7 +475,6 @@ router.post('/route-planner', async (req, res) => {
   } catch(e) {
     console.error('Route error:', e.message);
     res.json({ error: 'Could not build route: ' + e.message });
-  }
   }
 });
 
