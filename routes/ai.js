@@ -439,7 +439,7 @@ Build an optimized Mon-Fri drive route that:
 1. Groups nearby cities/areas together on the same day
 2. Prioritizes High priority contacts
 3. Minimizes total drive time by clustering geographically
-4. Puts 4-6 stops per day maximum
+4. Puts 8-10 stops per day minimum
 5. Considers that the rep starts and ends each day at home base in the territory
 
 Return ONLY valid JSON, no markdown, no backticks:
