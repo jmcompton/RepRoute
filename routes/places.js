@@ -86,12 +86,12 @@ function getSearchQueries(product, customerType) {
 
 function getProductWhy(product) {
   const p = (product || '').toLowerCase();
-  if (p.includes('alum') || p.includes('scaffolding')) return 'needs OSHA-compliant pump jack scaffolding for exterior work at height';
-  if (p.includes('soudal') || p.includes('sealant')) return 'uses high-performance sealants and adhesives on every install';
-  if (p.includes('shurtape') || p.includes('flashing')) return 'requires code-compliant flashing tape for moisture barriers';
+  if (p.includes('soudal') || p.includes('sealant') || p.includes('boss')) return 'distributes roofing and siding products and can add Soudal BOSS sealants to their product line';
+  if (p.includes('shurtape') || p.includes('flashing') || p.includes('deck tape')) return 'sells to builders and contractors and needs flashing tape as a stocked SKU';
+  if (p.includes('alum') || p.includes('scaffolding') || p.includes('pump jack')) return 'supplies tools and equipment to contractors and needs Alum-A-Pole scaffolding in inventory';
   if (p.includes('framing')) return 'needs rot-proof steel framing as a wood alternative for decks';
   if (p.includes('railing')) return 'installs railing systems on decks, stairs, and porches';
-  return 'purchases building products for construction projects';
+  return 'distributes building products to contractors and builders in the Southeast';
 }
 
 function getCities(loc) {

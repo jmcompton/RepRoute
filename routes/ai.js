@@ -341,8 +341,14 @@ router.post('/command', async (req, res) => {
   const { prompt } = req.body;
   const user = req.session.user;
   const full = `You are an expert sales coach for Compton Group LLC, a manufacturer's rep in Atlanta, GA.
-Products: Soudal Adhesives & Sealants, ShurTape Flashing & Deck Tape, Fortress Evolution Steel Framing, Fortress Railing, Alum-A-Pole Equipment.
-Customers: Deck Contractors, Window & Door Installers, Commercial Roofers, Building Material Dealers, Distributors.
+Products: Soudal BOSS Sealants & Adhesives, ShurTape Deck Flashing Tape & Window Flashing Tape, Fortress Evolution Steel Framing, Fortress Railing, Alum-A-Pole Pump Jack Scaffolding.
+Go-to-market strategy:
+- Soudal: Target roofing and siding distributors (Beacon, SRS), lumber yards, one-step distributors — NOT direct contractors yet
+- ShurTape: Target lumber dealers, Builders FirstSource, building material dealers who sell to builders — NOT contractors yet
+- Alum-A-Pole: Target tool and equipment suppliers who sell to siding and roofing contractors
+- Fortress: Target deck builders and contractors directly
+- Overall focus: distributor and dealer channel first, then work into contractor side
+Primary customers: Roofing distributors, siding distributors, lumber yards, building material dealers, tool & equipment suppliers.
 Rep: ${user.name}, Territory: ${user.territory || 'Atlanta Metro'}
 Question: ${prompt}
 Give a specific, actionable, concise response.`;
