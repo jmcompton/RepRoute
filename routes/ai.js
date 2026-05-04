@@ -401,6 +401,40 @@ Return ONLY this JSON (start with { end with }):
   }
 });
 
+// Morning Briefing
+router.post('/morning-briefing', async (req, res) => {
+  const uid = req.session.user.id;
+  const user = req.session.user;
+  try {
+    const [prospects, calls, followups] = await Promise.all([
+      pool.query("SELECT company, pipeline_stage, priority, products FROM prospects WHERE user_id=$1 ORDER BY CASE priority WHEN 'High' THEN 1 WHEN 'Medium' THEN 2 ELSE 3 END LIMIT 20", [uid]),
+      pool.query("SELECT c.*, p.company FROM calls c JOIN prospects p ON c.prospect_id=p.id WHERE c.user_id=$1 ORDER BY c.call_date DESC LIMIT 5", [uid]),
+      pool.query("SELECT c.next_step, c.next_step_date, p.company, p.phone FROM calls c JOIN prospects p ON c.prospect_id=p.id WHERE c.user_id=$1 AND c.next_step_date <= CURRENT_DATE AND c.next_step IS NOT NULL ORDER BY c.next_step_date ASC LIMIT 5", [uid])
+    ]);
+
+    const prompt = `You are a sales coach for ${user.name}, a manufacturer's rep at Compton Group LLC in the Southeast.
+
+Their CRM data:
+- Prospects: ${prospects.rows.map(p => p.company + ' (' + p.pipeline_stage + ', ' + p.priority + ' priority)').join('; ') || 'none yet'}
+- Recent calls: ${calls.rows.map(c => c.company + ': ' + c.outcome).join('; ') || 'none'}
+- Follow-ups due: ${followups.rows.map(f => f.company + ' - ' + f.next_step).join('; ') || 'none'}
+
+Write exactly 4 short morning briefing bullets (1 sentence each) telling them what to focus on today. Be specific, direct, and actionable. Reference actual company names from their data when possible.
+
+Return ONLY a JSON array of 4 strings, no markdown:
+["bullet 1","bullet 2","bullet 3","bullet 4"]`;
+
+    const text = await callClaude(prompt);
+    const start = text.indexOf('[');
+    const end = text.lastIndexOf(']');
+    if (start === -1 || end === -1) return res.json({ bullets: ['Check your follow-ups and prioritize High priority contacts today.', 'Log all calls and visits in RepRoute to keep your pipeline current.', 'Use AI Lead Finder to add new prospects to your territory.', 'Review your pipeline and move deals forward.'] });
+    const bullets = JSON.parse(text.substring(start, end + 1));
+    res.json({ bullets });
+  } catch(e) {
+    res.json({ bullets: ['Start your day by reviewing follow-ups due today.', 'Log all calls and visits to keep your pipeline accurate.', 'Focus on your High priority contacts first.', 'Use AI Lead Finder to keep your pipeline full.'] });
+  }
+});
+
 // Weekly Route Planner
 router.post('/route-planner', async (req, res) => {
   const uid = req.session.user.id;

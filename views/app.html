@@ -296,53 +296,124 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 
   <!-- DASHBOARD -->
   <div class="page active" id="page-dashboard">
-    <!-- FOLLOW-UP REMINDERS -->
-    <div id="followup-section" style="display:none;padding:12px 16px 0">
-      <div style="background:#fff;border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
-        <div style="padding:10px 14px;border-bottom:1px solid var(--border);background:#fafbfc;display:flex;align-items:center;justify-content:space-between">
-          <div style="display:flex;align-items:center;gap:8px">
-            <span style="font-size:16px"></span>
-            <span style="font-size:13px;font-weight:700;color:var(--navy)">Follow-Ups Due</span>
-            <span id="followup-badge" style="background:var(--red);color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px">0</span>
+    <div style="padding:16px">
+
+      <!-- Greeting bar -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--border)">
+        <div>
+          <div style="font-size:17px;font-weight:700;color:var(--navy)" id="dash-greeting">Good morning</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px" id="dash-date"></div>
+        </div>
+        <div id="dash-followup-badge" style="display:none;font-size:12px;font-weight:600;color:#185FA5;background:#E6F1FB;padding:5px 12px;border-radius:99px"></div>
+      </div>
+
+      <!-- Stat cards -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">
+        <div style="background:var(--surface);border-radius:var(--r);padding:14px 16px">
+          <div style="font-size:24px;font-weight:700;color:var(--navy)" id="st-total">—</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px">Total contacts</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px">In CRM</div>
+        </div>
+        <div style="background:var(--surface);border-radius:var(--r);padding:14px 16px">
+          <div style="font-size:24px;font-weight:700;color:var(--red)" id="st-hot">—</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px">Hot prospects</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px">Priority targets</div>
+        </div>
+        <div style="background:var(--surface);border-radius:var(--r);padding:14px 16px">
+          <div style="font-size:24px;font-weight:700;color:var(--navy)" id="st-calls">—</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px">Calls logged</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px">Total activity</div>
+        </div>
+        <div style="background:var(--surface);border-radius:var(--r);padding:14px 16px;cursor:pointer" onclick="document.getElementById('dash-followups-section').scrollIntoView({behavior:'smooth'})">
+          <div style="font-size:24px;font-weight:700;color:var(--amber)" id="st-followups">—</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px">Follow-ups due</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px">Needs action today</div>
+        </div>
+      </div>
+
+      <!-- AI Morning Briefing -->
+      <div style="background:#f8faff;border:1px solid #d0e4f7;border-radius:var(--r);padding:14px 16px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <span style="font-size:10px;font-weight:700;color:#185FA5;background:#E6F1FB;padding:2px 8px;border-radius:99px">AI BRIEFING</span>
+          <span style="font-size:13px;font-weight:700;color:var(--navy)">Your morning priorities</span>
+          <button onclick="loadMorningBriefing(true)" style="margin-left:auto;padding:3px 10px;background:transparent;border:1px solid var(--border);border-radius:5px;font-size:11px;color:var(--text3);cursor:pointer">Refresh</button>
+        </div>
+        <div id="dash-briefing">
+          <div style="font-size:12px;color:var(--text3)">Loading your briefing...</div>
+        </div>
+      </div>
+
+      <!-- Two column grid -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+
+        <!-- Follow-ups -->
+        <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden" id="dash-followups-section">
+          <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:13px;font-weight:700;color:var(--navy)">Follow-ups due today</span>
+            <button class="f-chip" onclick="go('calls')">View all →</button>
           </div>
-          <span style="font-size:11px;color:var(--text3)">Based on your logged call next steps</span>
+          <div id="followup-list" style="padding:0 16px"></div>
+          <div id="followup-empty" style="padding:16px;font-size:12px;color:var(--text3);text-align:center;display:none">No follow-ups due — you're all caught up!</div>
         </div>
-        <div id="followup-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:0"></div>
+
+        <!-- Pipeline snapshot -->
+        <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
+          <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:13px;font-weight:700;color:var(--navy)">Pipeline snapshot</span>
+            <button class="f-chip" onclick="go('deals')">Deal pipeline →</button>
+          </div>
+          <div style="padding:0 16px" id="dash-pipeline">
+            <div style="padding:16px 0;font-size:12px;color:var(--text3);text-align:center">No pipeline data yet</div>
+          </div>
+        </div>
+
       </div>
-    </div>
-    <div class="dash-stats" id="dash-stats">
-      <div class="stat-card"><div class="stat-lbl">Total Contacts</div><div class="stat-val" id="st-total">—</div><div class="stat-sub">In CRM</div></div>
-      <div class="stat-card"><div class="stat-lbl"> Hot</div><div class="stat-val" id="st-hot" style="color:var(--red)">—</div><div class="stat-sub">Priority targets</div></div>
-      <div class="stat-card"><div class="stat-lbl">Calls Logged</div><div class="stat-val" id="st-calls">—</div><div class="stat-sub">Total activity</div></div>
-      <div class="stat-card" style="cursor:pointer" onclick="document.getElementById('followup-section').scrollIntoView({behavior:'smooth'})"><div class="stat-lbl"> Follow-Ups Due</div><div class="stat-val" id="st-followups" style="color:var(--amber)">—</div><div class="stat-sub">Needs action today</div></div>
-    </div>
-    <div class="dash-grid">
-      <div>
-        <div class="dash-card" style="margin-bottom:12px">
-          <div class="dash-card-hdr"><span class="dash-card-title">Priority Contacts</span><button class="f-chip" onclick="go('contacts')">View All →</button></div>
-          <table class="ltable"><thead><tr><th>Company</th><th>Category</th><th>City</th><th>Products</th></tr></thead><tbody id="dash-hot"></tbody></table>
+
+      <!-- Bottom row -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+
+        <!-- Recent activity -->
+        <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
+          <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:13px;font-weight:700;color:var(--navy)">Recent activity</span>
+            <button class="f-chip" onclick="go('calls')">Call log →</button>
+          </div>
+          <table class="ltable"><thead><tr><th>Company</th><th>Outcome</th><th>Next step</th><th>Date</th></tr></thead><tbody id="dash-activity"></tbody></table>
         </div>
-        <div class="dash-card">
-          <div class="dash-card-hdr"><span class="dash-card-title">Recent Activity</span><button class="f-chip" onclick="go('calls')">Call Log →</button></div>
-          <table class="ltable"><thead><tr><th>Company</th><th>Outcome</th><th>Next Step</th><th>Date</th></tr></thead><tbody id="dash-activity"></tbody></table>
-        </div>
-      </div>
-      <div>
-        <div class="dash-card" style="margin-bottom:12px">
-          <div class="dash-card-hdr"><span class="dash-card-title"> Line Coverage</span></div>
-          <div style="padding:14px" id="dash-coverage"></div>
-        </div>
-        <div class="dash-card">
-          <div class="dash-card-hdr"><span class="dash-card-title">AI Quick Ask</span></div>
-          <div style="padding:12px">
-            <div style="display:flex;gap:8px;margin-bottom:8px">
-              <input id="dash-ai-in" style="flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;outline:none" placeholder="Ask AI anything..." />
-              <button class="btn btn-primary btn-sm" onclick="runDashAI()">Ask</button>
+
+        <!-- Right column: coverage + AI ask -->
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
+            <div style="padding:10px 16px;border-bottom:1px solid var(--border)">
+              <span style="font-size:13px;font-weight:700;color:var(--navy)">Product line coverage</span>
             </div>
-            <div id="dash-ai-resp" style="display:none;background:var(--bg);border:1px solid var(--border);color:var(--text2);padding:10px;font-size:12px;line-height:1.6;border-radius:5px;max-height:200px;overflow-y:auto"></div>
+            <div style="padding:14px 16px" id="dash-coverage"></div>
+          </div>
+          <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
+            <div style="padding:10px 16px;border-bottom:1px solid var(--border)">
+              <span style="font-size:13px;font-weight:700;color:var(--navy)">AI quick ask</span>
+            </div>
+            <div style="padding:12px 16px">
+              <div style="display:flex;gap:8px;margin-bottom:8px">
+                <input id="dash-ai-in" style="flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;outline:none" placeholder="Ask AI anything..." />
+                <button class="btn btn-primary btn-sm" onclick="runDashAI()">Ask</button>
+              </div>
+              <div id="dash-ai-resp" style="display:none;background:var(--bg);border:1px solid var(--border);color:var(--text2);padding:10px;font-size:12px;line-height:1.6;border-radius:5px;max-height:180px;overflow-y:auto"></div>
+            </div>
           </div>
         </div>
+
       </div>
+
+      <!-- Hidden elements for backward compat -->
+      <div style="display:none">
+        <div id="followup-section"></div>
+        <div id="followup-badge"></div>
+        <div id="dash-hot"></div>
+        <div id="dash-stats"></div>
+      </div>
+
+    </div>
     </div>
   </div>
 
@@ -1391,6 +1462,16 @@ function setModTab(cat, el) {
 }
 
 function loadDashboard() {
+  // Set greeting and date
+  var hours = new Date().getHours();
+  var greet = hours < 12 ? 'Good morning' : hours < 17 ? 'Good afternoon' : 'Good evening';
+  var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var now = new Date();
+  var userName = (currentUser && currentUser.name) ? currentUser.name.split(' ')[0] : '';
+  document.getElementById('dash-greeting').textContent = greet + (userName ? ', ' + userName : '');
+  document.getElementById('dash-date').textContent = days[now.getDay()] + ', ' + months[now.getMonth()] + ' ' + now.getDate() + ' · ' + ((currentUser && currentUser.territory) || 'Southeast');
+
   fetch('/app/data')
     .then(function(r) { return r.json(); })
     .then(function(d) {
@@ -1401,44 +1482,61 @@ function loadDashboard() {
       document.getElementById('st-calls').textContent = s.calls || '0';
       document.getElementById('st-followups').textContent = s.followUps || '0';
 
-      // Follow-up reminders
+      // Follow-up badge in header
       var followUps = d.followUps || [];
       var due = followUps.filter(function(f) { return f.urgency === 'today' || f.urgency === 'overdue'; });
-      var upcoming = followUps.filter(function(f) { return f.urgency === 'upcoming'; });
-      var section = document.getElementById('followup-section');
-      var badge = document.getElementById('followup-badge');
-      var list = document.getElementById('followup-list');
-
-      if (due.length > 0 || upcoming.length > 0) {
-        section.style.display = 'block';
-        badge.textContent = due.length;
-        list.innerHTML = due.concat(upcoming).map(function(f) {
-          var isOverdue = f.urgency === 'overdue';
-          var isToday = f.urgency === 'today';
-          var bgColor = isOverdue ? '#fdecea' : isToday ? '#fef3c7' : '#f0f9ff';
-          var borderColor = isOverdue ? '#c0392b' : isToday ? '#d97706' : '#0066cc';
-          var label = isOverdue ? ('Overdue ' + f.days_overdue + ' day' + (f.days_overdue > 1 ? 's' : '')) : isToday ? 'Due Today' : 'Due Tomorrow';
-          var labelColor = isOverdue ? '#c0392b' : isToday ? '#d97706' : '#0066cc';
-          return '<div style="padding:12px 14px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);background:' + bgColor + ';border-left:3px solid ' + borderColor + '">' +
-            '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">' +
-            '<span style="font-size:13px;font-weight:700;color:var(--navy)">' + f.company + '</span>' +
-            '<span style="font-size:10px;font-weight:700;color:' + labelColor + ';background:#fff;padding:2px 7px;border-radius:10px;border:1px solid ' + borderColor + '">' + label + '</span>' +
-            '</div>' +
-            '<div style="font-size:12px;color:var(--text2);margin-bottom:8px">→ ' + (f.next_step || '') + '</div>' +
-            '<div style="display:flex;gap:6px;align-items:center">' +
-            (f.phone ? '<a href="tel:' + f.phone + '" style="font-size:11px;color:var(--blue);text-decoration:none"> ' + f.phone + '</a>' : '') +
-            '<button onclick="goLogCall(' + f.prospect_id + ')" style="margin-left:auto;padding:4px 10px;background:var(--navy);color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer">Log Call</button>' +
-            '</div></div>';
-        }).join('');
-      } else {
-        section.style.display = 'none';
+      var badge = document.getElementById('dash-followup-badge');
+      if (due.length > 0) {
+        badge.style.display = 'block';
+        badge.textContent = due.length + ' follow-up' + (due.length > 1 ? 's' : '') + ' due today';
       }
 
-      // Hot contacts
+      // Follow-up list
+      var list = document.getElementById('followup-list');
+      var empty = document.getElementById('followup-empty');
+      var allDue = due.concat(followUps.filter(function(f) { return f.urgency === 'upcoming'; }));
+      if (allDue.length > 0) {
+        if (empty) empty.style.display = 'none';
+        list.innerHTML = allDue.map(function(f) {
+          var isOverdue = f.urgency === 'overdue';
+          var isToday = f.urgency === 'today';
+          var dotColor = isOverdue ? '#E24B4A' : isToday ? '#EF9F27' : '#378ADD';
+          var tagBg = isOverdue ? '#FCEBEB' : isToday ? '#FAEEDA' : '#E6F1FB';
+          var tagColor = isOverdue ? '#A32D2D' : isToday ? '#854F0B' : '#185FA5';
+          var label = isOverdue ? 'Overdue' : isToday ? 'Today' : 'Tomorrow';
+          return '<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">' +
+            '<div style="width:8px;height:8px;border-radius:50%;background:' + dotColor + ';flex-shrink:0;margin-top:4px"></div>' +
+            '<div style="flex:1">' +
+            '<div style="font-size:13px;font-weight:600;color:var(--navy)">' + f.company + '</div>' +
+            '<div style="font-size:11px;color:var(--text3);margin-top:1px">' + (f.next_step || '') + '</div>' +
+            '</div>' +
+            '<span style="font-size:10px;font-weight:600;color:' + tagColor + ';background:' + tagBg + ';padding:2px 7px;border-radius:99px;flex-shrink:0">' + label + '</span>' +
+            '</div>';
+        }).join('');
+      } else {
+        list.innerHTML = '';
+        if (empty) empty.style.display = 'block';
+      }
+
+      // Pipeline snapshot from hot prospects
       var hot = d.hotProspects || [];
-      document.getElementById('dash-hot').innerHTML = hot.length ?
-        hot.map(function(p) { return '<tr onclick="viewRecord(' + p.id + ')"><td><span class="rec-link">' + p.company + '</span></td><td>' + catBadge(p.category) + '</td><td style="color:var(--text3)">' + (p.city||'—') + '</td><td style="font-size:11px">' + (p.products||'—') + '</td></tr>'; }).join('') :
-        '<tr><td colspan="4" style="text-align:center;padding:16px;color:var(--text3)">No hot contacts yet — use AI Lead Finder!</td></tr>';
+      var pipelineEl = document.getElementById('dash-pipeline');
+      if (hot.length > 0) {
+        var stageMap = {'New Lead':10,'Contacted':25,'Interested':45,'Demo Scheduled':60,'Quote Sent':75,'Ready to Buy':90,'Closed Won':100};
+        pipelineEl.innerHTML = hot.slice(0,5).map(function(p) {
+          var pct = stageMap[p.pipeline_stage] || 30;
+          return '<div style="padding:9px 0;border-bottom:1px solid var(--border)">' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">' +
+            '<span style="font-size:13px;font-weight:600;color:var(--navy);cursor:pointer" onclick="viewRecord(' + p.id + ')">' + p.company + '</span>' +
+            '<span style="font-size:11px;font-weight:600;color:var(--blue)">' + pct + '%</span>' +
+            '</div>' +
+            '<div style="font-size:11px;color:var(--text3);margin-bottom:4px">' + (p.pipeline_stage || 'New Lead') + ' · ' + (p.products || '') + '</div>' +
+            '<div style="width:100%;height:4px;background:var(--border);border-radius:99px"><div style="width:' + pct + '%;height:4px;border-radius:99px;background:#378ADD"></div></div>' +
+            '</div>';
+        }).join('');
+      } else {
+        pipelineEl.innerHTML = '<div style="padding:16px 0;font-size:12px;color:var(--text3);text-align:center">No hot prospects yet — use AI Lead Finder!</div>';
+      }
 
       // Recent calls
       var rc = d.recentCalls || [];
@@ -1452,6 +1550,38 @@ function loadDashboard() {
       document.getElementById('dash-coverage').innerHTML = prods.map(function(p, i) {
         return '<div class="pr-wrap"><div class="pr-label">' + p + '</div><div class="pr-track"><div class="pr-fill" style="width:' + (Math.round(Math.random()*50+30)) + '%;background:' + colors[i] + '"></div></div></div>';
       }).join('');
+
+      // Load morning briefing
+      loadMorningBriefing(false);
+    });
+}
+
+function loadMorningBriefing(force) {
+  var el = document.getElementById('dash-briefing');
+  if (!el) return;
+  var cacheKey = 'briefing_' + new Date().toDateString();
+  if (!force && localStorage.getItem(cacheKey)) {
+    el.innerHTML = localStorage.getItem(cacheKey);
+    return;
+  }
+  el.innerHTML = '<div style="font-size:12px;color:var(--text3)">Building your briefing...</div>';
+  fetch('/api/ai/morning-briefing', { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.error || !d.bullets) {
+        el.innerHTML = '<div style="font-size:12px;color:var(--text3)">Could not load briefing. Check your pipeline and try again.</div>';
+        return;
+      }
+      var html = d.bullets.map(function(b) {
+        return '<div style="display:flex;align-items:flex-start;gap:8px;padding:4px 0;font-size:12px;color:var(--text2);line-height:1.5">' +
+          '<div style="width:4px;height:4px;border-radius:50%;background:var(--text3);flex-shrink:0;margin-top:6px"></div>' +
+          b + '</div>';
+      }).join('');
+      el.innerHTML = html;
+      try { localStorage.setItem(cacheKey, html); } catch(e) {}
+    })
+    .catch(function() {
+      el.innerHTML = '<div style="font-size:12px;color:var(--text3)">Briefing unavailable.</div>';
     });
 }
 
