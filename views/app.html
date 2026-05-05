@@ -42,7 +42,7 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 .mod-tab{padding:10px 14px;font-size:12.5px;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;transition:all .12s;white-space:nowrap}
 .mod-tab:hover{color:var(--blue)}
 .mod-tab.active{color:var(--blue);border-bottom-color:var(--blue);font-weight:600}
-.page{display:none;flex:1;flex-direction:column}
+.page{display:none;flex:1;flex-direction:column;overflow-y:auto}
 .page.active{display:flex}
 .list-bar{background:var(--white);border-bottom:1px solid var(--border);padding:8px 16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .list-count{font-size:12px;color:var(--text3)}
@@ -431,7 +431,14 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
         <thead><tr><th><input type="checkbox"/></th><th>Company Name</th><th>Category</th><th>City</th><th>Contact</th><th>Phone</th><th>Products</th><th>Status</th><th>Priority</th><th>Source</th></tr></thead>
         <tbody id="prospects-tbody"></tbody>
       </table>
-      <div class="empty-state" id="p-empty" style="display:none"><div class="empty-icon">👤</div><div class="empty-msg">No contacts yet. Use AI Lead Finder to get started.</div></div>
+      <div class="empty-state" id="p-empty" style="display:none">
+    <div class="empty-icon">👤</div>
+    <div class="empty-msg">No contacts yet.</div>
+    <div style="margin-top:12px;display:flex;gap:8px;justify-content:center">
+      <button class="btn btn-primary btn-sm" onclick="go('leads')">Find leads with AI</button>
+      <button class="btn btn-secondary btn-sm" onclick="openModal('add-prospect')">Add manually</button>
+    </div>
+  </div>
     </div>
   </div>
 
@@ -511,12 +518,14 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
   </div>
 
   <!-- AI LEAD FINDER -->
-  <div class="page" id="page-leads">
+  <div class="page" id="page-leads" style="overflow-y:auto">
     <div style="padding:16px">
       <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
-        <div style="padding:12px 16px;border-bottom:1px solid var(--border);background:#fafbfc">
-          <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:3px">AI Lead Finder</div>
-          <div style="font-size:12px;color:var(--text3)">Select a product line — pulls real verified businesses from Google Maps in your territory.</div>
+        <div style="padding:12px 16px;border-bottom:1px solid var(--border);background:#fafbfc;display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:3px">AI Lead Finder</div>
+            <div style="font-size:12px;color:var(--text3)">Pulls real verified businesses from Google Maps in your territory.</div>
+          </div>
         </div>
         <div style="padding:14px 16px">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
@@ -583,7 +592,7 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
   </div>
 
   <!-- CALLS -->
-  <div class="page" id="page-calls">
+  <div class="page" id="page-calls" style="overflow-y:auto">
     <div style="padding:16px">
       <div class="call-card">
         <div class="call-card-title">Log a Call</div>
@@ -606,15 +615,18 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
       <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
         <div style="padding:10px 14px;border-bottom:1px solid var(--border);background:#fafbfc;font-size:12.5px;font-weight:700;color:var(--navy)">Call History</div>
         <table class="ltable"><thead><tr><th>Date</th><th>Company</th><th>Type</th><th>Outcome</th><th>Products</th><th>Next Step</th><th>Next Step Date</th></tr></thead><tbody id="calls-tbody"></tbody></table>
-        <div class="empty-state" id="calls-empty" style="display:none"><div class="empty-icon"></div><div class="empty-msg">No calls logged yet.</div></div>
+        <div class="empty-state" id="calls-empty" style="display:none">
+    <div class="empty-icon">📞</div>
+    <div class="empty-msg">No calls logged yet.</div>
+    <div style="margin-top:8px;font-size:12px;color:var(--text3)">Log your first call above to start tracking activity.</div>
+  </div>
       </div>
     </div>
   </div>
 
   <!-- WEEKLY PLAN -->
-  <div class="page" id="page-weekly">
+  <div class="page" id="page-weekly" style="overflow-y:auto">
     <div style="padding:16px">
-<!-- Weekly Plan Tabs -->
       <div style="display:flex;gap:8px;margin-bottom:14px">
         <button class="btn btn-primary" id="wtab-plan" onclick="switchWeeklyTab('plan')" style="font-size:12px">📋 Call Plan</button>
         <button class="btn btn-secondary" id="wtab-route" onclick="switchWeeklyTab('route')" style="font-size:12px">📍 Drive Route</button>
@@ -752,7 +764,8 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
   <!-- MANAGER -->
 
   <!-- REPORTS PAGE -->
-  <div class="page" id="page-reports">
+  <div class="page" id="page-reports" style="overflow-y:auto">
+    <div style="padding:16px">
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:24px" id="rep-kpis">
       <div class="stat-card"><div class="stat-lbl">Total Calls Logged</div><div class="stat-val" id="rep-calls">—</div></div>
       <div class="stat-card"><div class="stat-lbl">Contacts Added</div><div class="stat-val" id="rep-contacts">—</div></div>
@@ -772,7 +785,8 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
   </div>
 
   <!-- ANALYTICS PAGE -->
-  <div class="page" id="page-analytics">
+  <div class="page" id="page-analytics" style="overflow-y:auto">
+    <div style="padding:16px">
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:24px">
       <div class="stat-card"><div class="stat-lbl">Avg Days to Close</div><div class="stat-val" id="an-days">—</div></div>
       <div class="stat-card"><div class="stat-lbl">Follow-up Rate</div><div class="stat-val" id="an-followup">—</div></div>
@@ -798,7 +812,8 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
   </div>
 
   <!-- FORECASTS PAGE -->
-  <div class="page" id="page-forecasts">
+  <div class="page" id="page-forecasts" style="overflow-y:auto">
+    <div style="padding:16px">
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:24px">
       <div class="stat-card"><div class="stat-lbl">Pipeline Value</div><div class="stat-val" id="fc-pipeline">$0</div></div>
       <div class="stat-card"><div class="stat-lbl">Weighted Forecast</div><div class="stat-val" id="fc-weighted">$0</div></div>
@@ -815,7 +830,8 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
   </div>
 
   <!-- CAMPAIGNS PAGE -->
-  <div class="page" id="page-campaigns">
+  <div class="page" id="page-campaigns" style="overflow-y:auto">
+    <div style="padding:16px">
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:24px;margin-bottom:16px;text-align:center">
       <div style="font-size:32px;margin-bottom:12px">📣</div>
       <div style="font-size:15px;font-weight:700;margin-bottom:8px">Outreach Sequences</div>
@@ -825,6 +841,7 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px">
       <div style="font-size:12px;font-weight:700;margin-bottom:4px">COMING SOON</div>
       <div style="font-size:11px;color:var(--text2);line-height:1.6">Sequence builder with step scheduling, open tracking, and bulk contact targeting is in development. For now, use the Outreach Writer to generate personalized messages for individual contacts.</div>
+    </div>
     </div>
   </div>
 
