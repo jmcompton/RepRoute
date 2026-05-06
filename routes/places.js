@@ -171,7 +171,7 @@ router.post('/places-leads', async (req, res) => {
           // 1. Category match (40pts)
           const distributorSignals = ['supply', 'distribution', 'wholesale', 'distributor', 'dealer', 'lumber', 'building material', 'roofing supply', 'siding supply', 'tool', 'equipment'];
           const contractorSignals = ['contractor', 'construction', 'remodel', 'builder', 'install'];
-          const p = product.toLowerCase();
+          const p = (product || '').toLowerCase();
           const needsDistributor = p.includes('soudal') || p.includes('shurtape') || p.includes('alum');
           const needsContractor = p.includes('fortress');
           let catScore = 0;
