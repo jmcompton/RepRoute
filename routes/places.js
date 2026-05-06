@@ -156,10 +156,57 @@ router.post('/places-leads', async (req, res) => {
       for (const { label, places } of results) {
         console.log(label, '->', places.length, 'results | total:', leadsMap.size);
         for (const place of places) {
-          if (leadsMap.size >= numLeads) break;
           if (leadsMap.has(place.id)) continue;
           if (place.businessStatus === 'CLOSED_PERMANENTLY') continue;
+          if ((place.rating || 0) < 3.5) continue;
+
           const addr = (place.formattedAddress || '').split(',');
+          const name = (place.displayName?.text || '').toLowerCase();
+          const rating = place.rating || 0;
+          const reviews = place.userRatingCount || 0;
+
+          // Scoring system (0-100)
+          let score = 0;
+
+          // 1. Category match (40pts)
+          const distributorSignals = ['supply', 'distribution', 'wholesale', 'distributor', 'dealer', 'lumber', 'building material', 'roofing supply', 'siding supply', 'tool', 'equipment'];
+          const contractorSignals = ['contractor', 'construction', 'remodel', 'builder', 'install'];
+          const p = product.toLowerCase();
+          const needsDistributor = p.includes('soudal') || p.includes('shurtape') || p.includes('alum');
+          const needsContractor = p.includes('fortress');
+          let catScore = 0;
+          if (needsDistributor) {
+            const hasDistSignal = distributorSignals.some(s => name.includes(s));
+            const hasContSignal = contractorSignals.some(s => name.includes(s));
+            if (hasDistSignal) catScore = 40;
+            else if (!hasContSignal) catScore = 20;
+            else catScore = 5;
+          } else if (needsContractor) {
+            catScore = contractorSignals.some(s => name.includes(s)) ? 40 : 20;
+          } else {
+            catScore = 25;
+          }
+          score += catScore;
+
+          // 2. Rating (25pts)
+          if (rating >= 4.5) score += 25;
+          else if (rating >= 4.2) score += 20;
+          else if (rating >= 4.0) score += 15;
+          else if (rating >= 3.7) score += 8;
+          else score += 2;
+
+          // 3. Review count (20pts)
+          if (reviews >= 50) score += 20;
+          else if (reviews >= 20) score += 15;
+          else if (reviews >= 10) score += 10;
+          else if (reviews >= 5) score += 5;
+
+          // 4. Name quality signals (15pts)
+          const qualitySignals = ['supply', 'distribution', 'wholesale', 'dealer', 'pro', 'professional', 'commercial'];
+          score += qualitySignals.some(s => name.includes(s)) ? 15 : 5;
+
+          const priority = score >= 65 ? 'High' : score >= 40 ? 'Medium' : 'Low';
+
           leadsMap.set(place.id, {
             company: place.displayName?.text || 'Unknown',
             category: label,
@@ -171,19 +218,37 @@ router.post('/places-leads', async (req, res) => {
             contact: null,
             products: product,
             why: 'This ' + label + ' ' + why,
-            priority: (place.rating >= 4.5 && place.userRatingCount > 20) ? 'High' : (place.rating >= 3.5) ? 'Medium' : 'Low',
-            rating: place.rating || null,
-            reviews: place.userRatingCount || 0,
+            priority,
+            rating,
+            reviews,
+            score,
             address: place.formattedAddress || null
           });
         }
-        if (leadsMap.size >= numLeads) break;
       }
     }
 
-    const leads = Array.from(leadsMap.values());
-    console.log('Final:', leads.length, 'leads');
-    if (leads.length === 0) return res.json({ error: 'No results found. Try a different territory or product.' });
+    // Sort by score, take top numLeads
+    let leads = Array.from(leadsMap.values())
+      .sort((a, b) => b.score - a.score)
+      .slice(0, numLeads);
+
+    // Deduplicate against existing CRM
+    try {
+      const existing = await pool.query(
+        "SELECT LOWER(company) as company FROM prospects WHERE user_id=$1",
+        [req.session.user.id]
+      );
+      const existingNames = new Set(existing.rows.map(r => r.company));
+      const before = leads.length;
+      leads = leads.filter(l => !existingNames.has((l.company || '').toLowerCase()));
+      console.log('Deduped:', before - leads.length, 'already in CRM');
+    } catch(e) {
+      console.log('Dedup skipped:', e.message);
+    }
+
+    console.log('Final:', leads.length, 'scored leads');
+    if (leads.length === 0) return res.json({ error: 'No new leads found — all results already in your CRM or low quality. Try a different territory.' });
     res.json({ leads, source: 'google' });
   } catch(e) {
     console.error('Error:', e.message);
