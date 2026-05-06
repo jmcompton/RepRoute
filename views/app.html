@@ -1829,11 +1829,11 @@ function runLeadAgent() {
 
   // Extract product line
   var product = 'All Building Products';
-  if (lower.includes('soudal') || lower.includes('sealant')) product = 'Soudal Sealants and Adhesives';
-  else if (lower.includes('shurtape') || lower.includes('flashing') || lower.includes('tape')) product = 'ShurTape Flashing and Deck Tape';
-  else if (lower.includes('alum') || lower.includes('scaffolding') || lower.includes('pump jack')) product = 'Alum-A-Pole Pump Jack Scaffolding and Equipment';
+  if (lower.includes('soudal') || lower.includes('sealant') || lower.includes('boss') || lower.includes('adhesive')) product = 'Soudal Sealants and Adhesives';
+  else if (lower.includes('shurtape') || lower.includes('flashing') || lower.includes('deck tape') || lower.includes('window tape')) product = 'ShurTape Flashing and Deck Tape';
+  else if (lower.includes('alum') || lower.includes('scaffolding') || lower.includes('pump jack') || lower.includes('pump-jack')) product = 'Alum-A-Pole Pump Jack Scaffolding and Equipment';
   else if (lower.includes('fortress') && lower.includes('rail')) product = 'Fortress Railing Systems';
-  else if (lower.includes('fortress') || lower.includes('framing')) product = 'Fortress Evolution Steel Framing';
+  else if (lower.includes('fortress') || lower.includes('framing') || lower.includes('steel frame')) product = 'Fortress Evolution Steel Framing';
 
   // Extract territory
   var territory = (currentUser && currentUser.territory) || 'Southeast';
