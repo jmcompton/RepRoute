@@ -1415,28 +1415,31 @@ function loadCalls() {
   if (!tbody) return;
   fetch('/api/calls')
     .then(function(r) { return r.json(); })
-    .then(function(calls) {
-      if (!calls || calls.length === 0) {
+    .then(function(data) {
+      if (!data || data.length === 0) {
         tbody.innerHTML = '';
         if (empty) empty.style.display = 'block';
         return;
       }
       if (empty) empty.style.display = 'none';
-      tbody.innerHTML = calls.map(function(c) {
+      tbody.innerHTML = data.map(function(c) {
+        var dt = (c.call_date || '').split('T')[0] || '-';
+        var co = c.company || '-';
+        var ct = c.call_type || '-';
+        var ns = c.next_step || '-';
+        var nsd = (c.next_step_date || '').split('T')[0] || '-';
         return '<tr onclick="viewRecord(' + c.prospect_id + ')" style="cursor:pointer">' +
-          '<td style="color:var(--text3)">' + (c.call_date ? c.call_date.split('T')[0] : '—') + '</td>' +
-          '<td style="font-weight:600;color:var(--navy)">' + (c.company || '—') + '</td>' +
-          '<td>' + (c.call_type || '—') + '</td>' +
-          '<td>' + (c.outcome || '—') + '</td>' +
-          '<td style="font-size:11px">' + (c.products_discussed || '—') + '</td>' +
-          '<td style="color:var(--blue);font-size:11px">' + (c.next_step || '—') + '</td>' +
-          '<td style="color:var(--text3);font-size:11px">' + (c.next_step_date ? c.next_step_date.split('T')[0] : '—') + '</td>' +
+          '<td style="color:var(--text3)">' + dt + '</td>' +
+          '<td style="font-weight:600;color:var(--navy)">' + co + '</td>' +
+          '<td>' + ct + '</td>' +
+          '<td>' + (c.outcome || '-') + '</td>' +
+          '<td style="font-size:11px">' + (c.products_discussed || '-') + '</td>' +
+          '<td style="color:var(--blue);font-size:11px">' + ns + '</td>' +
+          '<td style="color:var(--text3);font-size:11px">' + nsd + '</td>' +
           '</tr>';
       }).join('');
     })
-    .catch(function() {
-      if (empty) empty.style.display = 'block';
-    });
+    .catch(function() { if (empty) empty.style.display = 'block'; });
 }
 
 function goLogCall(prospectId) {
@@ -1896,11 +1899,7 @@ function runLeadAgent() {
         .then(function() {
           stepHtml += '<div style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:12px"><span style="color:#22c55e">✓</span> Added ' + agentLeads.length + ' prospects to your CRM</div>';
           typingBubble.innerHTML = stepHtml + buildLeadCards(agentLeads, false);
-          // Route building is triggered manually via button
-
-          else {
-            typingBubble.innerHTML += buildActionButtons(false);
-          }
+          typingBubble.innerHTML += buildActionButtons(false);
           agentState = 'idle';
           loadDashboard();
         });
