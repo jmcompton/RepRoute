@@ -519,3 +519,28 @@ router.post('/route-planner', async (req, res) => {
 });
 
 module.exports = router;
+
+// Agent intent parser
+router.post('/parse-intent', async (req, res) => {
+  const { message, territory } = req.body;
+  const user = req.session.user;
+  const prompt = `You are parsing a sales rep's request for a building materials CRM.
+Rep territory: ${territory || user.territory || 'Southeast'}
+Products available: Soudal Sealants and Adhesives, ShurTape Flashing and Deck Tape, Alum-A-Pole Pump Jack Scaffolding and Equipment, Fortress Evolution Steel Framing, Fortress Railing Systems
+
+Rep message: "${message}"
+
+Return ONLY a JSON object, no other text:
+{"product":"exact product name from list above or All Building Products","customerType":"most relevant type or any building products buyer","territory":"city and state from message or rep territory","count":number 5-50 default 20,"addToCRM":true/false,"buildRoute":true/false,"stopsPerDay":number default 10}`;
+
+  try {
+    const text = await callClaude(prompt);
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start === -1) return res.json({ error: 'Could not parse intent' });
+    const plan = JSON.parse(text.substring(start, end + 1));
+    res.json(plan);
+  } catch(e) {
+    res.json({ product: 'All Building Products', customerType: 'any building products buyer', territory: territory || user.territory || 'Southeast', count: 20, addToCRM: false, buildRoute: false, stopsPerDay: 10 });
+  }
+});

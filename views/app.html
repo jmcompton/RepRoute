@@ -1818,29 +1818,20 @@ function runLeadAgent() {
   agentAddMsg('user', msg);
   var typingBubble = agentTyping();
 
-  // Step 1: Ask Claude to interpret the rep's intent
-  var systemPrompt = 'You are an AI assistant for a building materials sales rep CRM called RepRoute. The rep sells these products: Soudal BOSS Sealants & Adhesives (target: roofing/siding distributors, lumber yards), ShurTape Deck & Window Flashing Tape (target: lumber dealers, building material dealers), Alum-A-Pole Pump Jack Scaffolding (target: tool & equipment suppliers), Fortress Steel Framing (target: deck contractors), Fortress Railing (target: deck contractors). The rep is based in the Southeast US. Parse the rep message and return ONLY a JSON object with these fields: { "product": one of ["Soudal Sealants and Adhesives","ShurTape Flashing and Deck Tape","Alum-A-Pole Pump Jack Scaffolding and Equipment","Fortress Evolution Steel Framing","Fortress Railing Systems","All Building Products"], "customerType": most relevant customer type or "any building products buyer", "territory": city and state extracted from message or "Southeast", "count": number of leads requested (default 20, max 50), "addToCRM": true if they say add/save/crm, "buildRoute": true if they mention route/drive/schedule/door-to-door/weekly/visits/calls per day, "stopsPerDay": number of stops per day if mentioned (default 10) }';
-
-  fetch('/api/ai/command', {
+  // Step 1: Ask Claude to interpret the rep's intent via dedicated endpoint
+  fetch('/api/ai/parse-intent', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({
-      prompt: 'Parse this sales rep request and return ONLY JSON: "' + msg + '"',
-      system: systemPrompt
-    })
+    body: JSON.stringify({ message: msg, territory: currentUser && currentUser.territory })
   })
   .then(function(r) { return r.json(); })
-  .then(function(d) {
-    var raw = d.response || d.error || '';
-    var plan;
-    try {
-      var start = raw.indexOf('{');
-      var end = raw.lastIndexOf('}');
-      plan = JSON.parse(raw.substring(start, end + 1));
-    } catch(e) {
-      // Fallback plan if Claude parse fails
-      plan = { product: 'All Building Products', customerType: 'any building products buyer', territory: 'Southeast', count: 20, addToCRM: false, buildRoute: false, stopsPerDay: 10 };
-    }
+  .then(function(plan) {
+    if (!plan || plan.error) plan = { product: 'All Building Products', customerType: 'any building products buyer', territory: (currentUser && currentUser.territory) || 'Southeast', count: 20, addToCRM: false, buildRoute: false, stopsPerDay: 10 };
+
+    var count = Math.min(parseInt(plan.count) || 20, 50);
+    var autoAdd = plan.addToCRM || false;
+    var buildRoute = plan.buildRoute || false;
+
 
     var count = Math.min(plan.count || 20, 50);
     var autoAdd = plan.addToCRM || false;
