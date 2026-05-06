@@ -517,76 +517,36 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
     </div>
   </div>
 
-  <!-- AI LEAD FINDER -->
-  <div class="page" id="page-leads" style="overflow-y:auto">
-    <div style="padding:16px">
-      <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
-        <div style="padding:12px 16px;border-bottom:1px solid var(--border);background:#fafbfc;display:flex;align-items:center;justify-content:space-between">
-          <div>
-            <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:3px">AI Lead Finder</div>
-            <div style="font-size:12px;color:var(--text3)">Pulls real verified businesses from Google Maps in your territory.</div>
-          </div>
+    <!-- AI LEAD FINDER -->
+  <div class="page" id="page-leads">
+    <div style="display:flex;flex-direction:column;height:100%;background:var(--bg)">
+
+      <!-- Agent header -->
+      <div style="padding:12px 16px;border-bottom:1px solid var(--border);background:var(--white);display:flex;align-items:center;gap:10px;flex-shrink:0">
+        <div style="width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0"></div>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--navy)">AI Lead Finder Agent</div>
+          <div style="font-size:11px;color:var(--text3)">Tell me what to find — I'll search, score, and add to your CRM</div>
         </div>
-        <div style="padding:14px 16px">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-            <div class="fg" style="margin:0"><label>Product Line</label>
-              <select id="lead-cat">
-                <option value="Soudal Sealants and Adhesives">Soudal — Sealants & Adhesives</option>
-                <option value="ShurTape Flashing and Deck Tape">ShurTape — Flashing & Deck Tape</option>
-                <option value="Alum-A-Pole Pump Jack Scaffolding and Equipment">Alum-A-Pole — Pump Jack Scaffolding</option>
-                <option value="Fortress Evolution Steel Framing">Fortress — Steel Framing</option>
-                <option value="Fortress Railing Systems">Fortress — Railing Systems</option>
-                <option value="All Building Products">All Product Lines</option>
-              </select>
-            </div>
-            <div class="fg" style="margin:0"><label>Customer Type</label>
-              <select id="lead-customer-type">
-                <option value="any building products buyer">Any / All Types</option>
-                <option value="Roofing Distributor">Roofing Distributors</option>
-                <option value="Siding Distributor">Siding Distributors</option>
-                <option value="Lumber Dealer">Lumber Dealers</option>
-                <option value="Building Material Dealer">Building Material Dealers</option>
-                <option value="Tool and Equipment Supplier">Tool & Equipment Suppliers</option>
-                <option value="Contractor Supply Store">Contractor Supply Stores</option>
-                <option value="Window and Door Dealer">Window & Door Dealers</option>
-                <option value="Deck Contractor">Deck Contractors</option>
-                <option value="General Contractor">General Contractors</option>
-              </select>
-            </div>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;margin-bottom:12px;align-items:flex-end">
-            <div class="fg" style="margin:0"><label>Territory</label><input type="text" id="lead-territory" placeholder="Atlanta Metro, GA" /></div>
-            <div class="fg" style="margin:0"><label>Number of Leads</label>
-              <select id="lead-count-select">
-                <option value="10">10 leads</option>
-                <option value="20" selected>20 leads</option>
-                <option value="30">30 leads</option>
-                <option value="50">50 leads</option>
-              </select>
-            </div>
-            <button class="btn btn-primary" style="justify-content:center;white-space:nowrap" onclick="findLeads()">🔍 Find Leads</button>
-          </div>
-          <div id="lead-searching" style="display:none;text-align:center;padding:32px;color:var(--text3)">
-            <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
-            <div style="margin-top:10px;font-size:12px">AI is searching the web for real businesses...</div>
-          </div>
-          <div id="lead-results" style="display:none">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-              <span style="font-size:12px;font-weight:600;color:var(--navy)" id="lead-count"></span>
-              <div style="display:flex;gap:8px">
-                <button class="btn btn-secondary btn-sm" onclick="selectAllLeads()">Select All</button>
-                <button class="btn btn-primary btn-sm" onclick="saveLeads()">💾 Add to CRM</button>
-                <button class="btn btn-secondary btn-sm" onclick="buildRouteFromLeads()">📍 Build Weekly Route</button>
-              </div>
-            </div>
-            <div class="lead-grid" id="lead-grid"></div>
-            <div id="lead-route-loading" style="display:none;text-align:center;padding:24px;color:var(--text3)">
-              <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
-              <div style="margin-top:8px;font-size:12px">Building your optimized weekly route...</div>
-            </div>
-            <div id="lead-route-results"></div>
-          </div>
-        </div>
+        <button onclick="clearAgentChat()" style="margin-left:auto;padding:4px 10px;background:transparent;border:1px solid var(--border);border-radius:5px;font-size:11px;color:var(--text3);cursor:pointer">Clear</button>
+      </div>
+
+      <!-- Suggestion chips -->
+      <div id="agent-suggestions" style="padding:10px 16px;display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--border);background:var(--white);flex-shrink:0">
+        <div style="font-size:11px;color:var(--text3);width:100%;margin-bottom:2px">Try asking:</div>
+        <button onclick="agentSuggest(this.textContent)" style="padding:5px 10px;background:var(--surface);border:1px solid var(--border);border-radius:99px;font-size:11px;color:var(--text2);cursor:pointer">Find 20 roofing distributors in Birmingham</button>
+        <button onclick="agentSuggest(this.textContent)" style="padding:5px 10px;background:var(--surface);border:1px solid var(--border);border-radius:99px;font-size:11px;color:var(--text2);cursor:pointer">Find lumber dealers in Atlanta and add best to CRM</button>
+        <button onclick="agentSuggest(this.textContent)" style="padding:5px 10px;background:var(--surface);border:1px solid var(--border);border-radius:99px;font-size:11px;color:var(--text2);cursor:pointer">Find tool suppliers for Alum-A-Pole in Nashville</button>
+        <button onclick="agentSuggest(this.textContent)" style="padding:5px 10px;background:var(--surface);border:1px solid var(--border);border-radius:99px;font-size:11px;color:var(--text2);cursor:pointer">Find 50 ShurTape prospects in Southeast and build a route</button>
+      </div>
+
+      <!-- Chat messages -->
+      <div id="agent-chat" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px"></div>
+
+      <!-- Input bar -->
+      <div style="padding:12px 16px;border-top:1px solid var(--border);background:var(--white);flex-shrink:0;display:flex;gap:8px">
+        <input id="agent-msg" placeholder="Tell the agent what to find..." style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);color:var(--text);outline:none" onkeydown="if(event.key==='Enter')runLeadAgent()" />
+        <button class="btn btn-primary" onclick="runLeadAgent()" style="white-space:nowrap;padding:9px 18px">Run Agent →</button>
       </div>
     </div>
   </div>
@@ -1794,177 +1754,242 @@ function addProspect() {
   });
 }
 
-function findLeads() {
-  var product = document.getElementById('lead-cat').value;
-  var territory = document.getElementById('lead-territory').value || 'Atlanta Metro, Georgia';
+// ── LEAD AGENT ────────────────────────────────────────────────────────────
+var agentLeads = [];
+var agentState = 'idle';
 
-  // Map each product to its best target customer types
-  var categoryMap = {
-    'Soudal Sealants and Adhesives': 'Roofing Contractor, Window and Door Installer, General Contractor using sealants and adhesives',
-    'ShurTape Flashing and Deck Tape': 'Deck Contractor, Roofing Contractor, Window and Door Installer using flashing tape',
-    'Alum-A-Pole Scaffolding and Equipment': 'Painting Contractor, General Contractor, Scaffolding Rental Company',
-    'Fortress Evolution Steel Framing': 'Deck Contractor, Outdoor Living Contractor building decks',
-    'Fortress Railing Systems': 'Deck Contractor, Outdoor Living Contractor, Stair and Rail Installer',
-    'Insulation Contractor and After-Paint Installer': 'Insulation Contractor, Spray Foam Contractor, After-Paint Installer, General Contractor doing insulation and finishing work'
-  };
+function clearAgentChat() {
+  document.getElementById('agent-chat').innerHTML = '';
+  agentLeads = [];
+  agentState = 'idle';
+}
 
-  var category = categoryMap[product] || product;
+function agentSuggest(text) {
+  document.getElementById('agent-msg').value = text;
+  runLeadAgent();
+}
 
-  document.getElementById('lead-searching').style.display = 'block';
-  document.getElementById('lead-results').style.display = 'none';
-  foundLeads = []; selectedLeads = new Set();
-  fetch('/api/places/places-leads', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({category: category, territory: territory, product: product, count: document.getElementById('lead-count-select').value, customer_type: document.getElementById('lead-customer-type').value})
+function agentAddMsg(role, html) {
+  var chat = document.getElementById('agent-chat');
+  var wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;gap:10px;align-items:flex-start';
+  if (role === 'user') wrap.style.flexDirection = 'row-reverse';
+
+  var av = document.createElement('div');
+  av.style.cssText = 'width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;margin-top:2px';
+  if (role === 'user') {
+    av.style.background = 'var(--blue)';
+    av.style.color = '#fff';
+    av.textContent = (currentUser && currentUser.name) ? currentUser.name.split(' ').map(function(w){return w[0];}).join('').slice(0,2).toUpperCase() : 'JC';
+  } else {
+    av.style.background = 'var(--navy)';
+    av.style.color = '#fff';
+    av.textContent = 'AI';
+  }
+
+  var bubble = document.createElement('div');
+  bubble.style.cssText = 'max-width:85%;padding:10px 14px;border-radius:12px;font-size:12.5px;line-height:1.55;' +
+    (role === 'user'
+      ? 'background:var(--blue);color:#fff;border-radius:12px 12px 2px 12px'
+      : 'background:var(--white);border:1px solid var(--border);color:var(--text);border-radius:12px 12px 12px 2px');
+  bubble.innerHTML = html;
+
+  wrap.appendChild(av);
+  wrap.appendChild(bubble);
+  chat.appendChild(wrap);
+  chat.scrollTop = chat.scrollHeight;
+  return bubble;
+}
+
+function agentTyping() {
+  return agentAddMsg('ai', '<div style="display:flex;gap:4px;align-items:center;padding:2px 0"><div style="width:6px;height:6px;border-radius:50%;background:var(--text3);animation:dp 1.2s infinite"></div><div style="width:6px;height:6px;border-radius:50%;background:var(--text3);animation:dp 1.2s infinite .2s"></div><div style="width:6px;height:6px;border-radius:50%;background:var(--text3);animation:dp 1.2s infinite .4s"></div></div>');
+}
+
+function runLeadAgent() {
+  var input = document.getElementById('agent-msg');
+  var msg = input.value.trim();
+  if (!msg || agentState === 'running') return;
+  input.value = '';
+  agentState = 'running';
+
+  // Hide suggestions after first message
+  var sugg = document.getElementById('agent-suggestions');
+  if (sugg) sugg.style.display = 'none';
+
+  agentAddMsg('user', msg);
+  var typingBubble = agentTyping();
+
+  // Parse intent from message
+  var lower = msg.toLowerCase();
+  var autoAdd = lower.includes('add') || lower.includes('save') || lower.includes('crm');
+  var buildRoute = lower.includes('route') || lower.includes('drive') || lower.includes('week');
+  var count = 20;
+  var countMatch = msg.match(/(\d+)/);
+  if (countMatch) count = Math.min(parseInt(countMatch[1]), 50);
+
+  // Extract product line
+  var product = 'All Building Products';
+  if (lower.includes('soudal') || lower.includes('sealant')) product = 'Soudal Sealants and Adhesives';
+  else if (lower.includes('shurtape') || lower.includes('flashing') || lower.includes('tape')) product = 'ShurTape Flashing and Deck Tape';
+  else if (lower.includes('alum') || lower.includes('scaffolding') || lower.includes('pump jack')) product = 'Alum-A-Pole Pump Jack Scaffolding and Equipment';
+  else if (lower.includes('fortress') && lower.includes('rail')) product = 'Fortress Railing Systems';
+  else if (lower.includes('fortress') || lower.includes('framing')) product = 'Fortress Evolution Steel Framing';
+
+  // Extract territory
+  var territory = (currentUser && currentUser.territory) || 'Southeast';
+  var territories = ['birmingham','atlanta','nashville','charlotte','memphis','mobile','huntsville','marietta','alpharetta','knoxville','chattanooga','augusta','savannah','jacksonville'];
+  for (var i = 0; i < territories.length; i++) {
+    if (lower.includes(territories[i])) { territory = territories[i]; break; }
+  }
+
+  // Extract customer type
+  var customerType = 'any building products buyer';
+  if (lower.includes('roofing distributor') || lower.includes('roofing supply')) customerType = 'Roofing Distributor';
+  else if (lower.includes('siding distributor')) customerType = 'Siding Distributor';
+  else if (lower.includes('lumber dealer') || lower.includes('lumber yard')) customerType = 'Lumber Dealer';
+  else if (lower.includes('building material')) customerType = 'Building Material Dealer';
+  else if (lower.includes('tool') || lower.includes('equipment supplier')) customerType = 'Tool and Equipment Supplier';
+  else if (lower.includes('deck contractor')) customerType = 'Deck Contractor';
+
+  // Step 1: search for leads
+  fetch('/api/places/search', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ product: product, customerType: customerType, territory: territory, count: count })
   })
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-      document.getElementById('lead-searching').style.display = 'none';
-      if (d.error) { showToast('AI search error — try again'); return; }
-      foundLeads = d.leads || [];
-      renderLeads();
-    })
-    .catch(function() { document.getElementById('lead-searching').style.display = 'none'; showToast('Search failed'); });
-}
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    agentLeads = d.leads || [];
+    if (agentLeads.length === 0) {
+      typingBubble.innerHTML = 'No leads found for that search. Try a different territory or product line.';
+      agentState = 'idle';
+      return;
+    }
 
-function renderLeads() {
-  document.getElementById('lead-results').style.display = 'block';
-  document.getElementById('lead-count').textContent = foundLeads.length + ' leads found — select to add to CRM';
-  document.getElementById('lead-grid').innerHTML = foundLeads.map(function(l, i) {
-    return '<div class="lead-card ' + (selectedLeads.has(i)?'sel':'') + '" onclick="toggleLead(' + i + ')">' +
-      '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px">' +
-      '<div class="lc-name">' + l.company + '</div>' +
-      '<span class="badge ' + (l.priority==='High'?'b-hot':l.priority==='Low'?'b-cold':'b-warm') + '">' + (l.priority||'Medium') + '</span></div>' +
-      (l.address ? '<div class="lc-meta">📍 ' + l.address + ', ' + (l.city||'') + ', ' + (l.state||'GA') + '</div>' :
-        '<div class="lc-meta">📍 ' + (l.city||'') + ', ' + (l.state||'GA') + '</div>') +
-      (l.phone ? '<div class="lc-meta">' + l.phone + '</div>' : '') +
-      (l.contact ? '<div class="lc-meta">' + l.contact + '</div>' : '') +
-      (l.email ? '<div class="lc-meta"> ' + l.email + '</div>' : '') +
-      (l.website ? '<div class="lc-meta">🌐 ' + l.website + '</div>' : '') +
-      '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">' +
-      catBadge(l.category) +
-      '<div class="lc-check ' + (selectedLeads.has(i)?'on':'') + '">' + (selectedLeads.has(i)?'✓':'') + '</div></div>' +
-      '</div>';
-  }).join('');
-}
+    var stepHtml = '<div style="font-size:11px;font-weight:700;color:var(--text3);margin-bottom:8px">AGENT STEPS</div>' +
+      '<div style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:12px"><span style="color:#22c55e">✓</span> Searched Google Maps — found ' + agentLeads.length + ' businesses in ' + territory + '</div>' +
+      '<div style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:12px"><span style="color:#22c55e">✓</span> Scored and ranked by rating, reviews, and product fit</div>';
 
-function toggleLead(i) { if (selectedLeads.has(i)) selectedLeads.delete(i); else selectedLeads.add(i); renderLeads(); }
-function selectAllLeads() { foundLeads.forEach(function(l,i) { selectedLeads.add(i); }); renderLeads(); }
+    if (autoAdd) {
+      // Autopilot mode - add directly
+      var toSave = agentLeads.slice(0, Math.min(count, agentLeads.length));
+      fetch('/api/leads/save', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ leads: toSave })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(saveD) {
+        stepHtml += '<div style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:12px"><span style="color:#22c55e">✓</span> Added ' + toSave.length + ' prospects to your CRM</div>';
 
-function saveLeads() {
-  if (!selectedLeads.size) { showToast('Select at least one lead'); return; }
-  var toSave = Array.from(selectedLeads).map(function(i) { return foundLeads[i]; });
-  fetch('/api/ai/leads/save', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({leads:toSave}) })
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-      showToast('Added ' + d.saved + ' contacts to CRM!');
-      loadProspects(); loadDashboard();
-      setTimeout(function() { go('contacts'); }, 1500);
-    });
-}
+        // Show results card
+        var topLeads = agentLeads.slice(0, 5);
+        var leadsHtml = '<div style="margin-top:10px;border:1px solid var(--border);border-radius:8px;overflow:hidden">' +
+          '<div style="padding:8px 12px;background:var(--surface);font-size:11px;font-weight:700;color:var(--text3)">ADDED TO CRM</div>';
+        topLeads.forEach(function(l) {
+          var pc = l.priority === 'High' ? '#ef4444' : '#f59e0b';
+          leadsHtml += '<div style="padding:8px 12px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">' +
+            '<div><div style="font-size:12px;font-weight:600;color:var(--navy)">' + l.company + '</div>' +
+            '<div style="font-size:11px;color:var(--text3)">' + (l.category||'') + ' · ' + (l.city||'') + ', ' + (l.state||'') + '</div></div>' +
+            '<span style="font-size:10px;font-weight:700;color:' + pc + ';background:' + pc + '15;padding:2px 7px;border-radius:99px">' + (l.priority||'Medium') + '</span></div>';
+        });
+        if (agentLeads.length > 5) leadsHtml += '<div style="padding:8px 12px;border-top:1px solid var(--border);font-size:11px;color:var(--text3)">+ ' + (agentLeads.length - 5) + ' more added</div>';
+        leadsHtml += '</div>';
 
-function loadCallProspects() {
-  fetch('/api/prospects')
-    .then(function(r) { return r.json(); })
-    .then(function(ps) {
-      var sel = document.getElementById('call-prospect');
-      if (!sel) return;
-      sel.innerHTML = '<option value="">Select contact...</option>' + ps.map(function(p) { return '<option value="' + p.id + '">' + p.company + (p.city?' — '+p.city:'') + '</option>'; }).join('');
-    });
-}
+        var statsHtml = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px">' +
+          '<div style="text-align:center;background:var(--surface);border-radius:6px;padding:8px"><div style="font-size:18px;font-weight:700;color:var(--navy)">' + agentLeads.length + '</div><div style="font-size:10px;color:var(--text3)">found</div></div>' +
+          '<div style="text-align:center;background:var(--surface);border-radius:6px;padding:8px"><div style="font-size:18px;font-weight:700;color:var(--blue)">' + toSave.length + '</div><div style="font-size:10px;color:var(--text3)">added to CRM</div></div>' +
+          '<div style="text-align:center;background:var(--surface);border-radius:6px;padding:8px"><div style="font-size:18px;font-weight:700;color:#22c55e">' + agentLeads.filter(function(l){return l.priority==='High';}).length + '</div><div style="font-size:10px;color:var(--text3)">high priority</div></div>' +
+          '</div>';
 
-function logCall() {
-  var pid = document.getElementById('call-prospect').value;
-  if (!pid) { showToast('Select a contact'); return; }
-  fetch('/api/calls', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({
-      prospect_id:pid, call_date:document.getElementById('call-date').value,
-      call_type:document.getElementById('call-type').value, outcome:document.getElementById('call-outcome').value,
-      products_discussed:document.getElementById('call-products').value, next_step:document.getElementById('call-nextstep').value,
-      next_step_date:document.getElementById('call-nextdate').value, notes:document.getElementById('call-notes').value
-    })
-  }).then(function() {
-    showToast('Call logged!');
-    ['call-products','call-nextstep','call-nextdate','call-notes'].forEach(function(id) { var el=document.getElementById(id); if(el) el.value=''; });
-    loadCalls(); loadDashboard();
+        typingBubble.innerHTML = stepHtml + leadsHtml + statsHtml;
+
+        if (buildRoute) agentBuildRoute();
+        else {
+          typingBubble.innerHTML += '<div style="margin-top:10px;display:flex;gap:6px">' +
+            '<button onclick="agentBuildRoute()" style="padding:5px 12px;background:var(--navy);color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer">📍 Build Drive Route</button>' +
+            '<button onclick="go('contacts')" style="padding:5px 12px;background:transparent;border:1px solid var(--border);border-radius:5px;font-size:11px;cursor:pointer">View in Contacts →</button>' +
+            '</div>';
+        }
+        agentState = 'idle';
+      });
+    } else {
+      // Review mode - show leads for approval
+      stepHtml += '<div style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:12px"><span style="color:#f59e0b">→</span> Review below and confirm to add to CRM</div>';
+
+      var leadsHtml = '<div style="margin-top:10px;border:1px solid var(--border);border-radius:8px;overflow:hidden">' +
+        '<div style="padding:8px 12px;background:var(--surface);font-size:11px;font-weight:700;color:var(--text3)">FOUND ' + agentLeads.length + ' LEADS — REVIEW & APPROVE</div>';
+      agentLeads.slice(0, 8).forEach(function(l, i) {
+        var pc = l.priority === 'High' ? '#ef4444' : '#f59e0b';
+        leadsHtml += '<div style="padding:8px 12px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">' +
+          '<div><div style="font-size:12px;font-weight:600;color:var(--navy)">' + l.company + '</div>' +
+          '<div style="font-size:11px;color:var(--text3)">' + (l.category||'') + ' · ' + (l.city||'') + ', ' + (l.state||'') + (l.phone ? ' · ' + l.phone : '') + '</div></div>' +
+          '<span style="font-size:10px;font-weight:700;color:' + pc + ';background:' + pc + '15;padding:2px 7px;border-radius:99px">' + (l.priority||'Medium') + '</span></div>';
+      });
+      if (agentLeads.length > 8) leadsHtml += '<div style="padding:8px 12px;border-top:1px solid var(--border);font-size:11px;color:var(--text3)">+ ' + (agentLeads.length - 8) + ' more leads</div>';
+      leadsHtml += '</div>';
+
+      leadsHtml += '<div style="margin-top:10px;display:flex;gap-6px;gap:6px">' +
+        '<button onclick="agentConfirmAdd()" style="padding:7px 14px;background:var(--blue);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">✓ Add all ' + agentLeads.length + ' to CRM</button>' +
+        '<button onclick="agentBuildRoute()" style="padding:7px 14px;background:transparent;border:1px solid var(--border);border-radius:6px;font-size:12px;cursor:pointer">📍 Build Route First</button>' +
+        '</div>';
+
+      typingBubble.innerHTML = stepHtml + leadsHtml;
+      agentState = 'idle';
+    }
+  })
+  .catch(function(e) {
+    typingBubble.innerHTML = 'Something went wrong searching for leads. Please try again.';
+    agentState = 'idle';
   });
 }
 
-function loadCalls() {
-  fetch('/api/calls')
-    .then(function(r) { return r.json(); })
-    .then(function(calls) {
-      var tbody = document.getElementById('calls-tbody');
-      var empty = document.getElementById('calls-empty');
-      if (!tbody) return;
-      if (!calls.length) { tbody.innerHTML=''; if(empty) empty.style.display='block'; return; }
-      if(empty) empty.style.display='none';
-      tbody.innerHTML = calls.map(function(c) {
-        return '<tr><td style="color:var(--text3)">' + (c.call_date||'—') + '</td><td style="font-weight:600">' + c.company + '</td><td>' + (c.call_type||'—') + '</td><td>' + (c.outcome||'—') + '</td><td style="font-size:11.5px;color:var(--text2)">' + (c.products_discussed||'—') + '</td><td style="font-size:11.5px;color:var(--blue)">' + (c.next_step||'—') + '</td><td style="color:var(--text3)">' + (c.next_step_date||'—') + '</td></tr>';
-      }).join('');
-    });
+function agentConfirmAdd() {
+  if (!agentLeads || agentLeads.length === 0) return;
+  var typingBubble = agentTyping();
+  fetch('/api/leads/save', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ leads: agentLeads })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    typingBubble.innerHTML = '<span style="color:#22c55e">✓</span> Added ' + agentLeads.length + ' prospects to your CRM. ' +
+      '<button onclick="go('contacts')" style="color:var(--blue);background:none;border:none;cursor:pointer;font-size:12px;text-decoration:underline">View in Contacts →</button>';
+    loadDashboard();
+  });
 }
 
-function loadWeeklyPlan() {
-  fetch('/api/weekly/latest')
-    .then(function(r) { return r.json(); })
-    .then(function(d) { if(d.plan) renderWeeklyPlan(d.plan); });
-}
-
-function switchWeeklyTab(tab) {
-  document.getElementById('weekly-tab-plan').style.display = tab === 'plan' ? 'block' : 'none';
-  document.getElementById('weekly-tab-route').style.display = tab === 'route' ? 'block' : 'none';
-  document.getElementById('wtab-plan').className = tab === 'plan' ? 'btn btn-primary' : 'btn btn-secondary';
-  document.getElementById('wtab-route').className = tab === 'route' ? 'btn btn-primary' : 'btn btn-secondary';
-  document.getElementById('wtab-plan').style.fontSize = '12px';
-  document.getElementById('wtab-route').style.fontSize = '12px';
-}
-
-function buildRouteFromLeads() {
-  if (!foundLeads || foundLeads.length === 0) { showToast('No leads to build route from'); return; }
-  document.getElementById('lead-route-loading').style.display = 'block';
-  document.getElementById('lead-route-results').innerHTML = '';
+function agentBuildRoute() {
+  if (!agentLeads || agentLeads.length === 0) { showToast('No leads to build route from'); return; }
+  var typingBubble = agentTyping();
   fetch('/api/ai/route-planner', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ extra_leads: foundLeads, crm_only: false })
-  }).then(function(r) { return r.json(); }).then(function(d) {
-    document.getElementById('lead-route-loading').style.display = 'none';
-    if (d.error) { showToast(d.error); return; }
-    renderLeadRoute(d.route);
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ extra_leads: agentLeads, crm_only: false })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.error) { typingBubble.innerHTML = 'Could not build route: ' + d.error; return; }
+    var route = d.route;
+    var dayColors = {Monday:'#3B82F6',Tuesday:'#10B981',Wednesday:'#F59E0B',Thursday:'#8B5CF6',Friday:'#EF4444'};
+    var html = '<div style="font-size:11px;font-weight:700;color:var(--text3);margin-bottom:8px">WEEKLY DRIVE ROUTE — ' + (route.total_stops||0) + ' STOPS</div>';
+    html += '<div style="font-size:11px;color:var(--text3);margin-bottom:10px">' + (route.week_summary||'') + '</div>';
+    (route.days||[]).forEach(function(day) {
+      var c = dayColors[day.day] || '#64748B';
+      html += '<div style="margin-bottom:8px;border:1px solid var(--border);border-radius:8px;overflow:hidden">';
+      html += '<div style="background:' + c + ';color:#fff;padding:7px 12px;font-size:12px;font-weight:700">' + day.day + ' <span style="font-weight:400;opacity:.85">· ' + (day.focus_area||'') + ' · ' + (day.estimated_drive||'') + '</span></div>';
+      (day.stops||[]).slice(0,3).forEach(function(s) {
+        html += '<div style="padding:7px 12px;border-top:1px solid var(--border);font-size:11px"><span style="font-weight:600;color:var(--navy)">' + s.order + '. ' + s.company + '</span> <span style="color:var(--text3)">· ' + s.city + ', ' + s.state + '</span></div>';
+      });
+      if ((day.stops||[]).length > 3) html += '<div style="padding:5px 12px;font-size:11px;color:var(--text3);border-top:1px solid var(--border)">+ ' + (day.stops.length-3) + ' more stops</div>';
+      html += '</div>';
+    });
+    typingBubble.innerHTML = html;
   });
 }
 
-function renderLeadRoute(route) {
-  if (!route) return;
-  var dayColors = {'Monday':'#3B82F6','Tuesday':'#10B981','Wednesday':'#F59E0B','Thursday':'#8B5CF6','Friday':'#EF4444'};
-  var html = '<div style="margin-top:16px;border-top:2px solid var(--border);padding-top:16px">';
-  html += '<div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:8px">📍 Weekly Drive Route</div>';
-  html += '<div style="font-size:12px;color:var(--text3);margin-bottom:12px;padding:8px 12px;background:var(--surface);border-radius:var(--r-sm)">' + (route.week_summary || '') + ' · ' + (route.total_stops || 0) + ' stops</div>';
-  (route.days || []).forEach(function(day) {
-    var color = dayColors[day.day] || '#64748B';
-    html += '<div style="margin-bottom:12px;border:1px solid var(--border);border-radius:var(--r);overflow:hidden">';
-    html += '<div style="background:' + color + ';color:#fff;padding:9px 14px;display:flex;align-items:center;justify-content:space-between">';
-    html += '<div><span style="font-size:13px;font-weight:700">' + day.day + '</span><span style="font-size:11px;opacity:.85;margin-left:8px">· ' + (day.focus_area || '') + '</span></div>';
-    html += '<span style="font-size:11px;opacity:.8">' + (day.estimated_drive || '') + '</span></div>';
-    (day.stops || []).forEach(function(stop) {
-      var pc = stop.priority === 'High' ? '#EF4444' : stop.priority === 'Medium' ? '#F59E0B' : '#64748B';
-      html += '<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:10px">';
-      html += '<div style="width:24px;height:24px;border-radius:50%;background:' + color + '20;color:' + color + ';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">' + stop.order + '</div>';
-      html += '<div style="flex:1">';
-      html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">';
-      html += '<span style="font-size:13px;font-weight:600;color:var(--navy)">' + stop.company + '</span>';
-      html += '<span style="font-size:10px;font-weight:600;color:' + pc + ';background:' + pc + '15;padding:1px 6px;border-radius:99px">' + (stop.priority || 'Medium') + '</span>';
-      html += '</div>';
-      html += '<div style="font-size:11px;color:var(--text3)">' + (stop.category || '') + ' · ' + (stop.city || '') + ', ' + (stop.state || '') + (stop.phone ? ' · <a href="tel:' + stop.phone + '" style="color:var(--blue)">' + stop.phone + '</a>' : '') + '</div>';
-      if (stop.goal) html += '<div style="font-size:11px;color:var(--blue);margin-top:2px">🎯 ' + stop.goal + '</div>';
-      html += '</div></div>';
-    });
-    html += '</div>';
-  });
-  html += '</div>';
-  document.getElementById('lead-route-results').innerHTML = html;
-}
+
 
 function buildRoute() {
   document.getElementById('route-loading').style.display = 'block';
