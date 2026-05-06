@@ -1852,10 +1852,10 @@ function runLeadAgent() {
   else if (lower.includes('deck contractor')) customerType = 'Deck Contractor';
 
   // Step 1: search for leads
-  fetch('/api/places/search', {
+  fetch('/api/places/places-leads', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ product: product, customerType: customerType, territory: territory, count: count })
+    body: JSON.stringify({ category: product, customer_type: customerType, territory: territory, count: count })
   })
   .then(function(r) { return r.json(); })
   .then(function(d) {
