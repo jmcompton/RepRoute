@@ -1857,7 +1857,7 @@ function runLeadAgent() {
         '<div style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:12px"><span style="color:#22c55e">✓</span> Scored and ranked by rating, reviews, and product fit</div>';
 
       if (autoAdd) {
-        fetch('/api/leads/save', {
+        fetch('/api/ai/leads/save', {
           method: 'POST',
           headers: {'Content-Type':'application/json'},
           body: JSON.stringify({ leads: agentLeads })
@@ -1931,7 +1931,7 @@ function buildActionButtons(added) {
 function agentConfirmAdd() {
   if (!agentLeads || agentLeads.length === 0) return;
   var typingBubble = agentTyping();
-  fetch('/api/leads/save', {
+  fetch('/api/ai/leads/save', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({ leads: agentLeads })
