@@ -518,8 +518,8 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
   </div>
 
     <!-- AI LEAD FINDER -->
-  <div class="page" id="page-leads" style="overflow:hidden">
-    <div style="display:flex;flex-direction:column;height:100%;background:var(--bg)">
+  <div class="page" id="page-leads">
+    <div style="display:flex;flex-direction:column;height:100%;background:var(--bg);max-width:900px;margin:0 auto;width:100%">
 
       <!-- Agent header -->
       <div style="padding:12px 16px;border-bottom:1px solid var(--border);background:var(--white);display:flex;align-items:center;gap:10px;flex-shrink:0">
@@ -1925,14 +1925,14 @@ function runLeadAgent() {
 function buildLeadCards(leads, showApprove) {
   var html = '<div style="margin-top:10px;border:1px solid var(--border);border-radius:8px;overflow:hidden">';
   html += '<div style="padding:8px 12px;background:var(--surface);font-size:11px;font-weight:700;color:var(--text3)">' + (showApprove ? 'FOUND ' + leads.length + ' LEADS — REVIEW & APPROVE' : 'ADDED TO CRM') + '</div>';
-  leads.slice(0, 8).forEach(function(l) {
+  leads.slice(0, 15).forEach(function(l) {
     var pc = l.priority === 'High' ? '#ef4444' : l.priority === 'Medium' ? '#f59e0b' : '#64748b';
     html += '<div style="padding:8px 12px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">' +
       '<div><div style="font-size:12px;font-weight:600;color:var(--navy)">' + l.company + '</div>' +
       '<div style="font-size:11px;color:var(--text3)">' + (l.category||'') + ' · ' + (l.city||'') + ', ' + (l.state||'') + (l.phone ? ' · ' + l.phone : '') + (l.rating ? ' · ⭐ ' + l.rating : '') + '</div></div>' +
       '<span style="font-size:10px;font-weight:700;color:' + pc + ';background:' + pc + '15;padding:2px 7px;border-radius:99px">' + (l.priority||'Medium') + '</span></div>';
   });
-  if (leads.length > 8) html += '<div style="padding:8px 12px;border-top:1px solid var(--border);font-size:11px;color:var(--text3)">+ ' + (leads.length - 8) + ' more leads</div>';
+  if (leads.length > 15) html += '<div style="padding:8px 12px;border-top:1px solid var(--border);font-size:11px;color:var(--blue);cursor:pointer" onclick="this.parentElement.innerHTML+=window._remainingLeadsHtml||\'\';">+ ' + (leads.length - 15) + ' more leads — click to see all</div>';
   html += '</div>';
 
   // Stats
