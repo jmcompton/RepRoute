@@ -1812,137 +1812,130 @@ function runLeadAgent() {
   input.value = '';
   agentState = 'running';
 
-  // Hide suggestions after first message
   var sugg = document.getElementById('agent-suggestions');
   if (sugg) sugg.style.display = 'none';
 
   agentAddMsg('user', msg);
   var typingBubble = agentTyping();
 
-  // Parse intent from message
-  var lower = msg.toLowerCase();
-  var autoAdd = lower.includes('add') || lower.includes('save') || lower.includes('crm');
-  var buildRoute = lower.includes('route') || lower.includes('drive') || lower.includes('week');
-  var count = 20;
-  var countMatch = msg.match(/(\d+)/);
-  if (countMatch) count = Math.min(parseInt(countMatch[1]), 50);
+  // Step 1: Ask Claude to interpret the rep's intent
+  var systemPrompt = 'You are an AI assistant for a building materials sales rep CRM called RepRoute. The rep sells these products: Soudal BOSS Sealants & Adhesives (target: roofing/siding distributors, lumber yards), ShurTape Deck & Window Flashing Tape (target: lumber dealers, building material dealers), Alum-A-Pole Pump Jack Scaffolding (target: tool & equipment suppliers), Fortress Steel Framing (target: deck contractors), Fortress Railing (target: deck contractors). The rep is based in the Southeast US. Parse the rep message and return ONLY a JSON object with these fields: { "product": one of ["Soudal Sealants and Adhesives","ShurTape Flashing and Deck Tape","Alum-A-Pole Pump Jack Scaffolding and Equipment","Fortress Evolution Steel Framing","Fortress Railing Systems","All Building Products"], "customerType": most relevant customer type or "any building products buyer", "territory": city and state extracted from message or "Southeast", "count": number of leads requested (default 20, max 50), "addToCRM": true if they say add/save/crm, "buildRoute": true if they mention route/drive/schedule/door-to-door/weekly/visits/calls per day, "stopsPerDay": number of stops per day if mentioned (default 10) }';
 
-  // Extract product line
-  var product = 'All Building Products';
-  if (lower.includes('soudal') || lower.includes('sealant') || lower.includes('boss') || lower.includes('adhesive')) product = 'Soudal Sealants and Adhesives';
-  else if (lower.includes('shurtape') || lower.includes('flashing') || lower.includes('deck tape') || lower.includes('window tape')) product = 'ShurTape Flashing and Deck Tape';
-  else if (lower.includes('alum') || lower.includes('scaffolding') || lower.includes('pump jack') || lower.includes('pump-jack')) product = 'Alum-A-Pole Pump Jack Scaffolding and Equipment';
-  else if (lower.includes('fortress') && lower.includes('rail')) product = 'Fortress Railing Systems';
-  else if (lower.includes('fortress') || lower.includes('framing') || lower.includes('steel frame')) product = 'Fortress Evolution Steel Framing';
-
-  // Extract territory
-  var territory = (currentUser && currentUser.territory) || 'Southeast';
-  var territories = ['birmingham','atlanta','nashville','charlotte','memphis','mobile','huntsville','marietta','alpharetta','knoxville','chattanooga','augusta','savannah','jacksonville'];
-  for (var i = 0; i < territories.length; i++) {
-    if (lower.includes(territories[i])) { territory = territories[i]; break; }
-  }
-
-  // Extract customer type
-  var customerType = 'any building products buyer';
-  if (lower.includes('roofing distributor') || lower.includes('roofing supply')) customerType = 'Roofing Distributor';
-  else if (lower.includes('siding distributor')) customerType = 'Siding Distributor';
-  else if (lower.includes('lumber dealer') || lower.includes('lumber yard')) customerType = 'Lumber Dealer';
-  else if (lower.includes('building material')) customerType = 'Building Material Dealer';
-  else if (lower.includes('tool') || lower.includes('equipment supplier')) customerType = 'Tool and Equipment Supplier';
-  else if (lower.includes('deck contractor')) customerType = 'Deck Contractor';
-
-  // Step 1: search for leads
-  fetch('/api/places/places-leads', {
+  fetch('/api/ai/command', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ category: product, customer_type: customerType, territory: territory, count: count })
+    body: JSON.stringify({
+      prompt: 'Parse this sales rep request and return ONLY JSON: "' + msg + '"',
+      system: systemPrompt
+    })
   })
   .then(function(r) { return r.json(); })
   .then(function(d) {
-    agentLeads = d.leads || [];
-    if (agentLeads.length === 0) {
-      typingBubble.innerHTML = 'No leads found for that search. Try a different territory or product line.';
-      agentState = 'idle';
-      return;
+    var raw = d.response || d.error || '';
+    var plan;
+    try {
+      var start = raw.indexOf('{');
+      var end = raw.lastIndexOf('}');
+      plan = JSON.parse(raw.substring(start, end + 1));
+    } catch(e) {
+      // Fallback plan if Claude parse fails
+      plan = { product: 'All Building Products', customerType: 'any building products buyer', territory: 'Southeast', count: 20, addToCRM: false, buildRoute: false, stopsPerDay: 10 };
     }
 
-    var stepHtml = '<div style="font-size:11px;font-weight:700;color:var(--text3);margin-bottom:8px">AGENT STEPS</div>' +
-      '<div style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:12px"><span style="color:#22c55e">✓</span> Searched Google Maps — found ' + agentLeads.length + ' businesses in ' + territory + '</div>' +
-      '<div style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:12px"><span style="color:#22c55e">✓</span> Scored and ranked by rating, reviews, and product fit</div>';
+    var count = Math.min(plan.count || 20, 50);
+    var autoAdd = plan.addToCRM || false;
+    var buildRoute = plan.buildRoute || false;
 
-    if (autoAdd) {
-      // Autopilot mode - add directly
-      var toSave = agentLeads.slice(0, Math.min(count, agentLeads.length));
-      fetch('/api/leads/save', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ leads: toSave })
-      })
-      .then(function(r) { return r.json(); })
-      .then(function(saveD) {
-        stepHtml += '<div style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:12px"><span style="color:#22c55e">✓</span> Added ' + toSave.length + ' prospects to your CRM</div>';
-
-        // Show results card
-        var topLeads = agentLeads.slice(0, 5);
-        var leadsHtml = '<div style="margin-top:10px;border:1px solid var(--border);border-radius:8px;overflow:hidden">' +
-          '<div style="padding:8px 12px;background:var(--surface);font-size:11px;font-weight:700;color:var(--text3)">ADDED TO CRM</div>';
-        topLeads.forEach(function(l) {
-          var pc = l.priority === 'High' ? '#ef4444' : '#f59e0b';
-          leadsHtml += '<div style="padding:8px 12px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">' +
-            '<div><div style="font-size:12px;font-weight:600;color:var(--navy)">' + l.company + '</div>' +
-            '<div style="font-size:11px;color:var(--text3)">' + (l.category||'') + ' · ' + (l.city||'') + ', ' + (l.state||'') + '</div></div>' +
-            '<span style="font-size:10px;font-weight:700;color:' + pc + ';background:' + pc + '15;padding:2px 7px;border-radius:99px">' + (l.priority||'Medium') + '</span></div>';
-        });
-        if (agentLeads.length > 5) leadsHtml += '<div style="padding:8px 12px;border-top:1px solid var(--border);font-size:11px;color:var(--text3)">+ ' + (agentLeads.length - 5) + ' more added</div>';
-        leadsHtml += '</div>';
-
-        var statsHtml = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px">' +
-          '<div style="text-align:center;background:var(--surface);border-radius:6px;padding:8px"><div style="font-size:18px;font-weight:700;color:var(--navy)">' + agentLeads.length + '</div><div style="font-size:10px;color:var(--text3)">found</div></div>' +
-          '<div style="text-align:center;background:var(--surface);border-radius:6px;padding:8px"><div style="font-size:18px;font-weight:700;color:var(--blue)">' + toSave.length + '</div><div style="font-size:10px;color:var(--text3)">added to CRM</div></div>' +
-          '<div style="text-align:center;background:var(--surface);border-radius:6px;padding:8px"><div style="font-size:18px;font-weight:700;color:#22c55e">' + agentLeads.filter(function(l){return l.priority==='High';}).length + '</div><div style="font-size:10px;color:var(--text3)">high priority</div></div>' +
-          '</div>';
-
-        typingBubble.innerHTML = stepHtml + leadsHtml + statsHtml;
-
-        if (buildRoute) agentBuildRoute();
-        else {
-          typingBubble.innerHTML += '<div style="margin-top:10px;display:flex;gap:6px">' +
-            '<button onclick="agentBuildRoute()" style="padding:5px 12px;background:var(--navy);color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer">📍 Build Drive Route</button>' +
-            '<button onclick="go(\'contacts\')" style="padding:5px 12px;background:transparent;border:1px solid var(--border);border-radius:5px;font-size:11px;cursor:pointer">View in Contacts →</button>' +
-            '</div>';
-        }
+    // Step 2: Search for leads using Claude's parsed plan
+    fetch('/api/places/places-leads', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ category: plan.product, customer_type: plan.customerType, territory: plan.territory, count: count })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      agentLeads = d.leads || [];
+      if (d.error || agentLeads.length === 0) {
+        typingBubble.innerHTML = d.error || 'No leads found for that search. Try a different territory or product line.';
         agentState = 'idle';
-      });
-    } else {
-      // Review mode - show leads for approval
-      stepHtml += '<div style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:12px"><span style="color:#f59e0b">→</span> Review below and confirm to add to CRM</div>';
+        return;
+      }
 
-      var leadsHtml = '<div style="margin-top:10px;border:1px solid var(--border);border-radius:8px;overflow:hidden">' +
-        '<div style="padding:8px 12px;background:var(--surface);font-size:11px;font-weight:700;color:var(--text3)">FOUND ' + agentLeads.length + ' LEADS — REVIEW & APPROVE</div>';
-      agentLeads.slice(0, 8).forEach(function(l, i) {
-        var pc = l.priority === 'High' ? '#ef4444' : '#f59e0b';
-        leadsHtml += '<div style="padding:8px 12px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">' +
-          '<div><div style="font-size:12px;font-weight:600;color:var(--navy)">' + l.company + '</div>' +
-          '<div style="font-size:11px;color:var(--text3)">' + (l.category||'') + ' · ' + (l.city||'') + ', ' + (l.state||'') + (l.phone ? ' · ' + l.phone : '') + '</div></div>' +
-          '<span style="font-size:10px;font-weight:700;color:' + pc + ';background:' + pc + '15;padding:2px 7px;border-radius:99px">' + (l.priority||'Medium') + '</span></div>';
-      });
-      if (agentLeads.length > 8) leadsHtml += '<div style="padding:8px 12px;border-top:1px solid var(--border);font-size:11px;color:var(--text3)">+ ' + (agentLeads.length - 8) + ' more leads</div>';
-      leadsHtml += '</div>';
+      var stepHtml = '<div style="font-size:11px;font-weight:700;color:var(--text3);margin-bottom:8px">AGENT STEPS</div>' +
+        '<div style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:12px"><span style="color:#22c55e">✓</span> Searched Google Maps — found ' + agentLeads.length + ' businesses in ' + plan.territory + '</div>' +
+        '<div style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:12px"><span style="color:#22c55e">✓</span> Scored and ranked by rating, reviews, and product fit</div>';
 
-      leadsHtml += '<div style="margin-top:10px;display:flex;gap-6px;gap:6px">' +
-        '<button onclick="agentConfirmAdd()" style="padding:7px 14px;background:var(--blue);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">✓ Add all ' + agentLeads.length + ' to CRM</button>' +
-        '<button onclick="agentBuildRoute()" style="padding:7px 14px;background:transparent;border:1px solid var(--border);border-radius:6px;font-size:12px;cursor:pointer">📍 Build Route First</button>' +
-        '</div>';
-
-      typingBubble.innerHTML = stepHtml + leadsHtml;
+      if (autoAdd) {
+        fetch('/api/leads/save', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ leads: agentLeads })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function() {
+          stepHtml += '<div style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:12px"><span style="color:#22c55e">✓</span> Added ' + agentLeads.length + ' prospects to your CRM</div>';
+          typingBubble.innerHTML = stepHtml + buildLeadCards(agentLeads, false);
+          if (buildRoute) agentBuildRoute(plan.stopsPerDay || 10);
+          else {
+            typingBubble.innerHTML += buildActionButtons(false);
+          }
+          agentState = 'idle';
+          loadDashboard();
+        });
+      } else {
+        stepHtml += '<div style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:12px"><span style="color:#f59e0b">→</span> Review below and confirm to add to CRM</div>';
+        typingBubble.innerHTML = stepHtml + buildLeadCards(agentLeads, true);
+        if (buildRoute) agentBuildRoute(plan.stopsPerDay || 10);
+        agentState = 'idle';
+      }
+    })
+    .catch(function() {
+      typingBubble.innerHTML = 'Something went wrong searching for leads. Please try again.';
       agentState = 'idle';
-    }
+    });
   })
-  .catch(function(e) {
-    typingBubble.innerHTML = 'Something went wrong searching for leads. Please try again.';
+  .catch(function() {
+    typingBubble.innerHTML = 'Could not interpret your request. Please try again.';
     agentState = 'idle';
   });
 }
+
+function buildLeadCards(leads, showApprove) {
+  var html = '<div style="margin-top:10px;border:1px solid var(--border);border-radius:8px;overflow:hidden">';
+  html += '<div style="padding:8px 12px;background:var(--surface);font-size:11px;font-weight:700;color:var(--text3)">' + (showApprove ? 'FOUND ' + leads.length + ' LEADS — REVIEW & APPROVE' : 'ADDED TO CRM') + '</div>';
+  leads.slice(0, 8).forEach(function(l) {
+    var pc = l.priority === 'High' ? '#ef4444' : l.priority === 'Medium' ? '#f59e0b' : '#64748b';
+    html += '<div style="padding:8px 12px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">' +
+      '<div><div style="font-size:12px;font-weight:600;color:var(--navy)">' + l.company + '</div>' +
+      '<div style="font-size:11px;color:var(--text3)">' + (l.category||'') + ' · ' + (l.city||'') + ', ' + (l.state||'') + (l.phone ? ' · ' + l.phone : '') + (l.rating ? ' · ⭐ ' + l.rating : '') + '</div></div>' +
+      '<span style="font-size:10px;font-weight:700;color:' + pc + ';background:' + pc + '15;padding:2px 7px;border-radius:99px">' + (l.priority||'Medium') + '</span></div>';
+  });
+  if (leads.length > 8) html += '<div style="padding:8px 12px;border-top:1px solid var(--border);font-size:11px;color:var(--text3)">+ ' + (leads.length - 8) + ' more leads</div>';
+  html += '</div>';
+
+  // Stats
+  html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px">' +
+    '<div style="text-align:center;background:var(--surface);border-radius:6px;padding:8px"><div style="font-size:18px;font-weight:700;color:var(--navy)">' + leads.length + '</div><div style="font-size:10px;color:var(--text3)">found</div></div>' +
+    '<div style="text-align:center;background:var(--surface);border-radius:6px;padding:8px"><div style="font-size:18px;font-weight:700;color:#ef4444">' + leads.filter(function(l){return l.priority==='High';}).length + '</div><div style="font-size:10px;color:var(--text3)">high priority</div></div>' +
+    '<div style="text-align:center;background:var(--surface);border-radius:6px;padding:8px"><div style="font-size:18px;font-weight:700;color:#22c55e">' + leads.filter(function(l){return l.rating>=4.0;}).length + '</div><div style="font-size:10px;color:var(--text3)">4.0+ rated</div></div>' +
+    '</div>';
+
+  if (showApprove) {
+    html += '<div style="margin-top:10px;display:flex;gap:6px">' +
+      '<button onclick="agentConfirmAdd()" style="padding:7px 14px;background:var(--blue);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">✓ Add all ' + leads.length + ' to CRM</button>' +
+      '<button onclick="agentBuildRoute(10)" style="padding:7px 14px;background:transparent;border:1px solid var(--border);border-radius:6px;font-size:12px;cursor:pointer">📍 Build Route</button>' +
+      '</div>';
+  }
+  return html;
+}
+
+function buildActionButtons(added) {
+  return '<div style="margin-top:10px;display:flex;gap:6px">' +
+    '<button onclick="agentBuildRoute(10)" style="padding:5px 12px;background:var(--navy);color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer">📍 Build Drive Route</button>' +
+    '<button onclick="go(\'contacts\')" style="padding:5px 12px;background:transparent;border:1px solid var(--border);border-radius:5px;font-size:11px;cursor:pointer">View in Contacts →</button>' +
+    '</div>';
+}
+
 
 function agentConfirmAdd() {
   if (!agentLeads || agentLeads.length === 0) return;
