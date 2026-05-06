@@ -1424,6 +1424,8 @@ window.addEventListener('load', function() {
       if (d && d.user) {
         var u = d.user;
         window.__userData = u;
+        window.currentUser = u;
+        window.currentUser = u;
         var initials = u.name ? u.name.split(' ').map(function(w) { return w[0]; }).join('').toUpperCase().slice(0,2) : 'JM';
         document.getElementById('s-av').textContent = initials;
         document.getElementById('s-name').textContent = u.name || 'Rep';
