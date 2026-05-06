@@ -1482,7 +1482,13 @@ function go(id) {
   if (id === 'analytics') loadAnalytics();
   if (id === 'tasks') loadTasks();
   if (id === 'accounts') loadAccounts();
-  if (id === 'calendar') loadCalendar();
+  if (id === 'calendar') {
+    // Small delay lets the page display before FullCalendar calculates size
+    setTimeout(function() { 
+      if (calendarInstance) { calendarInstance.destroy(); calendarInstance = null; }
+      loadCalendar(); 
+    }, 50);
+  }
   if (id === 'email') loadEmailPage();
   if (id === 'samples') loadSamples();
 }
