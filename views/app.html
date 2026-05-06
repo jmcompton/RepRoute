@@ -1024,8 +1024,8 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
           <button class="btn btn-primary btn-sm" onclick="openModal('add-event')">+ Add Event</button>
         </div>
       </div>
-      <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:16px">
-        <div id="fullcalendar" style="min-height:600px"></div>
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:8px">
+        <div id="fullcalendar"></div>
       </div>
   </div>
 
@@ -3278,7 +3278,8 @@ function renderCalendar(events) {
   calendarInstance = new FullCalendar.Calendar(el, {
     initialView: 'dayGridMonth',
     headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,listWeek' },
-    height: 650,
+    height: 'auto',
+    contentHeight: 580,
     events: fcEvents,
     eventClick: function(info) {
       var p = info.event.extendedProps;
