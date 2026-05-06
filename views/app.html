@@ -1955,7 +1955,7 @@ function agentConfirmAdd() {
   .then(function(r) { return r.json(); })
   .then(function(d) {
     typingBubble.innerHTML = '<span style="color:#22c55e">✓</span> Added ' + agentLeads.length + ' prospects to your CRM. ' +
-      '<button onclick="go('contacts')" style="color:var(--blue);background:none;border:none;cursor:pointer;font-size:12px;text-decoration:underline">View in Contacts →</button>';
+      '<button onclick="go(&quot;contacts&quot;)" style="color:var(--blue);background:none;border:none;cursor:pointer;font-size:12px;text-decoration:underline">View in Contacts →</button>';
     loadDashboard();
   });
 }
