@@ -1866,7 +1866,8 @@ function runLeadAgent() {
         .then(function() {
           stepHtml += '<div style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:12px"><span style="color:#22c55e">✓</span> Added ' + agentLeads.length + ' prospects to your CRM</div>';
           typingBubble.innerHTML = stepHtml + buildLeadCards(agentLeads, false);
-          if (buildRoute) agentBuildRoute(plan.stopsPerDay || 10);
+          // Route building is triggered manually via button
+
           else {
             typingBubble.innerHTML += buildActionButtons(false);
           }
@@ -1876,7 +1877,8 @@ function runLeadAgent() {
       } else {
         stepHtml += '<div style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:12px"><span style="color:#f59e0b">→</span> Review below and confirm to add to CRM</div>';
         typingBubble.innerHTML = stepHtml + buildLeadCards(agentLeads, true);
-        if (buildRoute) agentBuildRoute(plan.stopsPerDay || 10);
+        // Route building is triggered manually via button
+
         agentState = 'idle';
       }
     })
