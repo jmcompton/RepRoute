@@ -1409,6 +1409,36 @@ window.addEventListener('load', function() {
     });
 });
 
+function loadCalls() {
+  var tbody = document.getElementById('calls-tbody');
+  var empty = document.getElementById('calls-empty');
+  if (!tbody) return;
+  fetch('/api/calls')
+    .then(function(r) { return r.json(); })
+    .then(function(calls) {
+      if (!calls || calls.length === 0) {
+        tbody.innerHTML = '';
+        if (empty) empty.style.display = 'block';
+        return;
+      }
+      if (empty) empty.style.display = 'none';
+      tbody.innerHTML = calls.map(function(c) {
+        return '<tr onclick="viewRecord(' + c.prospect_id + ')" style="cursor:pointer">' +
+          '<td style="color:var(--text3)">' + (c.call_date ? c.call_date.split('T')[0] : '—') + '</td>' +
+          '<td style="font-weight:600;color:var(--navy)">' + (c.company || '—') + '</td>' +
+          '<td>' + (c.call_type || '—') + '</td>' +
+          '<td>' + (c.outcome || '—') + '</td>' +
+          '<td style="font-size:11px">' + (c.products_discussed || '—') + '</td>' +
+          '<td style="color:var(--blue);font-size:11px">' + (c.next_step || '—') + '</td>' +
+          '<td style="color:var(--text3);font-size:11px">' + (c.next_step_date ? c.next_step_date.split('T')[0] : '—') + '</td>' +
+          '</tr>';
+      }).join('');
+    })
+    .catch(function() {
+      if (empty) empty.style.display = 'block';
+    });
+}
+
 function goLogCall(prospectId) {
   go('calls');
   loadCallProspects();
