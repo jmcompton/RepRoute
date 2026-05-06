@@ -131,27 +131,26 @@ router.post('/places-leads', async (req, res) => {
       label: query
     }));
 
-    const BATCH = 5;
-    for (let i = 0; i < jobs.length && leadsMap.size < numLeads; i += BATCH) {
-      const batch = jobs.slice(i, i + BATCH);
-      const results = await Promise.all(batch.map(async ({ query, label }) => {
-        try {
-          const data = await httpsPost(
-            'places.googleapis.com',
-            '/v1/places:searchText',
-            {
-              'Content-Type': 'application/json',
-              'X-Goog-Api-Key': PLACES_KEY,
-              'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.businessStatus'
-            },
-            { textQuery: query, maxResultCount: 20 }
-          );
-          return { label, places: data.places || [] };
-        } catch(e) {
-          console.error('Query error:', label, e.message);
-          return { label, places: [] };
-        }
-      }));
+    // Run all queries in parallel for speed
+    const results = await Promise.all(jobs.map(async ({ query, label }) => {
+      try {
+        const data = await httpsPost(
+          'places.googleapis.com',
+          '/v1/places:searchText',
+          {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': PLACES_KEY,
+            'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.businessStatus'
+          },
+          { textQuery: query, maxResultCount: 20 }
+        );
+        return { label, places: data.places || [] };
+      } catch(e) {
+        console.error('Query error:', label, e.message);
+        return { label, places: [] };
+      }
+    }));
+    if (true) {
 
       for (const { label, places } of results) {
         console.log(label, '->', places.length, 'results | total:', leadsMap.size);
