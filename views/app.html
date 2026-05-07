@@ -346,7 +346,7 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 
   <!-- DASHBOARD -->
   <div class="page active" id="page-dashboard" style="overflow-y:auto">
-    <div style="padding:24px 24px 60px 24px;width:100%;box-sizing:border-box">
+    <div style="padding:24px 24px 60px 0;width:100%;box-sizing:border-box;margin-left:-4px">
 
       <!-- Greeting -->
       <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px" id="dash-date"></div>
@@ -560,7 +560,7 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 
   <!-- AI LEAD FINDER -->
   <div class="page" id="page-leads" style="overflow-y:auto">
-    <div style="padding:24px 24px 60px 24px;width:100%;box-sizing:border-box">
+    <div style="padding:24px 24px 60px 0;width:100%;box-sizing:border-box;margin-left:-4px">
 
       <!-- Header -->
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
@@ -1624,10 +1624,8 @@ function loadMorningBriefing(force) {
       if (data.error) return;
       // Greeting
       var firstName = (data.user.name || '').split(' ')[0] || 'there';
-      var hour = new Date().getHours();
-      var timeGreeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
       var greetEl = document.getElementById('dash-greeting');
-      if (greetEl) greetEl.innerHTML = timeGreeting + ', <span style="color:var(--accent)">' + firstName + '</span>';
+      if (greetEl) greetEl.innerHTML = 'Good morning, <span style="color:var(--accent)">' + firstName + '</span>';
       // Date
       var dateEl = document.getElementById('dash-date');
       if (dateEl) dateEl.textContent = data.date;
