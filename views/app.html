@@ -406,7 +406,7 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
           </div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <input id="lead-city-input" type="text" placeholder="Enter city (e.g. Atlanta GA)" style="padding:9px 12px;border:1px solid var(--border);border-radius:6px;font-size:12.5px;outline:none;min-width:200px;font-family:'DM Sans',sans-serif" onkeydown="if(event.key==='Enter')runDailyLeads()">
+          <input id="lead-city-input" type="text" name="lead_city_search" placeholder="Enter city (e.g. Norcross GA)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" style="padding:9px 12px;border:1px solid var(--border);border-radius:6px;font-size:12.5px;outline:none;min-width:220px;font-family:'DM Sans',sans-serif" onkeydown="if(event.key==='Enter')runDailyLeads()">
           <button onclick="runDailyLeads()" id="lead-find-btn" style="padding:10px 22px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">
             Find Today's Leads
           </button>
@@ -3632,6 +3632,108 @@ function setActiveNav(id){
 document.querySelectorAll('.sb-item').forEach(function(item){
   item.addEventListener('click', function(){ if(window.innerWidth<=768) closeSidebar(); });
 });
+
+// ─── DAILY LEAD FINDER (global) ─────────────────────────────────────
+window.runDailyLeads = function() {
+  var btn = document.getElementById('lead-find-btn');
+  var loading = document.getElementById('lead-loading');
+  var results = document.getElementById('lead-results');
+  var summary = document.getElementById('lead-summary');
+  var city = document.getElementById('lead-city-input')?.value?.trim() || '';
+
+  if (!city) { alert('Please enter a city first (e.g. Norcross GA)'); return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Searching...';
+  if (loading) loading.style.display = 'block';
+  if (results) results.innerHTML = '';
+  if (summary) summary.style.display = 'none';
+
+  fetch('/api/morning/daily-leads', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ city: city })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (loading) loading.style.display = 'none';
+      btn.disabled = false;
+      btn.textContent = "Find Today's Leads";
+
+      if (data.error) { alert('Error: ' + data.error); return; }
+
+      var leads = data.leads || [];
+      if (!leads.length) {
+        if (results) results.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text3);font-size:13px">No leads found for "' + city + '". Try a different city.</div>';
+        return;
+      }
+
+      if (summary) {
+        summary.style.display = 'block';
+        document.getElementById('lead-summary-text').textContent = leads.length + ' leads found in ' + city;
+      }
+
+      var prodColors = {
+        'BOSS Products': { bg: '#fee2e2', color: '#b91c1c' },
+        'ShurTape': { bg: '#dbeafe', color: '#1d4ed8' },
+        'Alum-A-Pole': { bg: '#d1fae5', color: '#065f46' }
+      };
+
+      results.innerHTML = leads.map(function(lead, i) {
+        var c = prodColors[lead.products] || { bg: '#f1f5f9', color: '#64748b' };
+        var prodBadge = '<span style="background:' + c.bg + ';color:' + c.color + ';font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px">' + (lead.products||'') + '</span>';
+        var rating = lead.rating ? '<span style="font-size:11px;color:var(--text3)">★ ' + lead.rating + ' (' + (lead.reviews||0) + ')</span>' : '';
+
+        return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:8px">' +
+          '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">' +
+            '<div style="font-size:14px;font-weight:700;color:var(--navy);flex:1">' + lead.company + '</div>' +
+            prodBadge +
+          '</div>' +
+          '<div style="font-size:11.5px;color:var(--text2)">' + lead.category + '</div>' +
+          (lead.address ? '<div style="font-size:11.5px;color:var(--text2)">📍 ' + lead.address + '</div>' : '') +
+          (lead.phone ? '<div style="font-size:11.5px;color:var(--text2)">📞 ' + lead.phone + '</div>' : '') +
+          (rating ? '<div>' + rating + '</div>' : '') +
+          '<div style="display:flex;justify-content:flex-end;margin-top:4px">' +
+            '<button onclick="addLeadToCRM(' + i + ')" id="add-lead-' + i + '" style="padding:5px 12px;background:var(--accent);color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer">+ Add to CRM</button>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+
+      window._dailyLeads = leads;
+    })
+    .catch(function(e) {
+      if (loading) loading.style.display = 'none';
+      btn.disabled = false;
+      btn.textContent = "Find Today's Leads";
+      alert('Error: ' + e.message);
+    });
+};
+
+window.addLeadToCRM = function(i) {
+  var lead = window._dailyLeads?.[i];
+  if (!lead) return;
+  fetch('/api/prospects', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      company: lead.company,
+      category: lead.category,
+      city: lead.city,
+      address: lead.address || '',
+      phone: lead.phone || '',
+      website: lead.website || '',
+      products: lead.products || '',
+      priority: lead.priority || 'High',
+      status: 'New',
+      source: 'AI',
+      pipeline_stage: 'New Lead'
+    })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    var btn = document.getElementById('add-lead-' + i);
+    if (btn) { btn.textContent = 'Added!'; btn.disabled = true; btn.style.background = '#059669'; }
+  });
+};
+
 </script>
 </body>
 </html>
