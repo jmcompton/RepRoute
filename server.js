@@ -52,7 +52,6 @@ app.get('/', (req, res) => {
 });
 
 app.get('/app', requireAuth, (req, res) => {
-  if (req.session.user.role === 'rep') return res.redirect('/morning');
   res.sendFile(path.join(__dirname, 'views', 'app.html'));
 });
 
