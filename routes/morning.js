@@ -107,12 +107,14 @@ router.post('/daily-leads', async (req, res) => {
   const uid = req.session.user.id;
 
   // Hit our own places-leads endpoint for each combination
+  const city = (req.body.city || '').trim() || 'Atlanta GA';
+
   const targets = [
-    { product: 'BOSS Products', territory: 'Atlanta Metro', customer_type: 'Roofing Contractor', count: 3 },
-    { product: 'BOSS Products', territory: 'Birmingham', customer_type: 'Roofing Contractor', count: 2 },
-    { product: 'Alum-A-Pole', territory: 'Atlanta Metro', customer_type: 'Deck Contractor', count: 2 },
-    { product: 'ShurTape', territory: 'Birmingham', customer_type: 'Lumber Yard', count: 2 },
-    { product: 'BOSS Products', territory: 'Atlanta Metro', customer_type: 'Roofing Distributor', count: 1 }
+    { product: 'BOSS Products', customer_type: 'Roofing Contractor', count: 3 },
+    { product: 'BOSS Products', customer_type: 'Roofing Distributor', count: 2 },
+    { product: 'Alum-A-Pole', customer_type: 'Deck Contractor', count: 2 },
+    { product: 'ShurTape', customer_type: 'Lumber Yard', count: 2 },
+    { product: 'ShurTape', customer_type: 'Siding Contractor', count: 1 }
   ];
 
   const PLACES_KEY = process.env.GOOGLE_PLACES_API_KEY;
@@ -132,11 +134,7 @@ router.post('/daily-leads', async (req, res) => {
     for (const target of targets) {
       try {
         // Call Google Places directly
-        const cities = target.territory === 'Birmingham'
-          ? ['Birmingham AL', 'Hoover AL', 'Vestavia Hills AL', 'Homewood AL', 'Pelham AL']
-          : ['Atlanta GA', 'Marietta GA', 'Kennesaw GA', 'Alpharetta GA', 'Roswell GA'];
-
-        const searchQuery = target.customer_type + ' ' + cities[Math.floor(Math.random() * cities.length)];
+        const searchQuery = target.customer_type + ' ' + city;
 
         const placesRes = await fetchPlaces('https://places.googleapis.com/v1/places:searchText', {
           method: 'POST',
@@ -168,7 +166,7 @@ router.post('/daily-leads', async (req, res) => {
             phone: place.nationalPhoneNumber || '',
             website: place.websiteUri || '',
             products: target.product,
-            territory: target.territory,
+            territory: city,
             priority: (place.rating >= 4.5 && place.userRatingCount > 20) ? 'High' : (place.rating >= 3.5) ? 'Medium' : 'Low',
             rating: place.rating || null,
             reviews: place.userRatingCount || 0
