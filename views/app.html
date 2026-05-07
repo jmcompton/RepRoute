@@ -346,7 +346,7 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 
   <!-- DASHBOARD -->
   <div class="page active" id="page-dashboard" style="overflow-y:auto">
-    <div style="padding:24px 28px 60px">
+    <div style="padding:24px 24px 60px;width:100%">
 
       <!-- Greeting -->
       <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px" id="dash-date"></div>
@@ -1657,8 +1657,7 @@ function loadMorningBriefing(force) {
             var reason = isOverdue
               ? 'Overdue ' + (parseInt(item.days_overdue)||0) + ' day(s)'
               : isFollowup ? 'Follow-up due today' : 'New high-priority prospect';
-            var addressLine = [item.address, item.city ? item.city+', GA' : ''].filter(Boolean).join(' ');
-            if (!addressLine && item.city) addressLine = item.city + ', GA';
+            var addressLine = ''; if (item.address && item.city) addressLine = item.address + ', ' + item.city + ', GA'; else if (item.address) addressLine = item.address; else if (item.city) addressLine = item.city + ', GA';
             var mapsLink = addressLine
               ? '<a href="https://maps.google.com/?q='+encodeURIComponent(item.company+' '+addressLine)+'" target="_blank" onclick="event.stopPropagation()" style="color:var(--accent);font-size:11px;text-decoration:none;display:inline-flex;align-items:center;gap:3px">&#128205; '+addressLine+'</a>'
               : '';
@@ -1685,9 +1684,9 @@ function loadMorningBriefing(force) {
               // Expandable log section
               '<div id="mclog-'+i+'" style="display:none;border-top:1px solid var(--border);padding:14px 16px;background:#fafbfc">' +
                 // Outcome buttons
-                '<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Call Outcome</div>' +
+                '<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Visit Outcome</div>' +
                 '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">' +
-                  ['Interested','Not Interested','Voicemail','Ready to Buy','No Answer'].map(function(o) {
+                  ['Dropped In - Interested','Dropped In - Not Interested','Left Sample','Ready to Order','Not Available','Left Brochure'].map(function(o) {
                     return '<button onclick="mcSel('+i+',\''+o+'\',event)" id="mcbtn-'+i+'-'+o.replace(/ /g,'_')+'" style="padding:5px 12px;border-radius:5px;font-size:11.5px;font-weight:500;border:1px solid var(--border);background:#fff;color:var(--text2);cursor:pointer;transition:all .1s">'+o+'</button>';
                   }).join('') +
                 '</div>' +

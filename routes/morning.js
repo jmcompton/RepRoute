@@ -22,7 +22,7 @@ router.get('/', async (req, res) => {
     `, [uid]);
 
     const neverCalled = await pool.query(`
-      SELECT p.id, p.company, p.category, p.city, p.phone, p.priority,
+      SELECT p.id, p.company, p.category, p.city, p.address, p.phone, p.priority,
              'new_prospect' as call_reason, p.created_at
       FROM prospects p
       WHERE p.user_id = $1 AND p.priority IN ('High', 'Medium')
