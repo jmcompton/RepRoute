@@ -120,6 +120,7 @@ async function initDB() {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS outlook_access_token TEXT;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS outlook_refresh_token TEXT;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS outlook_token_expiry TIMESTAMPTZ;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_call_goal INTEGER DEFAULT 10;
 
     CREATE TABLE IF NOT EXISTS email_logs (
       id SERIAL PRIMARY KEY,

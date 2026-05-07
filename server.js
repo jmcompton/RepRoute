@@ -17,6 +17,7 @@ const { router: emailRoutes } = require('./routes/email');
 const samplesRoutes = require('./routes/samples');
 const adminRoutes = require('./routes/admin');
 const placesRoutes = require('./routes/places');
+const morningRoutes = require('./routes/morning');
 
 const app = express();
 app.use(express.json());
@@ -51,7 +52,12 @@ app.get('/', (req, res) => {
 });
 
 app.get('/app', requireAuth, (req, res) => {
+  if (req.session.user.role === 'rep') return res.redirect('/morning');
   res.sendFile(path.join(__dirname, 'views', 'app.html'));
+});
+
+app.get('/morning', requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'views', 'morning.html'));
 });
 
 // Landing page (public)
@@ -95,6 +101,7 @@ app.use('/api/calendar', requireAuth, calendarRoutes);
 app.use('/api/email', requireAuth, emailRoutes);
 app.use('/api/samples', requireAuth, samplesRoutes);
 app.use('/api/places', requireAuth, placesRoutes);
+app.use('/api/morning', requireAuth, morningRoutes);
 app.use('/auth', emailRoutes);
 
 

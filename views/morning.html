@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Morning Brief - RepRoute</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Sora:wght@700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--navy:#0f1923;--accent:#1d6aff;--accent2:#0d4fd4;--green:#059669;--amber:#d97706;--red:#dc2626;--border:#e2e5ea;--bg:#f4f6fa;--surface:#fff;--text:#0f1923;--text2:#4a5568;--text3:#8a95a3}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+.topbar{background:var(--navy);padding:0 24px;height:52px;display:flex;align-items:center;justify-content:space-between}
+.tb-left{display:flex;align-items:center;gap:12px}
+.tb-logo{width:30px;height:30px;background:var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:center}
+.tb-logo svg{width:16px;height:16px;fill:#fff}
+.tb-brand{color:#fff;font-size:14px;font-weight:700}
+.tb-right{display:flex;align-items:center;gap:10px}
+.tb-crm-btn{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.8);font-size:12px;font-weight:500;padding:6px 14px;border-radius:5px;cursor:pointer;text-decoration:none;font-family:'DM Sans',sans-serif}
+.tb-crm-btn:hover{background:rgba(255,255,255,.2);color:#fff}
+.tb-logout{background:transparent;border:none;color:rgba(255,255,255,.4);font-size:12px;cursor:pointer;padding:6px 10px;font-family:'DM Sans',sans-serif}
+.tb-logout:hover{color:rgba(255,255,255,.8)}
+.container{max-width:760px;margin:0 auto;padding:28px 20px 60px}
+.morning-date{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+.morning-greeting{font-family:'Sora',sans-serif;font-size:26px;font-weight:800;color:var(--navy);line-height:1.15;margin-bottom:18px}
+.morning-greeting span{color:var(--accent)}
+.ai-card{background:var(--navy);border-radius:10px;padding:18px 20px;margin-bottom:20px;position:relative;overflow:hidden}
+.ai-card::before{content:'';position:absolute;top:-30px;right:-30px;width:120px;height:120px;border-radius:50%;background:rgba(29,106,255,.2)}
+.ai-badge{display:inline-flex;align-items:center;gap:5px;background:rgba(29,106,255,.25);border:1px solid rgba(29,106,255,.35);color:rgba(255,255,255,.7);font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:20px;margin-bottom:10px}
+.ai-text{color:#fff;font-size:14px;line-height:1.65;position:relative;z-index:1}
+.ai-loading{color:rgba(255,255,255,.5);font-size:13px;display:flex;align-items:center;gap:8px}
+.dot-pulse{display:flex;gap:4px}
+.dot-pulse span{width:5px;height:5px;background:rgba(255,255,255,.4);border-radius:50%;animation:pulse 1.2s infinite}
+.dot-pulse span:nth-child(2){animation-delay:.2s}.dot-pulse span:nth-child(3){animation-delay:.4s}
+@keyframes pulse{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}
+.progress-wrap{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:20px}
+.progress-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.progress-label{font-size:12.5px;font-weight:600;color:var(--navy)}
+.progress-count{font-size:12px;color:var(--text3)}
+.progress-track{background:#e8ecf2;border-radius:999px;height:8px;overflow:hidden}
+.progress-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--accent),#3b82f6);transition:width .6s ease}
+.goal-strip{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:20px}
+.goal-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px}
+.gc-label{font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.gc-val{font-size:24px;font-weight:700;color:var(--navy);line-height:1}
+.gc-sub{font-size:11px;color:var(--text3);margin-top:3px}
+.red{color:var(--red)}.amber{color:var(--amber)}.green{color:var(--green)}
+.section-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.section-title{font-size:13px;font-weight:700;color:var(--navy);display:flex;align-items:center;gap:7px}
+.section-count{background:var(--border);color:var(--text3);font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px}
+.call-list{display:flex;flex-direction:column;gap:8px;margin-bottom:28px}
+.call-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;cursor:pointer;transition:border-color .12s}
+.call-card:hover{border-color:var(--accent)}
+.call-card.expanded{border-color:var(--accent)}
+.call-card.done{opacity:.4;pointer-events:none}
+.card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.card-left{flex:1;min-width:0}
+.card-company{font-size:13.5px;font-weight:700;color:var(--navy);margin-bottom:3px}
+.card-meta{font-size:11.5px;color:var(--text2)}
+.card-reason{font-size:11px;color:var(--text3);margin-top:5px}
+.card-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.badge{display:inline-block;font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:4px}
+.b-overdue{background:#fee2e2;color:var(--red)}
+.b-followup{background:#fef3c7;color:#92600a}
+.b-new{background:#ede9fe;color:#5b21b6}
+.quick-log{margin-top:12px;padding-top:12px;border-top:1px solid var(--border);display:none}
+.call-card.expanded .quick-log{display:block}
+.ql-label{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+.outcome-btns{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.out-btn{padding:5px 12px;border-radius:5px;font-size:11.5px;font-weight:500;border:1px solid var(--border);background:var(--bg);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .1s}
+.out-btn:hover{border-color:var(--accent);color:var(--accent)}
+.out-btn.selected{border-color:var(--accent);background:var(--accent);color:#fff}
+.ql-row{display:flex;gap:8px;align-items:flex-end;margin-top:6px;flex-wrap:wrap}
+.ql-field{flex:1;min-width:140px}
+.ql-field label{font-size:11px;color:var(--text3);display:block;margin-bottom:4px}
+.ql-field input{width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:'DM Sans',sans-serif;color:var(--text);outline:none}
+.ql-field input:focus{border-color:var(--accent)}
+.log-btn{padding:7px 16px;background:var(--accent);color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif}
+.log-btn:hover{background:var(--accent2)}
+.skip-btn{padding:7px 12px;background:transparent;color:var(--text3);border:1px solid var(--border);border-radius:5px;font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif}
+.empty{text-align:center;padding:32px 20px;color:var(--text3);background:var(--surface);border:1px solid var(--border);border-radius:8px}
+.empty-title{font-size:13px;font-weight:600;color:var(--text2);margin-bottom:4px}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--navy);color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:500;opacity:0;transition:all .2s;pointer-events:none;z-index:999}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.skel{background:#e8ecf2;border-radius:4px;animation:shimmer 1.2s infinite}
+@keyframes shimmer{0%,100%{opacity:.5}50%{opacity:1}}
+@media(max-width:580px){.goal-strip{grid-template-columns:1fr 1fr}.morning-greeting{font-size:21px}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="tb-left">
+    <div class="tb-logo"><svg viewBox="0 0 20 20"><path d="M3 4h14v2H3zM3 9h10v2H3zM3 14h7v2H3z"/></svg></div>
+    <span class="tb-brand">RepRoute</span>
+  </div>
+  <div class="tb-right">
+    <a href="/app" class="tb-crm-btn">Open Full CRM</a>
+    <button class="tb-logout" onclick="logout()">Sign out</button>
+  </div>
+</div>
+<div class="container">
+  <div class="morning-date" id="date-line">Loading...</div>
+  <div class="morning-greeting">Good morning, <span id="user-name">...</span></div>
+  <div class="ai-card">
+    <div class="ai-badge">Morning Brief</div>
+    <div id="ai-text" class="ai-loading">
+      <div class="dot-pulse"><span></span><span></span><span></span></div>
+      <span>Generating your brief...</span>
+    </div>
+  </div>
+  <div class="progress-wrap" id="progress-wrap" style="display:none">
+    <div class="progress-header">
+      <span class="progress-label">Today's Call Goal</span>
+      <span class="progress-count" id="progress-count">0 / 10</span>
+    </div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+  </div>
+  <div class="goal-strip" id="goal-strip" style="display:none">
+    <div class="goal-card">
+      <div class="gc-label">Overdue Follow-ups</div>
+      <div class="gc-val red" id="stat-overdue">0</div>
+      <div class="gc-sub">Need calls today</div>
+    </div>
+    <div class="goal-card">
+      <div class="gc-label">Fresh Prospects</div>
+      <div class="gc-val amber" id="stat-fresh">0</div>
+      <div class="gc-sub">Never contacted</div>
+    </div>
+    <div class="goal-card">
+      <div class="gc-label">Hot Prospects</div>
+      <div class="gc-val green" id="stat-hot">0</div>
+      <div class="gc-sub">High priority</div>
+    </div>
+  </div>
+  <div class="section-hdr">
+    <div class="section-title">Today's Call List</div>
+    <span class="section-count" id="list-count">-</span>
+  </div>
+  <div class="call-list" id="call-list">
+    <div class="call-card" style="pointer-events:none">
+      <div class="card-top"><div class="card-left">
+        <div class="skel" style="height:15px;width:180px;margin-bottom:8px"></div>
+        <div class="skel" style="height:11px;width:130px"></div>
+      </div></div>
+    </div>
+    <div class="call-card" style="pointer-events:none">
+      <div class="card-top"><div class="card-left">
+        <div class="skel" style="height:15px;width:210px;margin-bottom:8px"></div>
+        <div class="skel" style="height:11px;width:150px"></div>
+      </div></div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+let callsMade=0,dailyGoal=10,selectedOutcomes={};
+async function logout(){await fetch('/logout',{method:'POST'});location.href='/'}
+function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)}
+function updateProgress(){const pct=Math.min(100,Math.round(callsMade/dailyGoal*100));document.getElementById('progress-fill').style.width=pct+'%';document.getElementById('progress-count').textContent=callsMade+' / '+dailyGoal+' calls'}
+function reasonBadge(item){if(item.call_reason==='follow_up'){return parseInt(item.days_overdue)>0?'<span class="badge b-overdue">Overdue</span>':'<span class="badge b-followup">Follow-up</span>'}return'<span class="badge b-new">New</span>'}
+function reasonLabel(item){if(item.call_reason==='follow_up'){const d=parseInt(item.days_overdue)||0;return d>0?`Follow-up overdue ${d} day${d!==1?'s':''}`:'Follow-up due today'}return'New high-priority prospect'}
+function renderCallList(list){
+  const el=document.getElementById('call-list');
+  document.getElementById('list-count').textContent=list.length;
+  if(!list.length){el.innerHTML='<div class="empty"><div class="empty-title">No calls queued yet</div><p style="font-size:12px">Add prospects to the CRM to build your call list.</p></div>';return}
+  el.innerHTML=list.map((item,i)=>`
+    <div class="call-card" id="card-${i}" onclick="toggleCard(${i})">
+      <div class="card-top">
+        <div class="card-left">
+          <div class="card-company">${item.company}</div>
+          <div class="card-meta">${item.category||''}${item.city?' &middot; '+item.city+', GA':''}</div>
+          <div class="card-reason">${reasonLabel(item)}${item.next_step?' &mdash; '+item.next_step:''}</div>
+        </div>
+        <div class="card-right">
+          ${reasonBadge(item)}
+          ${item.phone?`<a href="tel:${item.phone}" onclick="event.stopPropagation()" style="color:#1d6aff;font-size:12px;font-weight:500;text-decoration:none">${item.phone}</a>`:''}
+        </div>
+      </div>
+      <div class="quick-log">
+        <div class="ql-label">Log this call</div>
+        <div class="outcome-btns">
+          <button class="out-btn" onclick="sel(${i},'Interested',event)">Interested</button>
+          <button class="out-btn" onclick="sel(${i},'Not Interested',event)">Not Interested</button>
+          <button class="out-btn" onclick="sel(${i},'Left Voicemail',event)">Voicemail</button>
+          <button class="out-btn" onclick="sel(${i},'Ready to Buy',event)">Ready to Buy</button>
+          <button class="out-btn" onclick="sel(${i},'No Answer',event)">No Answer</button>
+        </div>
+        <div class="ql-row">
+          <div class="ql-field"><label>Next step</label><input type="text" id="ns-${i}" placeholder="e.g. Send sample, call back Thursday"></div>
+          <div class="ql-field" style="max-width:150px"><label>Follow-up date</label><input type="date" id="nd-${i}"></div>
+          <button class="log-btn" onclick="logCall(${i},${item.id},event)">Log Call</button>
+          <button class="skip-btn" onclick="skip(${i},event)">Skip</button>
+        </div>
+      </div>
+    </div>`).join('')}
+function toggleCard(i){const c=document.getElementById('card-'+i);if(c.classList.contains('done'))return;const open=c.classList.contains('expanded');document.querySelectorAll('.call-card.expanded').forEach(x=>x.classList.remove('expanded'));if(!open)c.classList.add('expanded')}
+function sel(i,outcome,e){e.stopPropagation();selectedOutcomes[i]=outcome;document.querySelectorAll('#card-'+i+' .out-btn').forEach(b=>b.classList.toggle('selected',b.textContent.trim()===outcome||(outcome==='Left Voicemail'&&b.textContent==='Voicemail')))}
+async function logCall(i,pid,e){e.stopPropagation();const r=await fetch('/api/morning/log-call',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prospect_id:pid,outcome:selectedOutcomes[i]||'',next_step:document.getElementById('ns-'+i)?.value||'',next_step_date:document.getElementById('nd-'+i)?.value||''})});const d=await r.json();if(d.ok){const c=document.getElementById('card-'+i);c.classList.remove('expanded');c.classList.add('done');callsMade++;updateProgress();showToast('Call logged')}else showToast('Error saving')}
+function skip(i,e){e.stopPropagation();document.getElementById('card-'+i).classList.remove('expanded')}
+async function loadMorning(){
+  const res=await fetch('/api/morning');const data=await res.json();
+  if(data.error){document.getElementById('ai-text').textContent='Could not load. Refresh to try again.';return}
+  document.getElementById('date-line').textContent=data.date;
+  document.getElementById('user-name').textContent=(data.user.name||'').split(' ')[0]||'there';
+  const aiEl=document.getElementById('ai-text');aiEl.className='ai-text';aiEl.textContent=data.aiMessage;
+  callsMade=data.stats.callsMadeToday;dailyGoal=data.stats.dailyGoal;
+  document.getElementById('stat-overdue').textContent=data.stats.overdueFollowUps;
+  document.getElementById('stat-fresh').textContent=data.stats.freshProspects;
+  document.getElementById('stat-hot').textContent=data.stats.hotProspects;
+  document.getElementById('goal-strip').style.display='grid';
+  document.getElementById('progress-wrap').style.display='block';
+  updateProgress();renderCallList(data.callList)}
+loadMorning();
+</script>
+</body>
+</html>
