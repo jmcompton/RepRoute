@@ -406,7 +406,7 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
           </div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <input id="lead-city-input" type="text" name="lead_city_search" placeholder="Enter city (e.g. Norcross GA)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" style="padding:9px 12px;border:1px solid var(--border);border-radius:6px;font-size:12.5px;outline:none;min-width:220px;font-family:'DM Sans',sans-serif" onkeydown="if(event.key==='Enter')runDailyLeads()">
+          <input id="lead-city-input" type="search" name="search-xyz123" placeholder="Enter city (e.g. Norcross GA)" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" readonly onfocus="this.removeAttribute('readonly')" style="padding:9px 12px;border:1px solid var(--border);border-radius:6px;font-size:12.5px;outline:none;min-width:220px;font-family:'DM Sans',sans-serif" onkeydown="if(event.key==='Enter')runDailyLeads()">
           <button onclick="runDailyLeads()" id="lead-find-btn" style="padding:10px 22px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">
             Find Today's Leads
           </button>
@@ -433,7 +433,7 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
         <div style="font-size:13px;font-weight:700;color:var(--navy)">Today's Call List</div>
         <span style="background:var(--border);color:var(--text3);font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px" id="list-count-badge">—</span>
       </div>
-      <div id="morning-call-list" style="display:flex;flex-direction:column;gap:8px"></div>
+      <div id="morning-call-list" style="display:flex;flex-direction:column;gap:8px"><div style="text-align:center;padding:32px 24px;background:var(--surface);border:1px dashed var(--border);border-radius:8px;color:var(--text3);font-size:13px">Enter a city above and click "Find Today's Leads" to populate your call list.</div></div>
 
       <!-- Hidden elements for backward compat -->
       <div style="display:none">
@@ -1644,11 +1644,11 @@ function loadMorningBriefing(force) {
       var pc = document.getElementById('progress-count');
       if (pf) pf.style.width = pct + '%';
       if (pc) pc.textContent = callsMade + ' / ' + goal + ' calls';
-      // Call list
+      // Call list - leave empty until user runs Find Today's Leads
       var listEl = document.getElementById('morning-call-list');
       var badge = document.getElementById('list-count-badge');
-      if (badge) badge.textContent = data.callList.length;
-      if (listEl) {
+      if (badge) badge.textContent = '0';
+      if (false && listEl) {
         if (!data.callList.length) {
           listEl.innerHTML = '<div style="text-align:center;padding:28px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text3);font-size:12px">No calls queued yet. Add prospects to build your list.</div>';
         } else {
