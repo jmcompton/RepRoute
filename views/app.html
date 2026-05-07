@@ -222,12 +222,61 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 .fc .fc-daygrid-event{border-radius:3px!important;font-size:11px!important;padding:1px 4px!important}
 .fc .fc-col-header-cell{background:#fafbfc;font-size:11px;font-weight:700;color:var(--text2);padding:6px 0}
 .fc .fc-day-today{background:#f0f6ff!important}
+
+@media(max-width:768px){
+  .sidebar{transform:translateX(-100%);transition:transform 0.25s ease;z-index:200}
+  .sidebar.open{transform:translateX(0)}
+  .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:199}
+  .sidebar-overlay.open{display:block}
+  .main{left:0!important;width:100%!important}
+  .mob-menu{display:flex}
+  .bottom-nav{display:flex}
+  .topbar{padding:0 12px}
+}
+@media(min-width:769px){
+  .mob-menu{display:none}
+  .bottom-nav{display:none}
+  .sidebar-overlay{display:none}
+}
+.mob-menu{align-items:center;justify-content:center;width:36px;height:36px;cursor:pointer;flex-shrink:0;border:none;background:none;padding:0}
+.mob-menu span{display:block;width:20px;height:2px;background:var(--navy);border-radius:2px;margin:4px 0}
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;height:58px;background:var(--white);border-top:1px solid var(--border);z-index:150;justify-content:space-around;align-items:center;padding:0 8px}
+.bn-item{display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;padding:4px 8px;border-radius:8px;border:none;background:none;flex:1}
+.bn-item svg{width:20px;height:20px;stroke:var(--text2);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.bn-item span{font-size:10px;color:var(--text2)}
+.bn-item.active svg{stroke:var(--accent)}
+.bn-item.active span{color:var(--accent)}
+.page{padding-bottom:0}
+@media(max-width:768px){.page.active{padding-bottom:62px}}
 </style>
 <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
 </head>
 <body>
 
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+<nav class="bottom-nav">
+  <button class="bn-item active" id="bn-home" onclick="go('dashboard');setActiveNav('bn-home')">
+    <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    <span>Home</span>
+  </button>
+  <button class="bn-item" id="bn-contacts" onclick="go('contacts');setActiveNav('bn-contacts')">
+    <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    <span>Contacts</span>
+  </button>
+  <button class="bn-item" id="bn-calls" onclick="go('calls');setActiveNav('bn-calls')">
+    <svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.58 3.38 2 2 0 0 1 3.55 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.5a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+    <span>Calls</span>
+  </button>
+  <button class="bn-item" id="bn-deals" onclick="go('deals');setActiveNav('bn-deals')">
+    <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    <span>Pipeline</span>
+  </button>
+  <button class="bn-item" id="bn-more" onclick="toggleSidebar()">
+    <svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    <span>More</span>
+  </button>
+</nav>
 <aside class="sidebar">
   <div class="sb-brand">
     <div class="sb-logo"><svg viewBox="0 0 17 17" fill="none"><circle cx="8.5" cy="8.5" r="3" fill="white"/><path d="M8.5 1v3M8.5 13v3M1 8.5h3M13 8.5h3" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg></div>
@@ -279,6 +328,7 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 
 <div class="main">
   <div class="topbar">
+    <button class="mob-menu" onclick="toggleSidebar()"><span></span><span></span><span></span></button>
     <div class="tb-title" id="page-title">Home</div>
     <button class="btn btn-secondary btn-sm" onclick="openModal('add-prospect')">+ New Contact</button>
     <button class="btn btn-primary btn-sm" onclick="go('leads')">AI Find Leads</button>
@@ -3397,5 +3447,25 @@ window.addEventListener('load', function() {
 });
 </script>
 
+<script>
+function toggleSidebar(){
+  document.querySelector('.sidebar').classList.toggle('open');
+  document.getElementById('sidebar-overlay').classList.toggle('open');
+}
+function closeSidebar(){
+  document.querySelector('.sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('open');
+}
+function setActiveNav(id){
+  document.querySelectorAll('.bn-item').forEach(function(b){b.classList.remove('active')});
+  var el = document.getElementById(id);
+  if(el) el.classList.add('active');
+  closeSidebar();
+}
+// Close sidebar when nav item clicked on mobile
+document.querySelectorAll('.sb-item').forEach(function(item){
+  item.addEventListener('click', function(){ if(window.innerWidth<=768) closeSidebar(); });
+});
+</script>
 </body>
 </html>
