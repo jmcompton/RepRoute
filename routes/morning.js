@@ -98,4 +98,92 @@ router.post('/log-call', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+
+
+// ─── DAILY LEADS — uses Google Places API ───────────────────────────────────
+const fetchPlaces = require('node-fetch');
+
+router.post('/daily-leads', async (req, res) => {
+  const uid = req.session.user.id;
+
+  // Hit our own places-leads endpoint for each combination
+  const targets = [
+    { product: 'BOSS Products', territory: 'Atlanta Metro', customer_type: 'Roofing Contractor', count: 3 },
+    { product: 'BOSS Products', territory: 'Birmingham', customer_type: 'Roofing Contractor', count: 2 },
+    { product: 'Alum-A-Pole', territory: 'Atlanta Metro', customer_type: 'Deck Contractor', count: 2 },
+    { product: 'ShurTape', territory: 'Birmingham', customer_type: 'Lumber Yard', count: 2 },
+    { product: 'BOSS Products', territory: 'Atlanta Metro', customer_type: 'Roofing Distributor', count: 1 }
+  ];
+
+  const PLACES_KEY = process.env.GOOGLE_PLACES_API_KEY;
+  if (!PLACES_KEY) return res.status(500).json({ error: 'Google Places API key not configured' });
+
+  // Reuse the helper functions from places.js
+  const placesModule = require('./places');
+
+  try {
+    const allLeads = [];
+    const seen = new Set();
+
+    // Get existing prospects for this user to filter dupes
+    const existing = await pool.query('SELECT LOWER(company) as company FROM prospects WHERE user_id=$1', [uid]);
+    existing.rows.forEach(r => seen.add(r.company));
+
+    for (const target of targets) {
+      try {
+        // Call Google Places directly
+        const cities = target.territory === 'Birmingham'
+          ? ['Birmingham AL', 'Hoover AL', 'Vestavia Hills AL', 'Homewood AL', 'Pelham AL']
+          : ['Atlanta GA', 'Marietta GA', 'Kennesaw GA', 'Alpharetta GA', 'Roswell GA'];
+
+        const searchQuery = target.customer_type + ' ' + cities[Math.floor(Math.random() * cities.length)];
+
+        const placesRes = await fetchPlaces('https://places.googleapis.com/v1/places:searchText', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': PLACES_KEY,
+            'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.businessStatus'
+          },
+          body: JSON.stringify({ textQuery: searchQuery, maxResultCount: 10 })
+        });
+
+        const data = await placesRes.json();
+        const places = data.places || [];
+
+        let added = 0;
+        for (const place of places) {
+          if (added >= target.count) break;
+          const company = place.displayName?.text || '';
+          if (!company || seen.has(company.toLowerCase())) continue;
+          if (place.businessStatus === 'CLOSED_PERMANENTLY') continue;
+          seen.add(company.toLowerCase());
+
+          const addr = (place.formattedAddress || '').split(',');
+          allLeads.push({
+            company,
+            category: target.customer_type,
+            city: addr[1]?.trim() || '',
+            address: place.formattedAddress || '',
+            phone: place.nationalPhoneNumber || '',
+            website: place.websiteUri || '',
+            products: target.product,
+            territory: target.territory,
+            priority: (place.rating >= 4.5 && place.userRatingCount > 20) ? 'High' : (place.rating >= 3.5) ? 'Medium' : 'Low',
+            rating: place.rating || null,
+            reviews: place.userRatingCount || 0
+          });
+          added++;
+        }
+      } catch(e) {
+        console.error('Target error:', target, e.message);
+      }
+    }
+
+    res.json({ ok: true, leads: allLeads.slice(0, 10) });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;
