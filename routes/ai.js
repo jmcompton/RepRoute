@@ -518,4 +518,149 @@ router.post('/route-planner', async (req, res) => {
   }
 });
 
+
+// ─── DAILY LEAD FINDER ───────────────────────────────────────────────────────
+router.post('/daily-leads', async (req, res) => {
+  const uid = req.session.user.id;
+
+  const territories = ['Atlanta Metro, GA', 'Birmingham, AL'];
+  const targetTypes = [
+    { type: 'Roofing Contractor', products: ['BOSS Products', 'ShurTape'] },
+    { type: 'Deck Contractor', products: ['Alum-A-Pole', 'ShurTape'] },
+    { type: 'Roofing Distributor', products: ['BOSS Products', 'ShurTape'] },
+    { type: 'Lumber Yard', products: ['Alum-A-Pole', 'BOSS Products', 'ShurTape'] }
+  ];
+
+  const prompt = `You are a sales intelligence tool for Compton Group LLC, a manufacturer's rep firm selling three product lines:
+- BOSS Products (roofing sealants and adhesives)
+- ShurTape (flashing tape and deck tape)
+- Alum-A-Pole (painting and scaffolding poles)
+
+Generate exactly 10 real, specific business leads across these two territories: Atlanta Metro GA and Birmingham AL.
+
+Mix across these business types:
+- Roofing Contractors (relevant for BOSS Products and ShurTape)
+- Deck Contractors (relevant for Alum-A-Pole and ShurTape)
+- Roofing Distributors (relevant for BOSS Products and ShurTape)
+- Lumber Yards (relevant for all three product lines)
+
+For each lead return a JSON array with exactly this structure:
+[
+  {
+    "company": "Business name",
+    "category": "Roofing Contractor",
+    "city": "City name",
+    "territory": "Atlanta Metro, GA",
+    "address": "Street address if known",
+    "phone": "Phone number if known",
+    "website": "Website if known",
+    "contact": "",
+    "products": "BOSS Products, ShurTape",
+    "priority": "High",
+    "status": "New",
+    "source": "AI",
+    "pipeline_stage": "New Lead",
+    "reason": "One sentence on why this is a good lead"
+  }
+]
+
+Return ONLY the JSON array. No explanation, no markdown, no backticks. Make the businesses as real and specific as possible with actual addresses and phone numbers where you know them.`;
+
+  try {
+    const aiRes = await fetch(CLAUDE_API, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'web-search-2025-03-05'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 4000,
+        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    const aiData = await aiRes.json();
+    if (aiData.error) return res.status(500).json({ error: aiData.error.message });
+
+    // Extract text from response
+    let fullText = '';
+    if (aiData.content) {
+      for (const block of aiData.content) {
+        if (block.type === 'text') fullText += block.text;
+      }
+    }
+
+    // Handle multi-turn tool use
+    if (aiData.stop_reason === 'tool_use') {
+      const messages = [
+        { role: 'user', content: prompt },
+        { role: 'assistant', content: aiData.content }
+      ];
+      // Add tool results
+      const toolResults = aiData.content
+        .filter(b => b.type === 'tool_use')
+        .map(b => ({ type: 'tool_result', tool_use_id: b.id, content: '' }));
+      if (toolResults.length) messages.push({ role: 'user', content: toolResults });
+
+      const res2 = await fetch(CLAUDE_API, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': process.env.ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'anthropic-beta': 'web-search-2025-03-05'
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 4000,
+          tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+          messages
+        })
+      });
+      const data2 = await res2.json();
+      if (data2.content) {
+        for (const block of data2.content) {
+          if (block.type === 'text') fullText += block.text;
+        }
+      }
+    }
+
+    // Parse the JSON leads
+    let leads = [];
+    try {
+      const match = fullText.match(/\[[\s\S]*\]/);
+      if (match) leads = JSON.parse(match[0]);
+    } catch(e) {
+      return res.status(500).json({ error: 'Could not parse leads from AI response' });
+    }
+
+    // Save leads to DB, skip duplicates
+    let saved = 0;
+    let skipped = 0;
+    for (const lead of leads) {
+      try {
+        const exists = await pool.query(
+          'SELECT id FROM prospects WHERE user_id=$1 AND LOWER(company)=LOWER($2)',
+          [uid, lead.company]
+        );
+        if (exists.rows.length > 0) { skipped++; continue; }
+        await pool.query(
+          `INSERT INTO prospects (user_id, company, category, city, address, phone, website, contact, products, priority, status, source, pipeline_stage, notes)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+          [uid, lead.company, lead.category, lead.city, lead.address||'', lead.phone||'', lead.website||'', lead.contact||'', lead.products||'', lead.priority||'High', lead.status||'New', 'AI', lead.pipeline_stage||'New Lead', lead.reason||'']
+        );
+        saved++;
+      } catch(e) { console.error('Lead save error:', e.message); }
+    }
+
+    res.json({ ok: true, leads, saved, skipped });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;
