@@ -428,12 +428,36 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
       <!-- Lead cards grid -->
       <div id="lead-results" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px"></div>
 
-      <!-- Today's Call List -->
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-        <div style="font-size:13px;font-weight:700;color:var(--navy)">Today's Call List</div>
-        <span style="background:var(--border);color:var(--text3);font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px" id="list-count-badge">—</span>
+      <!-- Two column: Call List + Route -->
+      <div style="display:grid;grid-template-columns:1fr 320px;gap:16px;align-items:start">
+
+        <!-- Call List -->
+        <div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div style="font-size:13px;font-weight:700;color:var(--navy)">Today's Call List</div>
+            <span style="background:var(--border);color:var(--text3);font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px" id="list-count-badge">—</span>
+          </div>
+          <div id="morning-call-list" style="display:flex;flex-direction:column;gap:8px"><div style="text-align:center;padding:32px 24px;background:var(--surface);border:1px dashed var(--border);border-radius:8px;color:var(--text3);font-size:13px">Enter a city above and click "Find Today's Leads" to populate your call list.</div></div>
+        </div>
+
+        <!-- Drive Route Panel -->
+        <div style="position:sticky;top:20px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div style="font-size:13px;font-weight:700;color:var(--navy)">Drive Route</div>
+            <span id="route-stops-badge" style="background:var(--border);color:var(--text3);font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px">0 stops</span>
+          </div>
+          <div id="route-panel" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+            <div id="route-empty" style="padding:24px 16px;text-align:center;color:var(--text3);font-size:12px">
+              Run a lead search to build today's drive route.
+            </div>
+            <div id="route-list" style="display:none"></div>
+            <div id="route-actions" style="display:none;padding:12px 14px;border-top:1px solid var(--border);background:#fafbfc">
+              <button onclick="openRouteInMaps()" style="width:100%;padding:10px;background:var(--accent);color:#fff;border:none;border-radius:5px;font-size:12.5px;font-weight:600;cursor:pointer">Open Route in Google Maps</button>
+            </div>
+          </div>
+        </div>
+
       </div>
-      <div id="morning-call-list" style="display:flex;flex-direction:column;gap:8px"><div style="text-align:center;padding:32px 24px;background:var(--surface);border:1px dashed var(--border);border-radius:8px;color:var(--text3);font-size:13px">Enter a city above and click "Find Today's Leads" to populate your call list.</div></div>
 
       <!-- Hidden elements for backward compat -->
       <div style="display:none">
@@ -3716,6 +3740,64 @@ window.leadLogAndAdd = function(i, e) {
   });
 };
 
+
+window._routeStops = [];
+
+window.buildRoutePanel = function(leads) {
+  // Filter to leads with a real address
+  var stops = leads.filter(function(l) { return l.address && l.address.trim(); });
+  window._routeStops = stops;
+
+  var panel = document.getElementById('route-panel');
+  var empty = document.getElementById('route-empty');
+  var list = document.getElementById('route-list');
+  var actions = document.getElementById('route-actions');
+  var badge = document.getElementById('route-stops-badge');
+
+  if (badge) badge.textContent = stops.length + ' stop' + (stops.length === 1 ? '' : 's');
+
+  if (!stops.length) {
+    if (empty) { empty.style.display = 'block'; empty.textContent = 'No leads with addresses to route.'; }
+    if (list) list.style.display = 'none';
+    if (actions) actions.style.display = 'none';
+    return;
+  }
+
+  if (empty) empty.style.display = 'none';
+  if (list) {
+    list.style.display = 'block';
+    list.innerHTML = stops.map(function(stop, i) {
+      return '<div style="display:flex;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);align-items:flex-start">' +
+        '<div style="width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">' + (i+1) + '</div>' +
+        '<div style="flex:1;min-width:0">' +
+          '<div style="font-size:12.5px;font-weight:600;color:var(--navy);margin-bottom:2px">' + stop.company + '</div>' +
+          '<div style="font-size:11px;color:var(--text3);line-height:1.4">' + stop.address + '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+  if (actions) actions.style.display = 'block';
+};
+
+window.openRouteInMaps = function() {
+  var stops = window._routeStops || [];
+  if (!stops.length) { showToast('No stops to route'); return; }
+
+  // Build a Google Maps directions URL with current location as origin and waypoints
+  // Format: https://www.google.com/maps/dir/?api=1&origin=current+location&destination=LAST&waypoints=A|B|C
+  var addresses = stops.map(function(s) { return s.address; });
+  var destination = addresses.pop();
+  var waypoints = addresses.join('|');
+
+  var url = 'https://www.google.com/maps/dir/?api=1' +
+    '&origin=' + encodeURIComponent('Current Location') +
+    '&destination=' + encodeURIComponent(destination) +
+    (waypoints ? '&waypoints=' + encodeURIComponent(waypoints) : '') +
+    '&travelmode=driving';
+
+  window.open(url, '_blank');
+};
+
 window.runDailyLeads = function() {
   var btn = document.getElementById('lead-find-btn');
   var loading = document.getElementById('lead-loading');
@@ -3811,6 +3893,9 @@ window.runDailyLeads = function() {
 
         showToast(leads.length + ' leads loaded into call list');
         setTimeout(function() { callList.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 200);
+
+        // Build the drive route panel
+        buildRoutePanel(leads);
       }
     })
     .catch(function(e) {
