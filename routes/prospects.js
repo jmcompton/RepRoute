@@ -66,4 +66,18 @@ router.delete('/:id', async (req, res) => {
   res.json({ success: true });
 });
 
+
+router.patch('/:id', async (req, res) => {
+  const uid = req.session.user.id;
+  const { contact } = req.body;
+  if (!contact) return res.status(400).json({ error: 'contact required' });
+  try {
+    await pool.query(
+      'UPDATE prospects SET contact=$1 WHERE id=$2 AND user_id=$3',
+      [contact, req.params.id, uid]
+    );
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;
