@@ -2,7 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="theme-color" content="#0f1923"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="RepRoute"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<link rel="manifest" href="/manifest.json"/>
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.svg"/>
+<link rel="icon" type="image/svg+xml" href="/icons/icon-192.svg"/>
 <title>RepRoute CRM</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
 <style>
@@ -251,6 +259,68 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 </style>
 <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+
+<script>
+// Register service worker for PWA
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('/sw.js').then(function(reg) {
+      console.log('SW registered');
+    }).catch(function(err) { console.log('SW failed', err); });
+  });
+}
+
+// Detect if running as installed PWA
+window._isPWA = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+// PWA Install Prompt
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', function(e) {
+  e.preventDefault();
+  deferredPrompt = e;
+  showInstallBanner();
+});
+
+function showInstallBanner() {
+  if (window._isPWA) return;
+  if (sessionStorage.getItem('install_dismissed')) return;
+  setTimeout(function() {
+    var banner = document.getElementById('pwa-install-banner');
+    if (banner) banner.style.display = 'flex';
+  }, 3000);
+}
+
+function installPWA() {
+  if (!deferredPrompt) {
+    // iOS doesn't support beforeinstallprompt - show iOS instructions
+    if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+      alert('To install RepRoute on your iPhone:\n\n1. Tap the Share button at the bottom of Safari\n2. Scroll down and tap "Add to Home Screen"\n3. Tap "Add" in the top right');
+      return;
+    }
+    return;
+  }
+  deferredPrompt.prompt();
+  deferredPrompt.userChoice.then(function(choice) {
+    deferredPrompt = null;
+    document.getElementById('pwa-install-banner').style.display = 'none';
+  });
+}
+
+function dismissInstall() {
+  sessionStorage.setItem('install_dismissed', '1');
+  document.getElementById('pwa-install-banner').style.display = 'none';
+}
+
+// Show iOS install hint on iOS devices that aren't installed yet
+window.addEventListener('load', function() {
+  if (/iPhone|iPad|iPod/.test(navigator.userAgent) && !window._isPWA && !sessionStorage.getItem('install_dismissed')) {
+    setTimeout(function() {
+      var banner = document.getElementById('pwa-install-banner');
+      if (banner) banner.style.display = 'flex';
+    }, 3000);
+  }
+});
+</script>
 </head>
 <body>
 
