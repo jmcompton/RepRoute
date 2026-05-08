@@ -188,6 +188,24 @@ router.post('/daily-leads', async (req, res) => {
             if (looksLikeDealer && !looksLikeContractor) continue;
           }
 
+          // DISTANCE FILTER — strictly within 5 miles of city center
+          var distanceMiles = null;
+          if (cityCoords && place.location && place.location.latitude != null && place.location.longitude != null) {
+            var R = 3959; // Earth radius in miles
+            var lat1 = cityCoords.lat;
+            var lon1 = cityCoords.lng;
+            var lat2 = place.location.latitude;
+            var lon2 = place.location.longitude;
+            var dLat = (lat2 - lat1) * Math.PI / 180;
+            var dLon = (lon2 - lon1) * Math.PI / 180;
+            var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                    Math.sin(dLon/2) * Math.sin(dLon/2);
+            var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            distanceMiles = Math.round(R * c * 10) / 10;
+            if (distanceMiles > 5) continue;
+          }
+          
           const addr = (place.formattedAddress || '').split(',');
           const matchedBrands = Array.from(customerTypeBrands[customerType]).join(', ');
 
@@ -197,6 +215,7 @@ router.post('/daily-leads', async (req, res) => {
             channel: channel,
             city: (addr[1] || '').trim(),
             address: place.formattedAddress || '',
+            distance_miles: distanceMiles,
             phone: place.nationalPhoneNumber || '',
             website: place.websiteUri || '',
             products: matchedBrands,
