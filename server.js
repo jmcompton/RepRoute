@@ -18,6 +18,7 @@ const samplesRoutes = require('./routes/samples');
 const adminRoutes = require('./routes/admin');
 const placesRoutes = require('./routes/places');
 const morningRoutes = require('./routes/morning');
+const { router: notificationsRoutes, evaluateForUser } = require('./routes/notifications');
 
 const app = express();
 app.use(express.json());
@@ -101,6 +102,29 @@ app.use('/api/email', requireAuth, emailRoutes);
 app.use('/api/samples', requireAuth, samplesRoutes);
 app.use('/api/places', requireAuth, placesRoutes);
 app.use('/api/morning', requireAuth, morningRoutes);
+app.use('/api/notifications', requireAuth, notificationsRoutes);
+
+// Daily notification evaluation - runs every hour, but only fires evaluations once per user per day
+const { pool: dbPool } = require('./db');
+let lastEvaluation = {};
+async function dailyEvaluation() {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const users = await dbPool.query('SELECT id FROM users');
+    for (const u of users.rows) {
+      if (lastEvaluation[u.id] === today) continue;
+      const hour = new Date().getHours();
+      if (hour >= 6 && hour <= 9) {
+        await evaluateForUser(u.id);
+        lastEvaluation[u.id] = today;
+        console.log('Evaluated notifications for user', u.id);
+      }
+    }
+  } catch(e) { console.error('Eval cron error:', e.message); }
+}
+setInterval(dailyEvaluation, 60 * 60 * 1000); // hourly
+setTimeout(dailyEvaluation, 30 * 1000); // run 30s after boot
+
 app.use('/auth', emailRoutes);
 
 

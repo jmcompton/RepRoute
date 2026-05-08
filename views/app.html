@@ -319,6 +319,19 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
   <div class="topbar">
     <button class="mob-menu" onclick="toggleSidebar()"><span></span><span></span><span></span></button>
     <div class="tb-title" id="page-title">Home</div>
+    <div style="position:relative;margin-right:12px">
+      <button onclick="toggleNotifBell(event)" id="notif-bell-btn" style="background:transparent;border:none;cursor:pointer;padding:6px;position:relative;display:flex;align-items:center;justify-content:center;border-radius:6px" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#4a5568" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3a4 4 0 014 4v3l1.5 2h-11L6 10V7a4 4 0 014-4z"/><path d="M8 16a2 2 0 004 0"/></svg>
+        <span id="notif-bell-count" style="display:none;position:absolute;top:0;right:0;background:#dc2626;color:#fff;font-size:9px;font-weight:700;border-radius:10px;min-width:16px;height:16px;display:none;align-items:center;justify-content:center;padding:0 4px">0</span>
+      </button>
+      <div id="notif-dropdown" style="display:none;position:absolute;top:38px;right:0;width:380px;max-height:500px;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:1000;overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)">
+          <span style="font-size:13px;font-weight:700;color:var(--navy)">Notifications</span>
+          <button onclick="markAllNotifsRead(event)" style="background:transparent;border:none;color:var(--accent);font-size:11px;font-weight:500;cursor:pointer">Mark all read</button>
+        </div>
+        <div id="notif-list" style="max-height:420px;overflow-y:auto"></div>
+      </div>
+    </div>
     <button class="btn btn-secondary btn-sm" onclick="openModal('add-prospect')">+ New Contact</button>
     <button class="btn btn-primary btn-sm" onclick="go('leads')">AI Find Leads</button>
     <span style="font-size:11px;color:var(--text3);background:var(--bg);border:1px solid var(--border);padding:4px 10px;border-radius:12px">📍 Atlanta Metro</span>
@@ -3919,6 +3932,93 @@ window.addLeadToCRM = function(i) {
     if (btn) { btn.textContent = 'Added!'; btn.disabled = true; btn.style.background = '#059669'; }
   });
 };
+
+
+// ─── NOTIFICATIONS BELL ────────────────────────────────────────────────────
+window.toggleNotifBell = function(e) {
+  e.stopPropagation();
+  var dd = document.getElementById('notif-dropdown');
+  var open = dd.style.display === 'block';
+  dd.style.display = open ? 'none' : 'block';
+  if (!open) loadNotifications();
+};
+
+document.addEventListener('click', function(e) {
+  var dd = document.getElementById('notif-dropdown');
+  var btn = document.getElementById('notif-bell-btn');
+  if (dd && btn && !dd.contains(e.target) && !btn.contains(e.target)) dd.style.display = 'none';
+});
+
+window.loadNotifications = function() {
+  fetch('/api/notifications').then(function(r) { return r.json(); }).then(function(data) {
+    if (!data.ok) return;
+    updateNotifBadge(data.total, data.counts);
+    renderNotifList(data.notifications);
+  });
+};
+
+window.updateNotifBadge = function(total, counts) {
+  var badge = document.getElementById('notif-bell-count');
+  if (!badge) return;
+  if (total > 0) {
+    badge.style.display = 'flex';
+    badge.textContent = total > 99 ? '99+' : total;
+    badge.style.background = counts.urgent > 0 ? '#dc2626' : counts.today > 0 ? '#d97706' : '#6b7280';
+  } else {
+    badge.style.display = 'none';
+  }
+};
+
+window.renderNotifList = function(notifs) {
+  var list = document.getElementById('notif-list');
+  if (!notifs || !notifs.length) {
+    list.innerHTML = '<div style="padding:40px 20px;text-align:center;color:var(--text3);font-size:12px">No notifications. You\'re all caught up.</div>';
+    return;
+  }
+  list.innerHTML = notifs.map(function(n) {
+    var color = n.urgency === 'urgent' ? '#dc2626' : n.urgency === 'today' ? '#d97706' : '#6b7280';
+    var bg = n.urgency === 'urgent' ? '#fef2f2' : n.urgency === 'today' ? '#fffbeb' : '#f9fafb';
+    return '<div style="padding:12px 16px;border-bottom:1px solid var(--border);background:' + bg + ';position:relative">' +
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:4px">' +
+        '<div style="display:flex;align-items:center;gap:6px;flex:1;min-width:0">' +
+          '<div style="width:6px;height:6px;border-radius:50%;background:' + color + ';flex-shrink:0"></div>' +
+          '<span style="font-size:12.5px;font-weight:600;color:var(--navy);line-height:1.3">' + n.title + '</span>' +
+        '</div>' +
+        '<button onclick="dismissNotif(' + n.id + ',event)" style="background:transparent;border:none;color:var(--text3);font-size:14px;cursor:pointer;padding:0 4px;line-height:1" title="Dismiss">×</button>' +
+      '</div>' +
+      (n.body ? '<div style="font-size:11.5px;color:var(--text2);margin-left:12px;line-height:1.4">' + n.body + '</div>' : '') +
+      (n.action_url ? '<button onclick="openNotifAction(' + n.id + ',\'' + n.action_url + '\',event)" style="margin-left:12px;margin-top:8px;padding:4px 10px;background:' + color + ';color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer">Take Action</button>' : '') +
+    '</div>';
+  }).join('');
+};
+
+window.dismissNotif = function(id, e) {
+  e.stopPropagation();
+  fetch('/api/notifications/' + id + '/dismiss', { method: 'POST' }).then(function() { loadNotifications(); });
+};
+
+window.openNotifAction = function(id, url, e) {
+  e.stopPropagation();
+  fetch('/api/notifications/' + id + '/read', { method: 'POST' });
+  if (url.indexOf('#prospect/') > -1) {
+    var pid = url.split('#prospect/')[1];
+    if (typeof openProspect === 'function') openProspect(pid);
+    else if (typeof go === 'function') go('contacts');
+  }
+  document.getElementById('notif-dropdown').style.display = 'none';
+};
+
+window.markAllNotifsRead = function(e) {
+  e.stopPropagation();
+  fetch('/api/notifications/read-all', { method: 'POST' }).then(function() { loadNotifications(); });
+};
+
+// Auto-load notifications on page load and every 5 min
+setTimeout(loadNotifications, 1500);
+setInterval(loadNotifications, 5 * 60 * 1000);
+
+// Trigger evaluation on first page load each day
+fetch('/api/notifications/evaluate', { method: 'POST' }).then(function(r){ return r.json(); }).then(function() { setTimeout(loadNotifications, 800); });
 
 </script>
 </body>

@@ -121,7 +121,27 @@ async function initDB() {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS outlook_refresh_token TEXT;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS outlook_token_expiry TIMESTAMPTZ;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_call_goal INTEGER DEFAULT 10;
-    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS address TEXT;
+        ALTER TABLE prospects ADD COLUMN IF NOT EXISTS address TEXT;
+
+    CREATE TABLE IF NOT EXISTS notifications (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      prospect_id INTEGER REFERENCES prospects(id) ON DELETE CASCADE,
+      type TEXT NOT NULL,
+      urgency TEXT NOT NULL DEFAULT 'today',
+      title TEXT NOT NULL,
+      body TEXT,
+      action_url TEXT,
+      unique_key TEXT UNIQUE NOT NULL,
+      status TEXT NOT NULL DEFAULT 'unread',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      read_at TIMESTAMPTZ,
+      dismissed_at TIMESTAMPTZ,
+      acted_at TIMESTAMPTZ
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_notif_user_status ON notifications(user_id, status);
+    CREATE INDEX IF NOT EXISTS idx_notif_created ON notifications(created_at DESC);
 
     CREATE TABLE IF NOT EXISTS email_logs (
       id SERIAL PRIMARY KEY,
