@@ -80,4 +80,19 @@ router.patch('/:id', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+
+// Update just the pipeline stage of a prospect (used for drag-drop)
+router.post('/:id/stage', async (req, res) => {
+  const uid = req.session.user.id;
+  const { pipeline_stage } = req.body;
+  if (!pipeline_stage) return res.status(400).json({ error: 'pipeline_stage required' });
+  try {
+    await pool.query(
+      'UPDATE prospects SET pipeline_stage=$1 WHERE id=$2 AND user_id=$3',
+      [pipeline_stage, req.params.id, uid]
+    );
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;
