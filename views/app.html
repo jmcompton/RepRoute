@@ -4361,44 +4361,214 @@ fetch('/api/notifications/evaluate', { method: 'POST' }).then(function(r){ retur
 </div>
 
 
-<!-- Mobile More Menu Overlay -->
-<div id="mobile-menu-overlay" onclick="closeMobileMenu()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998"></div>
-<div id="mobile-menu-sheet" style="display:none;position:fixed;left:0;right:0;bottom:0;background:#fff;border-radius:16px 16px 0 0;z-index:9999;padding:14px 0 24px;max-height:75vh;overflow-y:auto;box-shadow:0 -4px 24px rgba(0,0,0,.15)">
-  <div style="width:40px;height:4px;background:#d1d5db;border-radius:2px;margin:0 auto 12px"></div>
-  <div style="font-size:11px;font-weight:700;color:#8a95a3;text-transform:uppercase;letter-spacing:.06em;padding:8px 20px 6px">More</div>
 
-  <button onclick="goAndCloseMenu('email')" class="mm-item" style="display:flex;align-items:center;gap:14px;width:100%;padding:14px 20px;border:none;background:transparent;text-align:left;font-size:14px;color:#0f1923;cursor:pointer;font-family:inherit">
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="4" width="16" height="12" rx="2"/><path d="M2 5l8 6 8-6"/></svg>
-    Email
-  </button>
+<!-- Mobile Full-Screen More Menu -->
+<div id="mobile-menu" style="display:none;position:fixed;inset:0;background:#fff;z-index:9999;flex-direction:column">
+  <!-- Header -->
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #e2e5ea">
+    <div style="font-size:16px;font-weight:700;color:#0f1923">Menu</div>
+    <button onclick="closeMobileMenu()" style="background:transparent;border:none;font-size:24px;color:#4a5568;cursor:pointer;padding:4px 8px;line-height:1;font-family:inherit">&times;</button>
+  </div>
 
-  <button onclick="goAndCloseMenu('calendar')" class="mm-item" style="display:flex;align-items:center;gap:14px;width:100%;padding:14px 20px;border:none;background:transparent;text-align:left;font-size:14px;color:#0f1923;cursor:pointer;font-family:inherit">
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="4" width="16" height="14" rx="2"/><path d="M6 2v4M14 2v4M2 9h16"/></svg>
-    Team Calendar
-  </button>
+  <!-- User profile section -->
+  <div style="padding:18px;border-bottom:1px solid #e2e5ea;display:flex;align-items:center;gap:12px;background:#f7f8fa">
+    <div style="width:44px;height:44px;border-radius:50%;background:#1d6aff;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px" id="mm-avatar">JC</div>
+    <div style="flex:1;min-width:0">
+      <div id="mm-name" style="font-size:14px;font-weight:600;color:#0f1923">JohnMark Compton</div>
+      <div id="mm-role" style="font-size:12px;color:#8a95a3">Manager</div>
+    </div>
+  </div>
 
-  <button onclick="goAndCloseMenu('accounts')" class="mm-item" style="display:flex;align-items:center;gap:14px;width:100%;padding:14px 20px;border:none;background:transparent;text-align:left;font-size:14px;color:#0f1923;cursor:pointer;font-family:inherit">
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="5" width="16" height="12" rx="2"/><path d="M6 5V3a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
-    Accounts
-  </button>
+  <!-- Menu items -->
+  <div style="flex:1;overflow-y:auto;padding:8px 0">
+    <div style="font-size:11px;font-weight:700;color:#8a95a3;text-transform:uppercase;letter-spacing:.06em;padding:14px 20px 8px">Communication</div>
 
-  <button onclick="goAndCloseMenu('command')" class="mm-item" style="display:flex;align-items:center;gap:14px;width:100%;padding:14px 20px;border:none;background:transparent;text-align:left;font-size:14px;color:#0f1923;cursor:pointer;font-family:inherit">
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M11 2L9 18M3 7l-2 3 2 3M17 7l2 3-2 3"/></svg>
-    AI Command
-  </button>
+    <button onclick="goAndCloseMenu('email')" class="mm-item">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#1d6aff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="18" height="14" rx="2"/><path d="M2 6l9 7 9-7"/></svg>
+      <span>Email</span>
+      <svg class="mm-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg>
+    </button>
 
-  <button onclick="goAndCloseMenu('manager')" class="mm-item" style="display:flex;align-items:center;gap:14px;width:100%;padding:14px 20px;border:none;background:transparent;text-align:left;font-size:14px;color:#0f1923;cursor:pointer;font-family:inherit">
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="3"/><circle cx="14" cy="7" r="3"/><path d="M2 17c0-2.5 2.5-5 5-5s5 2.5 5 5"/><path d="M14 12c2.5.5 4 2.5 4 5"/></svg>
-    Team Dashboard
-  </button>
+    <button onclick="goAndCloseMenu('calendar')" class="mm-item">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#1d6aff" stroke-width="1.6" stroke-linecap="round"><rect x="2" y="4" width="18" height="16" rx="2"/><path d="M7 2v4M15 2v4M2 10h18"/></svg>
+      <span>Team Calendar</span>
+      <svg class="mm-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg>
+    </button>
 
-  <div style="height:1px;background:#e2e5ea;margin:8px 20px"></div>
+    <div style="font-size:11px;font-weight:700;color:#8a95a3;text-transform:uppercase;letter-spacing:.06em;padding:14px 20px 8px">CRM</div>
 
-  <button onclick="logout()" class="mm-item" style="display:flex;align-items:center;gap:14px;width:100%;padding:14px 20px;border:none;background:transparent;text-align:left;font-size:14px;color:#dc2626;cursor:pointer;font-family:inherit">
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M13 4l4 6-4 6"/><path d="M17 10H7"/><path d="M7 4H4a2 2 0 00-2 2v8a2 2 0 002 2h3"/></svg>
-    Sign Out
-  </button>
+    <button onclick="goAndCloseMenu('accounts')" class="mm-item">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#1d6aff" stroke-width="1.6" stroke-linecap="round"><rect x="2" y="6" width="18" height="13" rx="2"/><path d="M7 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+      <span>Accounts</span>
+      <svg class="mm-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg>
+    </button>
+
+    <button onclick="goAndCloseMenu('command')" class="mm-item">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#1d6aff" stroke-width="1.6" stroke-linecap="round"><path d="M12 2L10 20M3 7l-2 4 2 4M19 7l2 4-2 4"/></svg>
+      <span>AI Command</span>
+      <svg class="mm-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg>
+    </button>
+
+    <button onclick="goAndCloseMenu('manager')" class="mm-item">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#1d6aff" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="3"/><circle cx="15" cy="8" r="3"/><path d="M2 19c0-3 3-5 6-5s6 2 6 5"/><path d="M15 14c3 .5 5 2.5 5 5"/></svg>
+      <span>Team Dashboard</span>
+      <svg class="mm-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg>
+    </button>
+
+    <div style="font-size:11px;font-weight:700;color:#8a95a3;text-transform:uppercase;letter-spacing:.06em;padding:14px 20px 8px">Account</div>
+
+    <button onclick="openMobileSettings()" class="mm-item">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#1d6aff" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="3"/><path d="M11 1v3M11 18v3M21 11h-3M4 11H1M18 4l-2 2M6 16l-2 2M18 18l-2-2M6 6L4 4"/></svg>
+      <span>Settings</span>
+      <svg class="mm-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg>
+    </button>
+
+    <button onclick="logout()" class="mm-item" style="color:#dc2626 !important">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#dc2626" stroke-width="1.6" stroke-linecap="round"><path d="M14 4l5 7-5 7"/><path d="M19 11H8"/><path d="M8 4H4a2 2 0 00-2 2v10a2 2 0 002 2h4"/></svg>
+      <span>Sign Out</span>
+    </button>
+  </div>
 </div>
+
+<!-- Mobile Settings Page -->
+<div id="mobile-settings" style="display:none;position:fixed;inset:0;background:#fff;z-index:10000;flex-direction:column">
+  <div style="display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid #e2e5ea">
+    <button onclick="closeMobileSettings()" style="background:transparent;border:none;font-size:22px;color:#4a5568;cursor:pointer;padding:0;line-height:1;font-family:inherit">&larr;</button>
+    <div style="font-size:16px;font-weight:700;color:#0f1923">Settings</div>
+  </div>
+
+  <div style="flex:1;overflow-y:auto;padding:18px">
+    <div style="font-size:11px;font-weight:700;color:#8a95a3;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Daily Goals</div>
+
+    <div style="background:#fff;border:1px solid #e2e5ea;border-radius:8px;padding:14px;margin-bottom:14px">
+      <label style="font-size:13px;font-weight:600;color:#0f1923;display:block;margin-bottom:8px">Daily Call Goal</label>
+      <div style="font-size:11px;color:#8a95a3;margin-bottom:12px">How many calls/visits per day?</div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button onclick="adjustGoal(-1)" style="width:36px;height:36px;border:1px solid #e2e5ea;border-radius:6px;background:#f7f8fa;font-size:18px;font-weight:700;color:#0f1923;cursor:pointer;font-family:inherit">&minus;</button>
+        <input type="number" id="set-daily-goal" min="1" max="50" style="flex:1;padding:8px;border:1px solid #e2e5ea;border-radius:6px;font-size:16px;text-align:center;font-family:inherit;outline:none" value="10">
+        <button onclick="adjustGoal(1)" style="width:36px;height:36px;border:1px solid #e2e5ea;border-radius:6px;background:#f7f8fa;font-size:18px;font-weight:700;color:#0f1923;cursor:pointer;font-family:inherit">+</button>
+      </div>
+      <button onclick="saveDailyGoal()" style="width:100%;margin-top:14px;padding:10px;background:#1d6aff;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Save Goal</button>
+    </div>
+
+    <div style="font-size:11px;font-weight:700;color:#8a95a3;text-transform:uppercase;letter-spacing:.06em;margin:20px 0 10px">App Info</div>
+    <div style="background:#fff;border:1px solid #e2e5ea;border-radius:8px;padding:14px">
+      <div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0"><span style="color:#8a95a3">Version</span><span style="color:#0f1923;font-weight:500">1.0</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0"><span style="color:#8a95a3">App</span><span style="color:#0f1923;font-weight:500">RepRoute</span></div>
+    </div>
+  </div>
+</div>
+
+<style>
+.mm-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 14px 20px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-size: 15px;
+  color: #0f1923;
+  cursor: pointer;
+  font-family: inherit;
+  border-bottom: 1px solid #f1f5f9;
+}
+.mm-item span { flex: 1; font-weight: 500; }
+.mm-item:active { background: #f1f5f9; }
+.mm-item:last-child { border-bottom: none; }
+</style>
+
+
+<script>
+window.openMobileMenu = function() {
+  var menu = document.getElementById('mobile-menu');
+  if (menu) {
+    menu.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    // Populate user info if available
+    fetch('/api/me').then(function(r){return r.json();}).then(function(u){
+      if (u && u.name) {
+        var avatar = document.getElementById('mm-avatar');
+        var name = document.getElementById('mm-name');
+        var role = document.getElementById('mm-role');
+        if (name) name.textContent = u.name;
+        if (role) role.textContent = u.role === 'rep' ? 'Sales Rep' : 'Manager';
+        if (avatar) {
+          var initials = u.name.split(' ').map(function(p){return p[0];}).join('').substring(0,2).toUpperCase();
+          avatar.textContent = initials;
+        }
+      }
+    }).catch(function(){});
+  }
+};
+
+window.closeMobileMenu = function() {
+  var menu = document.getElementById('mobile-menu');
+  if (menu) {
+    menu.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+};
+
+window.goAndCloseMenu = function(page) {
+  closeMobileMenu();
+  setTimeout(function() {
+    if (typeof go === 'function') go(page);
+  }, 50);
+};
+
+window.openMobileSettings = function() {
+  closeMobileMenu();
+  var s = document.getElementById('mobile-settings');
+  if (s) {
+    s.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    // Load current goal
+    fetch('/api/me/settings').then(function(r){return r.json();}).then(function(d){
+      var input = document.getElementById('set-daily-goal');
+      if (input && d.daily_call_goal) input.value = d.daily_call_goal;
+    }).catch(function(){});
+  }
+};
+
+window.closeMobileSettings = function() {
+  var s = document.getElementById('mobile-settings');
+  if (s) {
+    s.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+};
+
+window.adjustGoal = function(delta) {
+  var input = document.getElementById('set-daily-goal');
+  if (!input) return;
+  var v = parseInt(input.value) || 10;
+  v = Math.max(1, Math.min(50, v + delta));
+  input.value = v;
+};
+
+window.saveDailyGoal = function() {
+  var input = document.getElementById('set-daily-goal');
+  if (!input) return;
+  var goal = parseInt(input.value) || 10;
+  fetch('/api/me/settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ daily_call_goal: goal })
+  }).then(function(r){return r.json();}).then(function(d){
+    if (d.ok) {
+      if (typeof showToast === 'function') showToast('Goal saved');
+      closeMobileSettings();
+    }
+  });
+};
+
+window.logout = window.logout || function() {
+  fetch('/logout', { method: 'POST' }).then(function() { location.href = '/'; });
+};
+</script>
 
 </body>
 </html>

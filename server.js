@@ -130,7 +130,36 @@ app.use('/auth', emailRoutes);
 
 const PORT = process.env.PORT || 3000;
 initDB().then(() => {
-  app.listen(PORT, () => console.log(`RepRoute running on port ${PORT}`));
+  
+
+// Mobile menu user info + settings
+app.get('/api/me', requireAuth, (req, res) => {
+  res.json({
+    name: req.session.user.name,
+    email: req.session.user.email,
+    role: req.session.user.role
+  });
+});
+
+app.get('/api/me/settings', requireAuth, async (req, res) => {
+  try {
+    const { pool } = require('./db');
+    const r = await pool.query('SELECT daily_call_goal FROM users WHERE id=$1', [req.session.user.id]);
+    res.json({ daily_call_goal: r.rows[0]?.daily_call_goal || 10 });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/me/settings', requireAuth, async (req, res) => {
+  try {
+    const { pool } = require('./db');
+    const goal = parseInt(req.body.daily_call_goal) || 10;
+    await pool.query('UPDATE users SET daily_call_goal=$1 WHERE id=$2', [goal, req.session.user.id]);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+
+app.listen(PORT, () => console.log(`RepRoute running on port ${PORT}`));
 });
 
 app.post('/app/update-territory', requireAuth, async (req, res) => {
