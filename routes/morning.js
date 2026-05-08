@@ -101,10 +101,6 @@ router.post('/log-call', async (req, res) => {
 
 
 // ─── DAILY LEADS — uses Google Places API ───────────────────────────────────
-const fetchPlaces = require('node-fetch');
-
-router.post('/daily-leads', async (req, res) => {
-  const uid = req.session.user.id;
   const fetchPlaces = require('node-fetch');
   const PLACES_KEY = process.env.GOOGLE_PLACES_API_KEY;
   if (!PLACES_KEY) return res.status(500).json({ error: 'Google Places API key not configured' });
