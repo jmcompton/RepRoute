@@ -114,19 +114,48 @@ router.post('/daily-leads', async (req, res) => {
 
     const allLeads = [];
     const sessionSeen = new Set();
+    let cityCoords = null;
 
     for (const customerType of Object.keys(customerTypeBrands)) {
       if (allLeads.length >= 10) break;
       try {
+        // First-time setup: geocode the city to lat/lng once per search session
+        if (!cityCoords) {
+          try {
+            const geoRes = await fetch('https://maps.googleapis.com/maps/api/geocode/json?address=' + encodeURIComponent(city) + '&key=' + PLACES_KEY);
+            const geoData = await geoRes.json();
+            if (geoData.results && geoData.results[0]) {
+              const loc = geoData.results[0].geometry.location;
+              cityCoords = { lat: loc.lat, lng: loc.lng };
+              console.log('Geocoded', city, '->', cityCoords);
+            }
+          } catch(e) { console.error('Geocode failed:', e.message); }
+        }
+
         const searchQuery = customerType + ' ' + city;
+        const searchBody = {
+          textQuery: searchQuery,
+          maxResultCount: 20
+        };
+
+        // Add tight location restriction if we have coordinates
+        if (cityCoords) {
+          searchBody.locationBias = {
+            circle: {
+              center: { latitude: cityCoords.lat, longitude: cityCoords.lng },
+              radius: 8000  // 8km / 5 miles - tight for actual city limits
+            }
+          };
+        }
+
         const placesRes = await fetch('https://places.googleapis.com/v1/places:searchText', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'X-Goog-Api-Key': PLACES_KEY,
-            'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.businessStatus'
+            'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.businessStatus,places.location'
           },
-          body: JSON.stringify({ textQuery: searchQuery, maxResultCount: 20 })
+          body: JSON.stringify(searchBody)
         });
         const data = await placesRes.json();
         const places = data.places || [];
