@@ -4,15 +4,15 @@ const router = express.Router();
 
 const DEFAULT_MAPPINGS = [
   // BOSS Products
-  { brand: 'BOSS Products', channel: 'Dealer', customer_types: ['Roofing Distributor', 'Roofing Supply', 'Roofing Wholesale Dealer'] },
-  { brand: 'BOSS Products', channel: 'Contractor', customer_types: ['Roofing Contractor', 'Commercial Roofing Contractor'] },
+  { brand: 'BOSS Products', channel: 'Dealer', customer_types: ['ABC Supply', 'Beacon Building Products', 'SRS Distribution', 'roofing supply wholesale'] },
+  { brand: 'BOSS Products', channel: 'Contractor', customer_types: ['Roofing Contractor', 'Residential Roofer', 'Commercial Roofing Contractor'] },
 
-  // ShurTape
-  { brand: 'ShurTape', channel: 'Dealer', customer_types: ['One-Step Specialty Dealer', 'Building Material Specialty Dealer', 'Siding Supply Distributor'] },
-  { brand: 'ShurTape', channel: 'Contractor', customer_types: ['Deck Contractor', 'Window Installer', 'Door Installer', 'Siding Contractor', 'Cornice Contractor'] },
+  // ShurTape - one-step specialty dealers (sell to contractors, not big-box)
+  { brand: 'ShurTape', channel: 'Dealer', customer_types: ['ABC Supply', 'Ted Lansing', 'SRS Distribution', 'QXO', 'Alside Supply', 'siding distributor wholesale', 'building products distributor'] },
+  { brand: 'ShurTape', channel: 'Contractor', customer_types: ['Deck Contractor', 'Window Installer', 'Door Installer', 'Siding Contractor'] },
 
-  // Alum-A-Pole
-  { brand: 'Alum-A-Pole', channel: 'Dealer', customer_types: ['One-Step Specialty Dealer', 'Building Material Specialty Dealer', 'Fastener Dealer', 'Tool Equipment Dealer', 'Construction Equipment Supplier'] },
+  // Alum-A-Pole - same dealers as ShurTape + fastener/tool equipment dealers
+  { brand: 'Alum-A-Pole', channel: 'Dealer', customer_types: ['ABC Supply', 'Ted Lansing', 'SRS Distribution', 'QXO', 'Alside Supply', 'fastener supply', 'construction tool supply', 'siding distributor wholesale'] },
   { brand: 'Alum-A-Pole', channel: 'Contractor', customer_types: ['Siding Contractor', 'Cornice Contractor', 'Painting Contractor'] }
 ];
 
