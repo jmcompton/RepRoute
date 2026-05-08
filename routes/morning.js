@@ -140,10 +140,10 @@ router.post('/daily-leads', async (req, res) => {
 
         // Add tight location restriction if we have coordinates
         if (cityCoords) {
-          searchBody.locationBias = {
+          searchBody.locationRestriction = {
             circle: {
               center: { latitude: cityCoords.lat, longitude: cityCoords.lng },
-              radius: 8000  // 8km / 5 miles - tight for actual city limits
+              radius: 8000  // 8km / 5 miles - HARD boundary, not just a hint
             }
           };
         }
