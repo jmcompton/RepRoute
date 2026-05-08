@@ -159,6 +159,11 @@ router.post('/daily-leads', async (req, res) => {
         });
         const data = await placesRes.json();
         const places = data.places || [];
+        if (places.length > 0 && !global._placesLogged) {
+          console.log('[DEBUG] First place full object:', JSON.stringify(places[0], null, 2));
+          console.log('[DEBUG] cityCoords:', JSON.stringify(cityCoords));
+          global._placesLogged = true;
+        }
 
         for (const place of places) {
           if (allLeads.length >= 10) break;
