@@ -122,6 +122,20 @@ async function initDB() {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS outlook_token_expiry TIMESTAMPTZ;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_call_goal INTEGER DEFAULT 10;
         ALTER TABLE prospects ADD COLUMN IF NOT EXISTS address TEXT;
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS google_place_id TEXT;
+    CREATE INDEX IF NOT EXISTS idx_prospects_place_id ON prospects(user_id, google_place_id);
+    CREATE INDEX IF NOT EXISTS idx_prospects_company_lower ON prospects(user_id, LOWER(company));
+
+    CREATE TABLE IF NOT EXISTS brand_mappings (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      brand TEXT NOT NULL,
+      channel TEXT NOT NULL,
+      customer_types JSONB NOT NULL DEFAULT '[]'::jsonb,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(user_id, brand, channel)
+    );
 
     CREATE TABLE IF NOT EXISTS notifications (
       id SERIAL PRIMARY KEY,

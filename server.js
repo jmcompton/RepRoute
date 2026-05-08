@@ -19,6 +19,7 @@ const adminRoutes = require('./routes/admin');
 const placesRoutes = require('./routes/places');
 const morningRoutes = require('./routes/morning');
 const { router: notificationsRoutes, evaluateForUser } = require('./routes/notifications');
+const { router: brandMappingsRoutes } = require('./routes/brand_mappings');
 
 const app = express();
 app.use(express.json());
@@ -103,6 +104,7 @@ app.use('/api/samples', requireAuth, samplesRoutes);
 app.use('/api/places', requireAuth, placesRoutes);
 app.use('/api/morning', requireAuth, morningRoutes);
 app.use('/api/notifications', requireAuth, notificationsRoutes);
+app.use('/api/brand-mappings', requireAuth, brandMappingsRoutes);
 
 // Daily notification evaluation - runs every hour, but only fires evaluations once per user per day
 const { pool: dbPool } = require('./db');

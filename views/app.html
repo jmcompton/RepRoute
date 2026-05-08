@@ -725,11 +725,25 @@ window.addEventListener('load', function() {
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px 20px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
         <div style="flex:1;min-width:200px">
           <div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:3px">Find Today's Leads</div>
-          <div style="font-size:12px;color:var(--text3);margin-bottom:8px">10 fresh leads across Atlanta Metro & Birmingham for BOSS, ShurTape, and Alum-A-Pole</div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap">
-            <span style="background:#fee2e2;color:#b91c1c;font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px">BOSS Products</span>
-            <span style="background:#dbeafe;color:#1d4ed8;font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px">ShurTape</span>
-            <span style="background:#d1fae5;color:#065f46;font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px">Alum-A-Pole</span>
+          <div style="font-size:12px;color:var(--text3);margin-bottom:12px">Pick your brands and channel, then enter a city</div>
+
+          <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Brands</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px" id="lead-brand-row">
+            <label class="lead-brand-pill" data-brand="BOSS Products" style="cursor:pointer;background:#fee2e2;color:#b91c1c;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:flex;align-items:center;gap:5px;border:2px solid transparent">
+              <input type="checkbox" value="BOSS Products" checked style="margin:0;accent-color:#b91c1c"> BOSS
+            </label>
+            <label class="lead-brand-pill" data-brand="ShurTape" style="cursor:pointer;background:#dbeafe;color:#1d4ed8;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:flex;align-items:center;gap:5px;border:2px solid transparent">
+              <input type="checkbox" value="ShurTape" checked style="margin:0;accent-color:#1d4ed8"> ShurTape
+            </label>
+            <label class="lead-brand-pill" data-brand="Alum-A-Pole" style="cursor:pointer;background:#d1fae5;color:#065f46;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:flex;align-items:center;gap:5px;border:2px solid transparent">
+              <input type="checkbox" value="Alum-A-Pole" checked style="margin:0;accent-color:#065f46"> Alum-A-Pole
+            </label>
+          </div>
+
+          <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Channel</div>
+          <div style="display:flex;gap:0;background:var(--bg);border-radius:6px;padding:3px;margin-bottom:4px;width:fit-content">
+            <button type="button" id="ch-contractor" onclick="setLeadChannel(\'Contractor\')" style="padding:6px 14px;border:none;background:var(--accent);color:#fff;border-radius:5px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:\'DM Sans\',sans-serif">Contractors</button>
+            <button type="button" id="ch-dealer" onclick="setLeadChannel(\'Dealer\')" style="padding:6px 14px;border:none;background:transparent;color:var(--text2);border-radius:5px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:\'DM Sans\',sans-serif">Dealers</button>
           </div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -4030,6 +4044,7 @@ window.leadLogAndAdd = function(i, e) {
       phone: lead.phone || '',
       website: lead.website || '',
       products: lead.products || '',
+      google_place_id: lead.place_id || '',
       contact: contactName + (contactTitle ? ' (' + contactTitle + ')' : ''),
       priority: lead.priority || 'High',
       status: outcome === 'Ready to Order' ? 'Hot' : outcome === 'Dropped In - Interested' ? 'Warm' : 'New',
@@ -4125,6 +4140,29 @@ window.openRouteInMaps = function() {
   window.open(url, '_blank');
 };
 
+
+window._leadChannel = 'Contractor';
+
+window.getSelectedBrands = function() {
+  var checked = [];
+  document.querySelectorAll('#lead-brand-row input[type="checkbox"]:checked').forEach(function(cb) {
+    checked.push(cb.value);
+  });
+  return checked.length ? checked : ['BOSS Products', 'ShurTape', 'Alum-A-Pole'];
+};
+
+window.setLeadChannel = function(channel) {
+  window._leadChannel = channel;
+  var con = document.getElementById('ch-contractor');
+  var deal = document.getElementById('ch-dealer');
+  if (con && deal) {
+    con.style.background = channel === 'Contractor' ? 'var(--accent)' : 'transparent';
+    con.style.color = channel === 'Contractor' ? '#fff' : 'var(--text2)';
+    deal.style.background = channel === 'Dealer' ? 'var(--accent)' : 'transparent';
+    deal.style.color = channel === 'Dealer' ? '#fff' : 'var(--text2)';
+  }
+};
+
 window.runDailyLeads = function() {
   var btn = document.getElementById('lead-find-btn');
   var loading = document.getElementById('lead-loading');
@@ -4143,7 +4181,7 @@ window.runDailyLeads = function() {
   fetch('/api/morning/daily-leads', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ city: city })
+    body: JSON.stringify({ city: city, brands: getSelectedBrands(), channel: window._leadChannel || 'Contractor' })
   })
     .then(function(r) { return r.json(); })
     .then(function(data) {

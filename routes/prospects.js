@@ -29,7 +29,7 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   const uid = req.session.user.id;
   const id = req.params.id;
-  const { company, category, city, state, phone, email, contact, website, products, status, priority, notes, pipeline_stage } = req.body;
+  const { company, category, city, state, phone, email, contact, website, products, status, priority, notes, pipeline_stage, google_place_id, address } = req.body;
 
   // Build dynamic update — only update fields that were sent
   const fields = [];
@@ -49,6 +49,8 @@ router.put('/:id', async (req, res) => {
   add('priority', priority);
   add('notes', notes);
   add('pipeline_stage', pipeline_stage);
+  add('google_place_id', google_place_id);
+  add('address', address);
 
   if (fields.length === 0) return res.json({ error: 'Nothing to update' });
 
