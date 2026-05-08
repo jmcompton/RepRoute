@@ -178,6 +178,50 @@ router.post('/daily-leads', async (req, res) => {
       }
     }
 
+    // If we don't have 10 leads, fill the gap with a generic search
+    if (allLeads.length < 10) {
+      try {
+        const fillRes = await fetchPlaces('https://places.googleapis.com/v1/places:searchText', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': PLACES_KEY,
+            'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.businessStatus'
+          },
+          body: JSON.stringify({ textQuery: 'building contractors ' + city, maxResultCount: 20 })
+        });
+        const fillData = await fillRes.json();
+        const fillPlaces = fillData.places || [];
+
+        const productCycle = ['BOSS Products', 'ShurTape', 'Alum-A-Pole'];
+        let pIdx = 0;
+
+        for (const place of fillPlaces) {
+          if (allLeads.length >= 10) break;
+          const company = place.displayName?.text || '';
+          if (!company || seen.has(company.toLowerCase())) continue;
+          if (place.businessStatus === 'CLOSED_PERMANENTLY') continue;
+          seen.add(company.toLowerCase());
+
+          const addr = (place.formattedAddress || '').split(',');
+          allLeads.push({
+            company,
+            category: 'Contractor',
+            city: addr[1]?.trim() || '',
+            address: place.formattedAddress || '',
+            phone: place.nationalPhoneNumber || '',
+            website: place.websiteUri || '',
+            products: productCycle[pIdx % productCycle.length],
+            territory: city,
+            priority: (place.rating >= 4.5 && place.userRatingCount > 20) ? 'High' : (place.rating >= 3.5) ? 'Medium' : 'Low',
+            rating: place.rating || null,
+            reviews: place.userRatingCount || 0
+          });
+          pIdx++;
+        }
+      } catch(e) { console.error('Fill search error:', e.message); }
+    }
+
     res.json({ ok: true, leads: allLeads.slice(0, 10) });
   } catch(e) {
     res.status(500).json({ error: e.message });
