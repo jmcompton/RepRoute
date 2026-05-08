@@ -3,17 +3,17 @@ const { pool } = require('../db');
 const router = express.Router();
 
 const DEFAULT_MAPPINGS = [
-  // BOSS Products
-  { brand: 'BOSS Products', channel: 'Dealer', customer_types: ['ABC Supply', 'Beacon Building Products', 'SRS Distribution', 'roofing supply wholesale'] },
-  { brand: 'BOSS Products', channel: 'Contractor', customer_types: ['Roofing Contractor', 'Residential Roofer', 'Commercial Roofing Contractor'] },
+  // BOSS Products - sells to roofing trade
+  { brand: 'BOSS Products', channel: 'Dealer', customer_types: ['roofing distributor', 'roofing supply', 'roofing wholesale', 'commercial roofing supply'] },
+  { brand: 'BOSS Products', channel: 'Contractor', customer_types: ['roofing contractor', 'commercial roofing contractor', 'residential roofing contractor'] },
 
-  // ShurTape - one-step specialty dealers (sell to contractors, not big-box)
-  { brand: 'ShurTape', channel: 'Dealer', customer_types: ['ABC Supply', 'Ted Lansing', 'SRS Distribution', 'QXO', 'Alside Supply', 'siding distributor wholesale', 'building products distributor'] },
-  { brand: 'ShurTape', channel: 'Contractor', customer_types: ['Deck Contractor', 'Window Installer', 'Door Installer', 'Siding Contractor'] },
+  // ShurTape - one-step specialty dealers + deck/window/siding/cornice contractors
+  { brand: 'ShurTape', channel: 'Dealer', customer_types: ['siding supply', 'siding distributor', 'building products distributor', 'specialty building materials', 'exterior building supply'] },
+  { brand: 'ShurTape', channel: 'Contractor', customer_types: ['deck contractor', 'window installation contractor', 'door installation contractor', 'siding contractor'] },
 
-  // Alum-A-Pole - same dealers as ShurTape + fastener/tool equipment dealers
-  { brand: 'Alum-A-Pole', channel: 'Dealer', customer_types: ['ABC Supply', 'Ted Lansing', 'SRS Distribution', 'QXO', 'Alside Supply', 'fastener supply', 'construction tool supply', 'siding distributor wholesale'] },
-  { brand: 'Alum-A-Pole', channel: 'Contractor', customer_types: ['Siding Contractor', 'Cornice Contractor', 'Painting Contractor'] }
+  // Alum-A-Pole - same one-step dealers + fastener/tool dealers
+  { brand: 'Alum-A-Pole', channel: 'Dealer', customer_types: ['siding supply', 'siding distributor', 'building products distributor', 'specialty building materials', 'fastener supply', 'construction tool supplier', 'construction equipment supply'] },
+  { brand: 'Alum-A-Pole', channel: 'Contractor', customer_types: ['siding contractor', 'cornice contractor', 'painting contractor'] }
 ];
 
 async function seedDefaultsForUser(userId) {
