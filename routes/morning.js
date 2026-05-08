@@ -140,10 +140,10 @@ router.post('/daily-leads', async (req, res) => {
 
         // Add tight location restriction if we have coordinates
         if (cityCoords) {
-          searchBody.locationRestriction = {
+          searchBody.locationBias = {
             circle: {
               center: { latitude: cityCoords.lat, longitude: cityCoords.lng },
-              radius: 8000  // 8km / 5 miles - HARD boundary, not just a hint
+              radius: 16000  // 10mi soft bias - we filter to 5mi hard with our own distance calc
             }
           };
         }
@@ -197,6 +197,7 @@ router.post('/daily-leads', async (req, res) => {
             products: matchedBrands,
             place_id: placeId,
             territory: city,
+            distance_miles: place._distanceMiles ? Math.round(place._distanceMiles * 10) / 10 : null,
             priority: (place.rating >= 4.5 && place.userRatingCount > 20) ? 'High' : (place.rating >= 3.5) ? 'Medium' : 'Low',
             rating: place.rating || null,
             reviews: place.userRatingCount || 0
@@ -205,12 +206,20 @@ router.post('/daily-leads', async (req, res) => {
       } catch(e) { console.error('Search error for', customerType, e.message); }
     }
 
+    // Sort by distance from city center (closest first)
+    allLeads.sort(function(a, b) {
+      var da = a.distance_miles == null ? 999 : a.distance_miles;
+      var db = b.distance_miles == null ? 999 : b.distance_miles;
+      return da - db;
+    });
+
     res.json({
       ok: true,
       leads: allLeads.slice(0, 10),
       brands_used: brands,
       channel: channel,
-      excluded_count: existingNames.size
+      excluded_count: existingNames.size,
+      city_coords: cityCoords
     });
   } catch(e) {
     console.error('daily-leads error:', e);
