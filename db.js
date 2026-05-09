@@ -169,6 +169,14 @@ async function initDB() {
       sent_at TIMESTAMPTZ DEFAULT NOW(),
       source TEXT DEFAULT 'manual'
     );
+
+    -- Lead gen improvements: opportunity scoring + rep home base
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS opportunity_score INTEGER DEFAULT 5;
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS channel TEXT DEFAULT 'Contractor';
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS home_base_lat NUMERIC;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS home_base_lng NUMERIC;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS home_base_city TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS radius_miles INTEGER DEFAULT 50;
   `);
   console.log('Database initialized');
 }
