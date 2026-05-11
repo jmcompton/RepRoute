@@ -637,6 +637,7 @@ window.addEventListener('load', function() {
       <button onclick="openTerritoryModal()" style="font-size:10px;padding:3px 8px;background:transparent;border:1px solid var(--border);border-radius:4px;color:rgba(255,255,255,.5);cursor:pointer;font-family:inherit">Change</button>
     </div>
     <div class="sb-user"><div class="sb-av" id="s-av">JM</div><div><div class="sb-uname" id="s-name">Loading...</div><div class="sb-urole" id="s-role">Rep</div></div></div>
+    <button onclick="wipeMyData()" style="width:calc(100% - 16px);margin:0 8px 6px;padding:7px;background:transparent;border:1px solid #ef444455;border-radius:5px;color:#ef4444;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">Clear My Demo Data</button>
     <button class="sb-out" onclick="signOut()">Sign Out</button>
   </div>
 </aside>
@@ -4465,6 +4466,28 @@ function renderTeamContacts(rows, search) {
     '</tr>';
   }).join('');
 }
+
+
+window.wipeMyData = function() {
+  if (!confirm('This will permanently delete ALL your contacts, calls, and activity. This cannot be undone.\n\nAre you sure?')) return;
+  if (!confirm('Last chance — delete everything?')) return;
+  fetch('/admin/wipe-my-data', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ confirm: 'YES_DELETE_MY_DATA' })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.ok) {
+      showToast('Deleted ' + d.deleted.prospects + ' contacts and ' + d.deleted.calls + ' calls');
+      loadProspects();
+      loadDashboard();
+    } else {
+      alert('Error: ' + (d.error || 'Unknown error'));
+    }
+  })
+  .catch(function(e) { alert('Error: ' + e.message); });
+};
 
 window.addLeadToCRM = function(i) {
   var lead = window._dailyLeads?.[i];
