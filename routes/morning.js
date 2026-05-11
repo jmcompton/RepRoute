@@ -6,100 +6,61 @@ const router = express.Router();
 const CLAUDE_API = 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-sonnet-4-20250514';
 
-// ─── SEGMENT → SEARCH QUERY MAPPING ─────────────────────────────────────────
-// 7 named segments replace the old Contractor/Dealer split.
-// Each segment has targeted queries + a relevantBrands list for scoring.
-const SEGMENT_SEARCH_CONFIG = {
-  'Window/Door Installer': {
-    relevantBrands: ['ShurTape'],
-    queries: [
-      { query: 'new construction window installation contractor', score: 10, category: 'Window/Door Installer' },
-      { query: 'new construction entry door installer', score: 10, category: 'Window/Door Installer' },
-      { query: 'window door installation new build residential', score: 9, category: 'Window/Door Installer' },
-      { query: 'window installation company residential', score: 8, category: 'Window/Door Installer' },
-      { query: 'exterior entry door installation contractor', score: 8, category: 'Window/Door Installer' },
-    ]
-  },
-  'Deck Contractor': {
-    relevantBrands: ['ShurTape'],
-    queries: [
-      { query: 'deck builder contractor', score: 10, category: 'Deck Contractor' },
-      { query: 'deck installation company', score: 10, category: 'Deck Contractor' },
-      { query: 'deck construction new build', score: 9, category: 'Deck Contractor' },
-      { query: 'composite deck installer', score: 9, category: 'Deck Contractor' },
-    ]
-  },
-  'Roofing Contractor': {
-    relevantBrands: ['BOSS Products', 'ShurTape'],
-    queries: [
+// ─── PRODUCT → SEARCH QUERY MAPPING ──────────────────────────────────────────
+// Each entry defines what Google Places queries to run and how to score results
+const PRODUCT_SEARCH_CONFIG = {
+  'BOSS Products': {
+    Contractor: [
       { query: 'roofing contractor', score: 10, category: 'Roofing Contractor' },
       { query: 'commercial roofing company', score: 10, category: 'Roofing Contractor' },
-      { query: 'residential roofing contractor', score: 9, category: 'Roofing Contractor' },
-      { query: 'roof replacement contractor', score: 9, category: 'Roofing Contractor' },
-      { query: 'roofing company new construction', score: 9, category: 'Roofing Contractor' },
-    ]
-  },
-  'Roofing Distributor': {
-    relevantBrands: ['BOSS Products'],
-    queries: [
+      { query: 'residential roofing company', score: 9, category: 'Roofing Contractor' },
+      { query: 'roof repair company', score: 9, category: 'Roofing Contractor' },
+      { query: 'general contractor roofing', score: 7, category: 'General Contractor' },
+    ],
+    Dealer: [
       { query: 'roofing supply distributor', score: 10, category: 'Roofing Distributor' },
+      { query: 'building materials wholesale', score: 8, category: 'Building Materials' },
       { query: 'roofing wholesale supply', score: 10, category: 'Roofing Distributor' },
-      { query: 'ABC Supply roofing materials', score: 9, category: 'Roofing Distributor' },
+      { query: 'ABC Supply roofing', score: 9, category: 'Roofing Distributor' },
       { query: 'Beacon Roofing Supply', score: 9, category: 'Roofing Distributor' },
-      { query: 'building materials wholesale roofing', score: 8, category: 'Roofing Distributor' },
     ]
   },
-  'Siding Contractor': {
-    relevantBrands: ['Alum-A-Pole', 'ShurTape'],
-    queries: [
+  'ShurTape': {
+    Contractor: [
+      { query: 'roofing contractor', score: 9, category: 'Roofing Contractor' },
+      { query: 'deck builder contractor', score: 9, category: 'Deck Contractor' },
+      { query: 'siding contractor installation', score: 9, category: 'Siding Contractor' },
+      { query: 'window installation contractor', score: 8, category: 'Window Contractor' },
+      { query: 'door installation contractor', score: 7, category: 'Door Contractor' },
+    ],
+    Dealer: [
+      { query: 'building products distributor', score: 9, category: 'Building Supply' },
+      { query: 'siding supply distributor', score: 10, category: 'Siding Distributor' },
+      { query: 'specialty building materials', score: 8, category: 'Building Supply' },
+      { query: 'exterior building supply', score: 9, category: 'Building Supply' },
+      { query: 'lumber yard building supply', score: 7, category: 'Lumber Yard' },
+    ]
+  },
+  'Alum-A-Pole': {
+    Contractor: [
       { query: 'siding contractor installation', score: 10, category: 'Siding Contractor' },
       { query: 'vinyl siding contractor', score: 10, category: 'Siding Contractor' },
       { query: 'James Hardie siding installer', score: 10, category: 'Siding Contractor' },
       { query: 'fiber cement siding company', score: 9, category: 'Siding Contractor' },
-      { query: 'exterior siding company', score: 9, category: 'Siding Contractor' },
-    ]
-  },
-  'Cornice Contractor': {
-    relevantBrands: ['Alum-A-Pole'],
-    queries: [
       { query: 'cornice contractor soffit fascia', score: 10, category: 'Cornice Contractor' },
-      { query: 'soffit fascia contractor installer', score: 10, category: 'Cornice Contractor' },
-      { query: 'fascia board installation contractor', score: 9, category: 'Cornice Contractor' },
-      { query: 'exterior trim contractor soffit', score: 9, category: 'Cornice Contractor' },
-    ]
-  },
-  'Fastener/Tool Dealer': {
-    relevantBrands: ['Alum-A-Pole'],
-    queries: [
-      { query: 'fastener supply store construction', score: 10, category: 'Fastener/Tool Dealer' },
-      { query: 'construction tool equipment dealer', score: 10, category: 'Fastener/Tool Dealer' },
-      { query: 'scaffolding rental supply construction', score: 10, category: 'Fastener/Tool Dealer' },
-      { query: 'ladder supply company construction', score: 10, category: 'Fastener/Tool Dealer' },
-      { query: 'extension ladder dealer supply store', score: 9, category: 'Fastener/Tool Dealer' },
-      { query: 'siding supply distributor tools', score: 9, category: 'Fastener/Tool Dealer' },
-      { query: 'building materials distributor siding', score: 8, category: 'Fastener/Tool Dealer' },
-    ]
-  },
-  'Siding Distributor': {
-    relevantBrands: ['Alum-A-Pole', 'ShurTape'],
-    queries: [
-      { query: 'siding supply distributor wholesale', score: 10, category: 'Siding Distributor' },
-      { query: 'exterior building products distributor', score: 10, category: 'Siding Distributor' },
-      { query: 'siding materials wholesale supplier', score: 9, category: 'Siding Distributor' },
-      { query: 'vinyl siding wholesale distributor', score: 9, category: 'Siding Distributor' },
-      { query: 'James Hardie siding supply dealer', score: 8, category: 'Siding Distributor' },
+      { query: 'exterior siding company', score: 9, category: 'Siding Contractor' },
+      { query: 'stucco siding contractor', score: 8, category: 'Siding Contractor' },
+    ],
+    Dealer: [
+      { query: 'siding supply distributor', score: 10, category: 'Siding Distributor' },
+      { query: 'building materials distributor siding', score: 9, category: 'Building Supply' },
+      { query: 'fastener supply store construction', score: 9, category: 'Fastener Supply' },
+      { query: 'construction tool equipment dealer', score: 8, category: 'Equipment Dealer' },
+      { query: 'scaffolding rental supply', score: 10, category: 'Scaffolding Dealer' },
+      { query: 'exterior building products distributor', score: 9, category: 'Siding Distributor' },
     ]
   }
 };
-
-// Legacy map kept for any references — maps old channel names to segment groups
-const CHANNEL_TO_SEGMENTS = {
-  'Contractor': ['Window/Door Installer','Deck Contractor','Roofing Contractor','Siding Contractor','Cornice Contractor'],
-  'Dealer': ['Roofing Distributor','Fastener/Tool Dealer']
-};
-
-// Shim: build a PRODUCT_SEARCH_CONFIG-compatible lookup for the scoring helper
-const PRODUCT_SEARCH_CONFIG = {};
 
 // Google place types that confirm a business is relevant (vs. just having the right name)
 const CONTRACTOR_PLACE_TYPES = new Set([
@@ -122,26 +83,6 @@ function isPaintBlocked(name, brand) {
   if ((brand || '').toLowerCase().includes('alum')) {
     const lower = (name || '').toLowerCase();
     return PAINT_BLOCKED_KEYWORDS.some(kw => lower.includes(kw));
-  }
-  return false;
-}
-
-// Block remodeling/renovation companies from ShurTape window & door categories
-// Window/door tape is for new construction — remodelers use different products
-const REMODEL_BLOCK_KEYWORDS = ['remodel', 'remodeling', 'renovation', 'renovations', 'home improvement', 'general contractor', 'general contracting'];
-const GARAGE_DOOR_KEYWORDS = ['garage door', 'garage doors', 'overhead door', 'overhead doors'];
-const WINDOW_DOOR_CATEGORIES = ['Window Contractor', 'Door Contractor', 'Window/Door Installer'];
-function isRemodelBlocked(name, category, brand) {
-  const lower = (name || '').toLowerCase();
-  // Hard block garage doors from ALL window/door results regardless of brand
-  if (WINDOW_DOOR_CATEGORIES.includes(category) || category === 'Window/Door Installer') {
-    if (GARAGE_DOOR_KEYWORDS.some(kw => lower.includes(kw))) return true;
-  }
-  // Block remodelers from ShurTape window/door results
-  if ((brand || '').toLowerCase().includes('shurtape') || (brand || '').toLowerCase().includes('shur') || category === 'Window/Door Installer') {
-    if (WINDOW_DOOR_CATEGORIES.includes(category)) {
-      return REMODEL_BLOCK_KEYWORDS.some(kw => lower.includes(kw));
-    }
   }
   return false;
 }
@@ -265,11 +206,9 @@ router.get('/', async (req, res) => {
 });
 
 // ─── DAILY LEAD FINDER (IMPROVED) ────────────────────────────────────────────
-
 router.post('/daily-leads', async (req, res) => {
   const uid = req.session.user.id;
   const PLACES_KEY = process.env.GOOGLE_PLACES_API_KEY;
-  console.log(`[daily-leads] hit — uid=${uid} channel=${req.body.channel} city=${req.body.city}`);
   if (!PLACES_KEY) return res.status(500).json({ error: 'Google Places API key not configured' });
 
   // Get the rep's territory and home base from their user record
@@ -284,34 +223,18 @@ router.post('/daily-leads', async (req, res) => {
   const radiusMiles = parseInt(req.body.radius_miles) || 50; // Default 50mi vs old 5mi
 
   try {
-    // Get ALL team contacts (own + teammates) with owner info
+    // Get existing prospects to avoid duplicates
     const existing = await pool.query(
-      `SELECT
-        LOWER(p.company) as company,
-        p.google_place_id,
-        LOWER(TRIM(COALESCE(p.address,''))) as address,
-        COALESCE(p.phone,'') as phone,
-        COALESCE(u.full_name, u.email) as owner_name,
-        p.user_id as owner_id
-       FROM prospects p
-       JOIN users u ON p.user_id = u.id
-       WHERE u.role IN ('rep','manager','admin')`
+      'SELECT LOWER(company) as company, google_place_id FROM prospects WHERE user_id=$1', [uid]
     );
-    // Build lookup maps: match key → owner name
-    const ownerByPlaceId  = new Map();
-    const ownerByName     = new Map();
-    const ownerByAddress  = new Map();
-    const ownerByPhone    = new Map();
-    for (const r of existing.rows) {
-      const owner = r.owner_name || 'a teammate';
-      if (r.google_place_id) ownerByPlaceId.set(r.google_place_id, owner);
-      if (r.company)         ownerByName.set(r.company, owner);
-      if (r.address && r.address.length > 5) ownerByAddress.set(r.address, owner);
-      const ph = (r.phone || '').replace(/[^0-9]/g, '');
-      if (ph.length >= 7)    ownerByPhone.set(ph, owner);
-    }
-    // Session refresh exclusion — kept SEPARATE from team-contact maps to avoid contamination
+    const existingNames = new Set(existing.rows.map(r => r.company).filter(Boolean));
+    const existingPlaceIds = new Set(existing.rows.map(r => r.google_place_id).filter(Boolean));
+
+    // Also exclude leads already shown in this browser session (for refresh)
     const shownPlaceIds = Array.isArray(req.body.shown_place_ids) ? req.body.shown_place_ids : [];
+    const shownNames = Array.isArray(req.body.shown_names) ? req.body.shown_names.map(n => n.toLowerCase()) : [];
+    for (const id of shownPlaceIds) existingPlaceIds.add(id);
+    for (const n of shownNames) existingNames.add(n);
 
     // Geocode the city — always use the typed city first, fall back to home base
     let centerCoords = null;
@@ -336,22 +259,19 @@ router.post('/daily-leads', async (req, res) => {
       return res.status(500).json({ error: `Could not locate city: ${city}. Please check the city name.` });
     }
 
-    // Build search queries from segment config
-    // `channel` is now a segment name (e.g. 'Roofing Contractor', 'Fastener/Tool Dealer')
-    // Fall back gracefully if old Contractor/Dealer value passed
-    let segmentName = channel;
-    if (channel === 'Contractor' || channel === 'Dealer') {
-      // Legacy fallback — just use first matching segment
-      const fallbackList = CHANNEL_TO_SEGMENTS[channel] || ['Roofing Contractor'];
-      segmentName = fallbackList[0];
+    // Build all search queries from the brand/channel config
+    const searchConfigs = [];
+    for (const brand of brands) {
+      const config = PRODUCT_SEARCH_CONFIG[brand];
+      if (!config) continue;
+      const channelConfig = config[channel];
+      if (!channelConfig) continue;
+      for (const sc of channelConfig) {
+        searchConfigs.push({ ...sc, brand });
+      }
     }
 
-    const segmentConfig = SEGMENT_SEARCH_CONFIG[segmentName];
-    const searchConfigs = segmentConfig
-      ? segmentConfig.queries.map(q => ({ ...q, brand: segmentName, segment: segmentName }))
-      : [];
-
-    // Deduplicate (shouldn't be needed per-segment but kept for safety)
+    // Deduplicate search queries (same query from multiple brands)
     const seenQueries = new Set();
     const uniqueConfigs = searchConfigs.filter(sc => {
       if (seenQueries.has(sc.query)) return false;
@@ -363,20 +283,14 @@ router.post('/daily-leads', async (req, res) => {
     const sessionSeen = new Set();
 
     for (const config of uniqueConfigs) {
-      if (allLeads.length >= 40) break; // Collect 40, return top 10 (more headroom after dedup/filter)
+      if (allLeads.length >= 25) break; // Collect 25, return top 10 (more headroom for refresh)
 
       try {
-        // City in textQuery for relevance + locationBias circle to pin results locally
-        const radiusMeters = Math.min(radiusMiles * 1609.34, 48000);
+        // Embed city directly in query — NO locationBias
+        // locationBias with radius >50km causes 400 errors from Google Places API
         const searchBody = {
           textQuery: `${config.query} ${city}`,
-          maxResultCount: 20,
-          locationBias: {
-            circle: {
-              center: { latitude: centerCoords.lat, longitude: centerCoords.lng },
-              radius: radiusMeters
-            }
-          }
+          maxResultCount: 20
         };
 
         const placesRes = await fetch('https://places.googleapis.com/v1/places:searchText', {
@@ -405,7 +319,7 @@ router.post('/daily-leads', async (req, res) => {
         const places = data.places || [];
 
         for (const place of places) {
-          if (allLeads.length >= 40) break;
+          if (allLeads.length >= 25) break;
 
           const company = place.displayName?.text || '';
           const placeId = place.id || '';
@@ -414,24 +328,12 @@ router.post('/daily-leads', async (req, res) => {
           // Basic validity checks
           if (!company) continue;
           if (place.businessStatus === 'CLOSED_PERMANENTLY') continue;
+          if (placeId && existingPlaceIds.has(placeId)) continue;
+          if (existingNames.has(companyLower)) continue;
           if (sessionSeen.has(placeId || companyLower)) continue;
-
-          // Check if this lead is already in any team member's contacts
-          const placeAddr = (place.formattedAddress || '').toLowerCase().trim();
-          const placePhone = (place.nationalPhoneNumber || '').replace(/[^0-9]/g, '');
-          let alreadyContactedBy = null;
-          if (placeId && ownerByPlaceId.has(placeId))                       alreadyContactedBy = ownerByPlaceId.get(placeId);
-          else if (ownerByName.has(companyLower))                            alreadyContactedBy = ownerByName.get(companyLower);
-          else if (placeAddr.length > 5 && ownerByAddress.has(placeAddr))   alreadyContactedBy = ownerByAddress.get(placeAddr);
-          else if (placePhone.length >= 7 && ownerByPhone.has(placePhone))  alreadyContactedBy = ownerByPhone.get(placePhone);
-
-          // Exclude leads already shown this session (refresh dedup) — only for clean leads
-          if (!alreadyContactedBy && placeId && shownPlaceIds.includes(placeId)) continue;
 
           // Hard block — never serve paint shops/painters as Alum-A-Pole leads
           if (isPaintBlocked(company, config.brand)) continue;
-          // Hard block — never serve remodelers as ShurTape window/door leads
-          if (isRemodelBlocked(company, config.category, config.brand)) continue;
           sessionSeen.add(placeId || companyLower);
 
           // Distance filter — use the rep's actual radius
@@ -459,8 +361,10 @@ router.post('/daily-leads', async (req, res) => {
           if (channel === 'Contractor' && isClassifiedDealer && !isClassifiedContractor && placeTypes.size > 2) continue;
 
           // Count how many product lines this prospect is relevant to
-          // For scoring: relevantBrands from segment config
-          const matchingBrands = (SEGMENT_SEARCH_CONFIG[segmentName]?.relevantBrands || [segmentName]);
+          const matchingBrands = brands.filter(brand => {
+            const bc = PRODUCT_SEARCH_CONFIG[brand]?.[channel];
+            return bc?.some(sc => sc.category === config.category || sc.query.split(' ')[0] === config.query.split(' ')[0]);
+          });
 
           const opportunityScore = calcOpportunityScore(
             config.score,
@@ -478,8 +382,6 @@ router.post('/daily-leads', async (req, res) => {
           const stateName = stateZip.split(' ')[0] || 'GA';
 
           allLeads.push({
-            already_contacted: alreadyContactedBy ? true : false,
-            contacted_by: alreadyContactedBy || null,
             company,
             category: config.category,
             channel,
@@ -491,7 +393,7 @@ router.post('/daily-leads', async (req, res) => {
             website: place.websiteUri || '',
             products: matchingBrands.join(', ') || brands.join(', '),
             place_id: placeId,
-            territory: segmentName,
+            territory: city,
             opportunity_score: opportunityScore,
             priority: opportunityScore >= 8 ? 'High' : opportunityScore >= 6 ? 'Medium' : 'Low',
             rating: place.rating || null,
@@ -513,13 +415,7 @@ router.post('/daily-leads', async (req, res) => {
       return da - db;
     });
 
-    // Separate clean leads from team-contact flagged leads
-    // Clean leads get up to 10 slots; flagged leads are appended on top (no cap)
-    const cleanLeads   = allLeads.filter(l => !l.already_contacted).slice(0, 10);
-    const flaggedLeads = allLeads.filter(l =>  l.already_contacted);
-    const topLeads     = [...cleanLeads, ...flaggedLeads];
-
-    console.log(`[daily-leads] segment=${channel} city=${city} clean=${cleanLeads.length} flagged=${flaggedLeads.length} total_found=${allLeads.length}`);
+    const topLeads = allLeads.slice(0, 10);
 
     res.json({
       ok: true,
@@ -529,9 +425,7 @@ router.post('/daily-leads', async (req, res) => {
       radius_miles: radiusMiles,
       center: { city, coords: centerCoords },
       total_found: allLeads.length,
-      clean_count: cleanLeads.length,
-      flagged_count: flaggedLeads.length,
-      excluded_count: ownerByName.size
+      excluded_count: existingNames.size
     });
 
   } catch(e) {
