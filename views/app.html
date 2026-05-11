@@ -4400,13 +4400,31 @@ function buildRepFilters(rows) {
   var repNames = Object.keys(reps);
   if (repNames.length === 0) return;
 
-  var html = '<span style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em">Filter by rep:</span>';
-  html += '<button onclick="setRepFilter('all')" id="repf-all" style="padding:4px 12px;border-radius:20px;border:1px solid var(--accent);background:var(--accent);color:#fff;font-size:11px;font-weight:600;cursor:pointer">All (' + rows.length + ')</button>';
+  container.innerHTML = '';
+
+  var label = document.createElement('span');
+  label.style.cssText = 'font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em';
+  label.textContent = 'Filter by rep:';
+  container.appendChild(label);
+
+  function makeRepBtn(repVal, labelText, count, isActive) {
+    var btn = document.createElement('button');
+    btn.id = 'repf-' + (repVal === 'all' ? 'all' : repVal.replace(/\s+/g, '_'));
+    btn.textContent = labelText + ' (' + count + ')';
+    btn.style.cssText = 'padding:4px 12px;border-radius:20px;border:1px solid ' +
+      (isActive ? 'var(--accent)' : 'var(--border)') + ';background:' +
+      (isActive ? 'var(--accent)' : 'transparent') + ';color:' +
+      (isActive ? '#fff' : 'var(--text2)') + ';font-size:11px;font-weight:600;cursor:pointer;font-family:inherit';
+    btn.addEventListener('click', (function(rv) {
+      return function() { window.setRepFilter(rv); };
+    })(repVal));
+    container.appendChild(btn);
+  }
+
+  makeRepBtn('all', 'All', rows.length, true);
   repNames.forEach(function(name) {
-    var id = 'repf-' + name.replace(/\s+/g,'_');
-    html += '<button onclick="setRepFilter('' + name.replace(/'/g,"\'") + '')" id="' + id + '" style="padding:4px 12px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--text2);font-size:11px;font-weight:600;cursor:pointer">' + name + ' (' + reps[name] + ')</button>';
+    makeRepBtn(name, name, reps[name], false);
   });
-  container.innerHTML = html;
 }
 
 window.setRepFilter = function(rep) {
