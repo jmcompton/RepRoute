@@ -328,6 +328,9 @@ router.post('/daily-leads', async (req, res) => {
           if (placeId && existingPlaceIds.has(placeId)) continue;
           if (existingNames.has(companyLower)) continue;
           if (sessionSeen.has(placeId || companyLower)) continue;
+
+          // Hard block — never serve paint shops/painters as Alum-A-Pole leads
+          if (isPaintBlocked(company, brandKey)) continue;
           sessionSeen.add(placeId || companyLower);
 
           // Distance filter — use the rep's actual radius
