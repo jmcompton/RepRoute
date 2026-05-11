@@ -223,12 +223,19 @@ router.post('/daily-leads', async (req, res) => {
   const radiusMiles = parseInt(req.body.radius_miles) || 50; // Default 50mi vs old 5mi
 
   try {
-    // Get existing prospects to avoid duplicates
+    // Get existing contacts/prospects — exclude by name, place ID, address, AND phone
     const existing = await pool.query(
-      'SELECT LOWER(company) as company, google_place_id FROM prospects WHERE user_id=$1', [uid]
+      `SELECT
+        LOWER(company) as company,
+        google_place_id,
+        LOWER(TRIM(address)) as address,
+        REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g') as phone_digits
+       FROM prospects WHERE user_id=$1`, [uid]
     );
-    const existingNames = new Set(existing.rows.map(r => r.company).filter(Boolean));
+    const existingNames    = new Set(existing.rows.map(r => r.company).filter(Boolean));
     const existingPlaceIds = new Set(existing.rows.map(r => r.google_place_id).filter(Boolean));
+    const existingAddresses = new Set(existing.rows.map(r => r.address).filter(a => a && a.length > 5));
+    const existingPhones   = new Set(existing.rows.map(r => r.phone_digits).filter(p => p && p.length >= 7));
 
     // Also exclude leads already shown in this browser session (for refresh)
     const shownPlaceIds = Array.isArray(req.body.shown_place_ids) ? req.body.shown_place_ids : [];
@@ -331,6 +338,14 @@ router.post('/daily-leads', async (req, res) => {
           if (placeId && existingPlaceIds.has(placeId)) continue;
           if (existingNames.has(companyLower)) continue;
           if (sessionSeen.has(placeId || companyLower)) continue;
+
+          // Skip if address already exists in contacts (catches same location, different name)
+          const placeAddr = (place.formattedAddress || '').toLowerCase().trim();
+          if (placeAddr.length > 5 && existingAddresses.has(placeAddr)) continue;
+
+          // Skip if phone already exists in contacts
+          const placePhone = (place.nationalPhoneNumber || '').replace(/[^0-9]/g, '');
+          if (placePhone.length >= 7 && existingPhones.has(placePhone)) continue;
 
           // Hard block — never serve paint shops/painters as Alum-A-Pole leads
           if (isPaintBlocked(company, config.brand)) continue;
