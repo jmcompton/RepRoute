@@ -432,8 +432,8 @@ router.post('/daily-leads', async (req, res) => {
           else if (placeAddr.length > 5 && ownerByAddress.has(placeAddr))   alreadyContactedBy = ownerByAddress.get(placeAddr);
           else if (placePhone.length >= 7 && ownerByPhone.has(placePhone))  alreadyContactedBy = ownerByPhone.get(placePhone);
 
-          // Also exclude leads already shown this session (refresh dedup — always hard skip)
-          if (!alreadyContactedBy && placeId && existingPlaceIds.has(placeId) && shownPlaceIds.includes(placeId)) continue;
+          // Exclude leads already shown this session (refresh dedup) — only for clean leads
+          if (!alreadyContactedBy && placeId && shownPlaceIds.includes(placeId)) continue;ue;
 
           // Hard block — never serve paint shops/painters as Alum-A-Pole leads
           if (isPaintBlocked(company, config.brand)) continue;
