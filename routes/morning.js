@@ -87,6 +87,20 @@ function isPaintBlocked(name, brand) {
   return false;
 }
 
+// Block remodeling/renovation companies from ShurTape window & door categories
+// Window/door tape is for new construction — remodelers use different products
+const REMODEL_BLOCK_KEYWORDS = ['remodel', 'remodeling', 'renovation', 'renovations', 'home improvement', 'general contractor', 'general contracting'];
+const WINDOW_DOOR_CATEGORIES = ['Window Contractor', 'Door Contractor'];
+function isRemodelBlocked(name, category, brand) {
+  if ((brand || '').toLowerCase().includes('shurtape') || (brand || '').toLowerCase().includes('shur')) {
+    if (WINDOW_DOOR_CATEGORIES.includes(category)) {
+      const lower = (name || '').toLowerCase();
+      return REMODEL_BLOCK_KEYWORDS.some(kw => lower.includes(kw));
+    }
+  }
+  return false;
+}
+
 // Haversine distance in miles
 function distanceMiles(lat1, lng1, lat2, lng2) {
   const R = 3958.8;
@@ -360,6 +374,8 @@ router.post('/daily-leads', async (req, res) => {
 
           // Hard block — never serve paint shops/painters as Alum-A-Pole leads
           if (isPaintBlocked(company, config.brand)) continue;
+          // Hard block — never serve remodelers as ShurTape window/door leads
+          if (isRemodelBlocked(company, config.category, config.brand)) continue;
           sessionSeen.add(placeId || companyLower);
 
           // Distance filter — use the rep's actual radius
