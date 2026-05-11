@@ -266,48 +266,6 @@ router.get('/', async (req, res) => {
 
 // ─── DAILY LEAD FINDER (IMPROVED) ────────────────────────────────────────────
 
-// ─── DEBUG ROUTE (remove after testing) ──────────────────────────────────────
-router.get('/debug-places', async (req, res) => {
-  const PLACES_KEY = process.env.GOOGLE_PLACES_API_KEY;
-  const result = { key_set: !!PLACES_KEY, key_prefix: PLACES_KEY ? PLACES_KEY.substring(0,8)+'...' : null };
-
-  if (!PLACES_KEY) return res.json({ ...result, error: 'No API key' });
-
-  try {
-    const testRes = await fetch('https://places.googleapis.com/v1/places:searchText', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Goog-Api-Key': PLACES_KEY,
-        'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress'
-      },
-      body: JSON.stringify({
-        textQuery: 'roofing contractor Norcross GA',
-        maxResultCount: 3
-      })
-    });
-    const data = await testRes.json();
-    result.places_api_status = testRes.status;
-    result.places_count = (data.places || []).length;
-    result.places_sample = (data.places || []).slice(0,2).map(p => p.displayName?.text);
-    result.places_error = data.error || null;
-  } catch(e) {
-    result.places_error = e.message;
-  }
-
-  // Also check DB prospects count
-  try {
-    const ct = await pool.query('SELECT COUNT(*) as c FROM prospects');
-    result.prospects_in_db = parseInt(ct.rows[0].c);
-    const owners = await pool.query('SELECT u.email, COUNT(p.id) as c FROM prospects p JOIN users u ON p.user_id=u.id GROUP BY u.email');
-    result.prospects_by_owner = owners.rows;
-  } catch(e) {
-    result.db_error = e.message;
-  }
-
-  res.json(result);
-});
-
 router.post('/daily-leads', async (req, res) => {
   const uid = req.session.user.id;
   const PLACES_KEY = process.env.GOOGLE_PLACES_API_KEY;
@@ -477,7 +435,7 @@ router.post('/daily-leads', async (req, res) => {
           else if (placePhone.length >= 7 && ownerByPhone.has(placePhone))  alreadyContactedBy = ownerByPhone.get(placePhone);
 
           // Exclude leads already shown this session (refresh dedup) — only for clean leads
-          if (!alreadyContactedBy && placeId && shownPlaceIds.includes(placeId)) continue;ue;
+          if (!alreadyContactedBy && placeId && shownPlaceIds.includes(placeId)) continue;
 
           // Hard block — never serve paint shops/painters as Alum-A-Pole leads
           if (isPaintBlocked(company, config.brand)) continue;
