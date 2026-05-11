@@ -2,6 +2,27 @@ const express = require('express');
 const { pool } = require('../db');
 const router = express.Router();
 
+
+// GET /api/prospects/team — all teammates' contacts (read-only, same role)
+router.get('/team', async (req, res) => {
+  const uid = req.session.user.id;
+  try {
+    const result = await pool.query(
+      `SELECT p.*, u.name as rep_name
+       FROM prospects p
+       JOIN users u ON p.user_id = u.id
+       WHERE p.user_id != $1
+         AND u.role IN ('rep','manager','admin')
+       ORDER BY u.name ASC, p.company ASC`,
+      [uid]
+    );
+    res.json(result.rows);
+  } catch(e) {
+    console.error('team contacts error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 router.get('/', async (req, res) => {
   const uid = req.session.user.id;
   const { category, status, search } = req.query;
