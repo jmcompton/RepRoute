@@ -221,7 +221,6 @@ router.post('/daily-leads', async (req, res) => {
     : ['BOSS Products', 'ShurTape', 'Alum-A-Pole'];
   const channel = (req.body.channel || 'Contractor').trim();
   const radiusMiles = parseInt(req.body.radius_miles) || 50; // Default 50mi vs old 5mi
-  const radiusMeters = Math.min(radiusMiles * 1609, 80000); // Up to 80km (~50mi)
 
   try {
     // Get existing prospects to avoid duplicates
@@ -281,15 +280,11 @@ router.post('/daily-leads', async (req, res) => {
       if (allLeads.length >= 15) break; // Collect 15, return top 10
 
       try {
+        // Embed city directly in query — NO locationBias
+        // locationBias with radius >50km causes 400 errors from Google Places API
         const searchBody = {
-          textQuery: `${config.query} near ${city}`,
-          maxResultCount: 20,
-          locationBias: {
-            circle: {
-              center: { latitude: centerCoords.lat, longitude: centerCoords.lng },
-              radius: radiusMeters
-            }
-          }
+          textQuery: `${config.query} ${city}`,
+          maxResultCount: 20
         };
 
         const placesRes = await fetch('https://places.googleapis.com/v1/places:searchText', {
