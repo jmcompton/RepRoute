@@ -4357,9 +4357,16 @@ window.runDailyLeads = function() {
     // Sort by score DESC, filter paint
     allLeads.sort(function(a,b){ return (b.opportunity_score||0)-(a.opportunity_score||0); });
     var leads = allLeads.filter(function(lead) {
-      var paintWords = ['paint','painting','painter'];
       var name = (lead.company||'').toLowerCase();
-      return !paintWords.some(function(w){ return name.includes(w); });
+      var seg = (lead.territory||lead.category||'').toLowerCase();
+      // Block paint words always
+      var paintWords = ['paint','painting','painter'];
+      if (paintWords.some(function(w){ return name.includes(w); })) return false;
+      // Block garage/overhead doors from window/door segment
+      if (seg.includes('window') || seg.includes('door')) {
+        if (name.includes('garage door') || name.includes('overhead door')) return false;
+      }
+      return true;
     }).slice(0, 10);
 
     if (!leads.length) {
