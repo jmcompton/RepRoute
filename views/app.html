@@ -736,13 +736,13 @@ window.addEventListener('load', function() {
           <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Brands</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px" id="lead-brand-row">
             <label class="lead-brand-pill" data-brand="BOSS Products" style="cursor:pointer;background:#fee2e2;color:#b91c1c;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:flex;align-items:center;gap:5px;border:2px solid transparent">
-              <input type="checkbox" value="BOSS Products" checked style="margin:0;accent-color:#b91c1c"> BOSS
+              <input type="checkbox" value="BOSS Products" style="margin:0;accent-color:#b91c1c"> BOSS
             </label>
             <label class="lead-brand-pill" data-brand="ShurTape" style="cursor:pointer;background:#dbeafe;color:#1d4ed8;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:flex;align-items:center;gap:5px;border:2px solid transparent">
-              <input type="checkbox" value="ShurTape" checked style="margin:0;accent-color:#1d4ed8"> ShurTape
+              <input type="checkbox" value="ShurTape" style="margin:0;accent-color:#1d4ed8"> ShurTape
             </label>
             <label class="lead-brand-pill" data-brand="Alum-A-Pole" style="cursor:pointer;background:#d1fae5;color:#065f46;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:flex;align-items:center;gap:5px;border:2px solid transparent">
-              <input type="checkbox" value="Alum-A-Pole" checked style="margin:0;accent-color:#065f46"> Alum-A-Pole
+              <input type="checkbox" value="Alum-A-Pole" style="margin:0;accent-color:#065f46"> Alum-A-Pole
             </label>
           </div>
 
@@ -775,7 +775,7 @@ window.addEventListener('load', function() {
           </div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <input id="lead-city-input" type="search" name="search" inputmode="text" placeholder="Enter city (e.g. Norcross GA)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-form-type="other">
+          <input id="lead-city-input" type="text" name="lead_city_search" inputmode="text" placeholder="Enter city (e.g. Norcross GA)" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-form-type="other">
           <div style="display:flex;gap:8px;align-items:center">
             <button onclick="runDailyLeads()" id="lead-find-btn" style="padding:10px 22px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">
               Find Today's Leads
