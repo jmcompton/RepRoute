@@ -4427,7 +4427,10 @@ window.runDailyLeads = function() {
       if (data.leads) {
         data.leads.forEach(function(lead) {
           var id = lead.place_id || lead.company;
-          if (!seenIds.has(id)) {
+          // Always allow already_contacted leads through (they show as flagged, not dupes)
+          if (lead.already_contacted) {
+            allLeads.push(lead);
+          } else if (!seenIds.has(id)) {
             seenIds.add(id);
             allLeads.push(lead);
           }
