@@ -230,6 +230,12 @@ router.post('/daily-leads', async (req, res) => {
     const existingNames = new Set(existing.rows.map(r => r.company).filter(Boolean));
     const existingPlaceIds = new Set(existing.rows.map(r => r.google_place_id).filter(Boolean));
 
+    // Also exclude leads already shown in this browser session (for refresh)
+    const shownPlaceIds = Array.isArray(req.body.shown_place_ids) ? req.body.shown_place_ids : [];
+    const shownNames = Array.isArray(req.body.shown_names) ? req.body.shown_names.map(n => n.toLowerCase()) : [];
+    for (const id of shownPlaceIds) existingPlaceIds.add(id);
+    for (const n of shownNames) existingNames.add(n);
+
     // Geocode the city — always use the typed city first, fall back to home base
     let centerCoords = null;
     try {
@@ -277,7 +283,7 @@ router.post('/daily-leads', async (req, res) => {
     const sessionSeen = new Set();
 
     for (const config of uniqueConfigs) {
-      if (allLeads.length >= 15) break; // Collect 15, return top 10
+      if (allLeads.length >= 25) break; // Collect 25, return top 10 (more headroom for refresh)
 
       try {
         // Embed city directly in query — NO locationBias
@@ -313,7 +319,7 @@ router.post('/daily-leads', async (req, res) => {
         const places = data.places || [];
 
         for (const place of places) {
-          if (allLeads.length >= 15) break;
+          if (allLeads.length >= 25) break;
 
           const company = place.displayName?.text || '';
           const placeId = place.id || '';
