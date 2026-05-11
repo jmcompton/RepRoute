@@ -752,7 +752,7 @@ window.addEventListener('load', function() {
             <button onclick="runDailyLeads()" id="lead-find-btn" style="padding:10px 22px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">
               Find Today's Leads
             </button>
-            <button onclick="refreshLeads()" id="lead-refresh-btn" style="display:none;padding:10px 14px;background:var(--surface);color:var(--navy);border:1px solid var(--border);border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;display:none" title="Get 10 new leads">
+            <button onclick="refreshLeads()" id="lead-refresh-btn" style="display:none;padding:10px 14px;background:var(--surface);color:var(--navy);border:1px solid var(--border);border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap" title="Get 10 new leads">
               ↻ Refresh
             </button>
           </div>
@@ -4279,9 +4279,9 @@ window.runDailyLeads = function() {
         }).join('');
 
         showToast(leads.length + ' leads loaded into call list');
-        // Show refresh button now that we have results
+        // Show + re-enable refresh button
         var refreshBtn = document.getElementById('lead-refresh-btn');
-        if (refreshBtn) refreshBtn.style.display = 'block';
+        if (refreshBtn) { refreshBtn.style.display = 'block'; refreshBtn.textContent = '↻ Refresh'; refreshBtn.disabled = false; }
         setTimeout(function() { callList.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 200);
 
         // Build the drive route panel
@@ -4292,6 +4292,8 @@ window.runDailyLeads = function() {
       if (loading) loading.style.display = 'none';
       btn.disabled = false;
       btn.textContent = "Find Today's Leads";
+      var refreshBtn2 = document.getElementById('lead-refresh-btn');
+      if (refreshBtn2) { refreshBtn2.textContent = '↻ Refresh'; refreshBtn2.disabled = false; }
       alert('Error: ' + e.message);
     });
 };
