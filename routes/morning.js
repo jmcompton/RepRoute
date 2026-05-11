@@ -485,6 +485,8 @@ router.post('/daily-leads', async (req, res) => {
           const stateName = stateZip.split(' ')[0] || 'GA';
 
           allLeads.push({
+            already_contacted: alreadyContactedBy ? true : false,
+            contacted_by: alreadyContactedBy || null,
             company,
             category: config.category,
             channel,
