@@ -682,15 +682,18 @@ window.addEventListener('load', function() {
       <div style="font-size:22px;font-weight:700;color:var(--navy);margin-bottom:16px" id="dash-greeting"></div>
 
       <!-- AI Morning Brief card -->
-      <div style="background:var(--navy);border-radius:10px;padding:18px 20px;margin-bottom:16px;position:relative;overflow:hidden">
-        <div style="position:absolute;top:-30px;right:-30px;width:120px;height:120px;border-radius:50%;background:rgba(29,106,255,.2)"></div>
-        <div style="display:inline-flex;align-items:center;gap:5px;background:rgba(29,106,255,.25);border:1px solid rgba(29,106,255,.35);color:rgba(255,255,255,.7);font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:20px;margin-bottom:10px">
-          Morning Brief
+      <div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:18px 20px;margin-bottom:16px;position:relative;overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div style="display:inline-flex;align-items:center;gap:6px">
+            <div style="width:8px;height:8px;border-radius:50%;background:var(--accent)"></div>
+            <span style="font-size:11px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.07em">Morning Brief</span>
+          </div>
+          <button onclick="loadMorningBriefing(true)" style="padding:3px 10px;background:var(--surface);border:1px solid var(--border);border-radius:5px;font-size:11px;color:var(--text2);cursor:pointer;font-family:inherit;font-weight:600">↻ Refresh</button>
         </div>
-        <button onclick="loadMorningBriefing(true)" style="float:right;margin-top:-28px;padding:3px 10px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:5px;font-size:11px;color:rgba(255,255,255,.6);cursor:pointer">Refresh</button>
-        <div id="dash-briefing" style="color:#fff;font-size:13.5px;line-height:1.6;position:relative;z-index:1;margin-top:4px">
-          <div style="color:rgba(255,255,255,.6);font-size:13px;font-style:italic">Loading your brief...</div>
+        <div id="dash-briefing" style="font-size:13.5px;line-height:1.6;position:relative;z-index:1">
+          <div style="color:var(--text3);font-size:13px;font-style:italic">Loading your brief...</div>
         </div>
+      </div>
       </div>
 
       <!-- Progress bar -->
@@ -2220,22 +2223,22 @@ function loadMorningBriefing(force) {
     el.innerHTML = localStorage.getItem(cacheKey);
     return;
   }
-  el.innerHTML = '<div style="font-size:12px;color:var(--text3)">Building your briefing...</div>';
+  el.innerHTML = '<div style="font-size:13px;color:var(--text3);font-style:italic">Building your brief...</div>';
   fetch('/api/ai/morning-briefing', { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' })
     .then(function(r) { return r.json(); })
     .then(function(d) {
       if (d.error || !d.bullets) {
-        el.innerHTML = '<div style="font-size:13px;color:rgba(255,255,255,.6)">Could not load briefing. Try refreshing.</div>';
+        el.innerHTML = '<div style="font-size:13px;color:var(--text3)">Could not load briefing. Try refreshing.</div>';
         return;
       }
-            // Render bullets with high-contrast white text, accent dot, clear spacing
-      var html = '<div style="margin-top:10px;display:flex;flex-direction:column;gap:0">' +
+            // Render bullets — white card, dark text, accent dot
+      var html = '<div style="display:flex;flex-direction:column;gap:0">' +
         d.bullets.map(function(b) {
           // Bold any text in **…** (markdown bold)
-          var formatted = b.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-          return '<div style="display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.08)">' +
-            '<div style="width:6px;height:6px;border-radius:50%;background:#00FF87;flex-shrink:0;margin-top:5px"></div>' +
-            '<div style="font-size:13.5px;color:#fff;line-height:1.55;font-weight:500">' + formatted + '</div>' +
+          var formatted = b.replace(/\*\*(.+?)\*\*/g, '<strong style="color:var(--navy)">$1</strong>');
+          return '<div style="display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)">' +
+            '<div style="width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0;margin-top:5px"></div>' +
+            '<div style="font-size:13.5px;color:#1a2332;line-height:1.55;font-weight:500">' + formatted + '</div>' +
             '</div>';
         }).join('') +
         '</div>';
@@ -2243,7 +2246,7 @@ function loadMorningBriefing(force) {
       try { localStorage.setItem(cacheKey, html); } catch(e) {}
     })
     .catch(function() {
-      el.innerHTML = '<div style="font-size:12px;color:var(--text3)">Briefing unavailable.</div>';
+      el.innerHTML = '<div style="font-size:13px;color:var(--text3)">Briefing unavailable. Try refreshing.</div>';
     });
 }
 
