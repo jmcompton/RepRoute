@@ -748,9 +748,14 @@ window.addEventListener('load', function() {
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <input id="lead-city-input" type="search" name="search" inputmode="text" placeholder="Enter city (e.g. Norcross GA)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-form-type="other">
-          <button onclick="runDailyLeads()" id="lead-find-btn" style="padding:10px 22px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">
-            Find Today's Leads
-          </button>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button onclick="runDailyLeads()" id="lead-find-btn" style="padding:10px 22px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">
+              Find Today's Leads
+            </button>
+            <button onclick="refreshLeads()" id="lead-refresh-btn" style="display:none;padding:10px 14px;background:var(--surface);color:var(--navy);border:1px solid var(--border);border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;display:none" title="Get 10 new leads">
+              ↻ Refresh
+            </button>
+          </div>
         </div>
       </div>
 
@@ -4163,6 +4168,10 @@ window.setLeadChannel = function(channel) {
   }
 };
 
+// Track all place IDs and names shown this session — used for refresh dedup
+window._shownPlaceIds = [];
+window._shownNames = [];
+
 window.runDailyLeads = function() {
   var btn = document.getElementById('lead-find-btn');
   var loading = document.getElementById('lead-loading');
@@ -4181,7 +4190,7 @@ window.runDailyLeads = function() {
   fetch('/api/morning/daily-leads', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ city: city, brands: getSelectedBrands(), channel: window._leadChannel || 'Contractor' })
+    body: JSON.stringify({ city: city, brands: getSelectedBrands(), channel: window._leadChannel || 'Contractor', shown_place_ids: window._shownPlaceIds || [], shown_names: window._shownNames || [] })
   })
     .then(function(r) { return r.json(); })
     .then(function(data) {
@@ -4206,6 +4215,11 @@ window.runDailyLeads = function() {
         return true;
       });
       window._dailyLeads = leads;
+      // Accumulate shown leads so refresh skips them
+      leads.forEach(function(lead) {
+        if (lead.place_id) window._shownPlaceIds.push(lead.place_id);
+        if (lead.company) window._shownNames.push(lead.company.toLowerCase());
+      });
 
       // Render the leads directly INTO the call list (replacing the old one)
       var callList = document.getElementById('morning-call-list');
@@ -4265,6 +4279,9 @@ window.runDailyLeads = function() {
         }).join('');
 
         showToast(leads.length + ' leads loaded into call list');
+        // Show refresh button now that we have results
+        var refreshBtn = document.getElementById('lead-refresh-btn');
+        if (refreshBtn) refreshBtn.style.display = 'block';
         setTimeout(function() { callList.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 200);
 
         // Build the drive route panel
@@ -4277,6 +4294,14 @@ window.runDailyLeads = function() {
       btn.textContent = "Find Today's Leads";
       alert('Error: ' + e.message);
     });
+};
+
+window.refreshLeads = function() {
+  // Reset shown tracker to allow a full fresh batch, but keep the city/brands
+  // Actually keep the shown list — we want NEW leads, not the same ones again
+  var btn = document.getElementById('lead-refresh-btn');
+  if (btn) { btn.textContent = '↻ Refreshing...'; btn.disabled = true; }
+  runDailyLeads(true);
 };
 
 window.addLeadToCRM = function(i) {
