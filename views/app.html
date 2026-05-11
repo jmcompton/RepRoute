@@ -824,6 +824,7 @@ window.addEventListener('load', function() {
             </div>
             <div id="route-list" style="display:none"></div>
             <div id="route-actions" style="display:none;padding:12px 14px;border-top:1px solid var(--border);background:#fafbfc">
+              <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Generate Optimized Route</div>
               <div style="display:flex;gap:8px;margin-bottom:8px">
                 <button onclick="_generateRoute('apple')" style="flex:1;padding:9px;background:#000;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">🍎 Apple Maps</button>
                 <button onclick="_generateRoute('google')" style="flex:1;padding:9px;background:#1a73e8;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">🗺 Google Maps</button>
@@ -4175,24 +4176,41 @@ window._renderRoutePanel = function() {
   var badge  = document.getElementById('route-stops-badge');
   var optLbl = document.getElementById('route-optimized-label');
   if (badge)  badge.textContent  = stops.length + ' stop' + (stops.length === 1 ? '' : 's');
-  if (optLbl) optLbl.textContent = stops.length >= 2 ? 'Ready to generate' : '';
+  if (optLbl) optLbl.textContent = stops.length >= 2 ? 'Optimized' : (stops.length === 1 ? '1 stop' : '');
   if (!stops.length) {
     if (empty) { empty.style.display = 'block'; empty.innerHTML = 'Tap <strong>+ Route</strong> on any lead card to build your drive route.'; }
     if (list)  list.style.display  = 'none';
     if (acts)  acts.style.display  = 'none';
     return;
   }
+  // Segment → color map
+  var segColors = {
+    'Window/Door Installer': { bg:'#ede9fe', color:'#6d28d9' },
+    'Deck Contractor':       { bg:'#fef3c7', color:'#92400e' },
+    'Roofing Contractor':    { bg:'#fee2e2', color:'#b91c1c' },
+    'Roofing Distributor':   { bg:'#ffedd5', color:'#c2410c' },
+    'Siding Contractor':     { bg:'#dbeafe', color:'#1d4ed8' },
+    'Cornice Contractor':    { bg:'#ccfbf1', color:'#0f766e' },
+    'Fastener/Tool Dealer':  { bg:'#d1fae5', color:'#065f46' },
+    'Siding Distributor':    { bg:'#e0f2fe', color:'#0369a1' }
+  };
   if (empty) empty.style.display = 'none';
   if (list) {
     list.style.display = 'block';
     list.innerHTML = stops.map(function(s, i) {
+      var seg = s.territory || s.category || '';
+      var sc  = segColors[seg] || { bg:'#f1f5f9', color:'#64748b' };
+      var segBadge = seg ? '<span style="background:' + sc.bg + ';color:' + sc.color + ';font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;white-space:nowrap">' + seg + '</span>' : '';
       return '<div style="display:flex;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);align-items:center">' +
         '<div style="width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">' + (i+1) + '</div>' +
         '<div style="flex:1;min-width:0">' +
-          '<div style="font-size:12.5px;font-weight:600;color:var(--navy)">' + s.company + '</div>' +
+          '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:2px">' +
+            '<span style="font-size:12.5px;font-weight:600;color:var(--navy)">' + s.company + '</span>' +
+            segBadge +
+          '</div>' +
           '<div style="font-size:11px;color:var(--text3)">' + (s.address||'') + '</div>' +
         '</div>' +
-        '<button onclick="window._removeStop(' + i + ')" style="padding:2px 8px;background:transparent;border:1px solid #fca5a5;border-radius:10px;font-size:10px;font-weight:700;color:#b91c1c;cursor:pointer">✕</button>' +
+        '<button onclick="window._removeStop(' + i + ')" style="padding:2px 8px;background:transparent;border:1px solid #fca5a5;border-radius:10px;font-size:10px;font-weight:700;color:#b91c1c;cursor:pointer;flex-shrink:0">✕</button>' +
       '</div>';
     }).join('');
   }
@@ -4234,18 +4252,30 @@ window._clearRoute = function() {
 window._generateRoute = function(provider) {
   var stops = window._routeStops || [];
   if (!stops.length) { showToast('Add stops first using + Route'); return; }
-  var addresses = stops.map(function(s){ return s.address || s.company; }).filter(Boolean);
-  var isApple = !provider ? /iPhone|iPad|iPod/.test(navigator.userAgent) : provider === 'apple';
+
+  // Re-order stops for most efficient route using nearest-neighbor
+  var optimized = (typeof optimizeRouteOrder === 'function') ? optimizeRouteOrder(stops) : stops;
+  window._routeStops = optimized;
+  _renderRoutePanel();
+
+  var addresses = optimized.map(function(s){ return s.address || s.company; }).filter(Boolean);
+  var isApple = provider ? provider === 'apple' : /iPhone|iPad|iPod/.test(navigator.userAgent);
+
+  showToast('Opening ' + (isApple ? 'Apple Maps' : 'Google Maps') + '...');
+
   if (isApple) {
     if (addresses.length === 1) {
       window.location.href = 'maps://?daddr=' + encodeURIComponent(addresses[0]) + '&dirflg=d';
     } else {
+      // Chain each stop as a separate daddr — most reliable for multi-stop on iOS
       window.location.href = 'maps://?daddr=' + addresses.map(function(a){ return encodeURIComponent(a); }).join('&daddr=') + '&dirflg=d';
     }
   } else {
     var dest = encodeURIComponent(addresses[addresses.length - 1]);
     var wpts = addresses.slice(0, -1).map(function(a){ return encodeURIComponent(a); }).join('|');
-    window.open('https://www.google.com/maps/dir/?api=1&origin=Current+Location&destination=' + dest + (wpts ? '&waypoints=optimize:true|' + wpts : '') + '&travelmode=driving', '_blank');
+    var url = 'https://www.google.com/maps/dir/?api=1&origin=Current+Location&destination=' + dest +
+      (wpts ? '&waypoints=optimize:true|' + wpts : '') + '&travelmode=driving';
+    window.open(url, '_blank');
   }
 };
 
