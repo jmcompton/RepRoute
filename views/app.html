@@ -2065,8 +2065,6 @@ function loadMorningBriefing(force) {
           var mapQ = encodeURIComponent(lead.company + ' ' + addressLine);
           var mapsUrl = isAppleDevice ? ('https://maps.apple.com/?q=' + mapQ + '&dirflg=d') : ('https://maps.google.com/?q=' + mapQ);
           var mapsLink = addressLine ? '<a href="' + mapsUrl + '" target="_blank" onclick="event.stopPropagation()" style="font-size:11px;color:var(--accent);text-decoration:none">' + addressLine + ' ↗</a>' : '';
-              ? '<a href="https://maps.google.com/?q='+encodeURIComponent(item.company+' '+addressLine)+'" target="_blank" onclick="event.stopPropagation()" style="color:var(--accent);font-size:11px;text-decoration:none;display:inline-flex;align-items:center;gap:3px">&#128205; '+addressLine+'</a>'
-              : '';
             return (
               '<div id="mc-'+i+'" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:0;overflow:hidden;transition:border-color .12s">' +
 
