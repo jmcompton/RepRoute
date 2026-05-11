@@ -4480,17 +4480,6 @@ window.runDailyLeads = function() {
       if (lead.company) window._shownNames.push(lead.company.toLowerCase());
     });
 
-    // Segment color map — matches the pill colors
-    var segColors = {
-      'Window/Door Installer':  { bg: '#ede9fe', color: '#6d28d9' },
-      'Deck Contractor':        { bg: '#fef3c7', color: '#92400e' },
-      'Roofing Contractor':     { bg: '#fee2e2', color: '#b91c1c' },
-      'Roofing Distributor':    { bg: '#ffedd5', color: '#c2410c' },
-      'Siding Contractor':      { bg: '#dbeafe', color: '#1d4ed8' },
-      'Cornice Contractor':     { bg: '#ccfbf1', color: '#0f766e' },
-      'Fastener/Tool Dealer':   { bg: '#d1fae5', color: '#065f46' }
-    };
-
     var callList = document.getElementById('morning-call-list');
     var listCount = document.getElementById('list-count-badge');
     if (listCount) listCount.textContent = leads.length;
