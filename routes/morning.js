@@ -77,6 +77,16 @@ const SEGMENT_SEARCH_CONFIG = {
       { query: 'siding supply distributor tools', score: 9, category: 'Fastener/Tool Dealer' },
       { query: 'building materials distributor siding', score: 8, category: 'Fastener/Tool Dealer' },
     ]
+  },
+  'Siding Distributor': {
+    relevantBrands: ['Alum-A-Pole', 'ShurTape'],
+    queries: [
+      { query: 'siding supply distributor wholesale', score: 10, category: 'Siding Distributor' },
+      { query: 'exterior building products distributor', score: 10, category: 'Siding Distributor' },
+      { query: 'siding materials wholesale supplier', score: 9, category: 'Siding Distributor' },
+      { query: 'vinyl siding wholesale distributor', score: 9, category: 'Siding Distributor' },
+      { query: 'James Hardie siding supply dealer', score: 8, category: 'Siding Distributor' },
+    ]
   }
 };
 
