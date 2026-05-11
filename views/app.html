@@ -819,6 +819,18 @@ window.addEventListener('load', function() {
             <span style="font-size:10px;color:var(--text3);margin-left:auto;margin-right:8px" id="route-optimized-label"></span>
           </div>
           <div id="route-panel" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+            <div id="route-empty" style="padding:20px 16px;text-align:center;color:var(--text3);font-size:12px">
+              Tap <strong>+ Route</strong> on any lead card to build your drive route.
+            </div>
+            <div id="route-list" style="display:none"></div>
+            <div id="route-actions" style="display:none;padding:12px 14px;border-top:1px solid var(--border);background:#fafbfc">
+              <div style="display:flex;gap:8px;margin-bottom:8px">
+                <button onclick="_generateRoute('apple')" style="flex:1;padding:9px;background:#000;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">🍎 Apple Maps</button>
+                <button onclick="_generateRoute('google')" style="flex:1;padding:9px;background:#1a73e8;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">🗺 Google Maps</button>
+              </div>
+              <button onclick="_clearRoute()" style="width:100%;padding:7px;background:transparent;border:1px solid var(--border);border-radius:6px;font-size:11px;font-weight:600;color:var(--text2);cursor:pointer;font-family:inherit">✕ Clear Route</button>
+            </div>
+          </div>
             <div id="route-empty" style="padding:24px 16px;text-align:center;color:var(--text3);font-size:12px">
               Run a lead search to build today's drive route.
             </div>
@@ -4148,44 +4160,93 @@ window.leadLogAndAdd = function(i, e) {
 window._routeStops = [];
 
 window.buildRoutePanel = function(leads) {
-  // Filter to leads with a real address
-  var raw = leads.filter(function(l) { return l.address && l.address.trim(); });
-  // Optimize order before storing
-  var stops = optimizeRouteOrder(raw);
-  window._routeStops = stops;
+  // Called after lead search — does NOT auto-populate route.
+  // Just resets state so rep can manually pick stops.
+  window._availableLeads = leads || [];
+  window._routeStops = [];
+  _renderRoutePanel();
+};
 
-  var panel = document.getElementById('route-panel');
-  var empty = document.getElementById('route-empty');
-  var list = document.getElementById('route-list');
-  var actions = document.getElementById('route-actions');
-  var badge = document.getElementById('route-stops-badge');
-
-  if (badge) badge.textContent = stops.length + ' stop' + (stops.length === 1 ? '' : 's');
-  var optLabel = document.getElementById('route-optimized-label');
-  var hasCoords = stops.filter(function(s) { return s.lat != null; }).length;
-  if (optLabel) optLabel.textContent = hasCoords >= 2 ? 'Route optimized' : '';
-
+window._renderRoutePanel = function() {
+  var stops = window._routeStops || [];
+  var empty  = document.getElementById('route-empty');
+  var list   = document.getElementById('route-list');
+  var acts   = document.getElementById('route-actions');
+  var badge  = document.getElementById('route-stops-badge');
+  var optLbl = document.getElementById('route-optimized-label');
+  if (badge)  badge.textContent  = stops.length + ' stop' + (stops.length === 1 ? '' : 's');
+  if (optLbl) optLbl.textContent = stops.length >= 2 ? 'Ready to generate' : '';
   if (!stops.length) {
-    if (empty) { empty.style.display = 'block'; empty.textContent = 'No leads with addresses to route.'; }
-    if (list) list.style.display = 'none';
-    if (actions) actions.style.display = 'none';
+    if (empty) { empty.style.display = 'block'; empty.innerHTML = 'Tap <strong>+ Route</strong> on any lead card to build your drive route.'; }
+    if (list)  list.style.display  = 'none';
+    if (acts)  acts.style.display  = 'none';
     return;
   }
-
   if (empty) empty.style.display = 'none';
   if (list) {
     list.style.display = 'block';
-    list.innerHTML = stops.map(function(stop, i) {
-      return '<div style="display:flex;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);align-items:flex-start">' +
+    list.innerHTML = stops.map(function(s, i) {
+      return '<div style="display:flex;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);align-items:center">' +
         '<div style="width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">' + (i+1) + '</div>' +
         '<div style="flex:1;min-width:0">' +
-          '<div style="font-size:12.5px;font-weight:600;color:var(--navy);margin-bottom:2px">' + stop.company + '</div>' +
-          '<div style="font-size:11px;color:var(--text3);line-height:1.4">' + stop.address + '</div>' +
+          '<div style="font-size:12.5px;font-weight:600;color:var(--navy)">' + s.company + '</div>' +
+          '<div style="font-size:11px;color:var(--text3)">' + (s.address||'') + '</div>' +
         '</div>' +
+        '<button onclick="window._removeStop(' + i + ')" style="padding:2px 8px;background:transparent;border:1px solid #fca5a5;border-radius:10px;font-size:10px;font-weight:700;color:#b91c1c;cursor:pointer">✕</button>' +
       '</div>';
     }).join('');
   }
-  if (actions) actions.style.display = 'block';
+  if (acts) acts.style.display = 'block';
+};
+
+window.addToRoute = function(idx, evt) {
+  if (evt) evt.stopPropagation();
+  var leads = window._dailyLeads || [];
+  var lead  = leads[idx];
+  if (!lead) return;
+  if (!lead.address) { showToast('No address for this lead'); return; }
+  var stops = window._routeStops || [];
+  if (stops.length >= 10) { showToast('Route full (10 stops max)'); return; }
+  if (stops.some(function(s){ return s.company === lead.company; })) { showToast('Already in route'); return; }
+  stops.push(lead);
+  window._routeStops = stops;
+  _renderRoutePanel();
+  var btn = document.getElementById('route-btn-' + idx);
+  if (btn) { btn.textContent = '✓'; btn.style.background = '#d1fae5'; btn.style.color = '#065f46'; btn.style.borderColor = '#6ee7b7'; btn.disabled = true; }
+  showToast(lead.company + ' added to route');
+};
+
+window._removeStop = function(idx) {
+  var stops = window._routeStops || [];
+  stops.splice(idx, 1);
+  window._routeStops = stops;
+  _renderRoutePanel();
+};
+
+window._clearRoute = function() {
+  window._routeStops = [];
+  document.querySelectorAll('[id^="route-btn-"]').forEach(function(b) {
+    b.textContent = '+ Route'; b.style.background = ''; b.style.color = ''; b.style.borderColor = ''; b.disabled = false;
+  });
+  _renderRoutePanel();
+};
+
+window._generateRoute = function(provider) {
+  var stops = window._routeStops || [];
+  if (!stops.length) { showToast('Add stops first using + Route'); return; }
+  var addresses = stops.map(function(s){ return s.address || s.company; }).filter(Boolean);
+  var isApple = !provider ? /iPhone|iPad|iPod/.test(navigator.userAgent) : provider === 'apple';
+  if (isApple) {
+    if (addresses.length === 1) {
+      window.location.href = 'maps://?daddr=' + encodeURIComponent(addresses[0]) + '&dirflg=d';
+    } else {
+      window.location.href = 'maps://?daddr=' + addresses.map(function(a){ return encodeURIComponent(a); }).join('&daddr=') + '&dirflg=d';
+    }
+  } else {
+    var dest = encodeURIComponent(addresses[addresses.length - 1]);
+    var wpts = addresses.slice(0, -1).map(function(a){ return encodeURIComponent(a); }).join('|');
+    window.open('https://www.google.com/maps/dir/?api=1&origin=Current+Location&destination=' + dest + (wpts ? '&waypoints=optimize:true|' + wpts : '') + '&travelmode=driving', '_blank');
+  }
 };
 
 window.openRouteInMaps = function(provider) {
@@ -4406,6 +4467,7 @@ window.runDailyLeads = function() {
             '</div>' +
             '<div style="display:flex;align-items:center;gap:10px;flex-shrink:0">' +
               (lead.phone ? '<a href="tel:' + lead.phone + '" onclick="event.stopPropagation()" style="color:var(--accent);font-size:12px;text-decoration:none;font-weight:600">' + lead.phone + '</a>' : '') +
+              '<button id="route-btn-' + i + '" onclick="addToRoute(' + i + ',event)" style="padding:5px 11px;background:var(--surface);border:1.5px solid var(--border);border-radius:20px;font-size:11px;font-weight:700;color:var(--navy);cursor:pointer;font-family:inherit;white-space:nowrap">+ Route</button>' +
             '</div>' +
           '</div>' +
           '<div id="leadlog-' + i + '" style="display:none;border-top:1px solid var(--border);padding:14px 16px;background:#fafbfc">' +
