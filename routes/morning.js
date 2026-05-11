@@ -43,25 +43,28 @@ const PRODUCT_SEARCH_CONFIG = {
   },
   'Alum-A-Pole': {
     Contractor: [
-      { query: 'painting contractor commercial', score: 10, category: 'Painting Contractor' },
-      { query: 'painting contractor residential', score: 9, category: 'Painting Contractor' },
-      { query: 'siding contractor installation', score: 9, category: 'Siding Contractor' },
-      { query: 'cornice work contractor', score: 10, category: 'Cornice Contractor' },
-      { query: 'masonry contractor', score: 7, category: 'Masonry Contractor' },
+      { query: 'siding contractor installation', score: 10, category: 'Siding Contractor' },
+      { query: 'vinyl siding contractor', score: 10, category: 'Siding Contractor' },
+      { query: 'James Hardie siding installer', score: 10, category: 'Siding Contractor' },
+      { query: 'fiber cement siding company', score: 9, category: 'Siding Contractor' },
+      { query: 'cornice contractor soffit fascia', score: 10, category: 'Cornice Contractor' },
+      { query: 'exterior siding company', score: 9, category: 'Siding Contractor' },
+      { query: 'stucco siding contractor', score: 8, category: 'Siding Contractor' },
     ],
     Dealer: [
-      { query: 'painting supply store contractor', score: 9, category: 'Paint Supply' },
-      { query: 'construction equipment supplier', score: 8, category: 'Equipment Dealer' },
-      { query: 'siding supply distributor', score: 9, category: 'Siding Distributor' },
-      { query: 'fastener supply construction', score: 7, category: 'Fastener Supply' },
-      { query: 'scaffolding rental equipment', score: 10, category: 'Scaffolding Dealer' },
+      { query: 'siding supply distributor', score: 10, category: 'Siding Distributor' },
+      { query: 'building materials distributor siding', score: 9, category: 'Building Supply' },
+      { query: 'fastener supply store construction', score: 9, category: 'Fastener Supply' },
+      { query: 'construction tool equipment dealer', score: 8, category: 'Equipment Dealer' },
+      { query: 'scaffolding rental supply', score: 10, category: 'Scaffolding Dealer' },
+      { query: 'exterior building products distributor', score: 9, category: 'Siding Distributor' },
     ]
   }
 };
 
 // Google place types that confirm a business is relevant (vs. just having the right name)
 const CONTRACTOR_PLACE_TYPES = new Set([
-  'roofing_contractor', 'general_contractor', 'painter', 'painting',
+  'roofing_contractor', 'general_contractor',
   'deck_builder', 'siding_contractor', 'window_installation_service',
   'door_supplier', 'masonry_contractor', 'scaffolding_contractor',
   'home_improvement', 'construction_company', 'remodeling_contractor'
@@ -72,6 +75,17 @@ const DEALER_PLACE_TYPES = new Set([
   'wholesale_grocer', 'warehouse', 'distribution_center',
   'paint_store', 'home_improvement_store', 'roofing_supply_store'
 ]);
+
+
+// Hard block — never return paint-related results for Alum-A-Pole
+const PAINT_BLOCKED_KEYWORDS = ['paint', 'painting', 'painter', 'painters'];
+function isPaintBlocked(name, brand) {
+  if ((brand || '').toLowerCase().includes('alum')) {
+    const lower = (name || '').toLowerCase();
+    return PAINT_BLOCKED_KEYWORDS.some(kw => lower.includes(kw));
+  }
+  return false;
+}
 
 // Haversine distance in miles
 function distanceMiles(lat1, lng1, lat2, lng2) {
