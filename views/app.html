@@ -1081,7 +1081,7 @@ window.addEventListener('load', function() {
             <option>ShurTape Flashing & Deck Tape</option>
             <option>Fortress Evolution Steel Framing</option>
             <option>Fortress Railing</option>
-            <option>Alum-A-Pole Equipment</option>
+            <option>Alum-A-Pole Siding Equipment</option>
           </select>
         </div>
         <button class="ai-send" onclick="runOutreach()">Write Outreach</button>
@@ -2383,7 +2383,7 @@ function findLeads() {
   var categoryMap = {
     'Soudal Sealants and Adhesives': 'Roofing Contractor, Window and Door Installer, General Contractor using sealants and adhesives',
     'ShurTape Flashing and Deck Tape': 'Deck Contractor, Roofing Contractor, Window and Door Installer using flashing tape',
-    'Alum-A-Pole Scaffolding and Equipment': 'Painting Contractor, General Contractor, Scaffolding Rental Company',
+    'Alum-A-Pole Scaffolding and Equipment': 'Siding Contractor, Cornice Contractor, Scaffolding Equipment Dealer, Fastener Supply Store',
     'Fortress Evolution Steel Framing': 'Deck Contractor, Outdoor Living Contractor building decks',
     'Fortress Railing Systems': 'Deck Contractor, Outdoor Living Contractor, Stair and Rail Installer',
     'Insulation Contractor and After-Paint Installer': 'Insulation Contractor, Spray Foam Contractor, After-Paint Installer, General Contractor doing insulation and finishing work'
@@ -4197,6 +4197,14 @@ window.runDailyLeads = function() {
         return;
       }
 
+      // Hard filter: never show paint-related leads for Alum-A-Pole
+      leads = leads.filter(function(lead) {
+        var paintWords = ['paint', 'painting', 'painter'];
+        var name = (lead.company || '').toLowerCase();
+        var cat = (lead.category || '').toLowerCase();
+        if (paintWords.some(function(w) { return name.includes(w) || cat.includes(w); })) return false;
+        return true;
+      });
       window._dailyLeads = leads;
 
       // Render the leads directly INTO the call list (replacing the old one)
