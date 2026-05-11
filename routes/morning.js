@@ -6,61 +6,88 @@ const router = express.Router();
 const CLAUDE_API = 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-sonnet-4-20250514';
 
-// ─── PRODUCT → SEARCH QUERY MAPPING ──────────────────────────────────────────
-// Each entry defines what Google Places queries to run and how to score results
-const PRODUCT_SEARCH_CONFIG = {
-  'BOSS Products': {
-    Contractor: [
+// ─── SEGMENT → SEARCH QUERY MAPPING ─────────────────────────────────────────
+// 7 named segments replace the old Contractor/Dealer split.
+// Each segment has targeted queries + a relevantBrands list for scoring.
+const SEGMENT_SEARCH_CONFIG = {
+  'Window/Door Installer': {
+    relevantBrands: ['ShurTape'],
+    queries: [
+      { query: 'new construction window installation contractor', score: 10, category: 'Window/Door Installer' },
+      { query: 'new construction door installer contractor', score: 10, category: 'Window/Door Installer' },
+      { query: 'window door installation new build', score: 9, category: 'Window/Door Installer' },
+      { query: 'window installation company residential', score: 8, category: 'Window/Door Installer' },
+      { query: 'door installation contractor residential', score: 8, category: 'Window/Door Installer' },
+    ]
+  },
+  'Deck Contractor': {
+    relevantBrands: ['ShurTape'],
+    queries: [
+      { query: 'deck builder contractor', score: 10, category: 'Deck Contractor' },
+      { query: 'deck installation company', score: 10, category: 'Deck Contractor' },
+      { query: 'deck construction new build', score: 9, category: 'Deck Contractor' },
+      { query: 'composite deck installer', score: 9, category: 'Deck Contractor' },
+    ]
+  },
+  'Roofing Contractor': {
+    relevantBrands: ['BOSS Products', 'ShurTape'],
+    queries: [
       { query: 'roofing contractor', score: 10, category: 'Roofing Contractor' },
       { query: 'commercial roofing company', score: 10, category: 'Roofing Contractor' },
-      { query: 'residential roofing company', score: 9, category: 'Roofing Contractor' },
-      { query: 'roof repair company', score: 9, category: 'Roofing Contractor' },
-      { query: 'general contractor roofing', score: 7, category: 'General Contractor' },
-    ],
-    Dealer: [
+      { query: 'residential roofing contractor', score: 9, category: 'Roofing Contractor' },
+      { query: 'roof replacement contractor', score: 9, category: 'Roofing Contractor' },
+      { query: 'roofing company new construction', score: 9, category: 'Roofing Contractor' },
+    ]
+  },
+  'Roofing Distributor': {
+    relevantBrands: ['BOSS Products'],
+    queries: [
       { query: 'roofing supply distributor', score: 10, category: 'Roofing Distributor' },
-      { query: 'building materials wholesale', score: 8, category: 'Building Materials' },
       { query: 'roofing wholesale supply', score: 10, category: 'Roofing Distributor' },
-      { query: 'ABC Supply roofing', score: 9, category: 'Roofing Distributor' },
+      { query: 'ABC Supply roofing materials', score: 9, category: 'Roofing Distributor' },
       { query: 'Beacon Roofing Supply', score: 9, category: 'Roofing Distributor' },
+      { query: 'building materials wholesale roofing', score: 8, category: 'Roofing Distributor' },
     ]
   },
-  'ShurTape': {
-    Contractor: [
-      { query: 'roofing contractor', score: 9, category: 'Roofing Contractor' },
-      { query: 'deck builder contractor', score: 9, category: 'Deck Contractor' },
-      { query: 'siding contractor installation', score: 9, category: 'Siding Contractor' },
-      { query: 'window installation contractor', score: 8, category: 'Window Contractor' },
-      { query: 'door installation contractor', score: 7, category: 'Door Contractor' },
-    ],
-    Dealer: [
-      { query: 'building products distributor', score: 9, category: 'Building Supply' },
-      { query: 'siding supply distributor', score: 10, category: 'Siding Distributor' },
-      { query: 'specialty building materials', score: 8, category: 'Building Supply' },
-      { query: 'exterior building supply', score: 9, category: 'Building Supply' },
-      { query: 'lumber yard building supply', score: 7, category: 'Lumber Yard' },
-    ]
-  },
-  'Alum-A-Pole': {
-    Contractor: [
+  'Siding Contractor': {
+    relevantBrands: ['Alum-A-Pole', 'ShurTape'],
+    queries: [
       { query: 'siding contractor installation', score: 10, category: 'Siding Contractor' },
       { query: 'vinyl siding contractor', score: 10, category: 'Siding Contractor' },
       { query: 'James Hardie siding installer', score: 10, category: 'Siding Contractor' },
       { query: 'fiber cement siding company', score: 9, category: 'Siding Contractor' },
-      { query: 'cornice contractor soffit fascia', score: 10, category: 'Cornice Contractor' },
       { query: 'exterior siding company', score: 9, category: 'Siding Contractor' },
-      { query: 'stucco siding contractor', score: 8, category: 'Siding Contractor' },
-    ],
-    Dealer: [
-      { query: 'siding supply distributor', score: 10, category: 'Siding Distributor' },
-      { query: 'building materials distributor siding', score: 9, category: 'Building Supply' },
-      { query: 'fastener supply store construction', score: 9, category: 'Fastener Supply' },
-      { query: 'construction tool equipment dealer', score: 8, category: 'Equipment Dealer' },
-      { query: 'scaffolding rental supply', score: 10, category: 'Scaffolding Dealer' },
-      { query: 'exterior building products distributor', score: 9, category: 'Siding Distributor' },
+    ]
+  },
+  'Cornice Contractor': {
+    relevantBrands: ['Alum-A-Pole'],
+    queries: [
+      { query: 'cornice contractor soffit fascia', score: 10, category: 'Cornice Contractor' },
+      { query: 'soffit fascia contractor installer', score: 10, category: 'Cornice Contractor' },
+      { query: 'fascia board installation contractor', score: 9, category: 'Cornice Contractor' },
+      { query: 'exterior trim contractor soffit', score: 9, category: 'Cornice Contractor' },
+    ]
+  },
+  'Fastener/Tool Dealer': {
+    relevantBrands: ['Alum-A-Pole'],
+    queries: [
+      { query: 'fastener supply store construction', score: 10, category: 'Fastener/Tool Dealer' },
+      { query: 'construction tool equipment dealer', score: 10, category: 'Fastener/Tool Dealer' },
+      { query: 'scaffolding rental supply construction', score: 10, category: 'Fastener/Tool Dealer' },
+      { query: 'siding supply distributor tools', score: 9, category: 'Fastener/Tool Dealer' },
+      { query: 'building materials distributor siding', score: 8, category: 'Fastener/Tool Dealer' },
     ]
   }
 };
+
+// Legacy map kept for any references — maps old channel names to segment groups
+const CHANNEL_TO_SEGMENTS = {
+  'Contractor': ['Window/Door Installer','Deck Contractor','Roofing Contractor','Siding Contractor','Cornice Contractor'],
+  'Dealer': ['Roofing Distributor','Fastener/Tool Dealer']
+};
+
+// Shim: build a PRODUCT_SEARCH_CONFIG-compatible lookup for the scoring helper
+const PRODUCT_SEARCH_CONFIG = {};
 
 // Google place types that confirm a business is relevant (vs. just having the right name)
 const CONTRACTOR_PLACE_TYPES = new Set([
@@ -285,19 +312,22 @@ router.post('/daily-leads', async (req, res) => {
       return res.status(500).json({ error: `Could not locate city: ${city}. Please check the city name.` });
     }
 
-    // Build all search queries from the brand/channel config
-    const searchConfigs = [];
-    for (const brand of brands) {
-      const config = PRODUCT_SEARCH_CONFIG[brand];
-      if (!config) continue;
-      const channelConfig = config[channel];
-      if (!channelConfig) continue;
-      for (const sc of channelConfig) {
-        searchConfigs.push({ ...sc, brand });
-      }
+    // Build search queries from segment config
+    // `channel` is now a segment name (e.g. 'Roofing Contractor', 'Fastener/Tool Dealer')
+    // Fall back gracefully if old Contractor/Dealer value passed
+    let segmentName = channel;
+    if (channel === 'Contractor' || channel === 'Dealer') {
+      // Legacy fallback — just use first matching segment
+      const fallbackList = CHANNEL_TO_SEGMENTS[channel] || ['Roofing Contractor'];
+      segmentName = fallbackList[0];
     }
 
-    // Deduplicate search queries (same query from multiple brands)
+    const segmentConfig = SEGMENT_SEARCH_CONFIG[segmentName];
+    const searchConfigs = segmentConfig
+      ? segmentConfig.queries.map(q => ({ ...q, brand: segmentName, segment: segmentName }))
+      : [];
+
+    // Deduplicate (shouldn't be needed per-segment but kept for safety)
     const seenQueries = new Set();
     const uniqueConfigs = searchConfigs.filter(sc => {
       if (seenQueries.has(sc.query)) return false;
@@ -403,10 +433,8 @@ router.post('/daily-leads', async (req, res) => {
           if (channel === 'Contractor' && isClassifiedDealer && !isClassifiedContractor && placeTypes.size > 2) continue;
 
           // Count how many product lines this prospect is relevant to
-          const matchingBrands = brands.filter(brand => {
-            const bc = PRODUCT_SEARCH_CONFIG[brand]?.[channel];
-            return bc?.some(sc => sc.category === config.category || sc.query.split(' ')[0] === config.query.split(' ')[0]);
-          });
+          // For scoring: relevantBrands from segment config
+          const matchingBrands = (SEGMENT_SEARCH_CONFIG[segmentName]?.relevantBrands || [segmentName]);
 
           const opportunityScore = calcOpportunityScore(
             config.score,
@@ -435,7 +463,7 @@ router.post('/daily-leads', async (req, res) => {
             website: place.websiteUri || '',
             products: matchingBrands.join(', ') || brands.join(', '),
             place_id: placeId,
-            territory: city,
+            territory: segmentName,
             opportunity_score: opportunityScore,
             priority: opportunityScore >= 8 ? 'High' : opportunityScore >= 6 ? 'Medium' : 'Low',
             rating: place.rating || null,
