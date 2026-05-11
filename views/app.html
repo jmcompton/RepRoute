@@ -467,10 +467,11 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
   /* The Atlanta Metro pill is a span directly in .topbar - hide it */
   .topbar > span { display:none !important; }
 
-  /* AI Find Leads button on contacts page - hide on mobile, force only the + New button */
+  /* AI Find Leads button on contacts page - hide on mobile */
   #page-contacts .list-bar button[onclick*="leads"],
   #page-contacts .list-bar a[onclick*="leads"] { display:none !important; }
-  #page-contacts .list-bar .btn-primary,
+  /* Tab toggle buttons — never override these */
+  #tab-my-contacts, #tab-team-contacts { flex:0 !important; }
   #page-contacts .list-bar button[onclick*="add-prospect"],
   #page-contacts .list-bar button[onclick*="modal"] {
     flex:1 !important;
@@ -829,13 +830,14 @@ window.addEventListener('load', function() {
 
   <!-- CONTACTS -->
   <div class="page" id="page-contacts">
+    <!-- Tab switcher — outside list-bar to avoid mobile CSS override -->
+    <div style="display:flex;align-items:center;gap:0;padding:10px 16px 0;border-bottom:1px solid var(--border);background:var(--surface)">
+      <button id="tab-my-contacts" onclick="switchContactTab('mine')" style="padding:8px 20px;border:none;border-bottom:2px solid var(--accent);background:transparent;color:var(--navy);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">My Contacts</button>
+      <button id="tab-team-contacts" onclick="switchContactTab('team')" style="padding:8px 20px;border:none;border-bottom:2px solid transparent;background:transparent;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Team Contacts</button>
+    </div>
     <div class="list-bar">
-      <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:6px;overflow:hidden;background:var(--surface)">
-        <button id="tab-my-contacts" onclick="switchContactTab('mine')" style="padding:6px 16px;border:none;background:var(--accent);color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">My Contacts</button>
-        <button id="tab-team-contacts" onclick="switchContactTab('team')" style="padding:6px 16px;border:none;background:transparent;color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Team Contacts</button>
-      </div>
-      <span class="list-count" id="list-count" style="margin-left:8px">0 records</span>
-      <div class="sb-in" style="margin-left:8px"><span style="font-size:12px;color:var(--text3)">🔍</span><input id="p-search" placeholder="Search contacts..." oninput="handleContactSearch()" /></div>
+      <span class="list-count" id="list-count">0 records</span>
+      <div class="sb-in"><span style="font-size:12px;color:var(--text3)">🔍</span><input id="p-search" placeholder="Search contacts..." oninput="handleContactSearch()" /></div>
       <div style="display:flex;gap:6px;margin-left:auto">
         <button class="btn btn-secondary btn-sm" id="btn-add-contact" onclick="openModal('add-prospect')">+ New</button>
         <button class="btn btn-primary btn-sm" onclick="go('leads')">AI Find Leads</button>
@@ -4340,15 +4342,15 @@ window.switchContactTab = function(tab) {
   if (tab === 'mine') {
     if (mine) mine.style.display = '';
     if (team) team.style.display = 'none';
-    tabMine.style.background = 'var(--accent)'; tabMine.style.color = '#fff';
-    tabTeam.style.background = 'transparent'; tabTeam.style.color = 'var(--text2)';
+    if (tabMine) { tabMine.style.borderBottomColor = 'var(--accent)'; tabMine.style.color = 'var(--navy)'; tabMine.style.fontWeight = '700'; }
+    if (tabTeam) { tabTeam.style.borderBottomColor = 'transparent'; tabTeam.style.color = 'var(--text2)'; tabTeam.style.fontWeight = '600'; }
     if (addBtn) addBtn.style.display = '';
     loadProspects();
   } else {
     if (mine) mine.style.display = 'none';
     if (team) team.style.display = '';
-    tabTeam.style.background = 'var(--accent)'; tabTeam.style.color = '#fff';
-    tabMine.style.background = 'transparent'; tabMine.style.color = 'var(--text2)';
+    if (tabTeam) { tabTeam.style.borderBottomColor = 'var(--accent)'; tabTeam.style.color = 'var(--navy)'; tabTeam.style.fontWeight = '700'; }
+    if (tabMine) { tabMine.style.borderBottomColor = 'transparent'; tabMine.style.color = 'var(--text2)'; tabMine.style.fontWeight = '600'; }
     if (addBtn) addBtn.style.display = 'none';
     loadTeamContacts();
   }
