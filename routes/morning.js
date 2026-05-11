@@ -74,6 +74,8 @@ const SEGMENT_SEARCH_CONFIG = {
       { query: 'fastener supply store construction', score: 10, category: 'Fastener/Tool Dealer' },
       { query: 'construction tool equipment dealer', score: 10, category: 'Fastener/Tool Dealer' },
       { query: 'scaffolding rental supply construction', score: 10, category: 'Fastener/Tool Dealer' },
+      { query: 'ladder supply company construction', score: 10, category: 'Fastener/Tool Dealer' },
+      { query: 'extension ladder dealer supply store', score: 9, category: 'Fastener/Tool Dealer' },
       { query: 'siding supply distributor tools', score: 9, category: 'Fastener/Tool Dealer' },
       { query: 'building materials distributor siding', score: 8, category: 'Fastener/Tool Dealer' },
     ]
