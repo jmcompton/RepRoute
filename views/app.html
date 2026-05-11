@@ -316,9 +316,7 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
   }
   #lead-find-btn { width:100% !important; justify-content:center !important; padding:12px !important; }
   #lead-city-input { width:100% !important; min-width:0 !important; padding:11px 12px !important; font-size:14px !important; }
-  .seg-pill { padding:6px 13px; border:1.5px solid var(--border); border-radius:20px; background:#fff; color:var(--text2); font-size:12px; font-weight:600; font-family:inherit; cursor:pointer; transition:all .15s; white-space:nowrap; }
-  .seg-pill:hover { border-color:var(--accent); color:var(--navy); }
-  .seg-pill.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+  /* seg-pill replaced by inline-styled checkbox labels */
   /* The wrapper that holds input + button */
   #lead-find-btn:has-prev #lead-city-input,
   div:has(> #lead-city-input):has(> #lead-find-btn) {
@@ -748,15 +746,29 @@ window.addEventListener('load', function() {
             </label>
           </div>
 
-          <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Segment</div>
-          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px" id="segment-pill-row">
-            <button type="button" class="seg-pill active" data-seg="Window/Door Installer" onclick="setLeadSegment('Window/Door Installer',this)">Window / Door</button>
-            <button type="button" class="seg-pill" data-seg="Deck Contractor" onclick="setLeadSegment('Deck Contractor',this)">Deck Contractors</button>
-            <button type="button" class="seg-pill" data-seg="Roofing Contractor" onclick="setLeadSegment('Roofing Contractor',this)">Roofing Contractors</button>
-            <button type="button" class="seg-pill" data-seg="Roofing Distributor" onclick="setLeadSegment('Roofing Distributor',this)">Roofing Distributors</button>
-            <button type="button" class="seg-pill" data-seg="Siding Contractor" onclick="setLeadSegment('Siding Contractor',this)">Siding Contractors</button>
-            <button type="button" class="seg-pill" data-seg="Cornice Contractor" onclick="setLeadSegment('Cornice Contractor',this)">Cornice Contractors</button>
-            <button type="button" class="seg-pill" data-seg="Fastener/Tool Dealer" onclick="setLeadSegment('Fastener/Tool Dealer',this)">Fastener / Tool Dealers</button>
+          <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Segments</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px" id="segment-pill-row">
+            <label style="cursor:pointer;background:#ede9fe;color:#6d28d9;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;user-select:none;border:1.5px solid #c4b5fd">
+              <input type="checkbox" name="seg" value="Window/Door Installer" checked style="margin:0;accent-color:#6d28d9"> Window / Door
+            </label>
+            <label style="cursor:pointer;background:#fef3c7;color:#92400e;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;user-select:none;border:1.5px solid #fcd34d">
+              <input type="checkbox" name="seg" value="Deck Contractor" style="margin:0;accent-color:#92400e"> Deck Contractors
+            </label>
+            <label style="cursor:pointer;background:#fee2e2;color:#b91c1c;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;user-select:none;border:1.5px solid #fca5a5">
+              <input type="checkbox" name="seg" value="Roofing Contractor" checked style="margin:0;accent-color:#b91c1c"> Roofing Contractors
+            </label>
+            <label style="cursor:pointer;background:#ffedd5;color:#c2410c;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;user-select:none;border:1.5px solid #fdba74">
+              <input type="checkbox" name="seg" value="Roofing Distributor" style="margin:0;accent-color:#c2410c"> Roofing Distributors
+            </label>
+            <label style="cursor:pointer;background:#dbeafe;color:#1d4ed8;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;user-select:none;border:1.5px solid #93c5fd">
+              <input type="checkbox" name="seg" value="Siding Contractor" style="margin:0;accent-color:#1d4ed8"> Siding Contractors
+            </label>
+            <label style="cursor:pointer;background:#ccfbf1;color:#0f766e;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;user-select:none;border:1.5px solid #5eead4">
+              <input type="checkbox" name="seg" value="Cornice Contractor" style="margin:0;accent-color:#0f766e"> Cornice Contractors
+            </label>
+            <label style="cursor:pointer;background:#d1fae5;color:#065f46;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;user-select:none;border:1.5px solid #6ee7b7">
+              <input type="checkbox" name="seg" value="Fastener/Tool Dealer" style="margin:0;accent-color:#065f46"> Fastener / Tool Dealers
+            </label>
           </div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -4276,7 +4288,7 @@ window.getSelectedBrands = function() {
   return checked.length ? checked : ['BOSS Products', 'ShurTape', 'Alum-A-Pole'];
 };
 
-// setLeadChannel removed — replaced by setLeadSegment
+
 
 // Track all place IDs and names shown this session — used for refresh dedup
 window._shownPlaceIds = [];
