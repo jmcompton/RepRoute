@@ -4445,20 +4445,26 @@ window.runDailyLeads = function() {
     var refreshBtn = document.getElementById('lead-refresh-btn');
     if (refreshBtn) { refreshBtn.style.display = 'block'; refreshBtn.textContent = '↻ Refresh'; refreshBtn.disabled = false; }
 
-    // Sort by score DESC, filter paint
+    // Sort by score DESC
     allLeads.sort(function(a,b){ return (b.opportunity_score||0)-(a.opportunity_score||0); });
-    var leads = allLeads.filter(function(lead) {
+
+    // Separate clean leads from team-contact flagged leads
+    var cleanLeads = allLeads.filter(function(lead) {
+      if (lead.already_contacted) return false;
       var name = (lead.company||'').toLowerCase();
       var seg = (lead.territory||lead.category||'').toLowerCase();
-      // Block paint words always
       var paintWords = ['paint','painting','painter'];
       if (paintWords.some(function(w){ return name.includes(w); })) return false;
-      // Block garage/overhead doors from window/door segment
       if (seg.includes('window') || seg.includes('door')) {
         if (name.includes('garage door') || name.includes('overhead door')) return false;
       }
       return true;
     }).slice(0, 10);
+
+    var flaggedLeads = allLeads.filter(function(lead) { return lead.already_contacted; });
+
+    // Merge: clean first, flagged at the bottom
+    var leads = cleanLeads.concat(flaggedLeads);
 
     if (!leads.length) {
       if (results) results.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;background:var(--surface);border-radius:8px;color:var(--text3);font-size:13px">No new leads found in this area. Try a different city or different segments.</div>';
