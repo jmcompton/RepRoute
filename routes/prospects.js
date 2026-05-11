@@ -3,17 +3,18 @@ const { pool } = require('../db');
 const router = express.Router();
 
 
-// GET /api/prospects/team — all teammates' contacts (read-only, same role)
+// GET /api/prospects/team — all teammates' contacts (read-only)
+// Returns all contacts from other users — no role restriction so no one is missed
 router.get('/team', async (req, res) => {
   const uid = req.session.user.id;
   try {
     const result = await pool.query(
-      `SELECT p.*, u.name as rep_name
+      `SELECT p.*,
+              COALESCE(NULLIF(TRIM(u.name),''), u.email) as rep_name
        FROM prospects p
        JOIN users u ON p.user_id = u.id
        WHERE p.user_id != $1
-         AND u.role IN ('rep','manager','admin')
-       ORDER BY u.name ASC, p.company ASC`,
+       ORDER BY COALESCE(NULLIF(TRIM(u.name),''), u.email) ASC, p.company ASC`,
       [uid]
     );
     res.json(result.rows);
