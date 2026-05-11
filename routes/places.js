@@ -3,6 +3,14 @@ const { pool } = require('../db');
 const router = express.Router();
 const PLACES_KEY = process.env.GOOGLE_PLACES_API_KEY;
 
+
+// Hard block — never return paint shops/painters as Alum-A-Pole leads
+const ALUM_PAINT_BLOCK = ['paint', 'painting', 'painter', 'painters'];
+function alumPoleBlocked(name) {
+  const lower = (name || '').toLowerCase();
+  return ALUM_PAINT_BLOCK.some(kw => lower.includes(kw));
+}
+
 function httpsPost(hostname, path, headers, body) {
   const https = require('https');
   return new Promise((resolve, reject) => {
@@ -41,11 +49,21 @@ function getSearchQueries(product, customerType) {
     customerType + ' near me', 'best ' + customerType, customerType + ' renovation'
   ];
   if (p.includes('alum') || p.includes('scaffolding')) return [
-    'siding contractor', 'James Hardie siding installer', 'vinyl siding company',
-    'fiber cement siding contractor', 'stucco contractor', 'exterior renovation contractor',
-    'hardie board installer', 'LP SmartSide installer', 'soffit fascia contractor',
-    'exterior remodeling contractor', 'house siding company', 'home exterior contractor',
-    'siding repair company', 'residential siding contractor', 'siding installation company'
+    'siding contractor installation',
+    'vinyl siding contractor',
+    'James Hardie siding installer',
+    'fiber cement siding company',
+    'LP SmartSide installer',
+    'soffit fascia cornice contractor',
+    'exterior siding company',
+    'siding supply distributor',
+    'fastener supply store construction',
+    'scaffolding rental supply',
+    'building materials distributor siding',
+    'exterior building products distributor',
+    'construction equipment dealer scaffolding',
+    'cornice contractor trim',
+    'residential siding contractor'
   ];
   if (p.includes('soudal') || p.includes('sealant') || p.includes('adhesive')) return [
     'window installation contractor', 'door installation company', 'glazing contractor',
