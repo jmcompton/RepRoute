@@ -268,6 +268,7 @@ router.get('/', async (req, res) => {
 router.post('/daily-leads', async (req, res) => {
   const uid = req.session.user.id;
   const PLACES_KEY = process.env.GOOGLE_PLACES_API_KEY;
+  console.log(`[daily-leads] hit — uid=${uid} channel=${req.body.channel} city=${req.body.city}`);
   if (!PLACES_KEY) return res.status(500).json({ error: 'Google Places API key not configured' });
 
   // Get the rep's territory and home base from their user record
@@ -520,7 +521,13 @@ router.post('/daily-leads', async (req, res) => {
       return da - db;
     });
 
-    const topLeads = allLeads.slice(0, 10);
+    // Separate clean leads from team-contact flagged leads
+    // Clean leads get up to 10 slots; flagged leads are appended on top (no cap)
+    const cleanLeads   = allLeads.filter(l => !l.already_contacted).slice(0, 10);
+    const flaggedLeads = allLeads.filter(l =>  l.already_contacted);
+    const topLeads     = [...cleanLeads, ...flaggedLeads];
+
+    console.log(`[daily-leads] segment=${channel} city=${city} clean=${cleanLeads.length} flagged=${flaggedLeads.length} total_found=${allLeads.length}`);
 
     res.json({
       ok: true,
@@ -530,6 +537,8 @@ router.post('/daily-leads', async (req, res) => {
       radius_miles: radiusMiles,
       center: { city, coords: centerCoords },
       total_found: allLeads.length,
+      clean_count: cleanLeads.length,
+      flagged_count: flaggedLeads.length,
       excluded_count: existingNames.size
     });
 
