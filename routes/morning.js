@@ -295,14 +295,20 @@ router.post('/daily-leads', async (req, res) => {
     const sessionSeen = new Set();
 
     for (const config of uniqueConfigs) {
-      if (allLeads.length >= 25) break; // Collect 25, return top 10 (more headroom for refresh)
+      if (allLeads.length >= 40) break; // Collect 40, return top 10 (more headroom after dedup/filter)
 
       try {
-        // Embed city directly in query — NO locationBias
-        // locationBias with radius >50km causes 400 errors from Google Places API
+        // Use locationRestriction (circle) around geocoded city coords to force local results
+        // This prevents Google from drifting to metro Atlanta when searching a suburb
         const searchBody = {
-          textQuery: `${config.query} ${city}`,
-          maxResultCount: 20
+          textQuery: config.query,
+          maxResultCount: 20,
+          locationRestriction: {
+            circle: {
+              center: { latitude: centerCoords.lat, longitude: centerCoords.lng },
+              radius: Math.min(radiusMiles * 1609.34, 50000) // miles → meters, max 50km
+            }
+          }
         };
 
         const placesRes = await fetch('https://places.googleapis.com/v1/places:searchText', {
@@ -331,7 +337,7 @@ router.post('/daily-leads', async (req, res) => {
         const places = data.places || [];
 
         for (const place of places) {
-          if (allLeads.length >= 25) break;
+          if (allLeads.length >= 40) break;
 
           const company = place.displayName?.text || '';
           const placeId = place.id || '';
