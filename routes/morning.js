@@ -218,8 +218,24 @@ router.post('/daily-leads', async (req, res) => {
   const city = (req.body.city || userInfo.home_base_city || '').trim() || 'Atlanta GA';
   const brands = Array.isArray(req.body.brands) && req.body.brands.length
     ? req.body.brands
-    : ['BOSS Products', 'ShurTape', 'Alum-A-Pole'];
-  const channel = (req.body.channel || 'Contractor').trim();
+    : [];
+  if (!brands.length) return res.status(400).json({ error: 'Please select at least one brand.' });
+  // Translate segment names (sent by UI pills) → Contractor or Dealer
+  const SEGMENT_TO_CHANNEL = {
+    'Roofing Contractor':    'Contractor',
+    'Roofing Distributor':   'Dealer',
+    'Siding Contractor':     'Contractor',
+    'Siding Distributor':    'Dealer',
+    'Cornice Contractor':    'Contractor',
+    'Window/Door Installer': 'Contractor',
+    'Deck Contractor':       'Contractor',
+    'Fastener/Tool Dealer':  'Dealer',
+    'Contractor':            'Contractor',
+    'Dealer':                'Dealer',
+  };
+  const rawChannel = (req.body.channel || 'Contractor').trim();
+  const channel = SEGMENT_TO_CHANNEL[rawChannel] || 'Contractor';
+  console.log(`[daily-leads] uid=${req.session.user.id} rawChannel="${rawChannel}" → channel="${channel}" city=${req.body.city}`);
   const radiusMiles = parseInt(req.body.radius_miles) || 50; // Default 50mi vs old 5mi
 
   try {
