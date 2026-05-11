@@ -4161,9 +4161,9 @@ window._routeStops = [];
 
 window.buildRoutePanel = function(leads) {
   // Called after lead search — does NOT auto-populate route.
-  // Just resets state so rep can manually pick stops.
+  // Preserves any stops already added by the rep.
   window._availableLeads = leads || [];
-  window._routeStops = [];
+  if (!window._routeStops) window._routeStops = [];
   _renderRoutePanel();
 };
 
