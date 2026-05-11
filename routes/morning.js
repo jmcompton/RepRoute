@@ -310,17 +310,8 @@ router.post('/daily-leads', async (req, res) => {
       const ph = (r.phone || '').replace(/[^0-9]/g, '');
       if (ph.length >= 7)    ownerByPhone.set(ph, owner);
     }
-    // Sets still used for quick session-seen exclusion (shown_place_ids)
-    const existingPlaceIds  = new Set(ownerByPlaceId.keys());
-    const existingNames     = new Set(ownerByName.keys());
-    const existingAddresses = new Set(ownerByAddress.keys());
-    const existingPhones    = new Set(ownerByPhone.keys());
-
-    // Also exclude leads already shown in this browser session (for refresh)
+    // Session refresh exclusion — kept SEPARATE from team-contact maps to avoid contamination
     const shownPlaceIds = Array.isArray(req.body.shown_place_ids) ? req.body.shown_place_ids : [];
-    const shownNames = Array.isArray(req.body.shown_names) ? req.body.shown_names.map(n => n.toLowerCase()) : [];
-    for (const id of shownPlaceIds) existingPlaceIds.add(id);
-    for (const n of shownNames) existingNames.add(n);
 
     // Geocode the city — always use the typed city first, fall back to home base
     let centerCoords = null;
