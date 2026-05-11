@@ -94,4 +94,32 @@ router.post('/wipe-demo-data', async (req, res) => {
   }
 });
 
+
+// Self-service: wipe YOUR OWN demo data (uses session auth, only deletes your records)
+router.post('/wipe-my-data', async (req, res) => {
+  if (!req.session || !req.session.user) return res.status(401).json({ error: 'Not logged in' });
+  const uid = req.session.user.id;
+  const uname = req.session.user.name;
+  const { confirm } = req.body;
+  if (confirm !== 'YES_DELETE_MY_DATA') {
+    return res.json({ error: 'Pass confirm: YES_DELETE_MY_DATA' });
+  }
+  try {
+    const pc = await pool.query('SELECT COUNT(*) FROM prospects WHERE user_id=$1', [uid]);
+    const cc = await pool.query('SELECT COUNT(*) FROM calls WHERE user_id=$1', [uid]);
+    await pool.query('DELETE FROM notifications WHERE user_id=$1', [uid]);
+    await pool.query('DELETE FROM samples WHERE user_id=$1', [uid]);
+    await pool.query('DELETE FROM email_logs WHERE user_id=$1', [uid]);
+    await pool.query('DELETE FROM weekly_plans WHERE user_id=$1', [uid]);
+    await pool.query('DELETE FROM onboarding_plans WHERE rep_id=$1', [uid]);
+    await pool.query('DELETE FROM calendar_events WHERE user_id=$1', [uid]);
+    await pool.query('DELETE FROM calls WHERE user_id=$1', [uid]);
+    await pool.query('DELETE FROM prospects WHERE user_id=$1', [uid]);
+    console.log(`Data wiped for user ${uname} (id=${uid}): ${pc.rows[0].count} prospects, ${cc.rows[0].count} calls`);
+    res.json({ ok: true, deleted: { prospects: parseInt(pc.rows[0].count), calls: parseInt(cc.rows[0].count) } });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;
