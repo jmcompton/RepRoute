@@ -531,7 +531,7 @@ router.post('/daily-leads', async (req, res) => {
       total_found: allLeads.length,
       clean_count: cleanLeads.length,
       flagged_count: flaggedLeads.length,
-      excluded_count: existingNames.size
+      excluded_count: ownerByName.size
     });
 
   } catch(e) {
