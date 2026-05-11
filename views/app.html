@@ -4291,121 +4291,146 @@ window.runDailyLeads = function() {
 
   if (!city) { alert('Please enter a city first (e.g. Norcross GA)'); return; }
 
+  var segments = getSelectedSegments();
+  if (!segments.length) { alert('Please select at least one segment.'); return; }
+
   btn.disabled = true;
   btn.textContent = 'Searching...';
   if (loading) loading.style.display = 'block';
   if (results) results.innerHTML = '';
   if (summary) summary.style.display = 'none';
 
-  fetch('/api/morning/daily-leads', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ city: city, brands: getSelectedBrands(), channel: window._leadChannel || 'Contractor', shown_place_ids: window._shownPlaceIds || [], shown_names: window._shownNames || [] })
-  })
+  // Fetch each segment sequentially, merge results
+  var allLeads = [];
+  var seenIds = new Set(window._shownPlaceIds || []);
+
+  function fetchSegment(idx) {
+    if (idx >= segments.length) {
+      finalize();
+      return;
+    }
+    fetch('/api/morning/daily-leads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        city: city,
+        brands: getSelectedBrands(),
+        channel: segments[idx],
+        shown_place_ids: Array.from(seenIds),
+        shown_names: window._shownNames || []
+      })
+    })
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      if (loading) loading.style.display = 'none';
-      btn.disabled = false;
-      btn.textContent = "Find Today's Leads";
-      // Always re-enable refresh button regardless of outcome
-      var refreshBtn = document.getElementById('lead-refresh-btn');
-      if (refreshBtn) { refreshBtn.style.display = 'block'; refreshBtn.textContent = '↻ Refresh'; refreshBtn.disabled = false; }
-
-      if (data.error) { alert('Error: ' + data.error); return; }
-
-      var leads = data.leads || [];
-      if (!leads.length) {
-        if (results) results.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text3);font-size:13px">No leads found for "' + city + '". Try a different city.</div>';
-        return;
+      if (data.leads) {
+        data.leads.forEach(function(lead) {
+          var id = lead.place_id || lead.company;
+          if (!seenIds.has(id)) {
+            seenIds.add(id);
+            allLeads.push(lead);
+          }
+        });
       }
-
-      // Hard filter: never show paint-related leads for Alum-A-Pole
-      leads = leads.filter(function(lead) {
-        var paintWords = ['paint', 'painting', 'painter'];
-        var name = (lead.company || '').toLowerCase();
-        var cat = (lead.category || '').toLowerCase();
-        if (paintWords.some(function(w) { return name.includes(w) || cat.includes(w); })) return false;
-        return true;
-      });
-      window._dailyLeads = leads;
-      // Accumulate shown leads so refresh skips them
-      leads.forEach(function(lead) {
-        if (lead.place_id) window._shownPlaceIds.push(lead.place_id);
-        if (lead.company) window._shownNames.push(lead.company.toLowerCase());
-      });
-
-      // Render the leads directly INTO the call list (replacing the old one)
-      var callList = document.getElementById('morning-call-list');
-      var listCount = document.getElementById('list-count-badge');
-      if (listCount) listCount.textContent = leads.length;
-
-      var prodColors = {
-        'BOSS Products': { bg: '#fee2e2', color: '#b91c1c' },
-        'ShurTape': { bg: '#dbeafe', color: '#1d4ed8' },
-        'Alum-A-Pole': { bg: '#d1fae5', color: '#065f46' }
-      };
-
-      if (callList) {
-        callList.innerHTML = leads.map(function(lead, i) {
-          var c = prodColors[lead.products] || { bg: '#f1f5f9', color: '#64748b' };
-          var prodBadge = '<span style="background:' + c.bg + ';color:' + c.color + ';font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px">' + (lead.products||'') + '</span>';
-          var rating = lead.rating ? '<span style="font-size:11px;color:var(--text3)">★ ' + lead.rating + ' (' + (lead.reviews||0) + ' reviews)</span>' : '';
-          var addressLine = lead.address || (lead.city ? lead.city + ', GA' : '');
-          var mapsLink = addressLine ? '<a href="https://maps.google.com/?q=' + encodeURIComponent(lead.company + ' ' + addressLine) + '" target="_blank" onclick="event.stopPropagation()" style="color:var(--accent);font-size:11px;text-decoration:none">📍 ' + addressLine + '</a>' : '';
-
-          return '<div id="lead-card-' + i + '" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:0;overflow:hidden;transition:border-color .12s">' +
-            '<div style="display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer" onclick="toggleLeadCard(' + i + ')">' +
-              '<div id="lead-check-' + i + '" style="width:20px;height:20px;border-radius:50%;border:2px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .15s"></div>' +
-              '<div style="flex:1;min-width:0">' +
-                '<div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">' +
-                  '<span style="font-size:13.5px;font-weight:700;color:var(--navy)">' + lead.company + '</span>' +
-                  prodBadge +
-                '</div>' +
-                '<div style="font-size:11.5px;color:var(--text2);margin-bottom:2px">' + lead.category + '</div>' +
-                (mapsLink ? '<div style="margin-top:2px">' + mapsLink + '</div>' : '') +
-                (rating ? '<div style="margin-top:3px">' + rating + '</div>' : '') +
-              '</div>' +
-              '<div style="display:flex;align-items:center;gap:10px;flex-shrink:0">' +
-                (lead.phone ? '<a href="tel:' + lead.phone + '" onclick="event.stopPropagation()" style="color:var(--accent);font-size:12px;font-weight:600;text-decoration:none">📞 ' + lead.phone + '</a>' : '') +
-              '</div>' +
-            '</div>' +
-            '<div id="leadlog-' + i + '" style="display:none;border-top:1px solid var(--border);padding:14px 16px;background:#fafbfc">' +
-              '<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Visit Outcome</div>' +
-              '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">' +
-                ['Dropped In - Interested','Dropped In - Not Interested','Left Sample','Ready to Order','Not Available','Left Brochure'].map(function(o) {
-                  return '<button onclick="leadSel(' + i + ',\'' + o + '\',event)" id="leadbtn-' + i + '-' + o.replace(/[ -]/g,'_') + '" style="padding:5px 12px;border-radius:5px;font-size:11.5px;font-weight:500;border:1px solid var(--border);background:#fff;color:var(--text2);cursor:pointer">' + o + '</button>';
-                }).join('') +
-              '</div>' +
-              '<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Contact Person</div>' +
-              '<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">' +
-                '<input id="lead-contact-' + i + '" type="text" placeholder="Name of person you spoke with" style="flex:1;min-width:160px;padding:6px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;outline:none;background:#fff">' +
-                '<input id="lead-contact-title-' + i + '" type="text" placeholder="Their title (Owner, GM)" style="flex:1;min-width:140px;padding:6px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;outline:none;background:#fff">' +
-              '</div>' +
-              '<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Next Step</div>' +
-              '<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">' +
-                '<input id="lead-ns-' + i + '" type="text" placeholder="e.g. Send sample, call back Thursday" style="flex:1;min-width:180px;padding:6px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;outline:none;background:#fff">' +
-                '<input id="lead-nd-' + i + '" type="date" style="min-width:150px;padding:6px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;outline:none;background:#fff">' +
-              '</div>' +
-              '<button onclick="leadLogAndAdd(' + i + ',event)" style="padding:7px 18px;background:var(--navy);color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer">Log Visit + Add to CRM</button>' +
-            '</div>' +
-          '</div>';
-        }).join('');
-
-        showToast(leads.length + ' leads loaded into call list');
-        setTimeout(function() { callList.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 200);
-
-        // Build the drive route panel
-        buildRoutePanel(leads);
-      }
+      fetchSegment(idx + 1);
     })
-    .catch(function(e) {
-      if (loading) loading.style.display = 'none';
-      btn.disabled = false;
-      btn.textContent = "Find Today's Leads";
-      var refreshBtn2 = document.getElementById('lead-refresh-btn');
-      if (refreshBtn2) { refreshBtn2.textContent = '↻ Refresh'; refreshBtn2.disabled = false; }
-      alert('Error: ' + e.message);
+    .catch(function() { fetchSegment(idx + 1); });
+  }
+
+  function finalize() {
+    if (loading) loading.style.display = 'none';
+    btn.disabled = false;
+    btn.textContent = "Find Today's Leads";
+    var refreshBtn = document.getElementById('lead-refresh-btn');
+    if (refreshBtn) { refreshBtn.style.display = 'block'; refreshBtn.textContent = '↻ Refresh'; refreshBtn.disabled = false; }
+
+    // Sort by score DESC, filter paint
+    allLeads.sort(function(a,b){ return (b.opportunity_score||0)-(a.opportunity_score||0); });
+    var leads = allLeads.filter(function(lead) {
+      var paintWords = ['paint','painting','painter'];
+      var name = (lead.company||'').toLowerCase();
+      return !paintWords.some(function(w){ return name.includes(w); });
+    }).slice(0, 10);
+
+    if (!leads.length) {
+      if (results) results.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;background:var(--surface);border-radius:8px;color:var(--text3);font-size:13px">No new leads found in this area. Try a different city or different segments.</div>';
+      return;
+    }
+
+    window._dailyLeads = leads;
+    leads.forEach(function(lead) {
+      if (lead.place_id) window._shownPlaceIds.push(lead.place_id);
+      if (lead.company) window._shownNames.push(lead.company.toLowerCase());
     });
+
+    // Segment color map — matches the pill colors
+    var segColors = {
+      'Window/Door Installer':  { bg: '#ede9fe', color: '#6d28d9' },
+      'Deck Contractor':        { bg: '#fef3c7', color: '#92400e' },
+      'Roofing Contractor':     { bg: '#fee2e2', color: '#b91c1c' },
+      'Roofing Distributor':    { bg: '#ffedd5', color: '#c2410c' },
+      'Siding Contractor':      { bg: '#dbeafe', color: '#1d4ed8' },
+      'Cornice Contractor':     { bg: '#ccfbf1', color: '#0f766e' },
+      'Fastener/Tool Dealer':   { bg: '#d1fae5', color: '#065f46' }
+    };
+
+    var callList = document.getElementById('morning-call-list');
+    var listCount = document.getElementById('list-count-badge');
+    if (listCount) listCount.textContent = leads.length;
+
+    if (callList) {
+      callList.innerHTML = leads.map(function(lead, i) {
+        var seg = lead.territory || lead.category || '';
+        var c = segColors[seg] || { bg: '#f1f5f9', color: '#64748b' };
+        var segBadge = '<span style="background:' + c.bg + ';color:' + c.color + ';font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px">' + (seg || lead.category) + '</span>';
+        var rating = lead.rating ? '<span style="font-size:11px;color:var(--text3)">★ ' + lead.rating + ' (' + (lead.reviews||0) + ')</span>' : '';
+        var addressLine = lead.address || (lead.city ? lead.city + ', GA' : '');
+        var mapsLink = addressLine ? '<a href="https://maps.google.com/?q=' + encodeURIComponent(lead.company + ' ' + addressLine) + '" target="_blank" onclick="event.stopPropagation()" style="font-size:11px;color:var(--accent);text-decoration:none">' + addressLine + '</a>' : '';
+
+        return '<div id="lead-card-' + i + '" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden">' +
+          '<div style="display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer" onclick="toggleLeadCard(' + i + ')">' +
+            '<div id="lead-check-' + i + '" style="width:20px;height:20px;border-radius:50%;border:2px solid var(--border);flex-shrink:0"></div>' +
+            '<div style="flex:1;min-width:0">' +
+              '<div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">' +
+                '<span style="font-size:13.5px;font-weight:700;color:var(--navy)">' + lead.company + '</span>' +
+                segBadge +
+              '</div>' +
+              '<div style="font-size:11.5px;color:var(--text2);margin-bottom:2px">' + lead.category + '</div>' +
+              (mapsLink ? '<div style="margin-top:2px">' + mapsLink + '</div>' : '') +
+              (rating ? '<div style="margin-top:3px">' + rating + '</div>' : '') +
+            '</div>' +
+            '<div style="display:flex;align-items:center;gap:10px;flex-shrink:0">' +
+              (lead.phone ? '<a href="tel:' + lead.phone + '" onclick="event.stopPropagation()" style="color:var(--accent);font-size:12px;text-decoration:none;font-weight:600">' + lead.phone + '</a>' : '') +
+            '</div>' +
+          '</div>' +
+          '<div id="leadlog-' + i + '" style="display:none;border-top:1px solid var(--border);padding:14px 16px;background:#fafbfc">' +
+            '<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Outcome</div>' +
+            '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">' +
+              ['Dropped In - Interested','Dropped In - Not Interested','Left Sample','Ready to Order','Not Available','Left Voicemail','Follow-up Needed'].map(function(o) {
+                return '<button onclick="leadSel(' + i + ',\'' + o + '\',event)" id="leadbtn-' + i + '-' + o.replace(/[^a-zA-Z]/g,'-') + '" style="padding:5px 12px;border:1.5px solid var(--border);border-radius:20px;background:#fff;color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">' + o + '</button>';
+              }).join('') +
+            '</div>' +
+            '<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Contact</div>' +
+            '<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">' +
+              '<input id="lead-contact-' + i + '" type="text" placeholder="Name of person you spoke with" style="flex:1;min-width:140px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit">' +
+              '<input id="lead-contact-title-' + i + '" type="text" placeholder="Their title (Owner, GM)" style="flex:1;min-width:120px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit">' +
+            '</div>' +
+            '<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Next Step</div>' +
+            '<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">' +
+              '<input id="lead-ns-' + i + '" type="text" placeholder="e.g. Send sample, call back Thursday" style="flex:1;min-width:140px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit">' +
+              '<input id="lead-nd-' + i + '" type="date" style="min-width:150px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit">' +
+            '</div>' +
+            '<button onclick="leadLogAndAdd(' + i + ',event)" style="padding:7px 18px;background:var(--navy);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Save to Contacts</button>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+
+      showToast(leads.length + ' leads loaded into call list');
+      setTimeout(function() { callList.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 200);
+      buildRoutePanel(leads);
+    }
+  }
+
+  fetchSegment(0);
 };
 
 window.refreshLeads = function() {
