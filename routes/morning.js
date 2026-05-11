@@ -101,6 +101,16 @@ function isPaintBlocked(name, brand) {
   return false;
 }
 
+// Hard block — never return garage/overhead door companies for Window/Door Installer segment
+const GARAGE_DOOR_KEYWORDS = ['garage door', 'garage doors', 'overhead door', 'overhead garage', 'garage & door', 'garage and door', 'roll-up door', 'rollup door', 'rolling door', 'sectional door', 'commercial door', 'industrial door'];
+function isGarageDoorBlocked(name, segment) {
+  if ((segment || '').includes('Window') || (segment || '').includes('Door')) {
+    const lower = (name || '').toLowerCase();
+    return GARAGE_DOOR_KEYWORDS.some(kw => lower.includes(kw));
+  }
+  return false;
+}
+
 // Haversine distance in miles
 function distanceMiles(lat1, lng1, lat2, lng2) {
   const R = 3958.8;
@@ -361,6 +371,8 @@ router.post('/daily-leads', async (req, res) => {
 
           // Hard block — never serve paint shops/painters as Alum-A-Pole leads
           if (isPaintBlocked(company, config.brand)) continue;
+          // Hard block — never serve garage/overhead door companies for Window/Door segment
+          if (isGarageDoorBlocked(company, rawChannel)) continue;
           sessionSeen.add(placeId || companyLower);
 
           // Distance filter — use the rep's actual radius
