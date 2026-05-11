@@ -316,6 +316,9 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
   }
   #lead-find-btn { width:100% !important; justify-content:center !important; padding:12px !important; }
   #lead-city-input { width:100% !important; min-width:0 !important; padding:11px 12px !important; font-size:14px !important; }
+  .seg-pill { padding:6px 13px; border:1.5px solid var(--border); border-radius:20px; background:#fff; color:var(--text2); font-size:12px; font-weight:600; font-family:inherit; cursor:pointer; transition:all .15s; white-space:nowrap; }
+  .seg-pill:hover { border-color:var(--accent); color:var(--navy); }
+  .seg-pill.active { background:var(--accent); border-color:var(--accent); color:#fff; }
   /* The wrapper that holds input + button */
   #lead-find-btn:has-prev #lead-city-input,
   div:has(> #lead-city-input):has(> #lead-find-btn) {
@@ -745,10 +748,15 @@ window.addEventListener('load', function() {
             </label>
           </div>
 
-          <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Channel</div>
-          <div style="display:flex;gap:0;background:var(--bg);border-radius:6px;padding:3px;margin-bottom:4px;width:fit-content">
-            <button type="button" id="ch-contractor" onclick="setLeadChannel('Contractor')" style="padding:6px 14px;border:none;background:var(--accent);color:#fff;border-radius:5px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">Contractors</button>
-            <button type="button" id="ch-dealer" onclick="setLeadChannel('Dealer')" style="padding:6px 14px;border:none;background:transparent;color:var(--text2);border-radius:5px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">Dealers</button>
+          <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Segment</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px" id="segment-pill-row">
+            <button type="button" class="seg-pill active" data-seg="Window/Door Installer" onclick="setLeadSegment('Window/Door Installer',this)">Window / Door</button>
+            <button type="button" class="seg-pill" data-seg="Deck Contractor" onclick="setLeadSegment('Deck Contractor',this)">Deck Contractors</button>
+            <button type="button" class="seg-pill" data-seg="Roofing Contractor" onclick="setLeadSegment('Roofing Contractor',this)">Roofing Contractors</button>
+            <button type="button" class="seg-pill" data-seg="Roofing Distributor" onclick="setLeadSegment('Roofing Distributor',this)">Roofing Distributors</button>
+            <button type="button" class="seg-pill" data-seg="Siding Contractor" onclick="setLeadSegment('Siding Contractor',this)">Siding Contractors</button>
+            <button type="button" class="seg-pill" data-seg="Cornice Contractor" onclick="setLeadSegment('Cornice Contractor',this)">Cornice Contractors</button>
+            <button type="button" class="seg-pill" data-seg="Fastener/Tool Dealer" onclick="setLeadSegment('Fastener/Tool Dealer',this)">Fastener / Tool Dealers</button>
           </div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -4250,7 +4258,15 @@ function optimizeRouteOrder(stops) {
 }
 
 
-window._leadChannel = 'Contractor';
+window._leadChannel = 'Window/Door Installer'; // now stores the segment name
+
+window.setLeadSegment = function(seg, btn) {
+  window._leadChannel = seg;
+  document.querySelectorAll('.seg-pill').forEach(function(p) {
+    p.classList.remove('active');
+  });
+  if (btn) btn.classList.add('active');
+};
 
 window.getSelectedBrands = function() {
   var checked = [];
@@ -4260,17 +4276,7 @@ window.getSelectedBrands = function() {
   return checked.length ? checked : ['BOSS Products', 'ShurTape', 'Alum-A-Pole'];
 };
 
-window.setLeadChannel = function(channel) {
-  window._leadChannel = channel;
-  var con = document.getElementById('ch-contractor');
-  var deal = document.getElementById('ch-dealer');
-  if (con && deal) {
-    con.style.background = channel === 'Contractor' ? 'var(--accent)' : 'transparent';
-    con.style.color = channel === 'Contractor' ? '#fff' : 'var(--text2)';
-    deal.style.background = channel === 'Dealer' ? 'var(--accent)' : 'transparent';
-    deal.style.color = channel === 'Dealer' ? '#fff' : 'var(--text2)';
-  }
-};
+// setLeadChannel removed — replaced by setLeadSegment
 
 // Track all place IDs and names shown this session — used for refresh dedup
 window._shownPlaceIds = [];
