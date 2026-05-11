@@ -221,7 +221,7 @@ router.post('/daily-leads', async (req, res) => {
     : ['BOSS Products', 'ShurTape', 'Alum-A-Pole'];
   const channel = (req.body.channel || 'Contractor').trim();
   const radiusMiles = parseInt(req.body.radius_miles) || 50; // Default 50mi vs old 5mi
-  const radiusMeters = Math.min(radiusMiles * 1609, 50000); // Max 50km per Google API
+  const radiusMeters = Math.min(radiusMiles * 1609, 80000); // Up to 80km (~50mi)
 
   try {
     // Get existing prospects to avoid duplicates
@@ -231,21 +231,23 @@ router.post('/daily-leads', async (req, res) => {
     const existingNames = new Set(existing.rows.map(r => r.company).filter(Boolean));
     const existingPlaceIds = new Set(existing.rows.map(r => r.google_place_id).filter(Boolean));
 
-    // Geocode the city once
+    // Geocode the city — always use the typed city first, fall back to home base
     let centerCoords = null;
-    if (userInfo.home_base_lat && userInfo.home_base_lng) {
+    try {
+      const geoRes = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(city)}&key=${PLACES_KEY}`
+      );
+      const geoData = await geoRes.json();
+      if (geoData.results && geoData.results[0]) {
+        const loc = geoData.results[0].geometry.location;
+        centerCoords = { lat: loc.lat, lng: loc.lng };
+        console.log(`Geocoded "${city}" → ${loc.lat}, ${loc.lng}`);
+      }
+    } catch(e) { console.error('Geocode failed:', e.message); }
+    // Fall back to stored home base if geocode failed
+    if (!centerCoords && userInfo.home_base_lat && userInfo.home_base_lng) {
       centerCoords = { lat: parseFloat(userInfo.home_base_lat), lng: parseFloat(userInfo.home_base_lng) };
-    } else {
-      try {
-        const geoRes = await fetch(
-          `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(city)}&key=${PLACES_KEY}`
-        );
-        const geoData = await geoRes.json();
-        if (geoData.results && geoData.results[0]) {
-          const loc = geoData.results[0].geometry.location;
-          centerCoords = { lat: loc.lat, lng: loc.lng };
-        }
-      } catch(e) { console.error('Geocode failed:', e.message); }
+      console.log('Using home base coords as fallback');
     }
 
     if (!centerCoords) {
@@ -330,7 +332,7 @@ router.post('/daily-leads', async (req, res) => {
           if (sessionSeen.has(placeId || companyLower)) continue;
 
           // Hard block — never serve paint shops/painters as Alum-A-Pole leads
-          if (isPaintBlocked(company, brandKey)) continue;
+          if (isPaintBlocked(company, config.brand)) continue;
           sessionSeen.add(placeId || companyLower);
 
           // Distance filter — use the rep's actual radius
@@ -347,13 +349,15 @@ router.post('/daily-leads', async (req, res) => {
           const placeTypes = new Set(place.types || []);
           const primaryType = place.primaryTypeDisplayName?.text || config.category;
 
-          // For Dealer channel: filter out pure service businesses (contractors)
-          // For Contractor channel: filter out pure retail/wholesale stores
+          // Soft channel filter — only block clear mismatches, not ambiguous types
+          // Many specialty dealers (siding supply, fastener stores) don't have explicit Google types
           const isClassifiedContractor = [...placeTypes].some(t => CONTRACTOR_PLACE_TYPES.has(t));
           const isClassifiedDealer = [...placeTypes].some(t => DEALER_PLACE_TYPES.has(t));
 
-          if (channel === 'Dealer' && isClassifiedContractor && !isClassifiedDealer) continue;
-          if (channel === 'Contractor' && isClassifiedDealer && !isClassifiedContractor) continue;
+          // Only hard-exclude if Google is very confident it's the WRONG type
+          // Allow anything ambiguous (no classification) through — better to include than miss
+          if (channel === 'Dealer' && isClassifiedContractor && !isClassifiedDealer && placeTypes.size > 2) continue;
+          if (channel === 'Contractor' && isClassifiedDealer && !isClassifiedContractor && placeTypes.size > 2) continue;
 
           // Count how many product lines this prospect is relevant to
           const matchingBrands = brands.filter(brand => {
