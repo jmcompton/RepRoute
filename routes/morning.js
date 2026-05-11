@@ -228,16 +228,19 @@ router.post('/daily-leads', async (req, res) => {
       `SELECT
         LOWER(p.company) as company,
         p.google_place_id,
-        LOWER(TRIM(p.address)) as address,
-        REGEXP_REPLACE(COALESCE(p.phone,''), '[^0-9]', '', 'g') as phone_digits
+        LOWER(TRIM(COALESCE(p.address,''))) as address,
+        COALESCE(p.phone,'') as phone
        FROM prospects p
        JOIN users u ON p.user_id = u.id
-       WHERE u.role IN ('rep','manager','admin')`, []
+       WHERE u.role IN ('rep','manager','admin')`
     );
     const existingNames    = new Set(existing.rows.map(r => r.company).filter(Boolean));
     const existingPlaceIds = new Set(existing.rows.map(r => r.google_place_id).filter(Boolean));
     const existingAddresses = new Set(existing.rows.map(r => r.address).filter(a => a && a.length > 5));
-    const existingPhones   = new Set(existing.rows.map(r => r.phone_digits).filter(p => p && p.length >= 7));
+    // Strip non-digits in JS (avoids REGEXP_REPLACE Postgres version issues)
+    const existingPhones   = new Set(
+      existing.rows.map(r => (r.phone || '').replace(/[^0-9]/g, '')).filter(p => p.length >= 7)
+    );
 
     // Also exclude leads already shown in this browser session (for refresh)
     const shownPlaceIds = Array.isArray(req.body.shown_place_ids) ? req.body.shown_place_ids : [];
