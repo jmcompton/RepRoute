@@ -14,10 +14,10 @@ const SEGMENT_SEARCH_CONFIG = {
     relevantBrands: ['ShurTape'],
     queries: [
       { query: 'new construction window installation contractor', score: 10, category: 'Window/Door Installer' },
-      { query: 'new construction door installer contractor', score: 10, category: 'Window/Door Installer' },
-      { query: 'window door installation new build', score: 9, category: 'Window/Door Installer' },
+      { query: 'new construction entry door installer', score: 10, category: 'Window/Door Installer' },
+      { query: 'window door installation new build residential', score: 9, category: 'Window/Door Installer' },
       { query: 'window installation company residential', score: 8, category: 'Window/Door Installer' },
-      { query: 'door installation contractor residential', score: 8, category: 'Window/Door Installer' },
+      { query: 'exterior entry door installation contractor', score: 8, category: 'Window/Door Installer' },
     ]
   },
   'Deck Contractor': {
@@ -117,11 +117,17 @@ function isPaintBlocked(name, brand) {
 // Block remodeling/renovation companies from ShurTape window & door categories
 // Window/door tape is for new construction — remodelers use different products
 const REMODEL_BLOCK_KEYWORDS = ['remodel', 'remodeling', 'renovation', 'renovations', 'home improvement', 'general contractor', 'general contracting'];
-const WINDOW_DOOR_CATEGORIES = ['Window Contractor', 'Door Contractor'];
+const GARAGE_DOOR_KEYWORDS = ['garage door', 'garage doors', 'overhead door', 'overhead doors'];
+const WINDOW_DOOR_CATEGORIES = ['Window Contractor', 'Door Contractor', 'Window/Door Installer'];
 function isRemodelBlocked(name, category, brand) {
-  if ((brand || '').toLowerCase().includes('shurtape') || (brand || '').toLowerCase().includes('shur')) {
+  const lower = (name || '').toLowerCase();
+  // Hard block garage doors from ALL window/door results regardless of brand
+  if (WINDOW_DOOR_CATEGORIES.includes(category) || category === 'Window/Door Installer') {
+    if (GARAGE_DOOR_KEYWORDS.some(kw => lower.includes(kw))) return true;
+  }
+  // Block remodelers from ShurTape window/door results
+  if ((brand || '').toLowerCase().includes('shurtape') || (brand || '').toLowerCase().includes('shur') || category === 'Window/Door Installer') {
     if (WINDOW_DOOR_CATEGORIES.includes(category)) {
-      const lower = (name || '').toLowerCase();
       return REMODEL_BLOCK_KEYWORDS.some(kw => lower.includes(kw));
     }
   }
