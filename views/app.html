@@ -4192,42 +4192,30 @@ window.openRouteInMaps = function(provider) {
   var stops = window._routeStops || [];
   if (!stops.length) { showToast('No stops in route'); return; }
 
-  // Auto-detect Apple Maps if on iOS/macOS and no explicit provider chosen
+  var addresses = stops.map(function(s) { return s.address || s.company; }).filter(Boolean).slice(0, 10);
+
+  // Auto-detect: use Apple Maps on iOS/macOS, Google elsewhere
   if (!provider) {
-    var isApple = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent) && !window.MSStream;
-    provider = isApple ? 'apple' : 'google';
+    provider = (/iPhone|iPad|iPod/.test(navigator.userAgent)) ? 'apple' : 'google';
   }
 
-  // Nearest-neighbor route optimization using lat/lng from stops
-  // Start from current location (estimated by first stop if no GPS)
-  var optimized = optimizeRouteOrder(stops);
-  var addresses = optimized.map(function(s) { return s.address || s.company; });
-
   if (provider === 'apple') {
-    // Apple Maps: supports up to 10 stops natively via daddr chaining
-    // Best routing: use 'saddr=Current+Location' + one daddr per stop
+    // maps:// deep link opens Apple Maps natively on iPhone/iPad
     if (addresses.length === 1) {
-      var url = 'https://maps.apple.com/?daddr=' + encodeURIComponent(addresses[0]) + '&dirflg=d';
-      window.open(url, '_blank');
+      window.location.href = 'maps://?daddr=' + encodeURIComponent(addresses[0]) + '&dirflg=d';
     } else {
-      // Apple Maps multi-stop: chain via daddr with | separator (up to 9 waypoints)
-      var dest = addresses[addresses.length - 1];
-      var waypts = addresses.slice(0, addresses.length - 1);
-      // Apple Maps URL scheme for multi-stop driving directions
-      var url = 'https://maps.apple.com/?saddr=Current+Location' +
-        '&daddr=' + waypts.map(function(a) { return encodeURIComponent(a); }).join('+to:') +
-        '+to:' + encodeURIComponent(dest) +
-        '&dirflg=d';
-      window.open(url, '_blank');
+      // Multi-stop: encode each address as a separate waypoint using 'addr' chaining
+      var waypointStr = addresses.map(function(a) { return encodeURIComponent(a); }).join('&daddr=');
+      window.location.href = 'maps://?daddr=' + waypointStr + '&dirflg=d';
     }
   } else {
-    // Google Maps multi-stop — current location as origin
-    var destination = addresses[addresses.length - 1];
-    var waypoints = addresses.slice(0, addresses.length - 1).join('|');
+    // Google Maps multi-stop
+    var destination = encodeURIComponent(addresses[addresses.length - 1]);
+    var waypoints = addresses.slice(0, addresses.length - 1).map(function(a) { return encodeURIComponent(a); }).join('|');
     var url = 'https://www.google.com/maps/dir/?api=1' +
       '&origin=' + encodeURIComponent('Current Location') +
-      '&destination=' + encodeURIComponent(destination) +
-      (waypoints ? '&waypoints=optimize:true|' + encodeURIComponent(waypoints) : '') +
+      '&destination=' + destination +
+      (waypoints ? '&waypoints=optimize:true|' + waypoints : '') +
       '&travelmode=driving';
     window.open(url, '_blank');
   }
