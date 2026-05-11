@@ -8,58 +8,72 @@ const MODEL = 'claude-sonnet-4-20250514';
 
 // ─── PRODUCT → SEARCH QUERY MAPPING ──────────────────────────────────────────
 // Each entry defines what Google Places queries to run and how to score results
+// Segment-level search config — each of the 8 pills maps directly to specific queries
+// This ensures "Window/Door" never returns roofing results, etc.
+const SEGMENT_SEARCH_CONFIG = {
+  'Roofing Contractor': [
+    { query: 'roofing contractor new construction', score: 10, category: 'Roofing Contractor' },
+    { query: 'commercial roofing company', score: 10, category: 'Roofing Contractor' },
+    { query: 'residential roofing company', score: 9, category: 'Roofing Contractor' },
+    { query: 'roof repair replacement company', score: 9, category: 'Roofing Contractor' },
+    { query: 'roofing installation contractor', score: 9, category: 'Roofing Contractor' },
+  ],
+  'Roofing Distributor': [
+    { query: 'roofing supply distributor', score: 10, category: 'Roofing Distributor' },
+    { query: 'roofing wholesale supply', score: 10, category: 'Roofing Distributor' },
+    { query: 'ABC Supply roofing materials', score: 9, category: 'Roofing Distributor' },
+    { query: 'Beacon Roofing Supply', score: 9, category: 'Roofing Distributor' },
+    { query: 'building materials wholesale roofing', score: 8, category: 'Roofing Distributor' },
+  ],
+  'Window/Door Installer': [
+    { query: 'window installation contractor new construction', score: 10, category: 'Window/Door Installer' },
+    { query: 'door installation contractor new construction', score: 9, category: 'Window/Door Installer' },
+    { query: 'window replacement installer', score: 9, category: 'Window/Door Installer' },
+    { query: 'entry door installation company', score: 9, category: 'Window/Door Installer' },
+    { query: 'residential window door contractor', score: 8, category: 'Window/Door Installer' },
+  ],
+  'Deck Contractor': [
+    { query: 'deck builder contractor', score: 10, category: 'Deck Contractor' },
+    { query: 'deck construction company', score: 10, category: 'Deck Contractor' },
+    { query: 'composite deck installer', score: 9, category: 'Deck Contractor' },
+    { query: 'outdoor deck patio contractor', score: 9, category: 'Deck Contractor' },
+    { query: 'wood deck builder residential', score: 8, category: 'Deck Contractor' },
+  ],
+  'Siding Contractor': [
+    { query: 'siding contractor installation', score: 10, category: 'Siding Contractor' },
+    { query: 'vinyl siding contractor', score: 10, category: 'Siding Contractor' },
+    { query: 'James Hardie siding installer', score: 10, category: 'Siding Contractor' },
+    { query: 'fiber cement siding company', score: 9, category: 'Siding Contractor' },
+    { query: 'exterior siding replacement company', score: 9, category: 'Siding Contractor' },
+  ],
+  'Siding Distributor': [
+    { query: 'siding supply distributor', score: 10, category: 'Siding Distributor' },
+    { query: 'exterior building products distributor siding', score: 9, category: 'Siding Distributor' },
+    { query: 'building materials wholesale siding', score: 8, category: 'Siding Distributor' },
+    { query: 'LP SmartSide siding distributor', score: 9, category: 'Siding Distributor' },
+    { query: 'James Hardie siding supply dealer', score: 9, category: 'Siding Distributor' },
+  ],
+  'Cornice Contractor': [
+    { query: 'cornice contractor soffit fascia', score: 10, category: 'Cornice Contractor' },
+    { query: 'soffit fascia installer exterior', score: 10, category: 'Cornice Contractor' },
+    { query: 'exterior trim cornice installation', score: 9, category: 'Cornice Contractor' },
+    { query: 'fascia board replacement contractor', score: 9, category: 'Cornice Contractor' },
+    { query: 'aluminum soffit fascia contractor', score: 8, category: 'Cornice Contractor' },
+  ],
+  'Fastener/Tool Dealer': [
+    { query: 'fastener supply store construction', score: 10, category: 'Fastener/Tool Dealer' },
+    { query: 'construction tool equipment dealer', score: 10, category: 'Fastener/Tool Dealer' },
+    { query: 'scaffolding rental supply construction', score: 10, category: 'Fastener/Tool Dealer' },
+    { query: 'ladder supply company extension ladders', score: 9, category: 'Fastener/Tool Dealer' },
+    { query: 'building supply tool dealer hardware', score: 8, category: 'Fastener/Tool Dealer' },
+  ],
+};
+
+// Legacy PRODUCT_SEARCH_CONFIG kept for backwards compat (not used by current UI)
 const PRODUCT_SEARCH_CONFIG = {
-  'BOSS Products': {
-    Contractor: [
-      { query: 'roofing contractor', score: 10, category: 'Roofing Contractor' },
-      { query: 'commercial roofing company', score: 10, category: 'Roofing Contractor' },
-      { query: 'residential roofing company', score: 9, category: 'Roofing Contractor' },
-      { query: 'roof repair company', score: 9, category: 'Roofing Contractor' },
-      { query: 'general contractor roofing', score: 7, category: 'General Contractor' },
-    ],
-    Dealer: [
-      { query: 'roofing supply distributor', score: 10, category: 'Roofing Distributor' },
-      { query: 'building materials wholesale', score: 8, category: 'Building Materials' },
-      { query: 'roofing wholesale supply', score: 10, category: 'Roofing Distributor' },
-      { query: 'ABC Supply roofing', score: 9, category: 'Roofing Distributor' },
-      { query: 'Beacon Roofing Supply', score: 9, category: 'Roofing Distributor' },
-    ]
-  },
-  'ShurTape': {
-    Contractor: [
-      { query: 'roofing contractor', score: 9, category: 'Roofing Contractor' },
-      { query: 'deck builder contractor', score: 9, category: 'Deck Contractor' },
-      { query: 'siding contractor installation', score: 9, category: 'Siding Contractor' },
-      { query: 'window installation contractor', score: 8, category: 'Window Contractor' },
-      { query: 'door installation contractor', score: 7, category: 'Door Contractor' },
-    ],
-    Dealer: [
-      { query: 'building products distributor', score: 9, category: 'Building Supply' },
-      { query: 'siding supply distributor', score: 10, category: 'Siding Distributor' },
-      { query: 'specialty building materials', score: 8, category: 'Building Supply' },
-      { query: 'exterior building supply', score: 9, category: 'Building Supply' },
-      { query: 'lumber yard building supply', score: 7, category: 'Lumber Yard' },
-    ]
-  },
-  'Alum-A-Pole': {
-    Contractor: [
-      { query: 'siding contractor installation', score: 10, category: 'Siding Contractor' },
-      { query: 'vinyl siding contractor', score: 10, category: 'Siding Contractor' },
-      { query: 'James Hardie siding installer', score: 10, category: 'Siding Contractor' },
-      { query: 'fiber cement siding company', score: 9, category: 'Siding Contractor' },
-      { query: 'cornice contractor soffit fascia', score: 10, category: 'Cornice Contractor' },
-      { query: 'exterior siding company', score: 9, category: 'Siding Contractor' },
-      { query: 'stucco siding contractor', score: 8, category: 'Siding Contractor' },
-    ],
-    Dealer: [
-      { query: 'siding supply distributor', score: 10, category: 'Siding Distributor' },
-      { query: 'building materials distributor siding', score: 9, category: 'Building Supply' },
-      { query: 'fastener supply store construction', score: 9, category: 'Fastener Supply' },
-      { query: 'construction tool equipment dealer', score: 8, category: 'Equipment Dealer' },
-      { query: 'scaffolding rental supply', score: 10, category: 'Scaffolding Dealer' },
-      { query: 'exterior building products distributor', score: 9, category: 'Siding Distributor' },
-    ]
-  }
+  'BOSS Products': { Contractor: SEGMENT_SEARCH_CONFIG['Roofing Contractor'], Dealer: SEGMENT_SEARCH_CONFIG['Roofing Distributor'] },
+  'ShurTape':      { Contractor: SEGMENT_SEARCH_CONFIG['Roofing Contractor'], Dealer: SEGMENT_SEARCH_CONFIG['Siding Distributor'] },
+  'Alum-A-Pole':   { Contractor: SEGMENT_SEARCH_CONFIG['Siding Contractor'],  Dealer: SEGMENT_SEARCH_CONFIG['Fastener/Tool Dealer'] },
 };
 
 // Google place types that confirm a business is relevant (vs. just having the right name)
@@ -275,17 +289,14 @@ router.post('/daily-leads', async (req, res) => {
       return res.status(500).json({ error: `Could not locate city: ${city}. Please check the city name.` });
     }
 
-    // Build all search queries from the brand/channel config
-    const searchConfigs = [];
-    for (const brand of brands) {
-      const config = PRODUCT_SEARCH_CONFIG[brand];
-      if (!config) continue;
-      const channelConfig = config[channel];
-      if (!channelConfig) continue;
-      for (const sc of channelConfig) {
-        searchConfigs.push({ ...sc, brand });
-      }
+    // Build search queries from segment config directly — segment pill = exact query set
+    // rawChannel is the segment name from the UI pill (e.g. 'Roofing Contractor', 'Window/Door Installer')
+    const segmentQueries = SEGMENT_SEARCH_CONFIG[rawChannel];
+    if (!segmentQueries || !segmentQueries.length) {
+      return res.status(400).json({ error: `Unknown segment: "${rawChannel}". Please select a valid segment.` });
     }
+    const searchConfigs = segmentQueries.map(sc => ({ ...sc, brand: brands[0] || rawChannel }));
+    console.log(`[daily-leads] segment="${rawChannel}" → ${searchConfigs.length} queries for city="${city}"`);
 
     // Deduplicate search queries (same query from multiple brands)
     const seenQueries = new Set();
