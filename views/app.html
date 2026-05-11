@@ -682,14 +682,14 @@ window.addEventListener('load', function() {
       <div style="font-size:22px;font-weight:700;color:var(--navy);margin-bottom:16px" id="dash-greeting"></div>
 
       <!-- AI Morning Brief card -->
-      <div style="background:var(--navy);border-radius:10px;padding:14px 16px;margin-bottom:16px;position:relative;overflow:hidden">
+      <div style="background:var(--navy);border-radius:10px;padding:18px 20px;margin-bottom:16px;position:relative;overflow:hidden">
         <div style="position:absolute;top:-30px;right:-30px;width:120px;height:120px;border-radius:50%;background:rgba(29,106,255,.2)"></div>
         <div style="display:inline-flex;align-items:center;gap:5px;background:rgba(29,106,255,.25);border:1px solid rgba(29,106,255,.35);color:rgba(255,255,255,.7);font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:20px;margin-bottom:10px">
           Morning Brief
         </div>
         <button onclick="loadMorningBriefing(true)" style="float:right;margin-top:-28px;padding:3px 10px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:5px;font-size:11px;color:rgba(255,255,255,.6);cursor:pointer">Refresh</button>
-        <div id="dash-briefing" style="color:#fff;font-size:14px;line-height:1.65;position:relative;z-index:1">
-          <div style="color:rgba(255,255,255,.5);font-size:13px">Loading your brief...</div>
+        <div id="dash-briefing" style="color:#fff;font-size:13.5px;line-height:1.6;position:relative;z-index:1;margin-top:4px">
+          <div style="color:rgba(255,255,255,.6);font-size:13px;font-style:italic">Loading your brief...</div>
         </div>
       </div>
 
@@ -2225,14 +2225,20 @@ function loadMorningBriefing(force) {
     .then(function(r) { return r.json(); })
     .then(function(d) {
       if (d.error || !d.bullets) {
-        el.innerHTML = '<div style="font-size:12px;color:var(--text3)">Could not load briefing. Check your pipeline and try again.</div>';
+        el.innerHTML = '<div style="font-size:13px;color:rgba(255,255,255,.6)">Could not load briefing. Try refreshing.</div>';
         return;
       }
-      var html = d.bullets.map(function(b) {
-        return '<div style="display:flex;align-items:flex-start;gap:8px;padding:4px 0;font-size:12px;color:var(--text2);line-height:1.5">' +
-          '<div style="width:4px;height:4px;border-radius:50%;background:var(--text3);flex-shrink:0;margin-top:6px"></div>' +
-          b + '</div>';
-      }).join('');
+            // Render bullets with high-contrast white text, accent dot, clear spacing
+      var html = '<div style="margin-top:10px;display:flex;flex-direction:column;gap:0">' +
+        d.bullets.map(function(b) {
+          // Bold any text in **…** (markdown bold)
+          var formatted = b.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+          return '<div style="display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.08)">' +
+            '<div style="width:6px;height:6px;border-radius:50%;background:#00FF87;flex-shrink:0;margin-top:5px"></div>' +
+            '<div style="font-size:13.5px;color:#fff;line-height:1.55;font-weight:500">' + formatted + '</div>' +
+            '</div>';
+        }).join('') +
+        '</div>';
       el.innerHTML = html;
       try { localStorage.setItem(cacheKey, html); } catch(e) {}
     })
