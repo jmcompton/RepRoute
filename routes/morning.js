@@ -282,24 +282,37 @@ router.post('/daily-leads', async (req, res) => {
   const radiusMiles = parseInt(req.body.radius_miles) || 50; // Default 50mi vs old 5mi
 
   try {
-    // Get ALL team contacts (own + teammates) — no rep should call on another rep's contact
+    // Get ALL team contacts (own + teammates) with owner info
     const existing = await pool.query(
       `SELECT
         LOWER(p.company) as company,
         p.google_place_id,
         LOWER(TRIM(COALESCE(p.address,''))) as address,
-        COALESCE(p.phone,'') as phone
+        COALESCE(p.phone,'') as phone,
+        COALESCE(u.full_name, u.email) as owner_name,
+        p.user_id as owner_id
        FROM prospects p
        JOIN users u ON p.user_id = u.id
        WHERE u.role IN ('rep','manager','admin')`
     );
-    const existingNames    = new Set(existing.rows.map(r => r.company).filter(Boolean));
-    const existingPlaceIds = new Set(existing.rows.map(r => r.google_place_id).filter(Boolean));
-    const existingAddresses = new Set(existing.rows.map(r => r.address).filter(a => a && a.length > 5));
-    // Strip non-digits in JS (avoids REGEXP_REPLACE Postgres version issues)
-    const existingPhones   = new Set(
-      existing.rows.map(r => (r.phone || '').replace(/[^0-9]/g, '')).filter(p => p.length >= 7)
-    );
+    // Build lookup maps: match key → owner name
+    const ownerByPlaceId  = new Map();
+    const ownerByName     = new Map();
+    const ownerByAddress  = new Map();
+    const ownerByPhone    = new Map();
+    for (const r of existing.rows) {
+      const owner = r.owner_name || 'a teammate';
+      if (r.google_place_id) ownerByPlaceId.set(r.google_place_id, owner);
+      if (r.company)         ownerByName.set(r.company, owner);
+      if (r.address && r.address.length > 5) ownerByAddress.set(r.address, owner);
+      const ph = (r.phone || '').replace(/[^0-9]/g, '');
+      if (ph.length >= 7)    ownerByPhone.set(ph, owner);
+    }
+    // Sets still used for quick session-seen exclusion (shown_place_ids)
+    const existingPlaceIds  = new Set(ownerByPlaceId.keys());
+    const existingNames     = new Set(ownerByName.keys());
+    const existingAddresses = new Set(ownerByAddress.keys());
+    const existingPhones    = new Set(ownerByPhone.keys());
 
     // Also exclude leads already shown in this browser session (for refresh)
     const shownPlaceIds = Array.isArray(req.body.shown_place_ids) ? req.body.shown_place_ids : [];
@@ -408,17 +421,19 @@ router.post('/daily-leads', async (req, res) => {
           // Basic validity checks
           if (!company) continue;
           if (place.businessStatus === 'CLOSED_PERMANENTLY') continue;
-          if (placeId && existingPlaceIds.has(placeId)) continue;
-          if (existingNames.has(companyLower)) continue;
           if (sessionSeen.has(placeId || companyLower)) continue;
 
-          // Skip if address already exists in contacts (catches same location, different name)
+          // Check if this lead is already in any team member's contacts
           const placeAddr = (place.formattedAddress || '').toLowerCase().trim();
-          if (placeAddr.length > 5 && existingAddresses.has(placeAddr)) continue;
-
-          // Skip if phone already exists in contacts
           const placePhone = (place.nationalPhoneNumber || '').replace(/[^0-9]/g, '');
-          if (placePhone.length >= 7 && existingPhones.has(placePhone)) continue;
+          let alreadyContactedBy = null;
+          if (placeId && ownerByPlaceId.has(placeId))                       alreadyContactedBy = ownerByPlaceId.get(placeId);
+          else if (ownerByName.has(companyLower))                            alreadyContactedBy = ownerByName.get(companyLower);
+          else if (placeAddr.length > 5 && ownerByAddress.has(placeAddr))   alreadyContactedBy = ownerByAddress.get(placeAddr);
+          else if (placePhone.length >= 7 && ownerByPhone.has(placePhone))  alreadyContactedBy = ownerByPhone.get(placePhone);
+
+          // Also exclude leads already shown this session (refresh dedup — always hard skip)
+          if (!alreadyContactedBy && placeId && existingPlaceIds.has(placeId) && shownPlaceIds.includes(placeId)) continue;
 
           // Hard block — never serve paint shops/painters as Alum-A-Pole leads
           if (isPaintBlocked(company, config.brand)) continue;
