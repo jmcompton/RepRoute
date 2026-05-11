@@ -2061,7 +2061,10 @@ function loadMorningBriefing(force) {
               ? 'Overdue ' + (parseInt(item.days_overdue)||0) + ' day(s)'
               : isFollowup ? 'Follow-up due today' : 'New high-priority prospect';
             var addressLine = ''; if (item.address && item.city) addressLine = item.address + ', ' + item.city + ', GA'; else if (item.address) addressLine = item.address; else if (item.city) addressLine = item.city + ', GA';
-            var mapsLink = addressLine
+          var isAppleDevice = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent);
+          var mapQ = encodeURIComponent(lead.company + ' ' + addressLine);
+          var mapsUrl = isAppleDevice ? ('https://maps.apple.com/?q=' + mapQ + '&dirflg=d') : ('https://maps.google.com/?q=' + mapQ);
+          var mapsLink = addressLine ? '<a href="' + mapsUrl + '" target="_blank" onclick="event.stopPropagation()" style="font-size:11px;color:var(--accent);text-decoration:none">' + addressLine + ' ↗</a>' : '';
               ? '<a href="https://maps.google.com/?q='+encodeURIComponent(item.company+' '+addressLine)+'" target="_blank" onclick="event.stopPropagation()" style="color:var(--accent);font-size:11px;text-decoration:none;display:inline-flex;align-items:center;gap:3px">&#128205; '+addressLine+'</a>'
               : '';
             return (
@@ -4119,7 +4122,9 @@ window._routeStops = [];
 
 window.buildRoutePanel = function(leads) {
   // Filter to leads with a real address
-  var stops = leads.filter(function(l) { return l.address && l.address.trim(); });
+  var raw = leads.filter(function(l) { return l.address && l.address.trim(); });
+  // Optimize order before storing
+  var stops = optimizeRouteOrder(raw);
   window._routeStops = stops;
 
   var panel = document.getElementById('route-panel');
@@ -4129,6 +4134,9 @@ window.buildRoutePanel = function(leads) {
   var badge = document.getElementById('route-stops-badge');
 
   if (badge) badge.textContent = stops.length + ' stop' + (stops.length === 1 ? '' : 's');
+  var optLabel = document.getElementById('route-optimized-label');
+  var hasCoords = stops.filter(function(s) { return s.lat != null; }).length;
+  if (optLabel) optLabel.textContent = hasCoords >= 2 ? 'Route optimized' : '';
 
   if (!stops.length) {
     if (empty) { empty.style.display = 'block'; empty.textContent = 'No leads with addresses to route.'; }
