@@ -312,15 +312,15 @@ router.post('/daily-leads', async (req, res) => {
       if (allLeads.length >= 40) break; // Collect 40, return top 10 (more headroom after dedup/filter)
 
       try {
-        // Use locationRestriction (circle) around geocoded city coords to force local results
-        // This prevents Google from drifting to metro Atlanta when searching a suburb
+        // City in textQuery for relevance + locationBias circle to pin results locally
+        const radiusMeters = Math.min(radiusMiles * 1609.34, 48000);
         const searchBody = {
-          textQuery: config.query,
+          textQuery: `${config.query} ${city}`,
           maxResultCount: 20,
-          locationRestriction: {
+          locationBias: {
             circle: {
               center: { latitude: centerCoords.lat, longitude: centerCoords.lng },
-              radius: Math.min(radiusMiles * 1609.34, 50000) // miles → meters, max 50km
+              radius: radiusMeters
             }
           }
         };
