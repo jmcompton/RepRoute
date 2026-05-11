@@ -4270,14 +4270,13 @@ function optimizeRouteOrder(stops) {
 }
 
 
-window._leadChannel = 'Window/Door Installer'; // now stores the segment name
-
-window.setLeadSegment = function(seg, btn) {
-  window._leadChannel = seg;
-  document.querySelectorAll('.seg-pill').forEach(function(p) {
-    p.classList.remove('active');
+// getSelectedSegments — reads checked boxes from the segment pill row
+window.getSelectedSegments = function() {
+  var checked = [];
+  document.querySelectorAll('#segment-pill-row input[type="checkbox"]:checked').forEach(function(cb) {
+    checked.push(cb.value);
   });
-  if (btn) btn.classList.add('active');
+  return checked.length ? checked : ['Roofing Contractor'];
 };
 
 window.getSelectedBrands = function() {
