@@ -769,6 +769,9 @@ window.addEventListener('load', function() {
             <label style="cursor:pointer;background:#d1fae5;color:#065f46;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;user-select:none;border:1.5px solid #6ee7b7">
               <input type="checkbox" name="seg" value="Fastener/Tool Dealer" style="margin:0;accent-color:#065f46"> Fastener / Tool Dealers
             </label>
+            <label style="cursor:pointer;background:#e0f2fe;color:#0369a1;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;user-select:none;border:1.5px solid #7dd3fc">
+              <input type="checkbox" name="seg" value="Siding Distributor" style="margin:0;accent-color:#0369a1"> Siding Distributors
+            </label>
           </div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -4253,7 +4256,7 @@ window._generateRoute = function(provider) {
   var stops = window._routeStops || [];
   if (!stops.length) { showToast('Add stops first using + Route'); return; }
 
-  // Re-order stops for most efficient route using nearest-neighbor
+  // Optimize stop order (nearest-neighbor)
   var optimized = (typeof optimizeRouteOrder === 'function') ? optimizeRouteOrder(stops) : stops;
   window._routeStops = optimized;
   _renderRoutePanel();
@@ -4264,17 +4267,26 @@ window._generateRoute = function(provider) {
   showToast('Opening ' + (isApple ? 'Apple Maps' : 'Google Maps') + '...');
 
   if (isApple) {
+    // maps:// deep link — native Maps app on iPhone/iPad
     if (addresses.length === 1) {
       window.location.href = 'maps://?daddr=' + encodeURIComponent(addresses[0]) + '&dirflg=d';
     } else {
-      // Chain each stop as a separate daddr — most reliable for multi-stop on iOS
-      window.location.href = 'maps://?daddr=' + addresses.map(function(a){ return encodeURIComponent(a); }).join('&daddr=') + '&dirflg=d';
+      // Chain each stop: maps://?daddr=A&daddr=B&daddr=C
+      var qs = addresses.map(function(a){ return 'daddr=' + encodeURIComponent(a); }).join('&');
+      window.location.href = 'maps://?' + qs + '&dirflg=d';
     }
   } else {
-    var dest = encodeURIComponent(addresses[addresses.length - 1]);
-    var wpts = addresses.slice(0, -1).map(function(a){ return encodeURIComponent(a); }).join('|');
-    var url = 'https://www.google.com/maps/dir/?api=1&origin=Current+Location&destination=' + dest +
-      (wpts ? '&waypoints=optimize:true|' + wpts : '') + '&travelmode=driving';
+    // Google Maps Directions API — waypoints must NOT be double-encoded
+    var destination = addresses[addresses.length - 1];
+    var waypoints   = addresses.slice(0, -1);
+    var url = 'https://www.google.com/maps/dir/?api=1' +
+      '&origin=Current+Location' +
+      '&destination=' + encodeURIComponent(destination) +
+      '&travelmode=driving';
+    if (waypoints.length) {
+      // Waypoints separated by | — encode each address individually, join with raw |
+      url += '&waypoints=optimize:true|' + waypoints.map(function(a){ return encodeURIComponent(a); }).join('|');
+    }
     window.open(url, '_blank');
   }
 };
