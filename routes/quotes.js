@@ -215,6 +215,7 @@ router.post('/parse-pdf', async (req, res) => {
 // POST upsert-prospect — create/update account+contact, lookup address+phone via Places
 router.post('/upsert-prospect', async (req, res) => {
   try {
+    const fetch = require('node-fetch');
     const userId = req.session.user.id;
     const { account_name, contact_name, phone, email, force_update } = req.body;
 
@@ -226,41 +227,59 @@ router.post('/upsert-prospect', async (req, res) => {
     const contact = (contact_name || '').trim() || null;
     const PLACES_KEY = process.env.GOOGLE_PLACES_API_KEY;
 
-    // --- Google Places lookup for address, phone, website ---
+    // ── Google Places: findplacefromtext → get place_id, then details ──
     let placesPhone = phone || null;
-    let placesAddress = null;
+    let placesEmail = email || null;
     let placesCity = null;
     let placesState = null;
     let placesWebsite = null;
+    let placesAddress = null;
 
     if (PLACES_KEY) {
       try {
-        const searchUrl = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(company)}&inputtype=textquery&fields=name,formatted_address,formatted_phone_number,website,address_components&key=${PLACES_KEY}`;
-        const plRes = await fetch(searchUrl);
-        const plData = await plRes.json();
-        if (plData.candidates && plData.candidates.length > 0) {
-          const place = plData.candidates[0];
-          if (place.formatted_phone_number) placesPhone = place.formatted_phone_number;
-          if (place.website) placesWebsite = place.website;
-          if (place.formatted_address) {
-            placesAddress = place.formatted_address;
-            // Parse city/state from address components
-            if (place.address_components) {
-              for (const comp of place.address_components) {
+        // Step 1: find the place
+        const findUrl = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json` +
+          `?input=${encodeURIComponent(company)}` +
+          `&inputtype=textquery` +
+          `&fields=place_id,name` +
+          `&key=${PLACES_KEY}`;
+
+        const findRes = await fetch(findUrl);
+        const findData = await findRes.json();
+
+        if (findData.candidates && findData.candidates.length > 0) {
+          const placeId = findData.candidates[0].place_id;
+
+          // Step 2: get full details including address_components, phone, website
+          const detailUrl = `https://maps.googleapis.com/maps/api/place/details/json` +
+            `?place_id=${placeId}` +
+            `&fields=name,formatted_phone_number,website,formatted_address,address_components` +
+            `&key=${PLACES_KEY}`;
+
+          const detailRes = await fetch(detailUrl);
+          const detailData = await detailRes.json();
+
+          if (detailData.result) {
+            const r = detailData.result;
+            if (r.formatted_phone_number) placesPhone = r.formatted_phone_number;
+            if (r.website) placesWebsite = r.website;
+            if (r.formatted_address) placesAddress = r.formatted_address;
+            if (r.address_components) {
+              for (const comp of r.address_components) {
                 if (comp.types.includes('locality')) placesCity = comp.long_name;
                 if (comp.types.includes('administrative_area_level_1')) placesState = comp.short_name;
               }
             }
           }
         }
-      } catch(plErr) {
+      } catch (plErr) {
         console.error('Places lookup error:', plErr.message);
       }
     }
 
-    // --- Check if prospect already exists ---
+    // ── Check if this company already exists for this user ──
     const existing = await pool.query(
-      `SELECT id, company, contact, phone, city FROM prospects
+      `SELECT id, company, contact, phone, email, city, website FROM prospects
        WHERE user_id = $1 AND LOWER(TRIM(company)) = LOWER($2)
        LIMIT 1`,
       [userId, company]
@@ -268,47 +287,80 @@ router.post('/upsert-prospect', async (req, res) => {
 
     if (existing.rows.length > 0) {
       const p = existing.rows[0];
-      // Build update — fill in any blanks we now have data for
+
+      // Fill in any blanks with new data
       const updates = [];
       const vals = [];
-      const add = (col, val) => { if (val) { vals.push(val); updates.push(col + '=$' + vals.length); } };
+      const add = (col, val) => {
+        if (val !== null && val !== undefined && val !== '') {
+          vals.push(val);
+          updates.push(col + ' = $' + vals.length);
+        }
+      };
 
+      // Contact: update if blank, or force_update when rep edits quote
       if (contact && (!p.contact || p.contact.trim() === '' || force_update)) add('contact', contact);
+      // Phone: fill blank from Places or from what was passed in
       if (placesPhone && (!p.phone || p.phone.trim() === '')) add('phone', placesPhone);
+      // Email: fill blank
+      if (placesEmail && (!p.email || p.email.trim() === '')) add('email', placesEmail);
+      // City/State/Website: fill blank
       if (placesCity && (!p.city || p.city.trim() === '')) add('city', placesCity);
       if (placesState) add('state', placesState);
-      if (placesWebsite) add('website', placesWebsite);
+      if (placesWebsite && (!p.website || p.website.trim() === '')) add('website', placesWebsite);
 
       if (updates.length > 0) {
         vals.push(p.id);
-        await pool.query(`UPDATE prospects SET ${updates.join(',')} WHERE id=$${vals.length}`, vals);
-        return res.json({ created: false, updated: true, id: p.id, company: p.company,
-          message: 'Account updated with new info' });
+        await pool.query(
+          `UPDATE prospects SET ${updates.join(', ')} WHERE id = $${vals.length}`,
+          vals
+        );
       }
-      return res.json({ created: false, id: p.id, company: p.company, message: 'Account already exists' });
+
+      return res.json({
+        created: false,
+        updated: updates.length > 0,
+        id: p.id,
+        company: p.company,
+        phone: placesPhone || p.phone,
+        city: placesCity || p.city,
+        message: updates.length > 0 ? 'Account updated' : 'Account already exists'
+      });
     }
 
-    // --- Create new prospect ---
+    // ── Create brand new prospect record ──
     const result = await pool.query(
       `INSERT INTO prospects
-         (user_id, company, category, contact, phone, email, city, state, website, status, priority, source)
-       VALUES ($1,$2,'Account',$3,$4,$5,$6,$7,$8,'New','Medium','Quote')
-       RETURNING id, company, contact`,
-      [userId, company, contact, placesPhone, email || null,
-       placesCity || null, placesState || null, placesWebsite || null]
+         (user_id, company, category, contact, phone, email, city, state, website, status, priority, source, notes)
+       VALUES ($1, $2, 'Account', $3, $4, $5, $6, $7, $8, 'New', 'Medium', 'Quote', $9)
+       RETURNING id, company, contact, phone, city, state, website`,
+      [
+        userId,
+        company,
+        contact,
+        placesPhone,
+        placesEmail,
+        placesCity,
+        placesState,
+        placesWebsite,
+        placesAddress ? 'Address: ' + placesAddress : null
+      ]
     );
+
+    const created = result.rows[0];
+    console.log(`Created account: ${created.company} | phone: ${created.phone} | city: ${created.city}`);
 
     res.json({
       created: true,
-      id: result.rows[0].id,
-      company: result.rows[0].company,
-      phone: placesPhone,
-      city: placesCity,
-      state: placesState,
+      id: created.id,
+      company: created.company,
+      phone: created.phone,
+      city: created.city,
+      state: created.state,
       message: 'Account and contact created'
     });
 
-  } catch(e) {
+  } catch (e) {
     console.error('upsert-prospect error:', e.message);
     res.status(500).json({ error: e.message });
   }
