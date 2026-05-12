@@ -146,6 +146,91 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// POST parse PDF — send PDF to Claude natively (no library needed)
+router.post('/parse-pdf', async (req, res) => {
+  try {
+    const { pdf_data, filename } = req.body;
+    if (!pdf_data) return res.json({});
+
+    // Claude supports PDF documents natively via the API
+    const apiRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'pdfs-2024-09-25'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 600,
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: 'document',
+              source: {
+                type: 'base64',
+                media_type: 'application/pdf',
+                data: pdf_data
+              }
+            },
+            {
+              type: 'text',
+              text: `Extract fields from this sales quote/proposal PDF. Respond ONLY with a valid JSON object, no markdown or explanation:
+{
+  "quote_number": "quote/proposal/estimate number or null",
+  "account_name": "customer/client/bill-to company name or null",
+  "contact_name": "contact person full name or null",
+  "amount": "total dollar amount as number string like \"1234.56\" (no $ sign) or null",
+  "products": "concise summary of products/line items max 150 chars or null",
+  "quote_date": "quote date in YYYY-MM-DD format or null",
+  "follow_up_date": "follow-up or expiry date in YYYY-MM-DD format or null",
+  "comments": "relevant notes, terms, or special instructions max 200 chars or null"
+}
+Rules: use null for fields you cannot find. For amount use TOTAL/GRAND TOTAL only. Return ONLY the JSON.`
+            }
+          ]
+        }]
+      })
+    });
+
+    const aiData = await apiRes.json();
+    if (aiData.error) {
+      console.error('Claude PDF error:', aiData.error.message);
+      return res.json({ _error: aiData.error.message });
+    }
+
+    const rawText = (aiData.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return res.json({ _error: 'No JSON in response' });
+
+    const extracted = JSON.parse(jsonMatch[0]);
+
+    // Remove nulls
+    Object.keys(extracted).forEach(k => {
+      if (extracted[k] === null || extracted[k] === '' || extracted[k] === 'null') delete extracted[k];
+    });
+
+    res.json(extracted);
+
+  } catch (e) {
+    console.error('PDF parse error:', e.message);
+    res.json({ _error: e.message });
+  }
+});
+
+// DELETE quote
+router.delete('/:id', async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+    await pool.query('DELETE FROM quotes WHERE id = $1 AND user_id = $2', [req.params.id, userId]);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // POST parse PDF — extract text with pdf-parse then use Claude to extract fields
 router.post('/parse-pdf', async (req, res) => {
   try {
