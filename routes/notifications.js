@@ -124,6 +124,38 @@ async function evaluateForUser(userId) {
     } catch(e) { console.error(e.message); }
   }
 
+
+  // RULE 5: Quote follow-ups due today or overdue
+  const quoteDue = await pool.query(`
+    SELECT id, account_name, follow_up_date, status, quote_number,
+           (CURRENT_DATE - follow_up_date::date) as days_overdue
+    FROM quotes
+    WHERE user_id = $1
+      AND follow_up_date IS NOT NULL
+      AND follow_up_date::date <= CURRENT_DATE
+      AND status NOT IN ('Won', 'Lost')
+  `, [userId]);
+
+  for (const row of quoteDue.rows) {
+    const dateStr = row.follow_up_date.toISOString ? row.follow_up_date.toISOString().split('T')[0] : String(row.follow_up_date).split('T')[0];
+    const overdue = parseInt(row.days_overdue) || 0;
+    const urgency = overdue > 0 ? 'urgent' : 'today';
+    const qnum = row.quote_number || ('QT-' + String(row.id).padStart(3, '0'));
+    const key = `quote_followup_${row.id}_${dateStr}`;
+    const title = overdue > 0
+      ? `Quote follow-up ${overdue} day${overdue !== 1 ? 's' : ''} overdue: ${row.account_name}`
+      : `Quote follow-up due today: ${row.account_name}`;
+    try {
+      const r = await pool.query(`
+        INSERT INTO notifications (user_id, type, urgency, title, body, action_url, unique_key)
+        VALUES ($1, 'quote_followup', $2, $3, $4, '/app#quotes', $5)
+        ON CONFLICT (unique_key) DO NOTHING
+        RETURNING id
+      `, [userId, urgency, title, `${qnum} — Status: ${row.status}`, key]);
+      if (r.rows.length) created.push({ type: 'quote_followup', company: row.account_name });
+    } catch(e) { console.error('quote notif error:', e.message); }
+  }
+
   return created;
 }
 
