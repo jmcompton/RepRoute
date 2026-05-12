@@ -1323,8 +1323,8 @@ window.addEventListener('load', function() {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
           <div><label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Quote Number</label><input id="qd-quote-num" placeholder="e.g. QT-001" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px;background:var(--bg)"></div>
           <div><label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Status</label><select id="qd-status" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px;background:var(--bg)"><option value="Draft">Draft</option><option value="Sent">Sent</option><option value="Follow-Up">Follow-Up</option><option value="Won">Won</option><option value="Lost">Lost</option></select></div>
-          <div><label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Account Name *</label><input id="qd-acct" placeholder="Company name" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px"></div>
-          <div><label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Contact Name</label><input id="qd-cont" placeholder="Contact person" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px"></div>
+          <div><label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Account Name *</label><input id="qd-acct" placeholder="Company name" oninput="document.getElementById('qd-account').textContent=this.value||'—'" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px"></div>
+          <div><label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Contact Name</label><input id="qd-cont" placeholder="Contact person" oninput="document.getElementById('qd-contact').textContent=this.value||'—'" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px"></div>
           <div><label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Quote Amount ($)</label><input id="qd-amount" type="number" placeholder="0.00" step="0.01" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px"></div>
           <div><label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Follow-Up Date</label><input id="qd-followup" type="date" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px"></div>
           <div><label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Quote Date</label><input id="qd-date" type="date" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px"></div>
@@ -4258,12 +4258,13 @@ async function saveQuote() {
   var btn = document.getElementById('qd-save-btn');
   btn.textContent = 'Saving...'; btn.disabled = true;
   var acct = document.getElementById('qd-acct').value.trim();
+  var cont = document.getElementById('qd-cont').value.trim() || null;
   if (!acct) { alert('Account name is required'); btn.textContent='Save Quote'; btn.disabled=false; return; }
   var payload = {
     quote_number: document.getElementById('qd-quote-num').value.trim() || null,
     status: document.getElementById('qd-status').value,
     account_name: acct,
-    contact_name: document.getElementById('qd-cont').value.trim() || null,
+    contact_name: cont,
     amount: parseFloat(document.getElementById('qd-amount').value) || null,
     products: document.getElementById('qd-products').value.trim() || null,
     comments: document.getElementById('qd-comments').value.trim() || null,
@@ -4279,6 +4280,15 @@ async function saveQuote() {
     if (!res.ok && res.status === 413) throw new Error('PDF too large to attach. Quote saved without PDF.');
     var resData = await res.json();
     if (resData.error) throw new Error(resData.error);
+
+    // Always upsert account + contact into prospects (Google Places lookup for address/phone)
+    // force_update=true so edited contact names get pushed through
+    fetch('/api/quotes/upsert-prospect', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ account_name: acct, contact_name: cont, force_update: !!currentQuoteId })
+    }).catch(function(){});  // silent — don't block quote save
+
     closeQuoteDetail();
     loadQuotes();
   } catch(e) { alert('Save error: '+e.message); }
