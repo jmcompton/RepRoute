@@ -4189,29 +4189,32 @@ function removeQuotePDF() {
 async function saveQuote() {
   var btn = document.getElementById('qd-save-btn');
   btn.textContent = 'Saving...'; btn.disabled = true;
+  var acct = document.getElementById('qd-acct').value.trim();
+  if (!acct) { alert('Account name is required'); btn.textContent='Save Quote'; btn.disabled=false; return; }
   var payload = {
-    quote_number: document.getElementById('qd-quote-num').value.trim(),
+    quote_number: document.getElementById('qd-quote-num').value.trim() || null,
     status: document.getElementById('qd-status').value,
-    account_name: document.getElementById('qd-acct').value.trim(),
-    contact_name: document.getElementById('qd-cont').value.trim(),
-    amount: parseFloat(document.getElementById('qd-amount').value)||null,
-    products: document.getElementById('qd-products').value.trim(),
-    comments: document.getElementById('qd-comments').value.trim(),
-    quote_date: document.getElementById('qd-date').value||null,
-    follow_up_date: document.getElementById('qd-followup').value||null,
-    pdf_data: quotePdfData||null,
-    pdf_filename: quotePdfData ? quotePdfName : (quotePdfName==='REMOVED' ? null : undefined)
+    account_name: acct,
+    contact_name: document.getElementById('qd-cont').value.trim() || null,
+    amount: parseFloat(document.getElementById('qd-amount').value) || null,
+    products: document.getElementById('qd-products').value.trim() || null,
+    comments: document.getElementById('qd-comments').value.trim() || null,
+    quote_date: document.getElementById('qd-date').value || null,
+    follow_up_date: document.getElementById('qd-followup').value || null,
+    pdf_filename: quotePdfData ? quotePdfName : (quotePdfName === 'REMOVED' ? null : undefined)
   };
-  if (!payload.account_name) { alert('Account name is required'); btn.textContent='Save Quote'; btn.disabled=false; return; }
+  // Only include pdf_data on new quotes where a file was dropped — skip on edits to avoid 413
+  if (quotePdfData && !currentQuoteId) payload.pdf_data = quotePdfData;
   try {
     var url = currentQuoteId ? '/api/quotes/'+currentQuoteId : '/api/quotes';
     var method = currentQuoteId ? 'PUT' : 'POST';
     var res = await fetch(url, {method:method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
-    var data = await res.json();
-    if (data.error) throw new Error(data.error);
+    if (!res.ok && res.status === 413) throw new Error('Quote too large — PDF too big to save. Fields saved without PDF.');
+    var resData = await res.json();
+    if (resData.error) throw new Error(resData.error);
     closeQuoteDetail();
     loadQuotes();
-  } catch(e) { alert('Error: '+e.message); }
+  } catch(e) { alert('Save error: '+e.message); }
   btn.textContent = 'Save Quote'; btn.disabled = false;
 }
 
