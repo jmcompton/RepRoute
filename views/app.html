@@ -1260,16 +1260,16 @@ window.addEventListener('load', function() {
     <div style="flex:1;overflow:auto;background:var(--white)">
       <table class="ltable" id="quotes-table">
         <thead>
-          <tr>
-            <th>Quote #</th>
-            <th>Account</th>
-            <th>Contact</th>
-            <th>Rep</th>
-            <th>Products / Description</th>
-            <th>Amount</th>
-            <th>Status</th>
-            <th>Quote Date</th>
-            <th>Follow-Up</th>
+          <tr id="quotes-thead">
+            <th onclick="sortQuotes('quote_number')" style="cursor:pointer;user-select:none;white-space:nowrap">Quote # <span id="sq-quote_number" style="font-size:10px;opacity:.5">⇅</span></th>
+            <th onclick="sortQuotes('account_name')" style="cursor:pointer;user-select:none;white-space:nowrap">Account <span id="sq-account_name" style="font-size:10px;opacity:.5">⇅</span></th>
+            <th onclick="sortQuotes('contact_name')" style="cursor:pointer;user-select:none;white-space:nowrap">Contact <span id="sq-contact_name" style="font-size:10px;opacity:.5">⇅</span></th>
+            <th onclick="sortQuotes('rep_name')" style="cursor:pointer;user-select:none;white-space:nowrap">Rep <span id="sq-rep_name" style="font-size:10px;opacity:.5">⇅</span></th>
+            <th onclick="sortQuotes('products')" style="cursor:pointer;user-select:none;white-space:nowrap">Products / Description <span id="sq-products" style="font-size:10px;opacity:.5">⇅</span></th>
+            <th onclick="sortQuotes('amount')" style="cursor:pointer;user-select:none;white-space:nowrap">Amount <span id="sq-amount" style="font-size:10px;opacity:.5">⇅</span></th>
+            <th onclick="sortQuotes('status')" style="cursor:pointer;user-select:none;white-space:nowrap">Status <span id="sq-status" style="font-size:10px;opacity:.5">⇅</span></th>
+            <th onclick="sortQuotes('quote_date')" style="cursor:pointer;user-select:none;white-space:nowrap">Quote Date <span id="sq-quote_date" style="font-size:10px;opacity:.5">⇅</span></th>
+            <th onclick="sortQuotes('follow_up_date')" style="cursor:pointer;user-select:none;white-space:nowrap">Follow-Up <span id="sq-follow_up_date" style="font-size:10px;opacity:.5">⇅</span></th>
             <th></th>
           </tr>
         </thead>
@@ -4049,6 +4049,8 @@ var currentQuoteId = null;
 var quoteSearchTerm = '';
 var quotePdfData = null;
 var quotePdfName = null;
+var quoteSortField = null;
+var quoteSortAsc = true;
 
 function loadQuotes() {
   fetch('/api/quotes')
@@ -4073,7 +4075,24 @@ function renderQuotesStats(quotes) {
   document.getElementById('q-stat-won').textContent = won;
 }
 
+function sortQuotes(field) {
+  if (quoteSortField === field) {
+    quoteSortAsc = !quoteSortAsc;
+  } else {
+    quoteSortField = field;
+    quoteSortAsc = true;
+  }
+  // Update header indicators
+  document.querySelectorAll('[id^="sq-"]').forEach(function(el){ el.textContent='⇅'; el.style.opacity='.5'; el.style.color=''; });
+  var indicator = document.getElementById('sq-'+field);
+  if (indicator) { indicator.textContent = quoteSortAsc ? '▲' : '▼'; indicator.style.opacity='1'; indicator.style.color='var(--blue)'; }
+  renderQuotesTable(allQuotes);
+}
+
 function renderQuotesTable(quotes) {
+  var today = new Date().toISOString().split('T')[0];
+
+  // Filter
   var filtered = quotes.filter(function(q){
     if (quoteFilter !== 'all' && q.status !== quoteFilter) return false;
     if (quoteSearchTerm) {
@@ -4081,36 +4100,79 @@ function renderQuotesTable(quotes) {
       return (q.account_name||'').toLowerCase().includes(s) ||
              (q.contact_name||'').toLowerCase().includes(s) ||
              (q.products||'').toLowerCase().includes(s) ||
-             (q.quote_number||'').toLowerCase().includes(s);
+             (q.quote_number||'').toLowerCase().includes(s) ||
+             (q.rep_name||'').toLowerCase().includes(s);
     }
     return true;
   });
+
+  // Sort
+  if (quoteSortField) {
+    filtered.sort(function(a, b) {
+      var av = a[quoteSortField], bv = b[quoteSortField];
+      // Nulls always last
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      // Numeric sort for amount
+      if (quoteSortField === 'amount') {
+        av = parseFloat(av)||0; bv = parseFloat(bv)||0;
+        return quoteSortAsc ? av - bv : bv - av;
+      }
+      // Date sort
+      if (quoteSortField === 'quote_date' || quoteSortField === 'follow_up_date') {
+        av = av.split('T')[0]; bv = bv.split('T')[0];
+      }
+      // String sort
+      av = String(av).toLowerCase(); bv = String(bv).toLowerCase();
+      if (av < bv) return quoteSortAsc ? -1 : 1;
+      if (av > bv) return quoteSortAsc ? 1 : -1;
+      return 0;
+    });
+  }
+
   var tbody = document.getElementById('quotes-tbody');
   if (!tbody) return;
   if (!filtered.length) {
     tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:40px;font-size:13px">No quotes found</td></tr>';
     return;
   }
+
   var sc = {'Draft':{bg:'#f1f5f9',col:'#475569'},'Sent':{bg:'#e8f0fe',col:'#1558b0'},'Follow-Up':{bg:'#fef3c7',col:'#b45309'},'Won':{bg:'#e6f4ec',col:'#1a7f4b'},'Lost':{bg:'#fdecea',col:'#c0392b'}};
-  var today = new Date().toISOString().split('T')[0];
+
+  var fmtDate = function(d){ return d ? new Date(d.split('T')[0]+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}) : '—'; };
+
   tbody.innerHTML = filtered.map(function(q){
     var s = sc[q.status] || sc['Draft'];
     var fdate = q.follow_up_date ? q.follow_up_date.split('T')[0] : null;
     var qdate = q.quote_date ? q.quote_date.split('T')[0] : null;
-    var fueCls = (fdate && fdate <= today && q.status !== 'Won' && q.status !== 'Lost') ? 'color:var(--red);font-weight:600' : '';
+    var isOverdue = fdate && fdate < today && q.status !== 'Won' && q.status !== 'Lost';
+    var isDueToday = fdate && fdate === today && q.status !== 'Won' && q.status !== 'Lost';
+    var isFollowupAlert = isOverdue || isDueToday;
+
+    // Follow-up date cell — red if overdue/due today
+    var fuStyle = isOverdue ? 'color:#c0392b;font-weight:700' : (isDueToday ? 'color:#e67e22;font-weight:700' : '');
+    var fuText = fmtDate(fdate) + (isOverdue ? ' ⚠' : (isDueToday ? ' ●' : ''));
+
+    // Status badge — red border pulse if follow-up is overdue
+    var badgeStyle = 'background:'+s.bg+';color:'+s.col+';padding:3px 10px;border-radius:12px;font-weight:600;font-size:11px;white-space:nowrap';
+    if (isFollowupAlert && q.status !== 'Won' && q.status !== 'Lost') {
+      badgeStyle += ';outline:2px solid #c0392b;outline-offset:1px';
+    }
+
     var amt = q.amount ? '$'+parseFloat(q.amount).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—';
     var qnum = q.quote_number || ('QT-'+String(q.id).padStart(3,'0'));
-    var fmtDate = function(d){ return d ? new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}) : '—'; };
-    return '<tr onclick="openQuoteDetail('+q.id+')" style="cursor:pointer">'+
-      '<td><span style="font-weight:600;color:var(--blue)">'+qnum+'</span>'+(q.pdf_filename?' <span style="font-size:10px">📎</span>':'')+'</td>'+
+
+    return '<tr onclick="openQuoteDetail('+q.id+')" style="cursor:pointer'+(isFollowupAlert?';background:#fffbf0':'')+'">' +
+      '<td><span style="font-weight:600;color:var(--blue)">'+(q.pdf_filename?'📎 ':'')+qnum+'</span></td>'+
       '<td style="font-weight:500">'+(q.account_name||'—')+'</td>'+
       '<td>'+(q.contact_name||'—')+'</td>'+
       '<td>'+(q.rep_name||'—')+'</td>'+
       '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2)">'+(q.products||'—')+'</td>'+
       '<td style="font-weight:600">'+amt+'</td>'+
-      '<td><span class="badge" style="background:'+s.bg+';color:'+s.col+'">'+q.status+'</span></td>'+
+      '<td><span style="'+badgeStyle+'">'+q.status+'</span></td>'+
       '<td>'+fmtDate(qdate)+'</td>'+
-      '<td style="'+fueCls+'">'+fmtDate(fdate)+'</td>'+
+      '<td style="'+fuStyle+'">'+fuText+'</td>'+
       '<td><button onclick="event.stopPropagation();openQuoteDetail('+q.id+')" style="padding:3px 10px;font-size:11px;background:transparent;border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--text2)">Edit</button></td>'+
       '</tr>';
   }).join('');
@@ -4144,6 +4206,9 @@ function openNewQuoteModal() {
   document.getElementById('qd-pdf-name').textContent = '';
   document.getElementById('qd-pdf-preview').style.display = 'none';
   document.getElementById('qd-delete-btn').style.display = 'none';
+  var dropArea = document.getElementById('qd-drop-area');
+  dropArea.style.borderColor = 'var(--border)';
+  dropArea.style.background = '#fafbfc';
   document.getElementById('quote-detail-modal').style.display = 'flex';
 }
 
@@ -4171,6 +4236,9 @@ function openQuoteDetail(id) {
   document.getElementById('qd-followup').value = q.follow_up_date ? q.follow_up_date.split('T')[0] : '';
   document.getElementById('qd-pdf-name').textContent = '';
   document.getElementById('qd-delete-btn').style.display = 'block';
+  var dropArea = document.getElementById('qd-drop-area');
+  dropArea.style.borderColor = 'var(--border)';
+  dropArea.style.background = '#fafbfc';
   if (q.pdf_filename) { document.getElementById('qd-pdf-preview').style.display='block'; document.getElementById('qd-attached-name').textContent=q.pdf_filename; }
   else { document.getElementById('qd-pdf-preview').style.display='none'; }
   document.getElementById('quote-detail-modal').style.display = 'flex';
@@ -4203,13 +4271,12 @@ async function saveQuote() {
     follow_up_date: document.getElementById('qd-followup').value || null,
     pdf_filename: quotePdfData ? quotePdfName : (quotePdfName === 'REMOVED' ? null : undefined)
   };
-  // Only include pdf_data on new quotes where a file was dropped — skip on edits to avoid 413
   if (quotePdfData && !currentQuoteId) payload.pdf_data = quotePdfData;
   try {
     var url = currentQuoteId ? '/api/quotes/'+currentQuoteId : '/api/quotes';
     var method = currentQuoteId ? 'PUT' : 'POST';
     var res = await fetch(url, {method:method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
-    if (!res.ok && res.status === 413) throw new Error('Quote too large — PDF too big to save. Fields saved without PDF.');
+    if (!res.ok && res.status === 413) throw new Error('PDF too large to attach. Quote saved without PDF.');
     var resData = await res.json();
     if (resData.error) throw new Error(resData.error);
     closeQuoteDetail();
@@ -4257,13 +4324,11 @@ function processQuotePDF(file) {
         return;
       }
 
-      // Count how many fields were filled
       var filled = 0;
       var fill = function(elId, val) {
         if (val && document.getElementById(elId)) {
           document.getElementById(elId).value = val;
           filled++;
-          // Flash green briefly
           var el = document.getElementById(elId);
           el.style.background = '#e6f4ec';
           setTimeout(function(){ el.style.background = ''; }, 1500);
@@ -4279,7 +4344,6 @@ function processQuotePDF(file) {
       fill('qd-followup', data.follow_up_date);
       fill('qd-comments', data.comments);
 
-      // Update status if we got account name
       if (data.account_name) {
         document.getElementById('qd-account').textContent = data.account_name;
         document.getElementById('qd-status').value = 'Sent';
@@ -4291,9 +4355,33 @@ function processQuotePDF(file) {
       dropArea.style.borderColor = 'var(--green)';
       dropArea.style.background = '#f0faf4';
       pdfNameEl.innerHTML = '<span style="color:var(--green);font-weight:600">✓ '+file.name+'</span> <span style="color:var(--text3)">— '+filled+' field'+(filled!==1?'s':'')+' auto-filled</span>';
-
       document.getElementById('qd-pdf-preview').style.display = 'block';
       document.getElementById('qd-attached-name').textContent = file.name;
+
+      // Auto-create account + contact in prospects (no duplicates)
+      if (data.account_name) {
+        fetch('/api/quotes/upsert-prospect', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            account_name: data.account_name,
+            contact_name: data.contact_name || null,
+            phone: data.phone || null,
+            email: data.email || null
+          })
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(result) {
+          if (result.created) {
+            pdfNameEl.innerHTML += ' <span style="color:var(--green);font-size:11px">· Account & contact saved to Contacts</span>';
+          } else if (result.updated) {
+            pdfNameEl.innerHTML += ' <span style="color:var(--text3);font-size:11px">· Contact updated in existing account</span>';
+          } else if (result.id) {
+            pdfNameEl.innerHTML += ' <span style="color:var(--text3);font-size:11px">· Existing account found</span>';
+          }
+        })
+        .catch(function(){ /* silent — don't block PDF flow */ });
+      }
     })
     .catch(function(err) {
       console.error('PDF parse error:', err);
