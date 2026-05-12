@@ -217,7 +217,7 @@ router.post('/upsert-prospect', async (req, res) => {
   try {
     const fetch = require('node-fetch');
     const userId = req.session.user.id;
-    const { account_name, contact_name, phone, email, force_update } = req.body;
+    const { account_name, contact_name, phone, email, force_update, dry_run } = req.body;
 
     if (!account_name || !account_name.trim()) {
       return res.json({ created: false, reason: 'No account name provided' });
@@ -275,6 +275,20 @@ router.post('/upsert-prospect', async (req, res) => {
       } catch (plErr) {
         console.error('Places lookup error:', plErr.message);
       }
+    }
+
+    // ── If dry_run: just return Places data without touching DB ──
+    if (dry_run) {
+      return res.json({
+        dry_run: true,
+        company,
+        phone: placesPhone,
+        email: placesEmail,
+        city: placesCity,
+        state: placesState,
+        website: placesWebsite,
+        address: placesAddress
+      });
     }
 
     // ── Check if this company already exists for this user ──
