@@ -212,11 +212,11 @@ router.post('/parse-pdf', async (req, res) => {
   }
 });
 
-// POST upsert-prospect — create account+contact from quote PDF data (no duplicates)
+// POST upsert-prospect — create/update account+contact, lookup address+phone via Places
 router.post('/upsert-prospect', async (req, res) => {
   try {
     const userId = req.session.user.id;
-    const { account_name, contact_name, phone, email } = req.body;
+    const { account_name, contact_name, phone, email, force_update } = req.body;
 
     if (!account_name || !account_name.trim()) {
       return res.json({ created: false, reason: 'No account name provided' });
@@ -224,10 +224,43 @@ router.post('/upsert-prospect', async (req, res) => {
 
     const company = account_name.trim();
     const contact = (contact_name || '').trim() || null;
+    const PLACES_KEY = process.env.GOOGLE_PLACES_API_KEY;
 
-    // Check if prospect already exists (case-insensitive company match for this user)
+    // --- Google Places lookup for address, phone, website ---
+    let placesPhone = phone || null;
+    let placesAddress = null;
+    let placesCity = null;
+    let placesState = null;
+    let placesWebsite = null;
+
+    if (PLACES_KEY) {
+      try {
+        const searchUrl = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(company)}&inputtype=textquery&fields=name,formatted_address,formatted_phone_number,website,address_components&key=${PLACES_KEY}`;
+        const plRes = await fetch(searchUrl);
+        const plData = await plRes.json();
+        if (plData.candidates && plData.candidates.length > 0) {
+          const place = plData.candidates[0];
+          if (place.formatted_phone_number) placesPhone = place.formatted_phone_number;
+          if (place.website) placesWebsite = place.website;
+          if (place.formatted_address) {
+            placesAddress = place.formatted_address;
+            // Parse city/state from address components
+            if (place.address_components) {
+              for (const comp of place.address_components) {
+                if (comp.types.includes('locality')) placesCity = comp.long_name;
+                if (comp.types.includes('administrative_area_level_1')) placesState = comp.short_name;
+              }
+            }
+          }
+        }
+      } catch(plErr) {
+        console.error('Places lookup error:', plErr.message);
+      }
+    }
+
+    // --- Check if prospect already exists ---
     const existing = await pool.query(
-      `SELECT id, company, contact FROM prospects
+      `SELECT id, company, contact, phone, city FROM prospects
        WHERE user_id = $1 AND LOWER(TRIM(company)) = LOWER($2)
        LIMIT 1`,
       [userId, company]
@@ -235,26 +268,45 @@ router.post('/upsert-prospect', async (req, res) => {
 
     if (existing.rows.length > 0) {
       const p = existing.rows[0];
-      // Prospect exists — update contact if we have one and it's currently blank
-      if (contact && (!p.contact || p.contact.trim() === '')) {
-        await pool.query(
-          `UPDATE prospects SET contact = $1 WHERE id = $2`,
-          [contact, p.id]
-        );
-        return res.json({ created: false, updated: true, id: p.id, company: p.company, message: 'Contact updated on existing account' });
+      // Build update — fill in any blanks we now have data for
+      const updates = [];
+      const vals = [];
+      const add = (col, val) => { if (val) { vals.push(val); updates.push(col + '=$' + vals.length); } };
+
+      if (contact && (!p.contact || p.contact.trim() === '' || force_update)) add('contact', contact);
+      if (placesPhone && (!p.phone || p.phone.trim() === '')) add('phone', placesPhone);
+      if (placesCity && (!p.city || p.city.trim() === '')) add('city', placesCity);
+      if (placesState) add('state', placesState);
+      if (placesWebsite) add('website', placesWebsite);
+
+      if (updates.length > 0) {
+        vals.push(p.id);
+        await pool.query(`UPDATE prospects SET ${updates.join(',')} WHERE id=$${vals.length}`, vals);
+        return res.json({ created: false, updated: true, id: p.id, company: p.company,
+          message: 'Account updated with new info' });
       }
       return res.json({ created: false, id: p.id, company: p.company, message: 'Account already exists' });
     }
 
-    // Create new prospect
+    // --- Create new prospect ---
     const result = await pool.query(
-      `INSERT INTO prospects (user_id, company, category, contact, phone, email, status, priority, source)
-       VALUES ($1, $2, 'Account', $3, $4, $5, 'New', 'Medium', 'Quote PDF')
+      `INSERT INTO prospects
+         (user_id, company, category, contact, phone, email, city, state, website, status, priority, source)
+       VALUES ($1,$2,'Account',$3,$4,$5,$6,$7,$8,'New','Medium','Quote')
        RETURNING id, company, contact`,
-      [userId, company, contact, phone || null, email || null]
+      [userId, company, contact, placesPhone, email || null,
+       placesCity || null, placesState || null, placesWebsite || null]
     );
 
-    res.json({ created: true, id: result.rows[0].id, company: result.rows[0].company, message: 'Account and contact created' });
+    res.json({
+      created: true,
+      id: result.rows[0].id,
+      company: result.rows[0].company,
+      phone: placesPhone,
+      city: placesCity,
+      state: placesState,
+      message: 'Account and contact created'
+    });
 
   } catch(e) {
     console.error('upsert-prospect error:', e.message);
