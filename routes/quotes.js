@@ -146,69 +146,96 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// POST parse PDF — extract fields from base64 PDF using simple text extraction
+// POST parse PDF — extract text with pdf-parse then use Claude to extract fields
 router.post('/parse-pdf', async (req, res) => {
   try {
     const { pdf_data, filename } = req.body;
     if (!pdf_data) return res.json({});
 
-    // Decode base64 PDF and extract raw text using basic buffer parsing
-    const buf = Buffer.from(pdf_data, 'base64');
-    const pdfText = buf.toString('latin1');
-
-    const extracted = {};
-
-    // --- Extract quote number ---
-    const qnMatch = pdfText.match(/(?:quote|quotation|proposal|estimate|order)[\s#:\-]*(?:no\.?|number|num|#)?[\s:]*([A-Z0-9\-]{3,20})/i);
-    if (qnMatch) extracted.quote_number = qnMatch[1].trim();
-
-    // --- Extract company/account name ---
-    const billMatch = pdfText.match(/(?:bill\s*to|sold\s*to|customer|client|account|company)[\s:]+([^\n\r]{3,60})/i);
-    if (billMatch) extracted.account_name = billMatch[1].replace(/[^\w\s&.,'-]/g,'').trim().substring(0,60);
-
-    // --- Extract contact name ---
-    const contactMatch = pdfText.match(/(?:attn|attention|contact|prepared\s*for)[\s:]+([A-Za-z][^\n\r]{2,40})/i);
-    if (contactMatch) extracted.contact_name = contactMatch[1].replace(/[^\w\s.'-]/g,'').trim().substring(0,40);
-
-    // --- Extract total amount ---
-    const amtPatterns = [
-      /(?:total|grand\s*total|amount\s*due|subtotal|quote\s*total)[\s:$]*\$?([\d,]+\.?\d{0,2})/i,
-      /\$\s*([\d,]{3,}\.?\d{0,2})/
-    ];
-    for (const p of amtPatterns) {
-      const m = pdfText.match(p);
-      if (m) {
-        const num = parseFloat(m[1].replace(/,/g,''));
-        if (!isNaN(num) && num > 0) { extracted.amount = num.toFixed(2); break; }
-      }
+    // Step 1: Extract text from PDF using pdf-parse
+    let pdfText = '';
+    try {
+      const pdfParse = require('pdf-parse');
+      const buf = Buffer.from(pdf_data, 'base64');
+      const parsed = await pdfParse(buf);
+      pdfText = parsed.text || '';
+    } catch (parseErr) {
+      console.error('pdf-parse error:', parseErr.message);
+      // Fallback: raw latin1 text extraction
+      const buf = Buffer.from(pdf_data, 'base64');
+      pdfText = buf.toString('latin1').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, ' ');
     }
 
-    // --- Extract date ---
-    const datePatterns = [
-      /(?:date|quote\s*date|issued|prepared)[\s:]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i,
-      /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4})/
-    ];
-    for (const p of datePatterns) {
-      const m = pdfText.match(p);
-      if (m) {
-        try {
-          const parts = m[1].split(/[\/\-]/);
-          if (parts[2] && parts[2].length === 4) {
-            extracted.quote_date = parts[2] + '-' + parts[0].padStart(2,'0') + '-' + parts[1].padStart(2,'0');
-          }
-        } catch(ex) {}
-        break;
-      }
+    if (!pdfText || pdfText.trim().length < 20) {
+      return res.json({ _error: 'Could not extract text from PDF' });
     }
 
-    // --- Extract products/description (look for line items) ---
-    const prodMatch = pdfText.match(/(?:description|item|product|sku|part)[\s:]+([^\n\r]{5,120})/i);
-    if (prodMatch) extracted.products = prodMatch[1].trim().substring(0,120);
+    // Trim to first 3000 chars to keep Claude prompt fast
+    const snippet = pdfText.substring(0, 3000);
+
+    // Step 2: Use Claude Haiku to intelligently extract fields
+    const prompt = `You are extracting fields from a sales quote or proposal PDF. Here is the raw text extracted from the PDF:
+
+---
+${snippet}
+---
+
+Extract the following fields and respond ONLY with a valid JSON object (no markdown, no explanation):
+{
+  "quote_number": "the quote, proposal, or estimate number/ID (string or null)",
+  "account_name": "the customer/client/bill-to company name (string or null)",
+  "contact_name": "the contact person's full name (string or null)",
+  "amount": "the total dollar amount as a number string like '1234.56' (string or null — no $ sign)",
+  "products": "a concise summary of the products or line items, max 120 chars (string or null)",
+  "quote_date": "the quote date in YYYY-MM-DD format (string or null)",
+  "follow_up_date": "any follow-up or expiry date in YYYY-MM-DD format (string or null)",
+  "comments": "any relevant notes, terms, or special instructions, max 200 chars (string or null)"
+}
+
+Rules:
+- Use null for any field you cannot find with confidence
+- For amount: use the TOTAL or GRAND TOTAL, not subtotals
+- For products: combine line item descriptions into one summary string
+- For dates: convert any date format to YYYY-MM-DD
+- Return ONLY the JSON object, nothing else`;
+
+    const apiRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 500,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    const aiData = await apiRes.json();
+    if (!aiData.content) throw new Error('No response from Claude');
+
+    const rawText = aiData.content.filter(b => b.type === 'text').map(b => b.text).join('').trim();
+
+    // Parse the JSON response
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('Could not parse Claude response as JSON');
+
+    const extracted = JSON.parse(jsonMatch[0]);
+
+    // Clean up nulls and empty strings
+    Object.keys(extracted).forEach(k => {
+      if (extracted[k] === null || extracted[k] === '' || extracted[k] === 'null') {
+        delete extracted[k];
+      }
+    });
 
     res.json(extracted);
+
   } catch (e) {
     console.error('PDF parse error:', e.message);
-    res.json({}); // return empty if parse fails — user fills manually
+    res.json({ _error: e.message }); // return empty — user fills manually
   }
 });
 
