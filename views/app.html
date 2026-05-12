@@ -1772,16 +1772,47 @@ window.addEventListener('load', function() {
 
 <div class="mo" id="modal-add-prospect">
   <div class="mb">
-    <h2>New Contact</h2>
-    <div class="fg"><label>Company Name *</label><input type="text" id="ap-name" /></div>
-    <div class="g2"><div class="fg"><label>Category *</label><select id="ap-cat"><option value="Deck Contractor">Deck Contractor</option><option value="Window & Door Installer">Window/Door</option><option value="Commercial Roofing Contractor">Roofing</option><option value="Building Material Dealer">Dealer</option><option value="Building Products Distributor">Distributor</option>
-                <option value="Construction Equipment Supplier">Construction Equipment Supplier</option></select></div><div class="fg"><label>City</label><input type="text" id="ap-city" placeholder="Atlanta" /></div></div>
-    <div class="g2"><div class="fg"><label>Contact Name</label><input type="text" id="ap-contact" /></div><div class="fg"><label>Phone</label><input type="text" id="ap-phone" /></div></div>
-    <div class="g2"><div class="fg"><label>Email</label><input type="email" id="ap-email" /></div><div class="fg"><label>Website</label><input type="text" id="ap-website" /></div></div>
-    <div class="fg"><label>Products</label><input type="text" id="ap-products" placeholder="e.g. Fortress, ShurTape" /></div>
-    <div class="g2"><div class="fg"><label>Status</label><select id="ap-status"><option>New</option><option>Warm</option><option>Hot</option><option>Cold</option></select></div><div class="fg"><label>Priority</label><select id="ap-priority"><option>High</option><option>Medium</option><option>Low</option></select></div></div>
-    <div class="fg"><label>Notes</label><textarea id="ap-notes"></textarea></div>
-    <div class="mfoot"><button class="btn btn-secondary" onclick="closeModal('add-prospect')">Cancel</button><button class="btn btn-primary" onclick="addProspect()">Save Contact</button></div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
+      <h2 style="margin:0">New Contact</h2>
+      <button id="ap-ai-btn" onclick="aiLookupContact()" style="display:flex;align-items:center;gap:6px;padding:7px 14px;background:linear-gradient(135deg,#0a1628,#1a3a5c);color:#00FF87;border:1px solid #00FF87;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.3px">
+        ✦ AI Lookup
+      </button>
+    </div>
+    <div id="ap-ai-status" style="display:none;padding:8px 12px;background:#e8f4ff;border-radius:6px;font-size:12px;color:#1558b0;margin-bottom:10px"></div>
+    <div class="fg"><label>Company Name *</label><input type="text" id="ap-name" placeholder="Enter company name then click AI Lookup" /></div>
+    <div class="g2">
+      <div class="fg"><label>Category *</label><select id="ap-cat">
+        <option value="Roofing Contractor">Roofing Contractor</option>
+        <option value="Commercial Roofing Contractor">Commercial Roofing Contractor</option>
+        <option value="Siding Contractor">Siding Contractor</option>
+        <option value="Window & Door Installer">Window/Door Installer</option>
+        <option value="Deck Contractor">Deck Contractor</option>
+        <option value="Cornice Contractor">Cornice Contractor</option>
+        <option value="Building Material Dealer">Dealer / Distributor</option>
+        <option value="Construction Equipment Supplier">Equipment Supplier</option>
+        <option value="Account">Account</option>
+      </select></div>
+      <div class="fg"><label>City</label><input type="text" id="ap-city" placeholder="Atlanta" /></div>
+    </div>
+    <div class="g2">
+      <div class="fg"><label>State</label><input type="text" id="ap-state" placeholder="GA" maxlength="2" /></div>
+      <div class="fg"><label>Phone</label><input type="text" id="ap-phone" /></div>
+    </div>
+    <div class="g2">
+      <div class="fg"><label>Contact Name</label><input type="text" id="ap-contact" /></div>
+      <div class="fg"><label>Email</label><input type="email" id="ap-email" /></div>
+    </div>
+    <div class="fg"><label>Website</label><input type="text" id="ap-website" /></div>
+    <div class="fg"><label>Products / Notes</label><input type="text" id="ap-products" placeholder="e.g. Boss Products, ShurTape" /></div>
+    <div class="g2">
+      <div class="fg"><label>Status</label><select id="ap-status"><option>New</option><option>Warm</option><option>Hot</option><option>Cold</option></select></div>
+      <div class="fg"><label>Priority</label><select id="ap-priority"><option>High</option><option>Medium</option><option>Low</option></select></div>
+    </div>
+    <div class="fg"><label>Notes</label><textarea id="ap-notes" rows="2"></textarea></div>
+    <div class="mfoot">
+      <button class="btn btn-secondary" onclick="closeModal('add-prospect')">Cancel</button>
+      <button class="btn btn-primary" onclick="addProspect()">Save Contact</button>
+    </div>
   </div>
 </div>
 
@@ -2577,18 +2608,93 @@ function addProspect() {
   fetch('/api/prospects', {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({
-      company:name, category:document.getElementById('ap-cat').value,
-      city:document.getElementById('ap-city').value, contact:document.getElementById('ap-contact').value,
-      phone:document.getElementById('ap-phone').value, website:document.getElementById('ap-website').value,
-      products:document.getElementById('ap-products').value, status:document.getElementById('ap-status').value,
-      priority:document.getElementById('ap-priority').value, notes:document.getElementById('ap-notes').value, source:'Manual'
+      company: name,
+      category: document.getElementById('ap-cat').value,
+      city: document.getElementById('ap-city').value,
+      state: (document.getElementById('ap-state') || {value:''}).value || 'GA',
+      contact: document.getElementById('ap-contact').value,
+      phone: document.getElementById('ap-phone').value,
+      email: document.getElementById('ap-email').value,
+      website: document.getElementById('ap-website').value,
+      products: document.getElementById('ap-products').value,
+      status: document.getElementById('ap-status').value,
+      priority: document.getElementById('ap-priority').value,
+      notes: document.getElementById('ap-notes').value,
+      source: 'Manual'
     })
   }).then(function() {
     closeModal('add-prospect'); loadProspects(); loadDashboard(); showToast('Contact saved!');
-    ['ap-name','ap-city','ap-contact','ap-phone','ap-email','ap-website','ap-products','ap-notes'].forEach(function(id) {
+    ['ap-name','ap-city','ap-state','ap-contact','ap-phone','ap-email','ap-website','ap-products','ap-notes'].forEach(function(id) {
       var el = document.getElementById(id); if (el) el.value = '';
     });
+    var aiStatus = document.getElementById('ap-ai-status');
+    if (aiStatus) { aiStatus.style.display = 'none'; aiStatus.textContent = ''; }
   });
+}
+
+async function aiLookupContact() {
+  var name = document.getElementById('ap-name').value.trim();
+  if (!name) { showToast('Enter a company name first'); return; }
+
+  var btn = document.getElementById('ap-ai-btn');
+  var statusEl = document.getElementById('ap-ai-status');
+  btn.textContent = '⏳ Looking up...';
+  btn.disabled = true;
+  statusEl.style.display = 'block';
+  statusEl.textContent = 'Searching Google Places for ' + name + '...';
+  statusEl.style.background = '#e8f4ff';
+  statusEl.style.color = '#1558b0';
+
+  try {
+    var res = await fetch('/api/quotes/upsert-prospect', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ account_name: name, contact_name: document.getElementById('ap-contact').value.trim() || null, dry_run: true })
+    });
+    var data = await res.json();
+
+    var filled = 0;
+    var fill = function(elId, val) {
+      if (!val) return;
+      var el = document.getElementById(elId);
+      if (el && !el.value.trim()) {
+        el.value = val;
+        el.style.background = '#e6f4ec';
+        setTimeout(function(){ el.style.background = ''; }, 1500);
+        filled++;
+      }
+    };
+
+    fill('ap-city', data.city);
+    fill('ap-state', data.state);
+    fill('ap-phone', data.phone);
+    fill('ap-website', data.website);
+    if (data.address) {
+      var notes = document.getElementById('ap-notes');
+      if (notes && !notes.value.trim()) { notes.value = 'Address: ' + data.address; filled++; }
+    }
+
+    if (filled > 0) {
+      statusEl.textContent = '✓ Found ' + name + ' — ' + filled + ' field' + (filled !== 1 ? 's' : '') + ' filled from Google';
+      statusEl.style.background = '#e6f4ec';
+      statusEl.style.color = '#1a7f4b';
+    } else if (data.error) {
+      statusEl.textContent = '⚠ Lookup failed: ' + data.error;
+      statusEl.style.background = '#fdecea';
+      statusEl.style.color = '#c0392b';
+    } else {
+      statusEl.textContent = 'No additional info found for "' + name + '" — fill fields manually';
+      statusEl.style.background = '#fef3c7';
+      statusEl.style.color = '#b45309';
+    }
+  } catch(e) {
+    statusEl.textContent = 'Lookup error — check connection';
+    statusEl.style.background = '#fdecea';
+    statusEl.style.color = '#c0392b';
+  }
+
+  btn.innerHTML = '✦ AI Lookup';
+  btn.disabled = false;
 }
 
 function findLeads() {
