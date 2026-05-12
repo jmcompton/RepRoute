@@ -212,4 +212,54 @@ router.post('/parse-pdf', async (req, res) => {
   }
 });
 
+// POST upsert-prospect — create account+contact from quote PDF data (no duplicates)
+router.post('/upsert-prospect', async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+    const { account_name, contact_name, phone, email } = req.body;
+
+    if (!account_name || !account_name.trim()) {
+      return res.json({ created: false, reason: 'No account name provided' });
+    }
+
+    const company = account_name.trim();
+    const contact = (contact_name || '').trim() || null;
+
+    // Check if prospect already exists (case-insensitive company match for this user)
+    const existing = await pool.query(
+      `SELECT id, company, contact FROM prospects
+       WHERE user_id = $1 AND LOWER(TRIM(company)) = LOWER($2)
+       LIMIT 1`,
+      [userId, company]
+    );
+
+    if (existing.rows.length > 0) {
+      const p = existing.rows[0];
+      // Prospect exists — update contact if we have one and it's currently blank
+      if (contact && (!p.contact || p.contact.trim() === '')) {
+        await pool.query(
+          `UPDATE prospects SET contact = $1 WHERE id = $2`,
+          [contact, p.id]
+        );
+        return res.json({ created: false, updated: true, id: p.id, company: p.company, message: 'Contact updated on existing account' });
+      }
+      return res.json({ created: false, id: p.id, company: p.company, message: 'Account already exists' });
+    }
+
+    // Create new prospect
+    const result = await pool.query(
+      `INSERT INTO prospects (user_id, company, category, contact, phone, email, status, priority, source)
+       VALUES ($1, $2, 'Account', $3, $4, $5, 'New', 'Medium', 'Quote PDF')
+       RETURNING id, company, contact`,
+      [userId, company, contact, phone || null, email || null]
+    );
+
+    res.json({ created: true, id: result.rows[0].id, company: result.rows[0].company, message: 'Account and contact created' });
+
+  } catch(e) {
+    console.error('upsert-prospect error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;
