@@ -4232,8 +4232,12 @@ function qFileSelected(e) { var f=e.target.files[0]; if(f) processQuotePDF(f); }
 function processQuotePDF(file) {
   if (!file.name.toLowerCase().endsWith('.pdf')) { alert('Please select a PDF file'); return; }
   quotePdfName = file.name;
-  document.getElementById('qd-pdf-name').textContent = '⏳ Reading PDF...';
-  document.getElementById('qd-drop-area').style.borderColor = 'var(--blue)';
+  var dropArea = document.getElementById('qd-drop-area');
+  var pdfNameEl = document.getElementById('qd-pdf-name');
+  pdfNameEl.innerHTML = '<span style="color:var(--blue)">⏳ Reading PDF — extracting fields with AI...</span>';
+  dropArea.style.borderColor = 'var(--blue)';
+  dropArea.style.background = '#e8f4ff';
+
   var reader = new FileReader();
   reader.onload = function(e) {
     quotePdfData = e.target.result.split(',')[1];
@@ -4243,18 +4247,57 @@ function processQuotePDF(file) {
     })
     .then(function(r){ return r.json(); })
     .then(function(data) {
-      document.getElementById('qd-pdf-name').textContent = '✓ '+file.name+' — fields auto-filled below';
-      document.getElementById('qd-drop-area').style.borderColor = 'var(--green)';
-      if (data.quote_number && !document.getElementById('qd-quote-num').value) document.getElementById('qd-quote-num').value = data.quote_number;
-      if (data.account_name && !document.getElementById('qd-acct').value) document.getElementById('qd-acct').value = data.account_name;
-      if (data.contact_name && !document.getElementById('qd-cont').value) document.getElementById('qd-cont').value = data.contact_name;
-      if (data.amount && !document.getElementById('qd-amount').value) document.getElementById('qd-amount').value = data.amount;
-      if (data.products && !document.getElementById('qd-products').value) document.getElementById('qd-products').value = data.products;
-      if (data.quote_date && !document.getElementById('qd-date').value) document.getElementById('qd-date').value = data.quote_date;
+      if (data._error) {
+        pdfNameEl.innerHTML = '<span style="color:var(--red)">⚠ Could not read PDF text — please fill fields manually</span>';
+        dropArea.style.borderColor = 'var(--red)';
+        dropArea.style.background = '#fff5f5';
+        return;
+      }
+
+      // Count how many fields were filled
+      var filled = 0;
+      var fill = function(elId, val) {
+        if (val && document.getElementById(elId)) {
+          document.getElementById(elId).value = val;
+          filled++;
+          // Flash green briefly
+          var el = document.getElementById(elId);
+          el.style.background = '#e6f4ec';
+          setTimeout(function(){ el.style.background = ''; }, 1500);
+        }
+      };
+
+      fill('qd-quote-num', data.quote_number);
+      fill('qd-acct', data.account_name);
+      fill('qd-cont', data.contact_name);
+      fill('qd-amount', data.amount);
+      fill('qd-products', data.products);
+      fill('qd-date', data.quote_date);
+      fill('qd-followup', data.follow_up_date);
+      fill('qd-comments', data.comments);
+
+      // Update status if we got account name
+      if (data.account_name) {
+        document.getElementById('qd-account').textContent = data.account_name;
+        document.getElementById('qd-status').value = 'Sent';
+        document.getElementById('qd-status-badge').textContent = 'Sent';
+        document.getElementById('qd-status-badge').style.cssText = 'background:#e8f0fe;color:#1558b0;font-size:11px;padding:3px 10px;border-radius:12px;font-weight:600';
+      }
+      if (data.contact_name) document.getElementById('qd-contact').textContent = data.contact_name;
+
+      dropArea.style.borderColor = 'var(--green)';
+      dropArea.style.background = '#f0faf4';
+      pdfNameEl.innerHTML = '<span style="color:var(--green);font-weight:600">✓ '+file.name+'</span> <span style="color:var(--text3)">— '+filled+' field'+(filled!==1?'s':'')+' auto-filled</span>';
+
       document.getElementById('qd-pdf-preview').style.display = 'block';
       document.getElementById('qd-attached-name').textContent = file.name;
     })
-    .catch(function(){ document.getElementById('qd-pdf-name').textContent = '✓ '+file.name+' — fill fields manually'; });
+    .catch(function(err) {
+      console.error('PDF parse error:', err);
+      dropArea.style.borderColor = 'var(--border)';
+      dropArea.style.background = '#fafbfc';
+      pdfNameEl.innerHTML = '<span style="color:var(--text3)">✓ '+file.name+' — server error, fill fields manually</span>';
+    });
   };
   reader.readAsDataURL(file);
 }
