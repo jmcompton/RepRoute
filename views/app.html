@@ -4051,6 +4051,8 @@ var quotePdfData = null;
 var quotePdfName = null;
 var quoteSortField = null;
 var quoteSortAsc = true;
+var quotePdfPhone = null;
+var quotePdfEmail = null;
 
 function loadQuotes() {
   fetch('/api/quotes')
@@ -4210,6 +4212,7 @@ function openNewQuoteModal() {
   dropArea.style.borderColor = 'var(--border)';
   dropArea.style.background = '#fafbfc';
   document.getElementById('quote-detail-modal').style.display = 'flex';
+  quotePdfPhone = null; quotePdfEmail = null;
 }
 
 function openQuoteDetail(id) {
@@ -4281,13 +4284,29 @@ async function saveQuote() {
     var resData = await res.json();
     if (resData.error) throw new Error(resData.error);
 
-    // Always upsert account + contact into prospects (Google Places lookup for address/phone)
-    // force_update=true so edited contact names get pushed through
+    // Upsert account + contact into prospects (Google Places lookup for address/phone)
+    // This runs async in background — doesn't block the quote save
+    var _isEdit = !!currentQuoteId;
     fetch('/api/quotes/upsert-prospect', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ account_name: acct, contact_name: cont, force_update: !!currentQuoteId })
-    }).catch(function(){});  // silent — don't block quote save
+      body: JSON.stringify({
+        account_name: acct,
+        contact_name: cont,
+        phone: quotePdfPhone || null,
+        email: quotePdfEmail || null,
+        force_update: _isEdit
+      })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(result) {
+      if (result.created) {
+        console.log('Account created:', result.company, '| phone:', result.phone, '| city:', result.city);
+      } else if (result.updated) {
+        console.log('Account updated:', result.company);
+      }
+    })
+    .catch(function(e){ console.error('upsert-prospect error:', e); });
 
     closeQuoteDetail();
     loadQuotes();
@@ -4353,6 +4372,9 @@ function processQuotePDF(file) {
       fill('qd-date', data.quote_date);
       fill('qd-followup', data.follow_up_date);
       fill('qd-comments', data.comments);
+      // Stash phone/email for account creation
+      quotePdfPhone = data.phone || null;
+      quotePdfEmail = data.email || null;
 
       if (data.account_name) {
         document.getElementById('qd-account').textContent = data.account_name;
