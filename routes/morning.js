@@ -392,6 +392,7 @@ router.post('/daily-leads', async (req, res) => {
           if (isPaintBlocked(company, config.brand)) continue;
           // Hard block — never serve garage/overhead door companies for Window/Door segment
           if (isGarageDoorBlocked(company, rawChannel)) continue;
+          if (isResidentialRooferBlocked(company, rawChannel)) continue;
           sessionSeen.add(placeId || companyLower);
 
           // Distance filter — use the rep's actual radius
