@@ -4717,15 +4717,19 @@ window.toggleLeadCard = function(i) {
 
 window._leadSelected = {};
 window.leadSel = function(i, outcome, e) {
-  e.stopPropagation();
+  if (e) e.stopPropagation();
   window._leadSelected[i] = outcome;
-  var safe = outcome.replace(/[ -]/g, '_');
+  // Use same sanitization as button ID creation: replace /[^a-zA-Z]/g with '-'
+  var safe = outcome.replace(/[^a-zA-Z]/g, '-');
   var btns = document.querySelectorAll('[id^="leadbtn-' + i + '-"]');
   btns.forEach(function(b) {
     var match = b.id === 'leadbtn-' + i + '-' + safe;
     b.style.background = match ? 'var(--accent)' : '#fff';
     b.style.color = match ? '#fff' : 'var(--text2)';
     b.style.borderColor = match ? 'var(--accent)' : 'var(--border)';
+    b.style.fontWeight = match ? '700' : '600';
+    b.style.transform = match ? 'scale(1.04)' : 'scale(1)';
+    b.style.transition = 'all 0.15s';
   });
 };
 
