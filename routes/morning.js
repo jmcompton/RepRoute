@@ -12,11 +12,11 @@ const MODEL = 'claude-sonnet-4-20250514';
 // This ensures "Window/Door" never returns roofing results, etc.
 const SEGMENT_SEARCH_CONFIG = {
   'Roofing Contractor': [
-    { query: 'roofing contractor new construction', score: 10, category: 'Roofing Contractor' },
+    { query: 'commercial roofing contractor', score: 10, category: 'Roofing Contractor' },
     { query: 'commercial roofing company', score: 10, category: 'Roofing Contractor' },
-    { query: 'residential roofing company', score: 9, category: 'Roofing Contractor' },
-    { query: 'roof repair replacement company', score: 9, category: 'Roofing Contractor' },
-    { query: 'roofing installation contractor', score: 9, category: 'Roofing Contractor' },
+    { query: 'industrial roofing contractor', score: 10, category: 'Roofing Contractor' },
+    { query: 'commercial flat roof contractor', score: 9, category: 'Roofing Contractor' },
+    { query: 'commercial metal roofing company', score: 9, category: 'Roofing Contractor' },
   ],
   'Roofing Distributor': [
     { query: 'roofing supply distributor', score: 10, category: 'Roofing Distributor' },
@@ -108,6 +108,24 @@ function isGarageDoorBlocked(name, segment) {
     const lower = (name || '').toLowerCase();
     return GARAGE_DOOR_KEYWORDS.some(kw => lower.includes(kw));
   }
+  return false;
+}
+
+// Hard block — never return residential roofers for Roofing Contractor segment
+const RESIDENTIAL_ROOFER_KEYWORDS = [
+  'residential roofing', 'home roofing', 'house roofing', 'homeowner roofing',
+  'residential roof', 're-roof', 'reroof', 'roof replacement residential',
+  'storm damage roofing', 'insurance roofing', 'hail damage roofing',
+  'shingle roofing', 'asphalt shingle', 'residential roofer'
+];
+function isResidentialRooferBlocked(name, types, segment) {
+  if (!(segment || '').includes('Roofing Contractor')) return false;
+  const lower = (name || '').toLowerCase();
+  // Block on name keywords
+  if (RESIDENTIAL_ROOFER_KEYWORDS.some(kw => lower.includes(kw))) return true;
+  // Block if Google types include only residential
+  if (Array.isArray(types) && types.includes('roofing_contractor') &&
+      !types.includes('general_contractor') && lower.match(/residential|home|house/)) return true;
   return false;
 }
 
@@ -364,7 +382,8 @@ router.post('/daily-leads', async (req, res) => {
 
           // Basic validity checks
           if (!company) continue;
-          if (place.businessStatus === 'CLOSED_PERMANENTLY') continue;
+
+          if (isResidentialRooferBlocked(place.displayName?.text || place.name || '', place.types || [], rawChannel)) { skippedResidential++; continue; }          if (place.businessStatus === 'CLOSED_PERMANENTLY') continue;
           if (placeId && existingPlaceIds.has(placeId)) continue;
           if (existingNames.has(companyLower)) continue;
           if (sessionSeen.has(placeId || companyLower)) continue;
