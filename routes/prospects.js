@@ -10,9 +10,19 @@ router.get('/team', async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT p.*,
-              COALESCE(NULLIF(TRIM(u.name),''), u.email) as rep_name
+              COALESCE(NULLIF(TRIM(u.name),''), u.email) as rep_name,
+              lc.outcome as last_call_outcome,
+              lc.notes as last_call_notes,
+              lc.call_date as last_call_date
        FROM prospects p
        JOIN users u ON p.user_id = u.id
+       LEFT JOIN LATERAL (
+         SELECT outcome, notes, call_date
+         FROM calls
+         WHERE prospect_id = p.id
+         ORDER BY call_date DESC, created_at DESC
+         LIMIT 1
+       ) lc ON true
        WHERE p.user_id != $1
        ORDER BY COALESCE(NULLIF(TRIM(u.name),''), u.email) ASC, p.company ASC`,
       [uid]
@@ -119,4 +129,25 @@ router.post('/:id/stage', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+
+// GET /api/prospects/team-calls/:id — all call history for a teammate's prospect
+router.get('/team-calls/:id', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT c.*
+       FROM calls c
+       JOIN prospects p ON c.prospect_id = p.id
+       WHERE p.id = $1
+         AND p.user_id != $2
+       ORDER BY c.call_date DESC, c.created_at DESC`,
+      [req.params.id, req.session.user.id]
+    );
+    res.json(result.rows);
+  } catch(e) {
+    console.error('team-calls error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;
+
