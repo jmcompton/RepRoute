@@ -402,7 +402,7 @@ router.post('/leads/dedupe', async (req, res) => {
     const dupIds = dupes.rows.map(r => r.id);
     if (dupIds.length === 0) return res.json({ removed: 0, message: 'No duplicates found' });
     await pool.query('DELETE FROM prospects WHERE id = ANY($1) AND user_id=$2', [dupIds, uid]);
-    res.json({ removed: dupIds.length, message: \`Cleaned \${dupIds.length} duplicate contacts\` });
+    res.json({ removed: dupIds.length, message: `Cleaned \${dupIds.length} duplicate contacts` });
   } catch(e) {
     console.error('Dedupe error:', e.message);
     res.status(500).json({ error: e.message });
