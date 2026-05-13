@@ -2085,6 +2085,13 @@ function goLogCall(prospectId) {
 }
 
 function go(id) {
+  if (window._teamViewActive && id !== 'record') {
+    var _lb = document.querySelector('[onclick="logCallForRecord()"]');
+    var _ob = document.querySelector('[onclick="writeOutreachForRecord()"]');
+    if (_lb) _lb.style.display = '';
+    if (_ob) _ob.style.display = '';
+    window._teamViewActive = false;
+  }
   document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
   document.querySelectorAll('.sb-item').forEach(function(n) { n.classList.remove('active'); });
   var pg = document.getElementById('page-' + id);
@@ -4741,6 +4748,7 @@ window.leadLogAndAdd = function(i, e) {
   var contactTitle = document.getElementById('lead-contact-title-' + i)?.value || '';
   var nextStep = document.getElementById('lead-ns-' + i)?.value || '';
   var nextDate = document.getElementById('lead-nd-' + i)?.value || '';
+  var notes = (document.getElementById('lead-notes-' + i) || {}).value || '';
   var outcome = window._leadSelected[i] || '';
 
   // First create the prospect in CRM
@@ -4773,7 +4781,8 @@ window.leadLogAndAdd = function(i, e) {
         outcome: outcome,
         contact_name: contactName,
         next_step: nextStep,
-        next_step_date: nextDate
+        next_step_date: nextDate,
+        notes: notes
       })
     });
   }).then(function() {
@@ -5193,6 +5202,10 @@ window.runDailyLeads = function() {
               '<input id="lead-ns-' + i + '" type="text" placeholder="e.g. Send sample, call back Thursday" style="flex:1;min-width:140px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit">' +
               '<input id="lead-nd-' + i + '" type="date" style="min-width:150px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit">' +
             '</div>' +
+            '<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Notes</div>' +
+            '<div style="margin-bottom:12px">' +
+              '<textarea id="lead-notes-' + i + '" placeholder="Visit notes (saved to contact record)" rows="3" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;resize:vertical"></textarea>' +
+            '</div>' +
             '<button onclick="leadLogAndAdd(' + i + ',event)" style="padding:7px 18px;background:var(--navy);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Save to Contacts</button>' +
           '</div>' +
         '</div>';
@@ -5357,7 +5370,8 @@ function renderTeamContacts(rows, search) {
     var statusColors = { Hot:'#ef4444', Warm:'#f59e0b', Cold:'#94a3b8', Active:'#10b981', New:'#3b82f6' };
     var sc = statusColors[r.status] || '#94a3b8';
     var statusBadge = '<span style="background:' + sc + '22;color:' + sc + ';font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px">' + (r.status||'New') + '</span>';
-    return '<tr style="cursor:default">' +
+    var safeId = parseInt(r.id) || 0;
+    return '<tr style="cursor:pointer" onclick="viewTeamRecord(' + safeId + ')" title="View contact"' +
       '<td></td>' +
       '<td><span style="font-weight:600;color:var(--navy)">' + (r.company||'') + '</span>' +
         (r.address ? '<div style="font-size:11px;color:var(--text3);margin-top:2px">' + r.address + '</div>' : '') + '</td>' +
@@ -5730,5 +5744,79 @@ window.logout = window.logout || function() {
 };
 </script>
 
+<script>
+window.viewTeamRecord = function(prospectId) {
+  var rows = window._teamContactsCache || [];
+  var p = rows.find(function(x){ return String(x.id) === String(prospectId); });
+  if (!p) { if (typeof showToast === 'function') showToast('Contact not found'); return; }
+
+  currentRecord = p;
+  go('record');
+
+  var initials = (p.company||'?').split(' ').map(function(w){ return w[0]||''; }).join('').toUpperCase().slice(0,2);
+  if (document.getElementById('rec-avatar')) document.getElementById('rec-avatar').textContent = initials;
+  if (document.getElementById('rec-subtitle')) document.getElementById('rec-subtitle').textContent = p.category || '';
+  if (document.getElementById('rec-last-update')) document.getElementById('rec-last-update').textContent = 'Last Update: ' + (p.created_at ? new Date(p.created_at).toLocaleDateString() : '-');
+  if (document.getElementById('rq-email')) document.getElementById('rq-email').innerHTML = p.email ? '<a href="mailto:' + p.email + '">' + p.email + '</a>' : '-';
+  if (document.getElementById('rq-phone')) document.getElementById('rq-phone').textContent = p.phone || '-';
+  if (document.getElementById('rq-status')) document.getElementById('rq-status').innerHTML = '<span class="badge b-' + (p.status||'new').toLowerCase() + '">' + (p.status||'New') + '</span>';
+  var titleEl = document.getElementById('rec-title');
+  if (titleEl) titleEl.innerHTML = (p.company||'-') + ' <span style="background:#f1f5f9;color:#64748b;font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;text-transform:uppercase;letter-spacing:.04em">Rep: ' + (p.rep_name||'Teammate') + '</span>';
+
+  var logCallBtn = document.querySelector('[onclick="logCallForRecord()"]');
+  var outreachBtn = document.querySelector('[onclick="writeOutreachForRecord()"]');
+  if (logCallBtn) logCallBtn.style.display = 'none';
+  if (outreachBtn) outreachBtn.style.display = 'none';
+  window._teamViewActive = true;
+
+  var fieldsEl = document.getElementById('rec-fields');
+  if (fieldsEl) {
+    var fields = [
+      ['Contact Owner', p.rep_name||'Teammate'], ['Lead Source', p.source||'-'],
+      ['Contact Name', p.contact||'-'], ['Account Name', p.company||'-'],
+      ['Email', p.email ? '<a href="mailto:'+p.email+'">'+p.email+'</a>' : '-'], ['Phone', p.phone||'-'],
+      ['City', p.city||'-'], ['State', p.state||'GA'],
+      ['Status', '<span class="badge b-'+(p.status||'new').toLowerCase()+'">'+( p.status||'New')+'</span>'],
+      ['Created', p.created_at ? new Date(p.created_at).toLocaleDateString() : '-'],
+      ['Notes', p.notes ? '<span style="white-space:pre-wrap">'+p.notes+'</span>' : '-']
+    ];
+    fieldsEl.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0">' +
+      fields.map(function(f){ return '<div class="frow"><div class="flabel">'+f[0]+'</div><div class="fval">'+f[1]+'</div></div>'; }).join('') + '</div>';
+  }
+
+  var prodEl = document.getElementById('rec-prod-fields');
+  if (prodEl) {
+    prodEl.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0">' +
+      [['Products',p.products||'-'],['Territory',p.territory||'-'],['Priority',p.priority||'Medium'],['Source',p.source||'AI']]
+      .map(function(f){ return '<div class="frow"><div class="flabel">'+f[0]+'</div><div class="fval">'+f[1]+'</div></div>'; }).join('') + '</div>';
+  }
+
+  var timelineEl = document.getElementById('rec-timeline');
+  var callCntEl = document.getElementById('rec-call-count');
+  if (timelineEl) timelineEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">Loading...</div>';
+
+  fetch('/api/prospects/team-calls/' + prospectId)
+    .then(function(r){ return r.json(); })
+    .then(function(calls){
+      if (callCntEl) callCntEl.textContent = calls.length;
+      if (!timelineEl) return;
+      timelineEl.innerHTML = calls.length
+        ? calls.map(function(c){
+            return '<div class="tl-item"><div class="tl-ico"></div><div class="tl-body">' +
+              '<div class="tl-title">' + (c.call_type||'Call') + ' - ' + (c.outcome||'-') + '</div>' +
+              '<div class="tl-meta">' + (c.call_date||'-') + (c.products_discussed ? ' - ' + c.products_discussed : '') + '</div>' +
+              (c.notes ? '<div style="margin-top:4px;font-size:11.5px;color:var(--text2);font-style:italic">' + c.notes + '</div>' : '') +
+              (c.next_step ? '<div style="margin-top:5px;font-size:11px;color:var(--blue);font-weight:600">Next: ' + c.next_step + '</div>' : '') +
+              '</div></div>';
+          }).join('')
+        : '<div style="text-align:center;padding:24px;color:var(--text3)">No calls logged for this contact.</div>';
+    })
+    .catch(function(){
+      if (timelineEl) timelineEl.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text3)">Could not load history.</div>';
+    });
+
+  if (typeof setRecTab === 'function') setRecTab('overview', null);
+};
+</script>
 </body>
 </html>
