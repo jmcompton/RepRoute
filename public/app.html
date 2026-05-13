@@ -909,7 +909,7 @@ window.addEventListener('load', function() {
     <div id="contact-tab-team" class="list-wrap" style="display:none">
       <div style="padding:10px 16px 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap" id="team-rep-filters"></div>
       <table class="ltable">
-        <thead><tr><th></th><th>Company Name</th><th>Rep</th><th>Category</th><th>City</th><th>Phone</th><th>Products</th><th>Status</th><th>Notes / Last Call</th></tr></thead>
+        <thead><tr><th></th><th>Company Name</th><th>Rep</th><th>Category</th><th>City</th><th>Phone</th><th>Products</th><th>Status</th></tr></thead>
         <tbody id="team-prospects-tbody"></tbody>
       </table>
       <div class="empty-state" id="team-p-empty" style="display:none">
@@ -2063,19 +2063,11 @@ window.addEventListener('load', function() {
       loadProspects();
       loadCalls();
       loadMyOnboarding();
-      // Restore route stops from localStorage on page load
-      if (typeof _renderRoutePanel === 'function' && window._routeStops && window._routeStops.length > 0) {
-        _renderRoutePanel();
-      }
     })
     .catch(function() {
       loadDashboard();
       loadProspects();
       loadCalls();
-      // Restore route stops from localStorage on page load
-      if (typeof _renderRoutePanel === 'function' && window._routeStops && window._routeStops.length > 0) {
-        _renderRoutePanel();
-      }
     });
 });
 
@@ -2093,12 +2085,11 @@ function goLogCall(prospectId) {
 }
 
 function go(id) {
-  // Restore action buttons if leaving a team-view record
   if (window._teamViewActive && id !== 'record') {
-    var logCallBtn = document.querySelector('[onclick="logCallForRecord()"]');
-    var outreachBtn = document.querySelector('[onclick="writeOutreachForRecord()"]');
-    if (logCallBtn) logCallBtn.style.display = '';
-    if (outreachBtn) outreachBtn.style.display = '';
+    var _lb = document.querySelector('[onclick="logCallForRecord()"]');
+    var _ob = document.querySelector('[onclick="writeOutreachForRecord()"]');
+    if (_lb) _lb.style.display = '';
+    if (_ob) _ob.style.display = '';
     window._teamViewActive = false;
   }
   document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
@@ -4757,7 +4748,7 @@ window.leadLogAndAdd = function(i, e) {
   var contactTitle = document.getElementById('lead-contact-title-' + i)?.value || '';
   var nextStep = document.getElementById('lead-ns-' + i)?.value || '';
   var nextDate = document.getElementById('lead-nd-' + i)?.value || '';
-  var notes = document.getElementById('lead-notes-' + i)?.value || '';
+  var notes = (document.getElementById('lead-notes-' + i) || {}).value || '';
   var outcome = window._leadSelected[i] || '';
 
   // First create the prospect in CRM
@@ -4812,7 +4803,7 @@ window.leadLogAndAdd = function(i, e) {
 };
 
 
-window._routeStops = (function(){ try { var s=localStorage.getItem("rr_route_stops"); return s ? JSON.parse(s) : []; } catch(e){ return []; } })();
+window._routeStops = [];
 
 window.buildRoutePanel = function(leads) {
   // Called after lead search — does NOT auto-populate route.
@@ -4882,7 +4873,6 @@ window.addToRoute = function(idx, evt) {
   if (stops.some(function(s){ return s.company === lead.company; })) { showToast('Already in route'); return; }
   stops.push(lead);
   window._routeStops = stops;
-  try { localStorage.setItem("rr_route_stops", JSON.stringify(stops)); } catch(e){}
   _renderRoutePanel();
   var btn = document.getElementById('route-btn-' + idx);
   if (btn) { btn.textContent = '✓'; btn.style.background = '#d1fae5'; btn.style.color = '#065f46'; btn.style.borderColor = '#6ee7b7'; btn.disabled = true; }
@@ -4893,13 +4883,11 @@ window._removeStop = function(idx) {
   var stops = window._routeStops || [];
   stops.splice(idx, 1);
   window._routeStops = stops;
-  try { localStorage.setItem("rr_route_stops", JSON.stringify(stops)); } catch(e){}
   _renderRoutePanel();
 };
 
 window._clearRoute = function() {
   window._routeStops = [];
-  try { localStorage.removeItem("rr_route_stops"); } catch(e){}
   document.querySelectorAll('[id^="route-btn-"]').forEach(function(b) {
     b.textContent = '+ Route'; b.style.background = ''; b.style.color = ''; b.style.borderColor = ''; b.disabled = false;
   });
@@ -5215,8 +5203,8 @@ window.runDailyLeads = function() {
               '<input id="lead-nd-' + i + '" type="date" style="min-width:150px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit">' +
             '</div>' +
             '<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Notes</div>' +
-            '<div style="margin-bottom:14px">' +
-              '<textarea id="lead-notes-' + i + '" placeholder="Add notes about this visit (will save to contact record)" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;resize:vertical;min-height:68px"></textarea>' +
+            '<div style="margin-bottom:12px">' +
+              '<textarea id="lead-notes-' + i + '" placeholder="Visit notes (saved to contact record)" rows="3" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;resize:vertical"></textarea>' +
             '</div>' +
             '<button onclick="leadLogAndAdd(' + i + ',event)" style="padding:7px 18px;background:var(--navy);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Save to Contacts</button>' +
           '</div>' +
@@ -5382,237 +5370,21 @@ function renderTeamContacts(rows, search) {
     var statusColors = { Hot:'#ef4444', Warm:'#f59e0b', Cold:'#94a3b8', Active:'#10b981', New:'#3b82f6' };
     var sc = statusColors[r.status] || '#94a3b8';
     var statusBadge = '<span style="background:' + sc + '22;color:' + sc + ';font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px">' + (r.status||'New') + '</span>';
-    var notesSnippet = r.notes ? (r.notes.length > 45 ? r.notes.substring(0,45) + '...' : r.notes) : '';
-    var outcomeTag = r.last_call_outcome ? '<div style="margin-top:3px"><span style="font-size:10px;font-weight:600;padding:1px 7px;border-radius:10px;background:rgba(100,116,139,0.12);color:var(--text3)">' + r.last_call_outcome + '</span></div>' : '';
-    var notesCell = (notesSnippet || outcomeTag) ? '<div style="font-size:11px;color:var(--text2)">' + (notesSnippet||'') + '</div>' + outcomeTag : '<span style="color:var(--text3)">—</span>';
-    var safeId = JSON.stringify(r.id || '');
-    return '<tr style="cursor:pointer" onclick="viewTeamRecord(' + safeId + ')" title="Click to view full details">' +
+    var safeId = parseInt(r.id) || 0;
+    return '<tr style="cursor:pointer" onclick="viewTeamRecord(' + safeId + ')" title="View contact"' +
       '<td></td>' +
       '<td><span style="font-weight:600;color:var(--navy)">' + (r.company||'') + '</span>' +
         (r.address ? '<div style="font-size:11px;color:var(--text3);margin-top:2px">' + r.address + '</div>' : '') + '</td>' +
       '<td>' + repBadge + '</td>' +
       '<td><span class="pill-cat">' + (r.category||'—') + '</span></td>' +
       '<td>' + (r.city||'—') + '</td>' +
-      '<td>' + (r.phone ? '<a href="tel:' + r.phone + '" onclick="event.stopPropagation()" style="color:var(--accent);font-size:12px;font-weight:600;text-decoration:none">' + r.phone + '</a>' : '—') + '</td>' +
+      '<td>' + (r.phone ? '<a href="tel:' + r.phone + '" style="color:var(--accent);font-size:12px;font-weight:600;text-decoration:none">' + r.phone + '</a>' : '—') + '</td>' +
       '<td style="font-size:11.5px">' + (r.products||'—') + '</td>' +
       '<td>' + statusBadge + '</td>' +
-      '<td style="max-width:180px">' + notesCell + '</td>' +
     '</tr>';
   }).join('');
 }
 
-
-
-// ── Team Contact Detail Modal ─────────────────────────────────────────────────
-window.openTeamContactDetail = function(prospectId) {
-  // Find the record in cache
-  var rows = window._teamContactsCache || [];
-  var r = rows.find(function(x){ return String(x.id) === String(prospectId); });
-  if (!r) { showToast('Contact not found'); return; }
-
-  // Nuke any broken prior modal so it gets rebuilt clean
-  var existing = document.getElementById('teamContactModal');
-  if (existing) { existing.remove(); }
-
-  // Show a quick loading state via a fresh modal shell
-  var loadingModal = document.createElement('div');
-  loadingModal.id = 'teamContactModal';
-  loadingModal.style.cssText = 'display:flex;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.45);align-items:center;justify-content:center;padding:20px';
-  loadingModal.innerHTML = '<div style="background:#fff;border-radius:14px;padding:32px 24px;text-align:center;color:#64748b;font-family:Inter,sans-serif;font-size:13px">Loading contact details...</div>';
-  document.body.appendChild(loadingModal);
-  loadingModal.addEventListener('click', function(e){ if(e.target===loadingModal) loadingModal.style.display='none'; });
-
-  // Fetch the latest calls for this prospect from the team calls endpoint
-  fetch('/api/prospects/team-calls/' + prospectId)
-    .then(function(res){ return res.json(); })
-    .then(function(calls){ renderTeamContactModal(r, calls || []); })
-    .catch(function(){ renderTeamContactModal(r, []); });
-};
-
-// ── View a teammate's contact in the full Contact Detail page ─────────────────
-window.viewTeamRecord = function(prospectId) {
-  // Find the record from team contacts cache
-  var rows = window._teamContactsCache || [];
-  var p = rows.find(function(x){ return String(x.id) === String(prospectId); });
-  if (!p) { showToast('Contact not found'); return; }
-
-  // Navigate to the record page
-  currentRecord = p;
-  go('record');
-
-  var initials = (p.company||'?').split(' ').map(function(w){ return w[0]||''; }).join('').toUpperCase().slice(0,2);
-  document.getElementById('rec-avatar').textContent = initials;
-  document.getElementById('rec-title').textContent = p.company || '—';
-  document.getElementById('rec-subtitle').textContent = p.category || '';
-  document.getElementById('rec-last-update').textContent = 'Last Update: ' + (p.created_at ? new Date(p.created_at).toLocaleDateString() : '—');
-  document.getElementById('rq-email').innerHTML = p.email ? '<a href="mailto:' + p.email + '">' + p.email + '</a>' : '—';
-  document.getElementById('rq-phone').textContent = p.phone || '—';
-  document.getElementById('rq-status').innerHTML = '<span class="badge b-' + (p.status||'new').toLowerCase() + '">' + (p.status||'New') + '</span>';
-
-  // Mark as READ-ONLY (team member's contact — no edit)
-  var readOnlyBadge = '<span style="background:#f1f5f9;color:#64748b;font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;margin-left:8px;text-transform:uppercase;letter-spacing:.04em">Rep: ' + (p.rep_name||'Teammate') + '</span>';
-  var titleEl = document.getElementById('rec-title');
-  if (titleEl) titleEl.innerHTML = (p.company||'—') + readOnlyBadge;
-
-  // Hide action buttons that shouldn't apply to a team member's contact
-  var logCallBtn = document.querySelector('[onclick="logCallForRecord()"]');
-  var outreachBtn = document.querySelector('[onclick="writeOutreachForRecord()"]');
-  var editBtn = document.querySelector('[onclick="openEditContact && openEditContact()"]');
-  if (logCallBtn) logCallBtn.style.display = 'none';
-  if (outreachBtn) outreachBtn.style.display = 'none';
-
-  var fields = [
-    ['Contact Owner', p.rep_name||'Teammate'], ['Lead Source', p.source||'—'],
-    ['Contact Name',  p.contact||'—'],          ['Account Name', p.company||'—'],
-    ['Email',  p.email  ? '<a href="mailto:'+p.email+'">'+p.email+'</a>' : '—'], ['Phone', p.phone||'—'],
-    ['City',   p.city||'—'],                    ['State', p.state||'GA'],
-    ['Status', '<span class="badge b-'+(p.status||'new').toLowerCase()+'">'+( p.status||'New')+'</span>'],
-    ['Created', p.created_at ? new Date(p.created_at).toLocaleDateString() : '—'],
-    ['Created By', p.rep_name||'Teammate'],     ['Notes', p.notes||'—']
-  ];
-  document.getElementById('rec-fields').innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0">' +
-    fields.map(function(f){ return '<div class="frow"><div class="flabel">'+f[0]+'</div><div class="fval'+(f[1]==='—'?' empty':'')+'">'+f[1]+'</div></div>'; }).join('') + '</div>';
-
-  var pf = [
-    ['Products', p.products||'—'],      ['Territory', p.territory||'—'],
-    ['Priority', p.priority||'Medium'], ['Source', p.source||'AI']
-  ];
-  document.getElementById('rec-prod-fields').innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0">' +
-    pf.map(function(f){ return '<div class="frow"><div class="flabel">'+f[0]+'</div><div class="fval'+(f[1]==='—'?' empty':'')+'">'+f[1]+'</div></div>'; }).join('') + '</div>';
-
-  // Address block if present
-  if (p.address) {
-    var recFieldsEl = document.getElementById('rec-fields');
-    if (recFieldsEl) {
-      var addrDiv = document.createElement('div');
-      addrDiv.style.cssText = 'padding:8px 16px;border-bottom:1px solid var(--border);grid-column:1/-1;background:#f8fafc;border-radius:0 0 var(--r) var(--r)';
-      var isApple = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent);
-      var mapsUrl = (isApple ? 'https://maps.apple.com/?q=' : 'https://maps.google.com/?q=') + encodeURIComponent(p.address + ' ' + (p.city||'') + ' ' + (p.state||''));
-      addrDiv.innerHTML = '<div class="flabel">Address</div><div class="fval"><a href="' + mapsUrl + '" target="_blank" style="color:var(--accent)">' + p.address + (p.city ? ', ' + p.city : '') + (p.state ? ' ' + p.state : '') + '</a></div>';
-      recFieldsEl.parentElement.appendChild(addrDiv);
-    }
-  }
-
-  // Load call history from team-calls endpoint
-  fetch('/api/prospects/team-calls/' + prospectId)
-    .then(function(r){ return r.json(); })
-    .then(function(calls){
-      document.getElementById('rec-call-count').textContent = calls.length;
-      document.getElementById('rec-timeline').innerHTML = calls.length ?
-        calls.map(function(c){
-          return '<div class="tl-item">' +
-            '<div class="tl-ico"></div>' +
-            '<div class="tl-body">' +
-              '<div class="tl-title">' + (c.call_type||'Call') + ' — ' + (c.outcome||'—') + '</div>' +
-              '<div class="tl-meta">' + (c.call_date||'—') + (c.products_discussed ? ' · Products: ' + c.products_discussed : '') + '</div>' +
-              (c.notes ? '<div class="tl-note">' + c.notes + '</div>' : '') +
-              (c.next_step ? '<div style="margin-top:5px;font-size:11px;color:var(--blue);font-weight:600">→ Next: ' + c.next_step + (c.next_step_date ? ' (' + c.next_step_date + ')' : '') + '</div>' : '') +
-            '</div></div>';
-        }).join('') :
-        '<div style="text-align:center;padding:24px;color:var(--text3)">No call activity logged yet for this contact.</div>';
-    })
-    .catch(function(){ document.getElementById('rec-timeline').innerHTML = '<div style="text-align:center;padding:24px;color:var(--text3)">Could not load call history.</div>'; });
-
-  setRecTab('overview', null);
-  // Re-show buttons when leaving (they'll be restored when next viewRecord is called)
-  window._teamViewActive = true;
-};
-
-
-window.renderTeamContactModal = function(r, calls) {
-  var statusColors = { Hot:'#ef4444', Warm:'#f59e0b', Cold:'#94a3b8', Active:'#10b981', New:'#3b82f6' };
-  var sc = statusColors[r.status] || '#94a3b8';
-
-  var callRows = '';
-  if (calls.length) {
-    callRows = calls.map(function(c) {
-      var outcomeColors = { 'Interested':'#10b981','Ready to Buy':'#10b981','Not Interested':'#ef4444','No Answer':'#94a3b8','Left Voicemail':'#f59e0b','Callback Requested':'#3b82f6' };
-      var oc = outcomeColors[c.outcome] || '#94a3b8';
-      return '<div style="padding:10px 12px;background:var(--white);border-radius:8px;border:1px solid #e2e8f0;margin-bottom:8px">' +
-        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
-          '<span style="font-size:11px;font-weight:700;color:#1a2332">' + (c.call_date||'') + (c.call_type ? ' &mdash; ' + c.call_type : '') + '</span>' +
-          (c.outcome ? '<span style="font-size:10px;font-weight:700;padding:2px 9px;border-radius:20px;background:' + oc + '22;color:' + oc + '">' + c.outcome + '</span>' : '') +
-        '</div>' +
-        (c.products_discussed ? '<div style="font-size:11px;color:#475569;margin-bottom:4px">Products: ' + c.products_discussed + '</div>' : '') +
-        (c.notes ? '<div style="font-size:12px;color:#1a2332;line-height:1.5">' + c.notes + '</div>' : '') +
-        (c.next_step ? '<div style="margin-top:6px;font-size:11px;color:#3b82f6;font-weight:600">Next step: ' + c.next_step + (c.next_step_date ? ' (' + c.next_step_date + ')' : '') + '</div>' : '') +
-      '</div>';
-    }).join('');
-  } else {
-    callRows = '<div style="color:#94a3b8;font-size:12px;padding:10px 0">No call history on record</div>';
-  }
-
-  var html = '<div style="font-family:Inter,sans-serif">' +
-    '<div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">' +
-      '<div style="width:44px;height:44px;border-radius:50%;background:#1a233215;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#1a2332;flex-shrink:0">' +
-        (r.company||'?').substring(0,2).toUpperCase() +
-      '</div>' +
-      '<div>' +
-        '<div style="font-size:16px;font-weight:700;color:#1a2332">' + (r.company||'') + '</div>' +
-        '<div style="font-size:12px;color:#64748b">' + (r.category||'') + (r.city ? ' &mdash; ' + r.city + (r.state ? ', '+r.state : '') : '') + '</div>' +
-      '</div>' +
-      '<span style="margin-left:auto;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:' + (statusColors[r.status]||'#94a3b8') + '22;color:' + (statusColors[r.status]||'#94a3b8') + '">' + (r.status||'New') + '</span>' +
-    '</div>' +
-
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">' +
-      (r.phone ? '<div style="background:#f8fafc;border-radius:8px;padding:10px 12px"><div style="font-size:10px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Phone</div><a href="tel:' + r.phone + '" style="font-size:13px;font-weight:600;color:#0ea5e9;text-decoration:none">' + r.phone + '</a></div>' : '') +
-      (r.contact ? '<div style="background:#f8fafc;border-radius:8px;padding:10px 12px"><div style="font-size:10px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Contact Person</div><div style="font-size:13px;font-weight:600;color:#1a2332">' + r.contact + '</div></div>' : '') +
-      (r.address ? '<div style="background:#f8fafc;border-radius:8px;padding:10px 12px;grid-column:span 2"><div style="font-size:10px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Address</div>' +
-        '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">' +
-          '<div style="font-size:13px;color:#1a2332">' + r.address + (r.city ? ', ' + r.city : '') + (r.state ? ' ' + r.state : '') + '</div>' +
-          '<a href="' + (/iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent) ? 'https://maps.apple.com/?q=' : 'https://maps.google.com/?q=') + encodeURIComponent((r.address||'') + ' ' + (r.city||'') + ' ' + (r.state||'')) + '" target="_blank" onclick="event.stopPropagation()" style="flex-shrink:0;font-size:11px;font-weight:700;padding:4px 10px;border-radius:8px;background:#1a233215;color:#1a2332;text-decoration:none;white-space:nowrap">&#x1F4CD; Maps</a>' +
-        '</div>' +
-      '</div>' : (!r.city ? '' : '<div style="background:#f8fafc;border-radius:8px;padding:10px 12px;grid-column:span 2"><div style="font-size:10px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Location</div><div style="font-size:13px;color:#1a2332">' + (r.city||'') + (r.state ? ', ' + r.state : '') + '</div></div>')) +
-      (r.website ? '<div style="background:#f8fafc;border-radius:8px;padding:10px 12px"><div style="font-size:10px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Website</div><a href="' + (r.website.startsWith('http') ? r.website : 'https://'+r.website) + '" target="_blank" onclick="event.stopPropagation()" style="font-size:12px;color:#0ea5e9;text-decoration:none">' + r.website + '</a></div>' : '') +
-      (r.email ? '<div style="background:#f8fafc;border-radius:8px;padding:10px 12px"><div style="font-size:10px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Email</div><a href="mailto:' + r.email + '" onclick="event.stopPropagation()" style="font-size:12px;color:#0ea5e9;text-decoration:none">' + r.email + '</a></div>' : '') +
-      (r.products ? '<div style="background:#f8fafc;border-radius:8px;padding:10px 12px;grid-column:span 2"><div style="font-size:10px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Products of Interest</div><div style="font-size:12px;color:#1a2332">' + r.products + '</div></div>' : '') +
-    '</div>' +
-
-    (r.notes ? '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px;margin-bottom:16px"><div style="font-size:10px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Prospect Notes</div><div style="font-size:12px;color:#1a2332;line-height:1.6">' + r.notes + '</div></div>' : '') +
-
-    '<div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Call History &mdash; ' + (r.rep_name||'This rep') + '</div>' +
-    callRows +
-  '</div>';
-
-  var modal = document.getElementById('teamContactModal');
-  if (!modal) {
-    modal = document.createElement('div');
-    modal.id = 'teamContactModal';
-    modal.style.cssText = 'display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.45);align-items:center;justify-content:center;padding:20px';
-    var inner = document.createElement('div');
-    inner.style.cssText = 'background:#fff;border-radius:14px;width:100%;max-width:560px;max-height:85vh;overflow-y:auto;padding:24px;position:relative;box-shadow:0 24px 80px rgba(0,0,0,0.2)';
-    var closeBtn = document.createElement('button');
-    closeBtn.textContent = 'Close';
-    closeBtn.style.cssText = 'position:absolute;top:14px;right:14px;background:#f1f5f9;border:none;border-radius:8px;color:#475569;font-size:12px;font-weight:700;padding:5px 12px;cursor:pointer';
-    closeBtn.addEventListener('click', function(){ modal.style.display='none'; });
-    var body = document.createElement('div');
-    body.id = 'teamContactModalBody';
-    inner.appendChild(closeBtn);
-    inner.appendChild(body);
-    modal.appendChild(inner);
-    document.body.appendChild(modal);
-    modal.addEventListener('click', function(e){ if(e.target===modal) modal.style.display='none'; });
-  }
-  var modalBody = document.getElementById('teamContactModalBody');
-  if (!modalBody) {
-    console.error('teamContactModalBody not found — modal may not have been created');
-    return;
-  }
-  modalBody.innerHTML = html;
-  modal.style.display = 'flex';
-};
-
-window.cleanDuplicates = function() {
-  if (!confirm('This will remove duplicate contacts for your account, keeping the oldest record for each company. Continue?')) return;
-  fetch('/api/ai/leads/dedupe', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-      if (d.error) { showToast('Error: ' + d.error); return; }
-      showToast(d.removed > 0 ? 'Removed ' + d.removed + ' duplicate contacts' : 'No duplicates found - all clean!');
-      if (d.removed > 0) { loadProspects(); if (typeof loadTeamContacts === 'function') loadTeamContacts(); }
-    })
-    .catch(function() { showToast('Error cleaning duplicates'); });
-};
 
 window.wipeMyData = function() {
   if (!confirm('This will permanently delete ALL your contacts, calls, and activity. This cannot be undone.\n\nAre you sure?')) return;
@@ -5880,179 +5652,6 @@ fetch('/api/notifications/evaluate', { method: 'POST' }).then(function(r){ retur
 .mm-item span { flex: 1; font-weight: 500; }
 .mm-item:active { background: #f1f5f9; }
 .mm-item:last-child { border-bottom: none; }
-
-/* ═══════════════════════════════════════════════════════════
-   RepRoute Mobile Fixes — DO NOT TOUCH DESKTOP LAYOUT
-   ═══════════════════════════════════════════════════════════ */
-@media (max-width: 768px) {
-
-  /* ── Main layout ── */
-  .main-content,
-  .main,
-  .page-content {
-    padding: 12px !important;
-    box-sizing: border-box !important;
-    width: 100% !important;
-    max-width: 100vw !important;
-    overflow-x: hidden !important;
-  }
-
-  /* ── Inline grids → single column ── */
-  [style*="display:grid"],
-  [style*="display: grid"] {
-    display: flex !important;
-    flex-direction: column !important;
-    width: 100% !important;
-    box-sizing: border-box !important;
-  }
-
-  /* Allow intentional 2-col small grids (badges, mini stats) */
-  [style*="grid-template-columns:1fr 1fr"][style*="gap:8px"],
-  [style*="grid-template-columns:repeat(2,1fr)"][style*="gap:8px"] {
-    display: grid !important;
-    flex-direction: unset !important;
-    grid-template-columns: 1fr 1fr !important;
-  }
-
-  /* ── Contact/Prospect cards ── */
-  .prospect-card,
-  .contact-card,
-  .lead-card,
-  [class*="card"] {
-    width: 100% !important;
-    max-width: 100% !important;
-    box-sizing: border-box !important;
-  }
-
-  /* ── Tables: horizontal scroll ── */
-  table {
-    display: block !important;
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-    width: 100% !important;
-    font-size: 12px !important;
-  }
-  th, td {
-    white-space: nowrap !important;
-    padding: 8px 10px !important;
-  }
-
-  /* ── Lead finder section ── */
-  #lead-finder-section,
-  [id*="lead"] {
-    width: 100% !important;
-    box-sizing: border-box !important;
-  }
-
-  /* ── Lead result cards ── */
-  .lead-result,
-  [id*="leads-list"] > div,
-  [id*="leadsList"] > div {
-    padding: 12px !important;
-    font-size: 13px !important;
-  }
-
-  /* ── Route panel ── */
-  #route-panel,
-  [id*="route"] {
-    width: 100% !important;
-    box-sizing: border-box !important;
-  }
-
-  /* ── Brand/Segment selector ── */
-  .brand-selector,
-  .segment-selector,
-  [id*="brand-select"],
-  [id*="segment"] {
-    flex-wrap: wrap !important;
-    gap: 8px !important;
-  }
-
-  /* ── Search/filter inputs ── */
-  input[type="text"],
-  input[type="search"],
-  select,
-  textarea {
-    width: 100% !important;
-    box-sizing: border-box !important;
-    font-size: 16px !important; /* prevent iOS zoom */
-  }
-
-  /* ── Buttons: comfortable touch targets ── */
-  button {
-    min-height: 40px !important;
-    touch-action: manipulation !important;
-  }
-
-  /* ── Generate leads button ── */
-  [id*="generate"],
-  [id*="search-btn"],
-  [onclick*="generateLeads"],
-  [onclick*="searchLeads"] {
-    width: 100% !important;
-    padding: 13px !important;
-  }
-
-  /* ── Team contacts table ── */
-  #team-prospects-tbody tr td:nth-child(8),
-  #team-prospects-tbody tr td:nth-child(9) {
-    display: none !important; /* hide less critical columns on mobile */
-  }
-  thead tr th:nth-child(8),
-  thead tr th:nth-child(9) {
-    display: none !important;
-  }
-
-  /* ── Topbar / nav ── */
-  .topbar {
-    padding: 0 12px !important;
-  }
-
-  /* ── Modals: full screen on mobile ── */
-  .modal-content,
-  [id*="modal"] > div:first-child {
-    width: calc(100vw - 24px) !important;
-    max-width: calc(100vw - 24px) !important;
-    margin: 12px !important;
-    max-height: 88vh !important;
-    overflow-y: auto !important;
-    border-radius: 12px !important;
-  }
-
-  /* ── Bottom nav: larger touch targets ── */
-  .bottom-nav a,
-  .bottom-nav button {
-    flex: 1 !important;
-    padding: 10px 4px !important;
-    font-size: 10px !important;
-    min-height: 52px !important;
-  }
-
-  /* ── Team contact modal ── */
-  #teamContactModal > div {
-    width: calc(100vw - 24px) !important;
-    max-width: calc(100vw - 24px) !important;
-    padding: 16px !important;
-  }
-
-  /* ── Page headers ── */
-  h1, h2, .page-title { font-size: 20px !important; }
-  h3, .section-title { font-size: 15px !important; }
-  p, .body-text { font-size: 13px !important; }
-
-  /* ── Pill/tag badges: allow wrap ── */
-  .pill-cat, [class*="badge"], [class*="chip"] {
-    white-space: normal !important;
-    word-break: break-word !important;
-  }
-}
-
-/* ── Extra small phones ── */
-@media (max-width: 390px) {
-  .main-content, .main, .page-content { padding: 8px !important; }
-  h1, .page-title { font-size: 18px !important; }
-  table { font-size: 11px !important; }
-}
 </style>
 
 
@@ -6145,6 +5744,79 @@ window.logout = window.logout || function() {
 };
 </script>
 
+<script>
+window.viewTeamRecord = function(prospectId) {
+  var rows = window._teamContactsCache || [];
+  var p = rows.find(function(x){ return String(x.id) === String(prospectId); });
+  if (!p) { if (typeof showToast === 'function') showToast('Contact not found'); return; }
+
+  currentRecord = p;
+  go('record');
+
+  var initials = (p.company||'?').split(' ').map(function(w){ return w[0]||''; }).join('').toUpperCase().slice(0,2);
+  if (document.getElementById('rec-avatar')) document.getElementById('rec-avatar').textContent = initials;
+  if (document.getElementById('rec-subtitle')) document.getElementById('rec-subtitle').textContent = p.category || '';
+  if (document.getElementById('rec-last-update')) document.getElementById('rec-last-update').textContent = 'Last Update: ' + (p.created_at ? new Date(p.created_at).toLocaleDateString() : '-');
+  if (document.getElementById('rq-email')) document.getElementById('rq-email').innerHTML = p.email ? '<a href="mailto:' + p.email + '">' + p.email + '</a>' : '-';
+  if (document.getElementById('rq-phone')) document.getElementById('rq-phone').textContent = p.phone || '-';
+  if (document.getElementById('rq-status')) document.getElementById('rq-status').innerHTML = '<span class="badge b-' + (p.status||'new').toLowerCase() + '">' + (p.status||'New') + '</span>';
+  var titleEl = document.getElementById('rec-title');
+  if (titleEl) titleEl.innerHTML = (p.company||'-') + ' <span style="background:#f1f5f9;color:#64748b;font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;text-transform:uppercase;letter-spacing:.04em">Rep: ' + (p.rep_name||'Teammate') + '</span>';
+
+  var logCallBtn = document.querySelector('[onclick="logCallForRecord()"]');
+  var outreachBtn = document.querySelector('[onclick="writeOutreachForRecord()"]');
+  if (logCallBtn) logCallBtn.style.display = 'none';
+  if (outreachBtn) outreachBtn.style.display = 'none';
+  window._teamViewActive = true;
+
+  var fieldsEl = document.getElementById('rec-fields');
+  if (fieldsEl) {
+    var fields = [
+      ['Contact Owner', p.rep_name||'Teammate'], ['Lead Source', p.source||'-'],
+      ['Contact Name', p.contact||'-'], ['Account Name', p.company||'-'],
+      ['Email', p.email ? '<a href="mailto:'+p.email+'">'+p.email+'</a>' : '-'], ['Phone', p.phone||'-'],
+      ['City', p.city||'-'], ['State', p.state||'GA'],
+      ['Status', '<span class="badge b-'+(p.status||'new').toLowerCase()+'">'+( p.status||'New')+'</span>'],
+      ['Created', p.created_at ? new Date(p.created_at).toLocaleDateString() : '-'],
+      ['Notes', p.notes ? '<span style="white-space:pre-wrap">'+p.notes+'</span>' : '-']
+    ];
+    fieldsEl.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0">' +
+      fields.map(function(f){ return '<div class="frow"><div class="flabel">'+f[0]+'</div><div class="fval">'+f[1]+'</div></div>'; }).join('') + '</div>';
+  }
+
+  var prodEl = document.getElementById('rec-prod-fields');
+  if (prodEl) {
+    prodEl.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0">' +
+      [['Products',p.products||'-'],['Territory',p.territory||'-'],['Priority',p.priority||'Medium'],['Source',p.source||'AI']]
+      .map(function(f){ return '<div class="frow"><div class="flabel">'+f[0]+'</div><div class="fval">'+f[1]+'</div></div>'; }).join('') + '</div>';
+  }
+
+  var timelineEl = document.getElementById('rec-timeline');
+  var callCntEl = document.getElementById('rec-call-count');
+  if (timelineEl) timelineEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3)">Loading...</div>';
+
+  fetch('/api/prospects/team-calls/' + prospectId)
+    .then(function(r){ return r.json(); })
+    .then(function(calls){
+      if (callCntEl) callCntEl.textContent = calls.length;
+      if (!timelineEl) return;
+      timelineEl.innerHTML = calls.length
+        ? calls.map(function(c){
+            return '<div class="tl-item"><div class="tl-ico"></div><div class="tl-body">' +
+              '<div class="tl-title">' + (c.call_type||'Call') + ' - ' + (c.outcome||'-') + '</div>' +
+              '<div class="tl-meta">' + (c.call_date||'-') + (c.products_discussed ? ' - ' + c.products_discussed : '') + '</div>' +
+              (c.notes ? '<div style="margin-top:4px;font-size:11.5px;color:var(--text2);font-style:italic">' + c.notes + '</div>' : '') +
+              (c.next_step ? '<div style="margin-top:5px;font-size:11px;color:var(--blue);font-weight:600">Next: ' + c.next_step + '</div>' : '') +
+              '</div></div>';
+          }).join('')
+        : '<div style="text-align:center;padding:24px;color:var(--text3)">No calls logged for this contact.</div>';
+    })
+    .catch(function(){
+      if (timelineEl) timelineEl.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text3)">Could not load history.</div>';
+    });
+
+  if (typeof setRecTab === 'function') setRecTab('overview', null);
+};
+</script>
 </body>
 </html>
-
