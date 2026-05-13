@@ -8,8 +8,11 @@ const router = express.Router();
 router.get('/team', async (req, res) => {
   const uid = req.session.user.id;
   try {
+    // Use DISTINCT ON to deduplicate: keep the oldest record per (user_id, normalized company name + city)
+    // Also pull the latest call outcome/notes via LATERAL join
     const result = await pool.query(
-      `SELECT p.*,
+      `SELECT DISTINCT ON (p.user_id, LOWER(REGEXP_REPLACE(p.company,'[^a-zA-Z0-9]','','g')), LOWER(COALESCE(p.city,'')))
+              p.*,
               COALESCE(NULLIF(TRIM(u.name),''), u.email) as rep_name,
               lc.outcome as last_call_outcome,
               lc.notes as last_call_notes,
@@ -24,10 +27,21 @@ router.get('/team', async (req, res) => {
          LIMIT 1
        ) lc ON true
        WHERE p.user_id != $1
-       ORDER BY COALESCE(NULLIF(TRIM(u.name),''), u.email) ASC, p.company ASC`,
+       ORDER BY p.user_id,
+                LOWER(REGEXP_REPLACE(p.company,'[^a-zA-Z0-9]','','g')),
+                LOWER(COALESCE(p.city,'')),
+                p.id ASC`,
       [uid]
     );
-    res.json(result.rows);
+    // Re-sort after dedup: by rep name then company name
+    const sorted = result.rows.sort((a, b) => {
+      const ra = (a.rep_name||'').toLowerCase();
+      const rb = (b.rep_name||'').toLowerCase();
+      if (ra < rb) return -1;
+      if (ra > rb) return 1;
+      return (a.company||'').toLowerCase().localeCompare((b.company||'').toLowerCase());
+    });
+    res.json(sorted);
   } catch(e) {
     console.error('team contacts error:', e.message);
     res.status(500).json({ error: e.message });
