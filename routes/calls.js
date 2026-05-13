@@ -21,8 +21,24 @@ router.post('/', async (req, res) => {
   );
   // Update prospect status if outcome provided
   if (outcome) {
-    const status = outcome === 'Not Interested' ? 'Cold' : outcome === 'Interested' ? 'Warm' : outcome === 'Ready to Buy' ? 'Hot' : null;
+    const statusMap = { 'Not Interested': 'Cold', 'Spoke - Not Interested': 'Cold', 'Interested': 'Warm', 'Spoke - Interested': 'Warm', 'Ready to Buy': 'Hot', 'Order Placed': 'Hot' };
+    const status = statusMap[outcome] || (outcome.includes('Not Interest') ? 'Cold' : outcome.includes('Interest') ? 'Warm' : null);
     if (status) await pool.query('UPDATE prospects SET status=$1 WHERE id=$2', [status, prospect_id]);
+  }
+  // If notes provided, append them to the prospect notes field so they show on contact detail
+  if (notes && notes.trim()) {
+    const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const callType = call_type || 'Call';
+    const noteEntry = '[' + today + ' — ' + callType + (outcome ? ' / ' + outcome : '') + ']: ' + notes.trim();
+    await pool.query(
+      `UPDATE prospects
+       SET notes = CASE
+         WHEN notes IS NULL OR notes = '' THEN $1
+         ELSE notes || E'\n' || $1
+       END
+       WHERE id=$2 AND user_id=$3`,
+      [noteEntry, prospect_id, uid]
+    );
   }
   res.json(result.rows[0]);
 });
