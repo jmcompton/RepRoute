@@ -5396,8 +5396,17 @@ window.openTeamContactDetail = function(prospectId) {
   var r = rows.find(function(x){ return String(x.id) === String(prospectId); });
   if (!r) { showToast('Contact not found'); return; }
 
-  var statusColors = { Hot:'#ef4444', Warm:'#f59e0b', Cold:'#94a3b8', Active:'#10b981', New:'#3b82f6' };
-  var sc = statusColors[r.status] || '#94a3b8';
+  // Nuke any broken prior modal so it gets rebuilt clean
+  var existing = document.getElementById('teamContactModal');
+  if (existing) { existing.remove(); }
+
+  // Show a quick loading state via a fresh modal shell
+  var loadingModal = document.createElement('div');
+  loadingModal.id = 'teamContactModal';
+  loadingModal.style.cssText = 'display:flex;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.45);align-items:center;justify-content:center;padding:20px';
+  loadingModal.innerHTML = '<div style="background:#fff;border-radius:14px;padding:32px 24px;text-align:center;color:#64748b;font-family:Inter,sans-serif;font-size:13px">Loading contact details...</div>';
+  document.body.appendChild(loadingModal);
+  loadingModal.addEventListener('click', function(e){ if(e.target===loadingModal) loadingModal.style.display='none'; });
 
   // Fetch the latest calls for this prospect from the team calls endpoint
   fetch('/api/prospects/team-calls/' + prospectId)
@@ -5466,14 +5475,26 @@ window.renderTeamContactModal = function(r, calls) {
     modal = document.createElement('div');
     modal.id = 'teamContactModal';
     modal.style.cssText = 'display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.45);align-items:center;justify-content:center;padding:20px';
-    modal.innerHTML = '<div style="background:#fff;border-radius:14px;width:100%;max-width:560px;max-height:85vh;overflow-y:auto;padding:24px;position:relative;box-shadow:0 24px 80px rgba(0,0,0,0.2)">' +
-      '<button onclick="document.getElementById('teamContactModal').style.display='none'" style="position:absolute;top:14px;right:14px;background:#f1f5f9;border:none;border-radius:8px;color:#475569;font-size:12px;font-weight:700;padding:5px 12px;cursor:pointer">Close</button>' +
-      '<div id="teamContactModalBody"></div>' +
-    '</div>';
+    var inner = document.createElement('div');
+    inner.style.cssText = 'background:#fff;border-radius:14px;width:100%;max-width:560px;max-height:85vh;overflow-y:auto;padding:24px;position:relative;box-shadow:0 24px 80px rgba(0,0,0,0.2)';
+    var closeBtn = document.createElement('button');
+    closeBtn.textContent = 'Close';
+    closeBtn.style.cssText = 'position:absolute;top:14px;right:14px;background:#f1f5f9;border:none;border-radius:8px;color:#475569;font-size:12px;font-weight:700;padding:5px 12px;cursor:pointer';
+    closeBtn.addEventListener('click', function(){ modal.style.display='none'; });
+    var body = document.createElement('div');
+    body.id = 'teamContactModalBody';
+    inner.appendChild(closeBtn);
+    inner.appendChild(body);
+    modal.appendChild(inner);
     document.body.appendChild(modal);
     modal.addEventListener('click', function(e){ if(e.target===modal) modal.style.display='none'; });
   }
-  document.getElementById('teamContactModalBody').innerHTML = html;
+  var modalBody = document.getElementById('teamContactModalBody');
+  if (!modalBody) {
+    console.error('teamContactModalBody not found — modal may not have been created');
+    return;
+  }
+  modalBody.innerHTML = html;
   modal.style.display = 'flex';
 };
 
