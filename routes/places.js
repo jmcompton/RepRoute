@@ -162,7 +162,7 @@ router.post('/places-leads', async (req, res) => {
               'X-Goog-Api-Key': PLACES_KEY,
               'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.businessStatus'
             },
-            { textQuery: query, maxResultCount: 20 }
+            { textQuery: query, maxResultCount: 20, rankPreference: 'RELEVANCE' }
           );
           return { label, places: data.places || [] };
         } catch(e) {
@@ -189,7 +189,7 @@ router.post('/places-leads', async (req, res) => {
             contact: null,
             products: product,
             why: 'This ' + label + ' ' + why,
-            priority: (place.rating >= 4.5 && place.userRatingCount > 20) ? 'High' : (place.rating >= 3.5) ? 'Medium' : 'Low',
+            priority: (place.rating >= 4.5 && place.userRatingCount > 50) ? 'High' : (place.rating >= 4.0 && place.userRatingCount > 10) ? 'Medium' : 'Low',
             rating: place.rating || null,
             reviews: place.userRatingCount || 0,
             address: place.formattedAddress || null
@@ -199,10 +199,16 @@ router.post('/places-leads', async (req, res) => {
       }
     }
 
-    const leads = Array.from(leadsMap.values());
-    console.log('Final:', leads.length, 'leads');
-    if (leads.length === 0) return res.json({ error: 'No results found. Try a different territory or product.' });
-    res.json({ leads, source: 'google' });
+    // Sort by quality: prioritize high-rating + high review count (biggest, most established businesses)
+    const leadsArr = Array.from(leadsMap.values()).sort((a, b) => {
+      // Score = rating * log(reviews+1) — rewards both high rating AND volume of reviews
+      const scoreA = (a.rating || 0) * Math.log1p(a.reviews || 0);
+      const scoreB = (b.rating || 0) * Math.log1p(b.reviews || 0);
+      return scoreB - scoreA;
+    });
+    console.log('Final (sorted by quality):', leadsArr.length, 'leads');
+    if (leadsArr.length === 0) return res.json({ error: 'No results found. Try a different territory or product.' });
+    res.json({ leads: leadsArr, source: 'google' });
   } catch(e) {
     console.error('Error:', e.message);
     res.json({ error: 'Search failed: ' + e.message });
