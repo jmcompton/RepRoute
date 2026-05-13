@@ -496,14 +496,23 @@ router.post('/daily-leads', async (req, res) => {
 // ─── LOG CALL ────────────────────────────────────────────────────────────────
 router.post('/log-call', async (req, res) => {
   const uid = req.session.user.id;
-  const { prospect_id, outcome, contact_name, next_step, next_step_date } = req.body;
+  const { prospect_id, outcome, contact_name, next_step, next_step_date, notes } = req.body;
   if (!prospect_id) return res.status(400).json({ error: 'prospect_id required' });
   try {
     const today = new Date().toISOString().split('T')[0];
     await pool.query(
-      'INSERT INTO calls (user_id, prospect_id, call_date, outcome, next_step, next_step_date) VALUES ($1,$2,$3,$4,$5,$6)',
-      [uid, prospect_id, today, outcome || '', next_step || '', next_step_date || null]
+      'INSERT INTO calls (user_id, prospect_id, call_date, call_type, outcome, next_step, next_step_date, notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
+      [uid, prospect_id, today, 'In-Person Visit', outcome || '', next_step || '', next_step_date || null, notes || null]
     );
+    // Sync notes to prospect record if provided
+    if (notes && notes.trim()) {
+      const todayFmt = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const noteEntry = '[' + todayFmt + ' — In-Person Visit' + (outcome ? ' / ' + outcome : '') + ']: ' + notes.trim();
+      await pool.query(
+        `UPDATE prospects SET notes = CASE WHEN notes IS NULL OR notes = '' THEN $1 ELSE notes || E'\n' || $1 END WHERE id=$2 AND user_id=$3`,
+        [noteEntry, prospect_id, uid]
+      );
+    }
     if (outcome && outcome.includes('Interested') && !outcome.includes('Not')) {
       await pool.query("UPDATE prospects SET status='Warm' WHERE id=$1", [prospect_id]);
     } else if (outcome === 'Ready to Order' || outcome === 'Ready to Buy') {
