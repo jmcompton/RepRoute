@@ -322,18 +322,91 @@ router.post('/leads/save', async (req, res) => {
   const uid = req.session.user.id;
   const { leads } = req.body;
   const saved = [];
+
+  // Helper: normalize phone for comparison
+  function normPhone(p) { return (p||'').replace(/[^0-9]/g,''); }
+  function normName(n) { return (n||'').toLowerCase().replace(/[^a-z0-9]/g,''); }
+
   for (const l of leads) {
     try {
+      // Multi-layer duplicate check before insert
+      const norm_name = normName(l.company);
+      const norm_phone = normPhone(l.phone);
+      const norm_place = l.place_id || null;
+
+      let isDup = false;
+
+      // Check by Google Place ID (most reliable)
+      if (norm_place) {
+        const r = await pool.query(
+          'SELECT id FROM prospects WHERE user_id=$1 AND google_place_id=$2 LIMIT 1',
+          [uid, norm_place]
+        );
+        if (r.rows.length > 0) { isDup = true; }
+      }
+
+      // Check by normalized company name in same city
+      if (!isDup && norm_name) {
+        const r = await pool.query(
+          "SELECT id FROM prospects WHERE user_id=$1 AND LOWER(REGEXP_REPLACE(company,'[^a-zA-Z0-9]','','g')) = $2 AND LOWER(city) = LOWER($3) LIMIT 1",
+          [uid, norm_name, l.city || '']
+        );
+        if (r.rows.length > 0) { isDup = true; }
+      }
+
+      // Check by phone number
+      if (!isDup && norm_phone && norm_phone.length >= 10) {
+        const r = await pool.query(
+          "SELECT id FROM prospects WHERE user_id=$1 AND REGEXP_REPLACE(phone,'[^0-9]','','g') = $2 LIMIT 1",
+          [uid, norm_phone]
+        );
+        if (r.rows.length > 0) { isDup = true; }
+      }
+
+      if (isDup) continue; // skip duplicate
+
       const result = await pool.query(
-        `INSERT INTO prospects (user_id, company, category, city, state, phone, contact, website, products, notes, priority, source)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'AI')
-         ON CONFLICT DO NOTHING RETURNING *`,
-        [uid, l.company, l.category, l.city, l.state || 'GA', l.phone, l.contact, l.website, l.products, l.notes || '', l.priority || 'Medium']
+        `INSERT INTO prospects (user_id, company, category, city, state, phone, contact, website, products, notes, priority, source, google_place_id, address)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'AI',$12,$13) RETURNING *`,
+        [uid, l.company, l.category, l.city, l.state || 'GA', l.phone, l.contact, l.website,
+         l.products, l.notes || '', l.priority || 'Medium', l.place_id || null, l.address || null]
       );
       if (result.rows[0]) saved.push(result.rows[0]);
-    } catch (e) {}
+    } catch (e) {
+      console.error('Save lead error:', e.message);
+    }
   }
   res.json({ saved: saved.length });
+});
+
+// POST /api/ai/leads/dedupe — merge/clean duplicate prospects for current user
+router.post('/leads/dedupe', async (req, res) => {
+  const uid = req.session.user.id;
+  try {
+    // Find all duplicates: same normalized company name + city, keep the oldest record
+    const dupes = await pool.query(
+      `WITH ranked AS (
+        SELECT id,
+               LOWER(REGEXP_REPLACE(company,'[^a-zA-Z0-9]','','g')) as norm_name,
+               LOWER(city) as norm_city,
+               ROW_NUMBER() OVER (
+                 PARTITION BY LOWER(REGEXP_REPLACE(company,'[^a-zA-Z0-9]','','g')), LOWER(city)
+                 ORDER BY created_at ASC
+               ) as rn
+        FROM prospects
+        WHERE user_id = $1
+      )
+      SELECT id FROM ranked WHERE rn > 1`,
+      [uid]
+    );
+    const dupIds = dupes.rows.map(r => r.id);
+    if (dupIds.length === 0) return res.json({ removed: 0, message: 'No duplicates found' });
+    await pool.query('DELETE FROM prospects WHERE id = ANY($1) AND user_id=$2', [dupIds, uid]);
+    res.json({ removed: dupIds.length, message: \`Cleaned \${dupIds.length} duplicate contacts\` });
+  } catch(e) {
+    console.error('Dedupe error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // AI Command Center
