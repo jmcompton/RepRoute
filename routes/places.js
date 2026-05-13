@@ -11,6 +11,73 @@ function alumPoleBlocked(name) {
   return ALUM_PAINT_BLOCK.some(kw => lower.includes(kw));
 }
 
+// Global bad-lead blocklist — never return these for any contractor search
+const BAD_LEAD_KEYWORDS = [
+  // Financial
+  'bank','credit union','financial','insurance','mortgage','lending','loan','wealth',
+  'investment','securities','advisor','brokerage','finance',
+  // Medical
+  'hospital','clinic','medical','dental','doctor','physician','healthcare','therapy',
+  'urgent care','pharmacy','chiropractor','optom','vision center',
+  // Retail/unrelated
+  'restaurant','diner','cafe','coffee','food','grocery','supermarket','walmart',
+  'target','home depot','lowes','ace hardware',
+  // Government/institutional
+  'government','county','city hall','police','fire station','post office','dmv',
+  'school district','university','college','church','temple','mosque','synagogue',
+  // Office parks/generic
+  'office park','business center','coworking','regus','wework','executive suites',
+  // Real estate (not contractors)
+  'realty','realtor','real estate','property management','apartment','condo','hoa',
+  // Auto
+  'auto dealer','car dealer','dealership','used cars','automotive repair',
+  // Unrelated services
+  'hair salon','nail salon','spa','massage','tattoo','gym','fitness','yoga',
+  'daycare','childcare','staffing agency','temp agency',
+  // Residential (addresses)
+  'unit ','apt ','suite \d','#\d'
+];
+
+// Contractor-relevant keywords — a match boosts confidence
+const CONTRACTOR_SIGNALS = [
+  'contractor','contracting','construction','roofing','siding','deck','window','door',
+  'builder','building','remodel','renovati','installation','installer','install',
+  'cornice','fascia','soffit','framing','scaffold','supply','distributor','dealer',
+  'trade','exterior','interior','structural','commercial','residential','industrial',
+  'plumbing','electrical','hvac','flooring','masonry','concrete','waterproof',
+  'painting','drywall','insulation','sheet metal','metal',
+  'home improvement','handyman','repair','restoration','maintenance services'
+];
+
+function isBadLead(name, address, category) {
+  if (!name) return true;
+  const lower = name.toLowerCase();
+  const addrLower = (address||'').toLowerCase();
+
+  // Block bad-lead keywords
+  for (const kw of BAD_LEAD_KEYWORDS) {
+    if (new RegExp(kw).test(lower)) return true;
+  }
+
+  // Block names that are just generic addresses or single words
+  const nameWords = name.split(' ').filter(w=>w.length>1);
+  if (nameWords.length < 2 && !lower.includes('co') && !lower.includes('inc') && !lower.includes('llc')) {
+    // Single-word generic names are suspect unless they have contractor signals
+    const hasSignal = CONTRACTOR_SIGNALS.some(s => lower.includes(s));
+    if (!hasSignal) return true;
+  }
+
+  // PO Box addresses
+  if (/po box|p\.o\. box/i.test(addrLower)) return true;
+
+  return false;
+}
+
+function hasContractorSignal(name, category) {
+  const combined = ((name||'') + ' ' + (category||'')).toLowerCase();
+  return CONTRACTOR_SIGNALS.some(s => combined.includes(s));
+}
+
 function httpsPost(hostname, path, headers, body) {
   const https = require('https');
   return new Promise((resolve, reject) => {
@@ -177,9 +244,21 @@ router.post('/places-leads', async (req, res) => {
           if (leadsMap.size >= numLeads) break;
           if (leadsMap.has(place.id)) continue;
           if (place.businessStatus === 'CLOSED_PERMANENTLY') continue;
+
+          const placeName = place.displayName?.text || '';
+          const placeAddr = place.formattedAddress || '';
+
+          // Skip bad leads (banks, offices, unrelated businesses)
+          if (isBadLead(placeName, placeAddr, label)) continue;
+
+          // Skip leads with no phone (likely inactive or spam listings)
+          if (!place.nationalPhoneNumber) continue;
+
+          // Alum-A-Pole paint blocker
+          if ((product||'').toLowerCase().includes('alum') && alumPoleBlocked(placeName)) continue;
           const addr = (place.formattedAddress || '').split(',');
           leadsMap.set(place.id, {
-            company: place.displayName?.text || 'Unknown',
+            company: placeName || 'Unknown',
             category: label,
             city: addr[1]?.trim() || '',
             state: addr[2]?.trim().split(' ')[0] || '',
