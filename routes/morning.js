@@ -26,11 +26,11 @@ const SEGMENT_SEARCH_CONFIG = {
     { query: 'building materials wholesale roofing', score: 8, category: 'Roofing Distributor' },
   ],
   'Window/Door Installer': [
-    { query: 'window installation contractor new construction', score: 10, category: 'Window/Door Installer' },
-    { query: 'door installation contractor new construction', score: 9, category: 'Window/Door Installer' },
-    { query: 'window replacement installer', score: 9, category: 'Window/Door Installer' },
-    { query: 'entry door installation company', score: 9, category: 'Window/Door Installer' },
-    { query: 'residential window door contractor', score: 8, category: 'Window/Door Installer' },
+    { query: 'exterior window installation contractor', score: 10, category: 'Window/Door Installer' },
+    { query: 'exterior door installation contractor', score: 10, category: 'Window/Door Installer' },
+    { query: 'replacement window installer exterior', score: 9, category: 'Window/Door Installer' },
+    { query: 'entry door replacement contractor exterior', score: 9, category: 'Window/Door Installer' },
+    { query: 'new construction window installer', score: 8, category: 'Window/Door Installer' },
   ],
   'Deck Contractor': [
     { query: 'deck builder contractor', score: 10, category: 'Deck Contractor' },
@@ -102,7 +102,21 @@ function isPaintBlocked(name, brand) {
 }
 
 // Hard block — never return garage/overhead door companies for Window/Door Installer segment
-const GARAGE_DOOR_KEYWORDS = ['garage door', 'garage doors', 'overhead door', 'overhead garage', 'garage & door', 'garage and door', 'roll-up door', 'rollup door', 'rolling door', 'sectional door', 'commercial door', 'industrial door'];
+const GARAGE_DOOR_KEYWORDS = [
+  // Garage / overhead door types - never relevant to ShurTape/Boss window installs
+  'garage door', 'garage doors', 'overhead door', 'overhead garage',
+  'garage & door', 'garage and door', 'roll-up door', 'rollup door',
+  'rolling door', 'sectional door',
+  // Interior door types - not exterior installers
+  'shower door', 'shower doors', 'frameless shower', 'glass shower',
+  'sliding glass door', 'barn door', 'interior door', 'closet door',
+  'pocket door', 'bi-fold door', 'bifold door', 'glass partition',
+  // Commercial/industrial (not residential window contractors)
+  'commercial door', 'industrial door', 'dock door', 'loading dock',
+  'fire door', 'storefront glass', 'curtain wall',
+  // Auto / specialty
+  'auto glass', 'windshield', 'vehicle glass'
+];
 function isGarageDoorBlocked(name, segment) {
   if ((segment || '').includes('Window') || (segment || '').includes('Door')) {
     const lower = (name || '').toLowerCase();
