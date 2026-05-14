@@ -1388,7 +1388,8 @@ window.addEventListener('load', function() {
           <div>
   <label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Account Name *</label>
   <input id="qd-acct" list="qd-acct-list" placeholder="Company name or select below"
-    oninput="document.getElementById('qd-account').textContent=this.value||'—'"
+    oninput="document.getElementById('qd-account').textContent=this.value||'—'; debounceLoadContactsForAccount(this.value)"
+    onchange="loadContactsForAccount(this.value)"
     autocomplete="off"
     style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px">
   <datalist id="qd-acct-list">
@@ -1399,7 +1400,25 @@ window.addEventListener('load', function() {
 </div>
           <div>
   <label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Contact Name</label>
-  <input id="qd-cont" placeholder="Contact person" oninput="document.getElementById('qd-contact').textContent=this.value||'—'" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px">
+  <div style="display:flex;gap:6px;align-items:center">
+    <input id="qd-cont" placeholder="Contact person"
+      oninput="document.getElementById('qd-contact').textContent=this.value||'—'"
+      style="flex:1;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px">
+    <div style="position:relative;flex-shrink:0">
+      <button id="qd-cont-btn" onclick="toggleContactDropdown()" title="Pick a contact"
+        style="display:none;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:13px;color:var(--navy);white-space:nowrap">
+        &#9662; Contacts
+      </button>
+      <div id="qd-cont-dropdown"
+        style="display:none;position:absolute;right:0;top:calc(100% + 4px);z-index:2000;
+               background:#fff;border:1px solid var(--border);border-radius:7px;
+               box-shadow:0 6px 20px rgba(0,0,0,.13);min-width:220px;max-height:220px;
+               overflow-y:auto">
+        <div id="qd-cont-list"></div>
+      </div>
+    </div>
+  </div>
+  <div id="qd-cont-hint" style="font-size:10.5px;color:var(--text3);margin-top:3px;display:none"></div>
 </div>
 <div>
   <label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Rep</label>
@@ -4732,12 +4751,28 @@ function openQuoteDetail(id) {
   dropArea.style.background = '#fafbfc';
   if (q.pdf_filename) { document.getElementById('qd-pdf-preview').style.display='block'; document.getElementById('qd-attached-name').textContent=q.pdf_filename; }
   else { document.getElementById('qd-pdf-preview').style.display='none'; }
+  // Reset & load contacts for the account
+  var contBtn = document.getElementById('qd-cont-btn');
+  var contHint = document.getElementById('qd-cont-hint');
+  var contDd = document.getElementById('qd-cont-dropdown');
+  if (contBtn) contBtn.style.display = 'none';
+  if (contHint) contHint.style.display = 'none';
+  if (contDd) contDd.style.display = 'none';
+  _quotContactDropdownOpen = false;
+  if (q.account_name) loadContactsForAccount(q.account_name);
   document.getElementById('quote-detail-modal').style.display = 'flex';
 }
 
 function closeQuoteDetail() {
   document.getElementById('quote-detail-modal').style.display = 'none';
   currentQuoteId = null; quotePdfData = null; quotePdfName = null;
+  var contBtn = document.getElementById('qd-cont-btn');
+  var contHint = document.getElementById('qd-cont-hint');
+  var contDd = document.getElementById('qd-cont-dropdown');
+  if (contBtn) contBtn.style.display = 'none';
+  if (contHint) { contHint.style.display = 'none'; contHint.textContent = ''; }
+  if (contDd) contDd.style.display = 'none';
+  _quotContactDropdownOpen = false;
 }
 
 function removeQuotePDF() {
@@ -4764,6 +4799,95 @@ function openQuotePDF() {
   // Open from server endpoint — serves the stored base64 as a real PDF
   window.open('/api/quotes/' + currentQuoteId + '/pdf', '_blank');
 }
+
+// ── Quote Contact Picker ─────────────────────────────────────────────
+
+var _quotContactDebounce = null;
+var _quotContactDropdownOpen = false;
+
+function debounceLoadContactsForAccount(val) {
+  clearTimeout(_quotContactDebounce);
+  _quotContactDebounce = setTimeout(function() { loadContactsForAccount(val); }, 500);
+}
+
+function loadContactsForAccount(account) {
+  var btn = document.getElementById('qd-cont-btn');
+  var hint = document.getElementById('qd-cont-hint');
+  var list = document.getElementById('qd-cont-list');
+  if (!account || !account.trim()) {
+    if (btn) btn.style.display = 'none';
+    if (hint) hint.style.display = 'none';
+    return;
+  }
+  fetch('/api/quotes/contacts-for-account?account=' + encodeURIComponent(account.trim()))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var contacts = data.contacts || [];
+      if (!contacts.length) {
+        if (btn) btn.style.display = 'none';
+        if (hint) { hint.textContent = 'No contacts on file for this account.'; hint.style.display = 'block'; }
+        return;
+      }
+      // Auto-fill with primary contact if field is empty
+      var contInput = document.getElementById('qd-cont');
+      if (contInput && !contInput.value.trim()) {
+        contInput.value = contacts[0];
+        document.getElementById('qd-contact').textContent = contacts[0];
+      }
+      // Build dropdown list
+      if (list) {
+        list.innerHTML = contacts.map(function(c, i) {
+          var isPrimary = i === 0;
+          return '<div onclick="selectQuoteContact(' + JSON.stringify(c) + ')" style="'
+            + 'padding:9px 14px;cursor:pointer;font-size:13px;'
+            + 'border-bottom:1px solid #f1f5f9;'
+            + 'display:flex;align-items:center;justify-content:space-between;gap:8px;">'
+            + '<span>' + c + '</span>'
+            + (isPrimary ? '<span style="font-size:10px;font-weight:700;color:#059669;background:#d1fae5;padding:1px 7px;border-radius:10px">Primary</span>' : '')
+            + '</div>';
+        }).join('');
+      }
+      // Show button
+      if (btn) btn.style.display = 'block';
+      if (hint) {
+        hint.textContent = contacts.length + ' contact' + (contacts.length > 1 ? 's' : '') + ' on file for this account.';
+        hint.style.display = 'block';
+      }
+    })
+    .catch(function() {
+      if (btn) btn.style.display = 'none';
+    });
+}
+
+function selectQuoteContact(name) {
+  var contInput = document.getElementById('qd-cont');
+  if (contInput) { contInput.value = name; }
+  var label = document.getElementById('qd-contact');
+  if (label) label.textContent = name || '—';
+  // Close dropdown
+  var dd = document.getElementById('qd-cont-dropdown');
+  if (dd) dd.style.display = 'none';
+  _quotContactDropdownOpen = false;
+}
+
+function toggleContactDropdown() {
+  var dd = document.getElementById('qd-cont-dropdown');
+  if (!dd) return;
+  _quotContactDropdownOpen = !_quotContactDropdownOpen;
+  dd.style.display = _quotContactDropdownOpen ? 'block' : 'none';
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(e) {
+  if (!_quotContactDropdownOpen) return;
+  var wrapper = document.getElementById('qd-cont-btn');
+  var dd = document.getElementById('qd-cont-dropdown');
+  if (wrapper && !wrapper.contains(e.target) && dd && !dd.contains(e.target)) {
+    dd.style.display = 'none';
+    _quotContactDropdownOpen = false;
+  }
+});
+
 
 async function saveQuote() {
   var btn = document.getElementById('qd-save-btn');
@@ -4905,6 +5029,13 @@ function processQuotePDF(file) {
         document.getElementById('qd-status').value = 'Sent';
         document.getElementById('qd-status-badge').textContent = 'Sent';
         document.getElementById('qd-status-badge').style.cssText = 'background:#e8f0fe;color:#1558b0;font-size:11px;padding:3px 10px;border-radius:12px;font-weight:600';
+        // Load contacts for this account — auto-fill primary if contact not already extracted
+        if (!data.contact_name) {
+          loadContactsForAccount(data.account_name);
+        } else {
+          // Contact was extracted from PDF but still load the dropdown for switching
+          loadContactsForAccount(data.account_name);
+        }
       }
       if (data.contact_name) document.getElementById('qd-contact').textContent = data.contact_name;
 
