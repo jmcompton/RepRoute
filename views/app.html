@@ -625,6 +625,7 @@ window.addEventListener('load', function() {
     <button class="sb-item" onclick="go('calendar')" style="padding-left:18px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><rect x="2" y="3" width="12" height="11" rx="1"/><path d="M5 2v2M11 2v2M2 7h12"/></svg>Team Calendar</button>
     <button class="sb-item" onclick="go('email')" style="padding-left:18px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><rect x="1" y="3" width="14" height="10" rx="1"/><path d="M1 4l7 5 7-5"/></svg>Email</button>
     <button class="sb-item" onclick="go('command')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><path d="M9 2L7 14M3 6l-2 2 2 2M13 6l2 2-2 2"/></svg>AI Command</button>
+    <button class="sb-item" onclick="go('bulk')" style="border-left:3px solid #00FF87"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2 2h5v5H2z"/><path d="M9 2h5v5H9z"/><path d="M2 9h5v5H2z"/><path d="M9 9h5v5H9z"/></svg> Bulk Ingest</button>
   </div>
   <div class="sb-section manager-only" style="display:none">
     <div class="sb-sec-label">Team</div>
@@ -909,6 +910,7 @@ window.addEventListener('load', function() {
       <div style="display:flex;gap:6px;margin-left:auto">
         <button class="btn btn-secondary btn-sm" id="btn-add-contact" onclick="openModal('add-prospect')">+ New</button>
         <button class="btn btn-primary btn-sm" onclick="go('leads')">Find Leads</button>
+        <button class="btn btn-sm" onclick="go('bulk')" style="background:var(--navy);color:#00FF87;border:none;font-weight:700;padding:6px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit">Bulk Import</button>
       </div>
     </div>
 
@@ -1019,7 +1021,69 @@ window.addEventListener('load', function() {
   </div>
 
   <!-- AI LEAD FINDER -->
-  <div class="page" id="page-leads" style="overflow-y:auto">
+  <div class="page" id="page-bulk">
+  <div style="max-width:720px;margin:0 auto;padding:24px 20px">
+
+    <!-- Header -->
+    <div style="margin-bottom:20px">
+      <h2 style="margin:0 0 4px;color:var(--navy);font-size:20px;font-weight:800;letter-spacing:-.3px">Bulk Ingestion Mode</h2>
+      <p style="margin:0;color:var(--text3);font-size:13px">One search. Full territory database. No re-query needed.</p>
+    </div>
+
+    <!-- Query builder card -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px">Search Query</div>
+
+      <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+        <input id="bulk-query" type="text"
+          placeholder='e.g. "Trex decking dealers Atlanta" or "Carlisle roofing distributors Southeast"'
+          style="flex:1;min-width:240px;padding:10px 14px;border:1px solid var(--border);border-radius:7px;font-size:14px;font-family:inherit;color:var(--navy)"
+          onkeydown="if(event.key==='Enter') startBulkIngest()"
+        />
+        <select id="bulk-max" style="padding:10px 12px;border:1px solid var(--border);border-radius:7px;font-size:13px;font-family:inherit;color:var(--navy);background:#fff">
+          <option value="25">25 records</option>
+          <option value="50" selected>50 records</option>
+          <option value="75">75 records</option>
+          <option value="100">100 records</option>
+        </select>
+        <button onclick="startBulkIngest()" id="bulk-btn"
+          style="padding:10px 22px;background:var(--navy);color:#00FF87;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:.3px;white-space:nowrap">
+          Run Ingestion
+        </button>
+      </div>
+
+      <!-- Quick examples -->
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Quick examples:</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button onclick="setBulkQuery('Trex decking dealers Atlanta')" style="padding:4px 10px;background:#f1f5f9;border:1px solid var(--border);border-radius:12px;font-size:11px;cursor:pointer;font-family:inherit;color:var(--navy)">Trex decking dealers Atlanta</button>
+        <button onclick="setBulkQuery('Carlisle roofing distributors Southeast')" style="padding:4px 10px;background:#f1f5f9;border:1px solid var(--border);border-radius:12px;font-size:11px;cursor:pointer;font-family:inherit;color:var(--navy)">Carlisle roofing distributors Southeast</button>
+        <button onclick="setBulkQuery('James Hardie siding contractors Atlanta')" style="padding:4px 10px;background:#f1f5f9;border:1px solid var(--border);border-radius:12px;font-size:11px;cursor:pointer;font-family:inherit;color:var(--navy)">James Hardie siding contractors Atlanta</button>
+        <button onclick="setBulkQuery('Fiberon dealers Georgia')" style="padding:4px 10px;background:#f1f5f9;border:1px solid var(--border);border-radius:12px;font-size:11px;cursor:pointer;font-family:inherit;color:var(--navy)">Fiberon dealers Georgia</button>
+        <button onclick="setBulkQuery('scaffold tool dealer Atlanta')" style="padding:4px 10px;background:#f1f5f9;border:1px solid var(--border);border-radius:12px;font-size:11px;cursor:pointer;font-family:inherit;color:var(--navy)">scaffold tool dealer Atlanta</button>
+      </div>
+    </div>
+
+    <!-- Progress / status -->
+    <div id="bulk-progress" style="display:none;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px 16px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div id="bulk-spinner" style="width:16px;height:16px;border:2px solid #bbf7d0;border-top-color:#059669;border-radius:50%;animation:spin 0.8s linear infinite"></div>
+        <span id="bulk-progress-text" style="font-size:13px;color:#166534;font-weight:600">Searching...</span>
+      </div>
+    </div>
+
+    <!-- Result card -->
+    <div id="bulk-result" style="display:none;border-radius:10px;padding:20px;margin-bottom:16px"></div>
+
+    <!-- History log -->
+    <div id="bulk-history" style="display:none">
+      <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">This Session</div>
+      <div id="bulk-history-list" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+
+  </div>
+</div>
+
+<div class="page" id="page-leads" style="overflow-y:auto">
     <div style="padding:24px 24px 60px 24px;width:100%;box-sizing:border-box">
 
       <!-- Header -->
@@ -2292,7 +2356,7 @@ var pageTitles = {
     reports: 'Reports', analytics: 'Analytics', accounts: 'Accounts',
     forecasts: 'Forecasts', campaigns: 'Campaigns', tasks: 'Tasks',
   dashboard: 'Home', contacts: 'Contacts', record: 'Contact Detail',
-  leads: 'AI Lead Finder', calls: 'Calls', weekly: 'Weekly Plan',
+  leads: 'AI Lead Finder', bulk: 'Bulk Ingestion Mode', calls: 'Calls', weekly: 'Weekly Plan',
   command: 'AI Command Center', outreach: 'Outreach Writer',
   onboarding: 'Onboarding', manager: 'Team Dashboard', deals: 'Deal Pipeline', quotes: 'Quotes',
   calendar: 'Team Calendar',
@@ -2370,6 +2434,7 @@ function go(id) {
   if (id === 'weekly') loadWeeklyPlan();
   if (id === 'manager') loadManager();
   if (id === 'contacts') { loadProspects(); loadCrmStats(); }
+  if (id === 'bulk') { var bq = document.getElementById('bulk-query'); if (bq && !bq.value) bq.focus(); }
   // if (id === 'onboarding') loadMyOnboarding(); // disabled - show only newly generated plans
   if (id === 'deals') loadPipeline();
   if (id === 'quotes') loadQuotes();
@@ -3066,6 +3131,130 @@ function renderLeads() {
 
 function toggleLead(i) { if (selectedLeads.has(i)) selectedLeads.delete(i); else selectedLeads.add(i); renderLeads(); }
 function selectAllLeads() { foundLeads.forEach(function(l,i) { selectedLeads.add(i); }); renderLeads(); }
+
+// ═══════════════════════════════════════════════════════════════
+// BULK INGESTION MODE
+// ═══════════════════════════════════════════════════════════════
+
+var bulkHistory = [];
+
+function setBulkQuery(q) {
+  var el = document.getElementById('bulk-query');
+  if (el) { el.value = q; el.focus(); }
+}
+
+
+function bulkGoFilter(ctype) {
+  go('contacts');
+  setTimeout(function() {
+    var sel = document.getElementById('filter-company-type');
+    if (sel) { sel.value = ctype; loadProspects(); }
+  }, 200);
+}
+
+function startBulkIngest() {
+  var query = (document.getElementById('bulk-query') || {value:''}).value.trim();
+  if (!query) { showToast('Enter a search query first'); return; }
+
+  var maxRecs = parseInt((document.getElementById('bulk-max') || {value:'50'}).value) || 50;
+  var btn = document.getElementById('bulk-btn');
+  var progress = document.getElementById('bulk-progress');
+  var progressText = document.getElementById('bulk-progress-text');
+  var result = document.getElementById('bulk-result');
+
+  // UI state: loading
+  if (btn) { btn.disabled = true; btn.textContent = 'Running...'; }
+  if (progress) progress.style.display = 'block';
+  if (progressText) progressText.textContent = 'Searching Google Places for "' + query + '"...';
+  if (result) { result.style.display = 'none'; result.innerHTML = ''; }
+
+  fetch('/api/places/bulk-ingest', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: query, max_records: maxRecs })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Run Ingestion'; }
+    if (progress) progress.style.display = 'none';
+
+    if (data.error) {
+      if (result) {
+        result.style.display = 'block';
+        result.style.background = '#fef2f2';
+        result.style.border = '1px solid #fecaca';
+        result.innerHTML = '<div style="color:#dc2626;font-weight:700;font-size:14px">Error</div><div style="color:#7f1d1d;font-size:13px;margin-top:4px">' + data.error + '</div>';
+      }
+      return;
+    }
+
+    // Success
+    var imported = data.imported || 0;
+    var skipped = data.skipped_duplicates || 0;
+    var category = data.category || '';
+    var companyType = data.company_type || '';
+    var territory = data.territory || '';
+    var mfr = data.manufacturer || '';
+
+    var typeColor = companyType === 'Distributor' ? '#1e3a5f' : '#475569';
+    var typeBg = companyType === 'Distributor' ? '#dbeafe' : '#f1f5f9';
+
+    if (result) {
+      result.style.display = 'block';
+      result.style.background = imported > 0 ? '#f0fdf4' : '#fefce8';
+      result.style.border = imported > 0 ? '1px solid #bbf7d0' : '1px solid #fde68a';
+      var actionBtns = imported > 0
+        ? '<div style="display:flex;gap:8px"><button onclick="go(String.fromCharCode(99,111,110,116,97,99,116,115))" style="padding:8px 16px;background:var(--navy);color:#00FF87;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">View in CRM</button><button onclick="bulkGoFilter(\''+companyType+'\')" style="padding:8px 16px;background:#fff;color:var(--navy);border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Filter '+companyType+'s</button></div>'
+        : '<div style="font-size:13px;color:var(--text3)">All matching businesses are already in your CRM.</div>';
+      result.innerHTML =
+        '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">' +
+          '<div style="font-size:32px;font-weight:900;color:' + (imported > 0 ? '#059669' : '#d97706') + '">' + imported + '</div>' +
+          '<div>' +
+            '<div style="font-size:15px;font-weight:700;color:var(--navy)">' + (imported > 0 ? 'Records imported into your CRM' : 'No new records') + '</div>' +
+            '<div style="font-size:12px;color:var(--text3);margin-top:2px">' + skipped + ' duplicates skipped</div>' +
+          '</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">' +
+          '<span style="background:' + typeBg + ';color:' + typeColor + ';padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700">' + companyType + '</span>' +
+          '<span style="background:#f1f5f9;color:#475569;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600">' + category + '</span>' +
+          (mfr ? '<span style="background:#f1f5f9;color:#475569;padding:3px 10px;border-radius:10px;font-size:11px">' + mfr + '</span>' : '') +
+          '<span style="background:#f1f5f9;color:#475569;padding:3px 10px;border-radius:10px;font-size:11px">' + territory + '</span>' +
+        '</div>' + actionBtns;
+    }
+
+    // Add to session history
+    bulkHistory.unshift({ query: query, imported: imported, skipped: skipped, category: category, territory: territory, ts: new Date().toLocaleTimeString() });
+    renderBulkHistory();
+
+    // Refresh CRM stats if on contacts page
+    loadCrmStats();
+  })
+  .catch(function(e) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Run Ingestion'; }
+    if (progress) progress.style.display = 'none';
+    showToast('Ingestion request failed — check connection');
+    console.error('Bulk ingest error:', e);
+  });
+}
+
+function renderBulkHistory() {
+  var hist = document.getElementById('bulk-history');
+  var list = document.getElementById('bulk-history-list');
+  if (!hist || !list || !bulkHistory.length) return;
+  hist.style.display = 'block';
+  list.innerHTML = bulkHistory.slice(0, 8).map(function(h) {
+    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:7px">' +
+      '<div style="flex:1">' +
+        '<span style="font-size:13px;font-weight:600;color:var(--navy)">' + h.query + '</span>' +
+        '<span style="font-size:11px;color:var(--text3);margin-left:8px">' + h.category + ' · ' + h.territory + '</span>' +
+      '</div>' +
+      '<div style="text-align:right">' +
+        '<span style="font-size:14px;font-weight:800;color:' + (h.imported > 0 ? '#059669' : '#d97706') + '">' + h.imported + ' new</span>' +
+        '<span style="font-size:11px;color:var(--text3);display:block">' + h.ts + '</span>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
 
 // Load CRM Intelligence Stats bar
 function loadCrmStats() {
