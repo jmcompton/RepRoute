@@ -4977,6 +4977,7 @@ window.leadLogAndAdd = function(i, e) {
       products: lead.products || '',
       google_place_id: lead.place_id || '',
       contact: contactName + (contactTitle ? ' (' + contactTitle + ')' : ''),
+      notes: notes || '',
       priority: lead.priority || 'High',
       status: outcome === 'Ready to Order' ? 'Hot' : outcome === 'Dropped In - Interested' ? 'Warm' : 'New',
       source: 'AI',
@@ -5110,7 +5111,7 @@ window._openRouteStopDetail = function(stopIdx, evt) {
   var leadIdx = stop._leadIdx;
   if (typeof leadIdx === 'number' && window._dailyLeads && window._dailyLeads[leadIdx]) {
     // Switch to lead finder tab if not already there
-    if (typeof go === 'function') go('daily');
+    if (typeof go === 'function') go('dashboard');
     setTimeout(function() {
       var card = document.getElementById('lead-card-' + leadIdx);
       if (card) {
@@ -5617,9 +5618,12 @@ function renderTeamContacts(rows, search) {
   var filtered = rows.filter(function(r) {
     if (rep !== 'all' && r.rep_name !== rep) return false;
     if (s && !( (r.company||'').toLowerCase().includes(s) ||
+                (r.contact||'').toLowerCase().includes(s) ||
                 (r.city||'').toLowerCase().includes(s) ||
                 (r.rep_name||'').toLowerCase().includes(s) ||
-                (r.phone||'').includes(s) )) return false;
+                (r.phone||'').replace(/[^0-9]/g,'').includes(s.replace(/[^0-9]/g,'')) ||
+                (r.phone||'').includes(s) ||
+                (r.email||'').toLowerCase().includes(s) )) return false;
     return true;
   });
 
@@ -5640,7 +5644,7 @@ function renderTeamContacts(rows, search) {
     var sc = statusColors[r.status] || '#94a3b8';
     var statusBadge = '<span style="background:' + sc + '22;color:' + sc + ';font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px">' + (r.status||'New') + '</span>';
     var safeId = parseInt(r.id) || 0;
-    return '<tr style="cursor:pointer" onclick="viewTeamRecord(' + safeId + ')" title="View contact"' +
+    return '<tr style="cursor:pointer" onclick="viewTeamRecord(' + safeId + ')" title="View contact">' +
       '<td></td>' +
       '<td><span style="font-weight:600;color:var(--navy)">' + (r.company||'') + '</span>' +
         (r.address ? '<div style="font-size:11px;color:var(--text3);margin-top:2px">' + r.address + '</div>' : '') + '</td>' +
