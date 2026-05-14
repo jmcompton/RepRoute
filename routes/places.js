@@ -983,6 +983,92 @@ function getSearchQueriesForCategory(category, brandHint) {
 }
 
 // ── Main bulk ingestion route ────────────────────────────────────
+// ─── Per-record smart classification ─────────────────────────────────────
+// Overrides the top-level category when company name signals a different type.
+// Prevents every record from inheriting the same query-level category.
+function classifyRecord(companyName, baseCategory) {
+  const n = (companyName || '').toLowerCase();
+
+  // ── Distributor signals ──────────────────────────────────────────────
+  const distributorKeywords = [
+    'supply', 'supplies', 'distribut', 'wholesale', 'lumber', 'building products',
+    'building materials', 'building supply', 'hardware', 'dealer', 'distributor',
+    'millwork', 'millworks', 'materials', 'products', 'hdw', 'pro build', 'probuild',
+    '84 lumber', 'abc supply', 'beacon', 'allied', 'bradco', 'gulf eagle',
+    'us lbm', 'lbm', 'cornerstone', 'bmc', 'stock', 'weyerhaeuser'
+  ];
+  const contractorKeywords = [
+    'contracting', 'contractor', 'construction', 'builders', 'builder',
+    'roofing co', 'roofing inc', 'roofing llc', 'install', 'installer',
+    'residential', 'remodel', 'renovation', 'restoration', 'services',
+    'home improvement', 'exteriors', 'exterior solutions'
+  ];
+
+  // ── Category-specific overrides ──────────────────────────────────────
+  const base = (baseCategory || '').toLowerCase();
+
+  // Decking context
+  if (base.includes('deck')) {
+    if (distributorKeywords.some(kw => n.includes(kw))) return 'Decking Distributor';
+    if (contractorKeywords.some(kw => n.includes(kw))) return 'Decking Contractor';
+    // Keyword heuristics specific to decking
+    if (n.includes('trex') || n.includes('timbertech') || n.includes('fiberon') ||
+        n.includes('deckorator') || n.includes('moistureshield') || n.includes('azek')) {
+      return 'Decking Distributor';
+    }
+    if (n.includes('deck') && (n.includes('build') || n.includes('install') || n.includes('design'))) {
+      return 'Decking Contractor';
+    }
+    return baseCategory; // keep original if no override
+  }
+
+  // Roofing context
+  if (base.includes('roof')) {
+    if (n.includes('supply') || n.includes('distribut') || n.includes('wholesale') ||
+        n.includes('abc supply') || n.includes('beacon') || n.includes('gulf eagle') ||
+        n.includes('bradco') || n.includes('allied') || n.includes('builder') ||
+        n.includes('lumber') || n.includes('products') || n.includes('materials')) {
+      return 'Roofing Distributor';
+    }
+    if (contractorKeywords.some(kw => n.includes(kw))) return 'Roofing Contractor';
+    return baseCategory;
+  }
+
+  // Siding context
+  if (base.includes('siding')) {
+    if (distributorKeywords.some(kw => n.includes(kw))) return 'Siding Distributor';
+    if (contractorKeywords.some(kw => n.includes(kw))) return 'Siding Contractor';
+    return baseCategory;
+  }
+
+  // Window & Door context
+  if (base.includes('window') || base.includes('door')) {
+    if (n.includes('supply') || n.includes('distribut') || n.includes('wholesale') ||
+        n.includes('products') || n.includes('materials') || n.includes('dealer')) {
+      return 'Window & Door Distributor';
+    }
+    if (n.includes('install') || n.includes('contractor') || n.includes('contracting') ||
+        n.includes('services') || n.includes('builders') || n.includes('construction')) {
+      return 'Window & Door Installer';
+    }
+    return baseCategory;
+  }
+
+  // Generic fallback — use base category as-is
+  return baseCategory;
+}
+
+const BULK_DISTRIBUTOR_CATS = new Set([
+  'Roofing Distributor','Decking Distributor','Siding Distributor','Window & Door Distributor'
+]);
+function resolveBulkCompanyType(cat) {
+  if (BULK_DISTRIBUTOR_CATS.has(cat)) return 'Distributor';
+  const lower = (cat||'').toLowerCase();
+  if (lower.includes('distributor') || lower.includes('supply') || lower.includes('dealer') ||
+      lower.includes('wholesale') || lower.includes('lumber')) return 'Distributor';
+  return 'Contractor';
+}
+
 router.post('/bulk-ingest', async (req, res) => {
   const uid = req.session.user.id;
   const { query, territory, max_records } = req.body;
@@ -1061,10 +1147,11 @@ router.post('/bulk-ingest', async (req, res) => {
 
       const addrParts = addr.split(',');
 
+      const recCategory = classifyRecord(name, category);
       cleaned.push({
         place_id: placeId,
         company: name,
-        category: category,
+        category: recCategory,
         city: addrParts[1]?.trim() || '',
         state: addrParts[2]?.trim().split(' ')[0] || '',
         phone: place.nationalPhoneNumber || null,
@@ -1136,14 +1223,11 @@ router.post('/bulk-ingest', async (req, res) => {
     }
 
     // ── Phase 4: Bulk insert into CRM ────────────────────────────
-    // Resolve company_type from category
-    const DISTRIBUTOR_CATS = new Set([
-      'Roofing Distributor','Decking Distributor','Siding Distributor','Window & Door Distributor'
-    ]);
-    const company_type = DISTRIBUTOR_CATS.has(category) ? 'Distributor' : 'Contractor';
-
+    // company_type resolved per-record using classifyRecord output
     let imported = 0;
     for (const rec of toInsert) {
+      // Per-record company_type resolution (not shared top-level)
+      const rec_company_type = resolveBulkCompanyType(rec.category);
       try {
         await pool.query(
           `INSERT INTO prospects
@@ -1153,7 +1237,7 @@ router.post('/bulk-ingest', async (req, res) => {
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW())
            ON CONFLICT DO NOTHING`,
           [
-            uid, rec.company, rec.category, company_type,
+            uid, rec.company, rec.category, rec_company_type,
             rec.city, rec.state || 'GA',
             rec.phone || null, null,
             null, rec.website || null,
