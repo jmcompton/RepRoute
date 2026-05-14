@@ -4791,13 +4791,22 @@ async function saveQuote() {
     var res = await fetch(url, {method:method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
     if (!res.ok && res.status === 413) throw new Error('PDF too large to attach. Quote saved without PDF.');
     var resData = await res.json();
-    // Handle duplicate quote (409)
+    // Handle duplicate quote (409) — warn but allow override
     if (res.status === 409 && resData.error === 'duplicate') {
-      showToast('⚠️ ' + resData.message, 5000);
       btn.textContent = 'Save Quote'; btn.disabled = false;
-      return;
+      var proceed = confirm('⚠️ Duplicate detected\n\n' + resData.message + '\n\nDo you still want to save this quote?');
+      if (!proceed) return;
+      // User confirmed — retry with force_override flag
+      payload.force_override = true;
+      var res2 = await fetch(url, {method:method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+      if (!res2.ok && res2.status === 413) throw new Error('PDF too large to attach. Quote saved without PDF.');
+      var resData2 = await res2.json();
+      if (resData2.error) throw new Error(resData2.error);
+      // Swap in the successful response and continue
+      resData = resData2;
+    } else if (resData.error) {
+      throw new Error(resData.error);
     }
-    if (resData.error) throw new Error(resData.error);
 
     // Upsert account + contact into prospects (Google Places lookup for address/phone)
     // This runs async in background — doesn't block the quote save
