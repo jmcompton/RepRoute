@@ -2,17 +2,15 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
 
-// GET all quotes for current user
+// GET all quotes — team-wide (all users share the same quote board)
 router.get('/', async (req, res) => {
   try {
-    const userId = req.session.user.id;
+    // Show all quotes across the whole team so every rep sees the full pipeline
     const result = await pool.query(
-      `SELECT q.*, u.name as rep_name 
+      `SELECT q.*, u.name as rep_name
        FROM quotes q
-       LEFT JOIN users u ON q.rep_id = u.id
-       WHERE q.user_id = $1
-       ORDER BY q.created_at DESC`,
-      [userId]
+       LEFT JOIN users u ON q.user_id = u.id
+       ORDER BY q.created_at DESC`
     );
     res.json({ quotes: result.rows });
   } catch (e) {
@@ -21,16 +19,15 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET single quote
+// GET single quote — team-wide access
 router.get('/:id', async (req, res) => {
   try {
-    const userId = req.session.user.id;
     const result = await pool.query(
       `SELECT q.*, u.name as rep_name
        FROM quotes q
-       LEFT JOIN users u ON q.rep_id = u.id
-       WHERE q.id = $1 AND q.user_id = $2`,
-      [req.params.id, userId]
+       LEFT JOIN users u ON q.user_id = u.id
+       WHERE q.id = $1`,
+      [req.params.id]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Not found' });
     res.json(result.rows[0]);
@@ -39,35 +36,74 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST create quote
+// POST create quote — with duplicate prevention (team-wide)
 router.post('/', async (req, res) => {
   try {
     const userId = req.session.user.id;
     const {
       quote_number, status, account_name, contact_name,
       amount, products, comments, quote_date, follow_up_date,
-      pdf_data, pdf_filename
+      pdf_data, pdf_filename, rep_name
     } = req.body;
+
+    if (!account_name || !account_name.trim()) {
+      return res.status(400).json({ error: 'Account name is required' });
+    }
+
+    // ── Duplicate check 1: same quote_number (team-wide) ──
+    if (quote_number && quote_number.trim()) {
+      const dupNum = await pool.query(
+        `SELECT id FROM quotes WHERE LOWER(TRIM(quote_number)) = LOWER($1) LIMIT 1`,
+        [quote_number.trim()]
+      );
+      if (dupNum.rows.length > 0) {
+        return res.status(409).json({
+          error: 'duplicate',
+          message: 'A quote with number "' + quote_number.trim() + '" already exists.',
+          existing_id: dupNum.rows[0].id
+        });
+      }
+    }
+
+    // ── Duplicate check 2: same account + amount + quote_date ──
+    if (account_name && amount && quote_date) {
+      const dupMatch = await pool.query(
+        `SELECT id FROM quotes
+         WHERE LOWER(TRIM(account_name)) = LOWER($1)
+           AND amount = $2
+           AND quote_date::date = $3::date
+         LIMIT 1`,
+        [account_name.trim(), parseFloat(amount) || 0, quote_date]
+      );
+      if (dupMatch.rows.length > 0) {
+        return res.status(409).json({
+          error: 'duplicate',
+          message: 'A quote for "' + account_name.trim() + '" with this amount and date already exists.',
+          existing_id: dupMatch.rows[0].id
+        });
+      }
+    }
 
     const result = await pool.query(
       `INSERT INTO quotes
        (user_id, rep_id, quote_number, status, account_name, contact_name,
-        amount, products, comments, quote_date, follow_up_date, pdf_filename, pdf_data)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+        amount, products, comments, quote_date, follow_up_date, pdf_filename, pdf_data, rep_name)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
        RETURNING *`,
       [
         userId, userId,
-        quote_number || null,
+        quote_number ? quote_number.trim() : null,
         status || 'Draft',
-        account_name,
+        account_name.trim(),
         contact_name || null,
-        amount || null,
+        amount ? parseFloat(amount) : null,
         products || null,
         comments || null,
         quote_date || null,
         follow_up_date || null,
         pdf_filename || null,
-        pdf_data || null
+        pdf_data || null,
+        rep_name || null
       ]
     );
     res.json(result.rows[0]);
@@ -77,45 +113,62 @@ router.post('/', async (req, res) => {
   }
 });
 
-// PUT update quote
+// PUT update quote — team-wide edit access, persists rep_name
 router.put('/:id', async (req, res) => {
   try {
-    const userId = req.session.user.id;
     const {
       quote_number, status, account_name, contact_name,
       amount, products, comments, quote_date, follow_up_date,
-      pdf_data, pdf_filename
+      pdf_data, pdf_filename, rep_name
     } = req.body;
+
+    // ── Duplicate check: if quote_number changed, ensure it doesn't collide ──
+    if (quote_number && quote_number.trim()) {
+      const dupNum = await pool.query(
+        `SELECT id FROM quotes
+         WHERE LOWER(TRIM(quote_number)) = LOWER($1) AND id != $2 LIMIT 1`,
+        [quote_number.trim(), req.params.id]
+      );
+      if (dupNum.rows.length > 0) {
+        return res.status(409).json({
+          error: 'duplicate',
+          message: 'A quote with number "' + quote_number.trim() + '" already exists.',
+          existing_id: dupNum.rows[0].id
+        });
+      }
+    }
 
     const result = await pool.query(
       `UPDATE quotes SET
-        quote_number = $3,
-        status = $4,
-        account_name = $5,
-        contact_name = $6,
-        amount = $7,
-        products = $8,
-        comments = $9,
-        quote_date = $10,
-        follow_up_date = $11,
-        pdf_filename = COALESCE($12, pdf_filename),
-        pdf_data = COALESCE($13, pdf_data),
+        quote_number = $2,
+        status = $3,
+        account_name = $4,
+        contact_name = $5,
+        amount = $6,
+        products = $7,
+        comments = $8,
+        quote_date = $9,
+        follow_up_date = $10,
+        pdf_filename = COALESCE($11, pdf_filename),
+        pdf_data = COALESCE($12, pdf_data),
+        rep_name = COALESCE($13, rep_name),
         updated_at = NOW()
-       WHERE id = $1 AND user_id = $2
+       WHERE id = $1
        RETURNING *`,
       [
-        req.params.id, userId,
-        quote_number || null,
+        req.params.id,
+        quote_number ? quote_number.trim() : null,
         status || 'Draft',
         account_name,
         contact_name || null,
-        amount || null,
+        amount ? parseFloat(amount) : null,
         products || null,
         comments || null,
         quote_date || null,
         follow_up_date || null,
         pdf_filename || null,
-        pdf_data || null
+        pdf_data || null,
+        rep_name || null
       ]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Not found' });
@@ -126,13 +179,35 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// DELETE quote
+// DELETE quote — team-wide
 router.delete('/:id', async (req, res) => {
   try {
-    const userId = req.session.user.id;
-    await pool.query('DELETE FROM quotes WHERE id = $1 AND user_id = $2', [req.params.id, userId]);
+    await pool.query('DELETE FROM quotes WHERE id = $1', [req.params.id]);
     res.json({ success: true });
   } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /:id/pdf — serve stored PDF base64 data as an inline PDF for viewing
+router.get('/:id/pdf', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT pdf_data, pdf_filename FROM quotes WHERE id = $1`,
+      [req.params.id]
+    );
+    if (!result.rows.length || !result.rows[0].pdf_data) {
+      return res.status(404).json({ error: 'No PDF attached to this quote' });
+    }
+    const { pdf_data, pdf_filename } = result.rows[0];
+    // pdf_data is stored as base64 string
+    const buf = Buffer.from(pdf_data, 'base64');
+    res.set('Content-Type', 'application/pdf');
+    res.set('Content-Disposition', 'inline; filename="' + (pdf_filename || 'quote.pdf') + '"');
+    res.set('Content-Length', buf.length);
+    res.send(buf);
+  } catch (e) {
+    console.error('GET /api/quotes/:id/pdf error:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
