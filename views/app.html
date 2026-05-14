@@ -747,31 +747,34 @@ window.addEventListener('load', function() {
             </label>
           </div>
 
-          <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Segments</div>
+          <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Segments <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#059669">&#9650; Distributors &amp; Dealers prioritized</span></div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px" id="segment-pill-row">
             <label style="cursor:pointer;background:#ede9fe;color:#6d28d9;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;user-select:none;border:1.5px solid #c4b5fd">
-              <input type="checkbox" name="seg" value="Window/Door Installer" checked style="margin:0;accent-color:#6d28d9"> Window / Door
+              <input type="checkbox" name="seg" value="Window/Door Installer" style="margin:0;accent-color:#6d28d9"> Window / Door
             </label>
             <label style="cursor:pointer;background:#fef3c7;color:#92400e;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;user-select:none;border:1.5px solid #fcd34d">
               <input type="checkbox" name="seg" value="Deck Contractor" style="margin:0;accent-color:#92400e"> Deck Contractors
             </label>
+            <label style="cursor:pointer;background:#fff7ed;color:#c2410c;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;user-select:none;border:1.5px solid #fdba74">
+              <input type="checkbox" name="seg" value="Deck Distributor/Dealer" checked style="margin:0;accent-color:#c2410c"> Deck Distributors
+            </label>
             <label style="cursor:pointer;background:#fee2e2;color:#b91c1c;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;user-select:none;border:1.5px solid #fca5a5">
-              <input type="checkbox" name="seg" value="Roofing Contractor" checked style="margin:0;accent-color:#b91c1c"> Roofing Contractors
+              <input type="checkbox" name="seg" value="Roofing Contractor" style="margin:0;accent-color:#b91c1c"> Commercial Roofing Contractors
             </label>
             <label style="cursor:pointer;background:#ffedd5;color:#c2410c;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;user-select:none;border:1.5px solid #fdba74">
-              <input type="checkbox" name="seg" value="Roofing Distributor" style="margin:0;accent-color:#c2410c"> Roofing Distributors
+              <input type="checkbox" name="seg" value="Roofing Distributor" checked style="margin:0;accent-color:#c2410c"> Commercial Roofing Distributors
             </label>
             <label style="cursor:pointer;background:#dbeafe;color:#1d4ed8;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;user-select:none;border:1.5px solid #93c5fd">
               <input type="checkbox" name="seg" value="Siding Contractor" style="margin:0;accent-color:#1d4ed8"> Siding Contractors
+            </label>
+            <label style="cursor:pointer;background:#bfdbfe;color:#1e40af;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;user-select:none;border:1.5px solid #60a5fa">
+              <input type="checkbox" name="seg" value="Siding Distributor" checked style="margin:0;accent-color:#1e40af"> Siding Distributors
             </label>
             <label style="cursor:pointer;background:#ccfbf1;color:#0f766e;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;user-select:none;border:1.5px solid #5eead4">
               <input type="checkbox" name="seg" value="Cornice Contractor" style="margin:0;accent-color:#0f766e"> Cornice Contractors
             </label>
             <label style="cursor:pointer;background:#d1fae5;color:#065f46;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;user-select:none;border:1.5px solid #6ee7b7">
               <input type="checkbox" name="seg" value="Fastener/Tool Dealer" style="margin:0;accent-color:#065f46"> Fastener / Tool Dealers
-            </label>
-            <label style="cursor:pointer;background:#e0f2fe;color:#0369a1;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;user-select:none;border:1.5px solid #7dd3fc">
-              <input type="checkbox" name="seg" value="Siding Distributor" style="margin:0;accent-color:#0369a1"> Siding Distributors
             </label>
           </div>
         </div>
@@ -791,7 +794,7 @@ window.addEventListener('load', function() {
       <!-- Loading state -->
       <div id="lead-loading" style="display:none;text-align:center;padding:32px 24px;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:24px">
         <div style="font-size:14px;font-weight:600;color:var(--navy);margin-bottom:8px">Finding leads...</div>
-        <div style="font-size:12px;color:var(--text3);margin-bottom:16px">Searching Atlanta Metro and Birmingham for contractors and distributors</div>
+        <div style="font-size:12px;color:var(--text3);margin-bottom:16px">Searching for distributors, dealer networks, and commercial accounts...</div>
         <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
       </div>
 
@@ -818,7 +821,7 @@ window.addEventListener('load', function() {
               <span style="background:var(--border);color:var(--text3);font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px" id="list-count-badge">—</span>
             </div>
           </div>
-          <div id="morning-call-list" style="display:flex;flex-direction:column;gap:8px"><div style="text-align:center;padding:32px 24px;background:var(--surface);border:1px dashed var(--border);border-radius:8px;color:var(--text3);font-size:13px">Enter a city above and click "Find Today's Leads" to populate your call list.</div></div>
+          <div id="morning-call-list" style="display:flex;flex-direction:column;gap:8px"><div style="text-align:center;padding:32px 24px;background:var(--surface);border:1px dashed var(--border);border-radius:8px;color:var(--text3);font-size:13px">Enter a city above and select segments. Distributors and dealers are checked by default.</div></div>
         </div>
 
         <!-- Drive Route Panel -->
@@ -1008,8 +1011,8 @@ window.addEventListener('load', function() {
       <!-- Header -->
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
         <div>
-          <div style="font-size:20px;font-weight:700;color:var(--navy)">AI Lead Finder</div>
-          <div style="font-size:12px;color:var(--text3);margin-top:3px">Finds 10 new leads daily across Atlanta Metro and Birmingham for BOSS, ShurTape, and Alum-A-Pole</div>
+          <div style="font-size:20px;font-weight:700;color:var(--navy)">Distribution Intelligence Finder</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:3px">Targets distributors, dealer networks, and commercial contractors — not residential leads</div>
         </div>
         <button onclick="runDailyLeads()" id="lead-find-btn" style="padding:10px 22px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px">
           <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z"/></svg>
@@ -1024,12 +1027,13 @@ window.addEventListener('load', function() {
         <span style="background:#d1fae5;color:#065f46;font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px">Alum-A-Pole</span>
         <span style="background:#f1f5f9;color:var(--text3);font-size:11px;font-weight:500;padding:3px 10px;border-radius:20px">Atlanta Metro, GA</span>
         <span style="background:#f1f5f9;color:var(--text3);font-size:11px;font-weight:500;padding:3px 10px;border-radius:20px">Birmingham, AL</span>
+        <span style="background:#d1fae5;color:#065f46;font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px">Distributors First</span>
       </div>
 
       <!-- Loading state -->
       <div id="lead-loading" style="display:none;text-align:center;padding:48px 24px">
         <div style="font-size:14px;font-weight:600;color:var(--navy);margin-bottom:8px">Finding leads...</div>
-        <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Searching Atlanta Metro and Birmingham for contractors and distributors</div>
+        <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Searching for distributors, dealer networks, and commercial accounts...</div>
         <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
       </div>
 
@@ -2993,6 +2997,48 @@ function renderLeads() {
 
 function toggleLead(i) { if (selectedLeads.has(i)) selectedLeads.delete(i); else selectedLeads.add(i); renderLeads(); }
 function selectAllLeads() { foundLeads.forEach(function(l,i) { selectedLeads.add(i); }); renderLeads(); }
+
+// Save a single lead to CRM with pre-call notes and category before visiting
+function saveLeadWithNotes(idx, event) {
+  if (event) event.stopPropagation();
+  var lead = (window._dailyLeads || [])[idx];
+  if (!lead) { showToast('Lead not found'); return; }
+  var notes = (document.getElementById('lead-prenotes-' + idx) || {}).value || '';
+  var cat = (document.getElementById('lead-cat-save-' + idx) || {}).value || 'Distributor';
+  var btn = event ? event.target : null;
+  if (btn) { btn.textContent = 'Saving...'; btn.disabled = true; }
+
+  fetch('/api/ai/leads/save', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      leads: [{
+        company: lead.company,
+        category: cat,
+        city: lead.city || '',
+        state: lead.state || 'GA',
+        phone: lead.phone || null,
+        email: lead.email || null,
+        website: lead.website || null,
+        contact: lead.contact || null,
+        address: lead.address || null,
+        products: lead.products || null,
+        notes: notes || null,
+        source: 'Distribution Finder'
+      }]
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (btn) { btn.textContent = 'Saved!'; btn.style.background = '#059669'; }
+    showToast(lead.company + ' saved to CRM.');
+    loadProspects();
+  })
+  .catch(function() {
+    if (btn) { btn.textContent = 'Save to CRM'; btn.disabled = false; }
+    showToast('Save failed — try again.');
+  });
+}
 
 function saveLeads() {
   if (!selectedLeads.size) { showToast('Select at least one lead'); return; }
@@ -5698,11 +5744,16 @@ window.runDailyLeads = function() {
       if (lead.already_contacted) return false;
       var name = (lead.company||'').toLowerCase();
       var seg = (lead.territory||lead.category||'').toLowerCase();
+      // Always block paint/painting
       var paintWords = ['paint','painting','painter'];
       if (paintWords.some(function(w){ return name.includes(w); })) return false;
+      // Block garage door on Window/Door segment
       if (seg.includes('window') || seg.includes('door')) {
-        if (name.includes('garage door') || name.includes('overhead door')) return false;
+        if (name.includes('garage') || name.includes('overhead door') || name.includes('garage door')) return false;
       }
+      // Block purely residential-only signals
+      var residentialBlock = ['handyman','landscaping','lawn care','pressure wash','gutter clean','house clean'];
+      if (residentialBlock.some(function(w){ return name.includes(w); })) return false;
       return true;
     }).slice(0, 10);
 
@@ -5730,14 +5781,15 @@ window.runDailyLeads = function() {
       callList.innerHTML = leads.map(function(lead, i) {
         var seg = lead.territory || lead.category || '';
         var segColors = {
-          'Window/Door Installer': { bg:'#ede9fe', color:'#6d28d9' },
-          'Deck Contractor':       { bg:'#fef3c7', color:'#92400e' },
-          'Roofing Contractor':    { bg:'#fee2e2', color:'#b91c1c' },
-          'Roofing Distributor':   { bg:'#ffedd5', color:'#c2410c' },
-          'Siding Contractor':     { bg:'#dbeafe', color:'#1d4ed8' },
-          'Cornice Contractor':    { bg:'#ccfbf1', color:'#0f766e' },
-          'Fastener/Tool Dealer':  { bg:'#d1fae5', color:'#065f46' },
-          'Siding Distributor':    { bg:'#e0f2fe', color:'#0369a1' }
+          'Window/Door Installer':   { bg:'#ede9fe', color:'#6d28d9' },
+          'Deck Contractor':         { bg:'#fef3c7', color:'#92400e' },
+          'Deck Distributor/Dealer': { bg:'#fff7ed', color:'#c2410c' },
+          'Roofing Contractor':      { bg:'#fee2e2', color:'#b91c1c' },
+          'Roofing Distributor':     { bg:'#ffedd5', color:'#c2410c' },
+          'Siding Contractor':       { bg:'#dbeafe', color:'#1d4ed8' },
+          'Siding Distributor':      { bg:'#bfdbfe', color:'#1e40af' },
+          'Cornice Contractor':      { bg:'#ccfbf1', color:'#0f766e' },
+          'Fastener/Tool Dealer':    { bg:'#d1fae5', color:'#065f46' }
         };
         var sc = segColors[seg] || { bg:'#f1f5f9', color:'#64748b' };
         var segBadge = '<span style="background:' + sc.bg + ';color:' + sc.color + ';font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px">' + (seg || lead.category || '') + '</span>';
@@ -5776,6 +5828,13 @@ window.runDailyLeads = function() {
         var sizeBadge = lead.sizeTier
           ? '<span style="background:#f1f5f9;color:#64748b;font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px">' + lead.sizeTier + ' Co.</span>'
           : '';
+        // Distribution / Dealer tier badge
+        var compLower = (lead.company||'').toLowerCase();
+        var catLower = (lead.category||'').toLowerCase();
+        var isDistributor = ['distributor','distribution','supply house','wholesale','dealer'].some(function(kw){ return compLower.includes(kw) || catLower.includes(kw); });
+        var distBadge = isDistributor
+          ? '<span style="background:#1e3a5f;color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">DISTRIBUTOR</span>'
+          : '';
         var whyLine = (lead.inclusionReason || lead.why)
           ? '<div style="font-size:11px;color:var(--text3);margin-top:3px;font-style:italic">' + (lead.inclusionReason || lead.why) + '</div>'
           : '';
@@ -5789,7 +5848,7 @@ window.runDailyLeads = function() {
                 segBadge +
               '</div>' +
               '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:3px">' +
-                reachBadge + sizeBadge +
+                distBadge + reachBadge + sizeBadge +
               '</div>' +
               (mapsLink ? '<div style="margin-top:2px">' + mapsLink + '</div>' : '') +
               (rating ? '<div style="margin-top:3px">' + rating + '</div>' : '') +
@@ -5801,7 +5860,20 @@ window.runDailyLeads = function() {
             '</div>' +
           '</div>' +
           '<div id="leadlog-' + i + '" style="display:none;border-top:1px solid var(--border);padding:14px 16px;background:#fafbfc">' +
-            '<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Outcome</div>' +
+            '<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:7px;padding:10px 14px;margin-bottom:12px">' +
+              '<div style="font-size:11px;font-weight:700;color:#0369a1;margin-bottom:6px">Save to CRM (with notes)</div>' +
+              '<textarea id="lead-prenotes-' + i + '" placeholder="Pre-call notes, manufacturer association, priority reason..." rows="2" style="width:100%;box-sizing:border-box;padding:6px 9px;border:1px solid #bae6fd;border-radius:5px;font-size:12px;font-family:inherit;resize:none;margin-bottom:7px"></textarea>' +
+              '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+                '<select id="lead-cat-save-' + i + '" style="padding:5px 8px;border:1px solid #bae6fd;border-radius:5px;font-size:11px;font-family:inherit;background:#fff">' +
+                  '<option value="Distributor">Distributor</option>' +
+                  '<option value="Dealer">Dealer</option>' +
+                  '<option value="Commercial Contractor">Commercial Contractor</option>' +
+                  '<option value="Contractor Supply">Contractor Supply</option>' +
+                '</select>' +
+                '<button onclick="saveLeadWithNotes(' + i + ',event)" style="padding:5px 14px;background:#0369a1;color:#fff;border:none;border-radius:5px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit">Save to CRM</button>' +
+              '</div>' +
+            '</div>' +
+            '<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Call Outcome (after visit)</div>' +
             '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">' +
               ['Dropped In - Interested','Dropped In - Not Interested','Left Sample','Ready to Order','Not Available','Left Voicemail','Follow-up Needed'].map(function(o) {
                 return '<button onclick="leadSel(' + i + ',\'' + o + '\',event)" id="leadbtn-' + i + '-' + o.replace(/[^a-zA-Z]/g,'-') + '" style="padding:5px 12px;border:1.5px solid var(--border);border-radius:20px;background:#fff;color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">' + o + '</button>';
