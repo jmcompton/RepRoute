@@ -1435,6 +1435,7 @@ window.addEventListener('load', function() {
           <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#f0f5ff;border:1px solid #c7d7f7;border-radius:5px">
             <span style="font-size:16px">📎</span>
             <div style="flex:1"><div style="font-size:12px;font-weight:600;color:var(--navy)" id="qd-attached-name"></div><div style="font-size:11px;color:var(--text3)">PDF attached</div></div>
+            <button onclick="openQuotePDF()" id="qd-open-pdf-btn" style="background:#1558b0;color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;padding:4px 11px">Open PDF</button>
             <button onclick="removeQuotePDF()" style="background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--text3);font-size:11px;cursor:pointer;padding:3px 8px">Remove</button>
           </div>
         </div>
@@ -3500,7 +3501,7 @@ function catBadge(cat) {
   return '<span class="badge ' + cls + '">' + lbl + '</span>';
 }
 
-function showToast(msg) { var t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(function(){t.classList.remove('show');},2500); }
+function showToast(msg, duration) { var t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(function(){t.classList.remove('show');},(duration||2500)); }
 function openModal(id) { document.getElementById('modal-'+id).classList.add('open'); }
 function closeModal(id) {
   var m = document.getElementById('modal-' + id);
@@ -4744,6 +4745,26 @@ function removeQuotePDF() {
   quotePdfData = null; quotePdfName = 'REMOVED';
 }
 
+// Open the PDF stored on the server for the current quote
+function openQuotePDF() {
+  if (!currentQuoteId) {
+    // Not saved yet — open from local base64 data
+    if (quotePdfData) {
+      var byteStr = atob(quotePdfData);
+      var arr = new Uint8Array(byteStr.length);
+      for (var i = 0; i < byteStr.length; i++) arr[i] = byteStr.charCodeAt(i);
+      var blob = new Blob([arr], { type: 'application/pdf' });
+      var url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+    } else {
+      showToast('Save the quote first to open the PDF.');
+    }
+    return;
+  }
+  // Open from server endpoint — serves the stored base64 as a real PDF
+  window.open('/api/quotes/' + currentQuoteId + '/pdf', '_blank');
+}
+
 async function saveQuote() {
   var btn = document.getElementById('qd-save-btn');
   btn.textContent = 'Saving...'; btn.disabled = true;
@@ -4770,6 +4791,12 @@ async function saveQuote() {
     var res = await fetch(url, {method:method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
     if (!res.ok && res.status === 413) throw new Error('PDF too large to attach. Quote saved without PDF.');
     var resData = await res.json();
+    // Handle duplicate quote (409)
+    if (res.status === 409 && resData.error === 'duplicate') {
+      showToast('⚠️ ' + resData.message, 5000);
+      btn.textContent = 'Save Quote'; btn.disabled = false;
+      return;
+    }
     if (resData.error) throw new Error(resData.error);
 
     // Upsert account + contact into prospects (Google Places lookup for address/phone)
