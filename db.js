@@ -183,6 +183,7 @@ async function initDB() {
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       rep_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      rep_name TEXT,
       quote_number TEXT,
       status TEXT NOT NULL DEFAULT 'Draft',
       account_name TEXT NOT NULL,
@@ -200,6 +201,8 @@ async function initDB() {
     CREATE INDEX IF NOT EXISTS idx_quotes_user ON quotes(user_id);
     CREATE INDEX IF NOT EXISTS idx_quotes_status ON quotes(status);
     CREATE INDEX IF NOT EXISTS idx_quotes_followup ON quotes(follow_up_date);
+    -- Migration: add rep_name column if it doesn't exist (safe for existing DBs)
+    ALTER TABLE quotes ADD COLUMN IF NOT EXISTS rep_name TEXT;
 
   `);
   console.log('Database initialized');
