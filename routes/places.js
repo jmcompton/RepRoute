@@ -983,66 +983,114 @@ function getSearchQueriesForCategory(category, brandHint) {
 }
 
 // ── Main bulk ingestion route ────────────────────────────────────
-// ─── Per-record smart classification ─────────────────────────────────────
-// Overrides the top-level category when company name signals a different type.
-// Prevents every record from inheriting the same query-level category.
+// ─── Per-record smart classification (v3) ───────────────────────────────────
+// Uses company name, manufacturer ecosystem signals, and base category context
+// to produce accurate per-record category labels. Roofing and Decking ecosystems
+// are strictly separated to prevent cross-contamination.
+
+// ── Ecosystem keyword libraries ──────────────────────────────────────────────
+const ROOFING_MANUFACTURER_SIGNALS = [
+  'carlisle', 'johns manville', 'sarnafil', 'sika', 'tremco', 'certainteed',
+  'iko', 'gaf', 'owens corning', 'firestone', 'versico', 'polyglass',
+  'henry', 'soprema', 'mulehide', 'mule-hide', 'atlas roofing',
+  'bur', 'tpo', 'epdm', 'mod bit', 'modified bitumen'
+];
+
+const DECKING_MANUFACTURER_SIGNALS = [
+  'trex', 'timbertech', 'azek', 'fiberon', 'deckorators', 'deckorator',
+  'moistureshield', 'moisture shield', 'fortress', 'wolf decking',
+  'ipe', 'composite deck', 'composite decking', 'pvc deck', 'pvc decking'
+];
+
+const ROOFING_DISTRIBUTOR_SIGNALS = [
+  'abc supply', 'beacon', 'gulf eagle', 'bradco', 'allied', 'gulfeagle',
+  'beacon roofing', 'western states', 'famco', 'hepler',
+  'roofing supply', 'roofing products supply', 'roofing wholesale'
+];
+
+const DECKING_DISTRIBUTOR_SIGNALS = [
+  '84 lumber', 'us lbm', 'lbm', 'bmc', 'pro build', 'probuild',
+  'builders firstsource', 'universal forest', 'ufp', 'weyerhaeuser',
+  'hancock lumber', 'carter lumber', 'mc supply', 'mr. lumber',
+  'outdoor living supply', 'deck supply', 'decking supply', 'decking wholesale',
+  'composite deck supply', 'deck products dealer'
+];
+
+const DISTRIBUTOR_GENERIC_SIGNALS = [
+  'supply co', 'supply company', 'supply house', 'distribut', 'wholesale',
+  'dealer', 'distributor', 'materials inc', 'materials co',
+  'building products', 'building supply', 'building materials',
+  'millwork', 'millworks', 'lumber yard', 'lumber co', 'lumber company',
+  'hdw', 'hardware supply', 'products inc', 'products co', 'products llc'
+];
+
+const CONTRACTOR_GENERIC_SIGNALS = [
+  'contracting', 'contractor', 'construction', 'builders', 'install',
+  'installer', 'renovation', 'restoration', 'remodel', 'remodeling',
+  'roofing co', 'roofing inc', 'roofing llc', 'deck co', 'deck inc',
+  'deck llc', 'exterior solutions', 'exteriors', 'home improvement',
+  'services llc', 'services inc', 'company inc', 'company llc'
+];
+
+function hasAny(name, signals) {
+  return signals.some(sig => name.includes(sig));
+}
+
 function classifyRecord(companyName, baseCategory) {
   const n = (companyName || '').toLowerCase();
-
-  // ── Distributor signals ──────────────────────────────────────────────
-  const distributorKeywords = [
-    'supply', 'supplies', 'distribut', 'wholesale', 'lumber', 'building products',
-    'building materials', 'building supply', 'hardware', 'dealer', 'distributor',
-    'millwork', 'millworks', 'materials', 'products', 'hdw', 'pro build', 'probuild',
-    '84 lumber', 'abc supply', 'beacon', 'allied', 'bradco', 'gulf eagle',
-    'us lbm', 'lbm', 'cornerstone', 'bmc', 'stock', 'weyerhaeuser'
-  ];
-  const contractorKeywords = [
-    'contracting', 'contractor', 'construction', 'builders', 'builder',
-    'roofing co', 'roofing inc', 'roofing llc', 'install', 'installer',
-    'residential', 'remodel', 'renovation', 'restoration', 'services',
-    'home improvement', 'exteriors', 'exterior solutions'
-  ];
-
-  // ── Category-specific overrides ──────────────────────────────────────
   const base = (baseCategory || '').toLowerCase();
 
-  // Decking context
-  if (base.includes('deck')) {
-    if (distributorKeywords.some(kw => n.includes(kw))) return 'Decking Distributor';
-    if (contractorKeywords.some(kw => n.includes(kw))) return 'Decking Contractor';
-    // Keyword heuristics specific to decking
-    if (n.includes('trex') || n.includes('timbertech') || n.includes('fiberon') ||
-        n.includes('deckorator') || n.includes('moistureshield') || n.includes('azek')) {
-      return 'Decking Distributor';
-    }
-    if (n.includes('deck') && (n.includes('build') || n.includes('install') || n.includes('design'))) {
-      return 'Decking Contractor';
-    }
-    return baseCategory; // keep original if no override
+  // ── Step 1: Determine base ecosystem from baseCategory ───────────────
+  const isRoofingContext = base.includes('roof');
+  const isDeckingContext = base.includes('deck');
+  const isSidingContext  = base.includes('siding');
+  const isWindowContext  = base.includes('window') || base.includes('door');
+
+  // ── Step 2: Strong manufacturer brand signals override everything ─────
+  // These are definitive — if the company name contains a known brand, trust it
+  if (hasAny(n, ROOFING_MANUFACTURER_SIGNALS)) {
+    // Even in a decking query, a company named "Carlisle Supply" is Roofing
+    const isDist = hasAny(n, DISTRIBUTOR_GENERIC_SIGNALS) || hasAny(n, ROOFING_DISTRIBUTOR_SIGNALS);
+    return isDist ? 'Roofing Distributor' : 'Roofing Contractor';
+  }
+  if (hasAny(n, DECKING_MANUFACTURER_SIGNALS)) {
+    const isDist = hasAny(n, DISTRIBUTOR_GENERIC_SIGNALS) || hasAny(n, DECKING_DISTRIBUTOR_SIGNALS);
+    return isDist ? 'Decking Distributor' : 'Decking Contractor';
   }
 
-  // Roofing context
-  if (base.includes('roof')) {
-    if (n.includes('supply') || n.includes('distribut') || n.includes('wholesale') ||
-        n.includes('abc supply') || n.includes('beacon') || n.includes('gulf eagle') ||
-        n.includes('bradco') || n.includes('allied') || n.includes('builder') ||
-        n.includes('lumber') || n.includes('products') || n.includes('materials')) {
-      return 'Roofing Distributor';
+  // ── Step 3: Distributor network brand signals ─────────────────────────
+  if (hasAny(n, ROOFING_DISTRIBUTOR_SIGNALS)) return 'Roofing Distributor';
+  if (hasAny(n, DECKING_DISTRIBUTOR_SIGNALS)) return 'Decking Distributor';
+
+  // ── Step 4: Context-specific classification using name signals ─────────
+  if (isRoofingContext) {
+    if (hasAny(n, DISTRIBUTOR_GENERIC_SIGNALS)) return 'Roofing Distributor';
+    if (hasAny(n, CONTRACTOR_GENERIC_SIGNALS))  return 'Roofing Contractor';
+    // Roofing-specific name patterns
+    if (n.includes('roof')) {
+      if (n.includes('supply') || n.includes('product') || n.includes('material') || n.includes('wholesale')) return 'Roofing Distributor';
+      return 'Roofing Contractor'; // "ABC Roofing" without supply signals = contractor
     }
-    if (contractorKeywords.some(kw => n.includes(kw))) return 'Roofing Contractor';
     return baseCategory;
   }
 
-  // Siding context
-  if (base.includes('siding')) {
-    if (distributorKeywords.some(kw => n.includes(kw))) return 'Siding Distributor';
-    if (contractorKeywords.some(kw => n.includes(kw))) return 'Siding Contractor';
+  if (isDeckingContext) {
+    if (hasAny(n, DISTRIBUTOR_GENERIC_SIGNALS)) return 'Decking Distributor';
+    if (hasAny(n, CONTRACTOR_GENERIC_SIGNALS))  return 'Decking Contractor';
+    if (n.includes('deck') || n.includes('outdoor living') || n.includes('patio')) {
+      if (n.includes('supply') || n.includes('product') || n.includes('material') || n.includes('wholesale')) return 'Decking Distributor';
+      if (n.includes('build') || n.includes('install') || n.includes('design')) return 'Decking Contractor';
+    }
     return baseCategory;
   }
 
-  // Window & Door context
-  if (base.includes('window') || base.includes('door')) {
+  if (isSidingContext) {
+    if (hasAny(n, DISTRIBUTOR_GENERIC_SIGNALS)) return 'Siding Distributor';
+    if (hasAny(n, CONTRACTOR_GENERIC_SIGNALS))  return 'Siding Contractor';
+    return baseCategory;
+  }
+
+  if (isWindowContext) {
     if (n.includes('supply') || n.includes('distribut') || n.includes('wholesale') ||
         n.includes('products') || n.includes('materials') || n.includes('dealer')) {
       return 'Window & Door Distributor';
@@ -1054,16 +1102,16 @@ function classifyRecord(companyName, baseCategory) {
     return baseCategory;
   }
 
-  // Generic fallback — use base category as-is
+  // ── Step 5: Generic fallback — use base category as-is ───────────────
   return baseCategory;
 }
 
 const BULK_DISTRIBUTOR_CATS = new Set([
-  'Roofing Distributor','Decking Distributor','Siding Distributor','Window & Door Distributor'
+  'Roofing Distributor', 'Decking Distributor', 'Siding Distributor', 'Window & Door Distributor'
 ]);
 function resolveBulkCompanyType(cat) {
   if (BULK_DISTRIBUTOR_CATS.has(cat)) return 'Distributor';
-  const lower = (cat||'').toLowerCase();
+  const lower = (cat || '').toLowerCase();
   if (lower.includes('distributor') || lower.includes('supply') || lower.includes('dealer') ||
       lower.includes('wholesale') || lower.includes('lumber')) return 'Distributor';
   return 'Contractor';
@@ -1172,44 +1220,131 @@ router.post('/bulk-ingest', async (req, res) => {
 
     console.log('[BulkIngest] Cleaned records:', topRecords.length);
 
-    // ── Phase 3: Deduplicate against existing CRM records ─────────
+    // ── Phase 3: Confidence-scored deduplication ────────────────────────
+    // A record is only skipped if it scores ≥ DUP_THRESHOLD.
+    // This prevents false positives from matching only on company name
+    // when roofing and decking companies can share generic names.
+    const DUP_THRESHOLD = 80; // points needed to flag as duplicate
+
     function normName(n) { return (n||'').toLowerCase().replace(/[^a-z0-9]/g,''); }
     function normPhone(p) { return (p||'').replace(/[^0-9]/g,''); }
+    function normAddr(a)  { return (a||'').toLowerCase().replace(/[^a-z0-9]/g,''); }
 
-    const existingByPlaceId = new Set();
-    const existingByNameCity = new Set();
-    const existingByPhone = new Set();
-
-    // Pull all current user's place_ids, name+city combos, phones
+    // Pull richer existing data for scoring
     const existingRows = await pool.query(
-      'SELECT google_place_id, company, city, phone FROM prospects WHERE user_id=$1',
+      `SELECT google_place_id, company, city, phone, address, website, category
+       FROM prospects WHERE user_id = $1`,
       [uid]
     );
+
+    // Fast-path Sets for definitive single-field matches
+    const existingByPlaceId  = new Set();
+    const existingByPhone    = new Set();
+
+    // Lookup structure for scored matching (name+city or address)
+    const existingRecords = [];
+
     for (const r of existingRows.rows) {
       if (r.google_place_id) existingByPlaceId.add(r.google_place_id);
-      existingByNameCity.add(normName(r.company) + '|' + (r.city||'').toLowerCase());
       const np = normPhone(r.phone);
       if (np && np.length >= 10) existingByPhone.add(np);
+      existingRecords.push({
+        nameNorm:  normName(r.company),
+        cityNorm:  (r.city||'').toLowerCase().trim(),
+        addrNorm:  normAddr(r.address),
+        phoneNorm: np,
+        category:  (r.category||'').toLowerCase(),
+      });
+    }
+
+    // Score a candidate record against all existing records
+    function getDupScore(rec) {
+      const recName  = normName(rec.company);
+      const recCity  = (rec.city||'').toLowerCase().trim();
+      const recAddr  = normAddr(rec.address);
+      const recPhone = normPhone(rec.phone||'');
+      const recCat   = (rec.category||'').toLowerCase();
+
+      let bestScore = 0;
+      for (const ex of existingRecords) {
+        let score = 0;
+
+        // Name match (up to 40 pts) — partial credit for close-but-not-identical
+        if (recName === ex.nameNorm && recName.length > 3) {
+          score += 40;
+        } else if (recName.length > 5 && ex.nameNorm.length > 5 &&
+                   (recName.includes(ex.nameNorm) || ex.nameNorm.includes(recName))) {
+          score += 20; // substring match — partial
+        }
+
+        // City match (up to 20 pts) — only matters WITH name match
+        if (score > 0 && recCity && ex.cityNorm && recCity === ex.cityNorm) {
+          score += 20;
+        }
+
+        // Address match (up to 30 pts) — strong signal
+        if (recAddr.length > 8 && ex.addrNorm.length > 8 && recAddr === ex.addrNorm) {
+          score += 30;
+        }
+
+        // Phone match (up to 40 pts) — very strong signal
+        if (recPhone && recPhone.length >= 10 && ex.phoneNorm === recPhone) {
+          score += 40;
+        }
+
+        // Cross-category PENALTY — same name in different ecosystem = NOT a dup
+        // e.g. "Atlanta Roofing Supply" (Roofing) vs "Atlanta Roofing Supply" (Decking) should NOT merge
+        if (score >= 40 && recCat && ex.category) {
+          const recIsRoof  = recCat.includes('roof');
+          const recIsDeck  = recCat.includes('deck');
+          const exIsRoof   = ex.category.includes('roof');
+          const exIsDeck   = ex.category.includes('deck');
+          const crossEco   = (recIsRoof && exIsDeck) || (recIsDeck && exIsRoof);
+          if (crossEco) score = Math.max(0, score - 60); // heavy penalty
+        }
+
+        if (score > bestScore) bestScore = score;
+        if (bestScore >= DUP_THRESHOLD) break; // early exit once confirmed dup
+      }
+      return bestScore;
     }
 
     const toInsert = [];
-    const sessionSeen = new Set(); // dedup within this batch itself
+    const skippedDups = [];
+    const sessionSeenByNameCity = new Set();
 
     for (const rec of topRecords) {
-      if (existingByPlaceId.has(rec.place_id)) continue;
-      const nameCity = normName(rec.company) + '|' + (rec.city||'').toLowerCase();
-      if (existingByNameCity.has(nameCity)) continue;
-      const np = normPhone(rec.phone || '');
-      if (np && np.length >= 10 && existingByPhone.has(np)) continue;
+      // ── Definitive single-field matches (always skip) ──────────────
+      if (existingByPlaceId.has(rec.place_id)) {
+        skippedDups.push({ reason: 'place_id', company: rec.company });
+        continue;
+      }
 
-      // Also dedup within this ingestion batch
-      if (sessionSeen.has(nameCity)) continue;
-      sessionSeen.add(nameCity);
+      const recPhone = normPhone(rec.phone||'');
+      if (recPhone && recPhone.length >= 10 && existingByPhone.has(recPhone)) {
+        skippedDups.push({ reason: 'phone', company: rec.company });
+        continue;
+      }
+
+      // ── Confidence-scored multi-field match ───────────────────────
+      const dupScore = getDupScore(rec);
+      if (dupScore >= DUP_THRESHOLD) {
+        skippedDups.push({ reason: 'scored_dup', score: dupScore, company: rec.company });
+        continue;
+      }
+
+      // ── Within-batch dedup (prevent same company twice in one run) ──
+      const nameCity = normName(rec.company) + '|' + (rec.city||'').toLowerCase();
+      if (sessionSeenByNameCity.has(nameCity)) continue;
+      sessionSeenByNameCity.add(nameCity);
 
       toInsert.push(rec);
     }
 
-    console.log('[BulkIngest] After dedup:', toInsert.length, 'new records to insert');
+    console.log('[BulkIngest] After dedup:', toInsert.length, 'new records to insert',
+                '| skipped:', skippedDups.length, '(', skippedDups.filter(d=>d.reason==='scored_dup').length, 'scored,',
+                skippedDups.filter(d=>d.reason==='place_id').length, 'placeId,',
+                skippedDups.filter(d=>d.reason==='phone').length, 'phone )');
 
     if (toInsert.length === 0) {
       return res.json({
@@ -1259,7 +1394,7 @@ router.post('/bulk-ingest', async (req, res) => {
     res.json({
       ok: true,
       imported,
-      skipped_duplicates: topRecords.length - toInsert.length,
+      skipped_duplicates: skippedDups.length,
       total_found: rawMap.size,
       category,
       territory: loc,
