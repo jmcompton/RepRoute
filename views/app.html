@@ -1403,23 +1403,27 @@ window.addEventListener('load', function() {
 </div>
 <div>
   <label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Rep</label>
-  <input id="qd-rep-input" list="qd-rep-list" placeholder="Select or type rep name"
+  <select id="qd-rep-select"
+    onchange="qclRepSelectChange(this.value)"
+    style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px;background:var(--bg)">
+    <option value="">-- Select Rep --</option>
+    <option value="Chris Morris">Chris Morris</option>
+    <option value="Ray Breedlove">Ray Breedlove</option>
+    <option value="Daniel Compton">Daniel Compton</option>
+    <option value="Keith Compton">Keith Compton</option>
+    <option value="Sean Conroy">Sean Conroy</option>
+    <option value="Andrew Brown">Andrew Brown</option>
+    <option value="Phil Brown">Phil Brown</option>
+    <option value="Gary Hardin">Gary Hardin</option>
+    <option value="Kody Slater">Kody Slater</option>
+    <option value="Will Maxey">Will Maxey</option>
+    <option value="Jack Greene">Jack Greene</option>
+    <option value="__other__">Other (type below)...</option>
+  </select>
+  <input id="qd-rep-input" placeholder="Type rep name..."
     oninput="document.getElementById('qd-rep').textContent=this.value||'—'"
     autocomplete="off"
-    style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px">
-  <datalist id="qd-rep-list">
-    <option value="Chris Morris">
-    <option value="Ray Breedlove">
-    <option value="Daniel Compton">
-    <option value="Keith Compton">
-    <option value="Sean Conroy">
-    <option value="Andrew Brown">
-    <option value="Phil Brown">
-    <option value="Gary Hardin">
-    <option value="Kody Slater">
-    <option value="Will Maxey">
-    <option value="Jack Greene">
-  </datalist>
+    style="display:none;width:100%;margin-top:6px;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px;box-sizing:border-box">
 </div>
           <div><label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Quote Amount ($)</label><input id="qd-amount" type="number" placeholder="0.00" step="0.01" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px"></div>
           <div><label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Follow-Up Date</label><input id="qd-followup" type="date" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px"></div>
@@ -4677,9 +4681,13 @@ function openNewQuoteModal() {
   document.getElementById('qd-account').textContent = '—';
   document.getElementById('qd-contact').textContent = '—';
   var defaultRep = (window.__userData && window.__userData.name) ? window.__userData.name : '';
-  document.getElementById('qd-rep').textContent = defaultRep || '—';
-  document.getElementById('qd-rep-input').value = defaultRep;
+  qSetRepValue(defaultRep);
   ['qd-quote-num','qd-acct','qd-cont','qd-amount','qd-products','qd-comments'].forEach(function(id){ document.getElementById(id).value=''; });
+  // Reset rep select
+  var repSel = document.getElementById('qd-rep-select');
+  if (repSel) repSel.value = '';
+  var repInp = document.getElementById('qd-rep-input');
+  if (repInp) { repInp.value = ''; repInp.style.display = 'none'; }
   document.getElementById('qd-status').value = 'Draft';
   document.getElementById('qd-date').value = new Date().toISOString().split('T')[0];
   document.getElementById('qd-followup').value = '';
@@ -4705,7 +4713,7 @@ function openQuoteDetail(id) {
   document.getElementById('qd-status-badge').style.cssText = 'background:'+s.bg+';color:'+s.col+';font-size:11px;padding:3px 10px;border-radius:12px;font-weight:600';
   document.getElementById('qd-account').textContent = q.account_name||'—';
   document.getElementById('qd-contact').textContent = q.contact_name||'—';
-  document.getElementById('qd-rep').textContent = q.rep_name||'—';
+  qSetRepValue(q.rep_name||'');
   document.getElementById('qd-quote-num').value = q.quote_number||'';
   document.getElementById('qd-status').value = q.status||'Draft';
   document.getElementById('qd-acct').value = q.account_name||'';
@@ -6254,6 +6262,46 @@ window._qclProspectId = null;    // selected prospect id (from CRM)
 window._qclGpData = null;        // selected company from Google Places
 window._qclSearchTimer = null;   // debounce timer
 window._qclAllProspects = null;  // cached prospects for local search
+
+// ── Quote form Rep select/input helper ──────────────────────────
+window.qclRepSelectChange = function(val) {
+  var inp = document.getElementById('qd-rep-input');
+  if (val === '__other__') {
+    inp.style.display = 'block';
+    inp.value = '';
+    inp.focus();
+    document.getElementById('qd-rep').textContent = '—';
+  } else {
+    inp.style.display = 'none';
+    inp.value = val;
+    document.getElementById('qd-rep').textContent = val || '—';
+  }
+};
+
+// Helper: set rep field (select + hidden input) from a name string
+function qSetRepValue(name) {
+  var sel = document.getElementById('qd-rep-select');
+  var inp = document.getElementById('qd-rep-input');
+  if (!sel || !inp) return;
+  // Check if name is in the select options
+  var found = false;
+  for (var i = 0; i < sel.options.length; i++) {
+    if (sel.options[i].value === name) { sel.value = name; found = true; break; }
+  }
+  if (!found && name) {
+    sel.value = '__other__';
+    inp.style.display = 'block';
+    inp.value = name;
+  } else if (found) {
+    inp.style.display = 'none';
+    inp.value = name;
+  } else {
+    sel.value = '';
+    inp.style.display = 'none';
+    inp.value = '';
+  }
+  document.getElementById('qd-rep').textContent = name || '—';
+}
 
 window.openQuickCallLog = function() {
   // Reset form state
