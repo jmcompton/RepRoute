@@ -19,6 +19,43 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /contacts-for-account -- return ranked contact list for a given account name (team-wide)
+// Ranks by: (1) most recent call activity, (2) contact frequency, (3) alphabetical
+router.get('/contacts-for-account', async (req, res) => {
+  try {
+    const { account } = req.query;
+    if (!account || !account.trim()) return res.json({ contacts: [] });
+
+    // Pull all unique contacts across the whole team for this company
+    // Rank by most recent call date attached to that contact's prospect record
+    const result = await pool.query(
+      `SELECT
+         p.contact,
+         COUNT(*) AS freq,
+         MAX(COALESCE(lc.call_date, p.created_at)) AS last_activity
+       FROM prospects p
+       LEFT JOIN LATERAL (
+         SELECT call_date FROM calls
+         WHERE prospect_id = p.id
+         ORDER BY call_date DESC, created_at DESC
+         LIMIT 1
+       ) lc ON true
+       WHERE LOWER(TRIM(p.company)) = LOWER(TRIM($1))
+         AND p.contact IS NOT NULL
+         AND TRIM(p.contact) != ''
+       GROUP BY p.contact
+       ORDER BY last_activity DESC NULLS LAST, freq DESC, p.contact ASC`,
+      [account.trim()]
+    );
+
+    const contacts = result.rows.map(r => r.contact);
+    res.json({ contacts });
+  } catch (e) {
+    console.error('contacts-for-account error:', e.message);
+    res.status(500).json({ contacts: [], error: e.message });
+  }
+});
+
 // GET /:id/pdf — serve stored PDF base64 data as an inline PDF for viewing
 router.get('/:id/pdf', async (req, res) => {
   try {
