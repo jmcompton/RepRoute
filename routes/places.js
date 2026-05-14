@@ -49,20 +49,168 @@ const CONTRACTOR_SIGNALS = [
   'home improvement','handyman','repair','restoration','maintenance services'
 ];
 
+
+// ── ICP: Words that signal enterprise/mega-corp gatekeeping ─────
+const ENTERPRISE_BLOCKLIST = [
+  'inc\. nationwide','national','corp nationwide',
+  // Mega-contractors / publicly traded / franchise chains
+  'dr horton','nvr ','toll brothers','kb home','lennar','pulte','centex',
+  'beazer','meritage','william lyon','century communities',
+  'abc supply','builders firstsource','us lbm','builders general',
+  'beacon roofing','bradco','gulfeagle','atlas roofing corp',
+  'allied building products','northwest building products',
+  // Brand-franchise only, not decision-maker accessible
+  'servpro','servicemaster','restoration 1','paul davis',
+  // National chains with procurement layers
+  'home services of america','2-10 home buyers',
+];
+
+// ── ICP: Home-based / micro signals ─────────────────────────────
+const HOME_BASED_SIGNALS = [
+  'home-based','home based','owner operator','owner-operator',
+  'sole prop','one man','one-man','1 man','handyman services',
+  // Residential address patterns caught at name level
+  'my home','from home',
+];
+
+// ── ICP: Terms that suggest very large corporate structure ───────
+const MEGA_CORP_SIGNALS = [
+  'group llc nationwide','holding','holdings','properties llc',
+  'development corp','developments llc','realty group','realty corp',
+  'global services','international services','worldwide',
+];
+
+// ── Review sweet-spot thresholds for mid-market ICP ─────────────
+// Too few = micro/home-based. Too many = big corporate.
+const REVIEW_MIN_ICP = 5;   // fewer than this = likely micro/home-based
+const REVIEW_MAX_ICP = 600; // more than this = likely mega-corp
+
+// ── Reachability scorer ──────────────────────────────────────────
+function getReachabilityScore(place, name) {
+  const lower = (name || '').toLowerCase();
+  const reviews = place.userRatingCount || 0;
+  const rating = place.rating || 0;
+  const hasPhone = !!place.nationalPhoneNumber;
+  const hasWebsite = !!place.websiteUri;
+  const hasHours = !!(place.regularOpeningHours && place.regularOpeningHours.weekdayDescriptions);
+
+  let score = 0;
+  let reasons = [];
+  let deductions = [];
+
+  // ── POSITIVE signals ──
+  if (hasPhone) { score += 30; reasons.push('direct phone listed'); }
+  if (hasWebsite) { score += 10; reasons.push('website present'); }
+  if (hasHours) { score += 10; reasons.push('business hours listed'); }
+
+  // Sweet-spot review count = mid-market (5–300)
+  if (reviews >= REVIEW_MIN_ICP && reviews <= 300) {
+    score += 25;
+    reasons.push('review count signals mid-market size');
+  } else if (reviews > 300 && reviews <= REVIEW_MAX_ICP) {
+    score += 10;
+    reasons.push('established business, may have some gatekeeping');
+  }
+
+  // Good rating with reasonable review count = real business, decision-maker accessible
+  if (rating >= 4.0 && reviews >= REVIEW_MIN_ICP) {
+    score += 15;
+    reasons.push('highly rated active business');
+  }
+
+  // ── NEGATIVE signals ──
+  if (reviews < REVIEW_MIN_ICP) {
+    score -= 20;
+    deductions.push('very few reviews — likely micro or home-based');
+  }
+  if (reviews > REVIEW_MAX_ICP) {
+    score -= 25;
+    deductions.push('very high review volume — likely large corp with procurement layers');
+  }
+
+  // Enterprise / mega-corp blockers
+  for (const kw of ENTERPRISE_BLOCKLIST) {
+    if (lower.includes(kw)) { score -= 40; deductions.push('enterprise signal: ' + kw); break; }
+  }
+  for (const kw of MEGA_CORP_SIGNALS) {
+    if (lower.includes(kw)) { score -= 30; deductions.push('corporate holding signal'); break; }
+  }
+  for (const kw of HOME_BASED_SIGNALS) {
+    if (lower.includes(kw)) { score -= 35; deductions.push('home-based or solo operator signal'); break; }
+  }
+
+  // ── Tier assignment ──
+  const finalScore = Math.max(0, Math.min(100, score));
+  let tier, label;
+  if (finalScore >= 60) {
+    tier = 'HIGH';
+    label = 'High Reachability';
+  } else if (finalScore >= 35) {
+    tier = 'MEDIUM';
+    label = 'Medium Reachability';
+  } else {
+    tier = 'LOW';
+    label = 'Low Reachability';
+  }
+
+  const allSignals = [...reasons, ...deductions.map(d => '(-) ' + d)];
+  return { tier, label, score: finalScore, signals: allSignals };
+}
+
+// ── Estimate company size tier ───────────────────────────────────
+function getSizeTier(place) {
+  const reviews = place.userRatingCount || 0;
+  // Heuristic: reviews strongly correlate with business size/visibility
+  if (reviews < REVIEW_MIN_ICP) return 'Micro';
+  if (reviews < 30) return 'Small';
+  if (reviews < 150) return 'Mid';
+  return 'Large';
+}
+
+// ── Why this lead? Build a 1-line justification ──────────────────
+function buildInclusionReason(place, name, category, reachability) {
+  const reviews = place.userRatingCount || 0;
+  const rating = place.rating || 0;
+  const hasPhone = !!place.nationalPhoneNumber;
+  const hasWebsite = !!place.websiteUri;
+
+  const parts = [];
+  if (hasPhone) parts.push('direct phone available');
+  if (rating >= 4.0 && reviews >= 10) parts.push(rating.toFixed(1) + '★ with ' + reviews + ' reviews');
+  else if (reviews >= 10) parts.push(reviews + ' reviews');
+  if (hasWebsite) parts.push('web presence confirmed');
+
+  return parts.length ? parts.join(', ') + '.' : 'Active ' + category + ' in target territory.';
+}
+
 function isBadLead(name, address, category) {
   if (!name) return true;
   const lower = name.toLowerCase();
   const addrLower = (address||'').toLowerCase();
 
-  // Block bad-lead keywords
+  // Block bad-lead keywords (financial, medical, retail, etc.)
   for (const kw of BAD_LEAD_KEYWORDS) {
     if (new RegExp(kw).test(lower)) return true;
+  }
+
+  // Block home-based / solo operator signals
+  for (const kw of HOME_BASED_SIGNALS) {
+    if (lower.includes(kw)) return true;
+  }
+
+  // Block mega-corp signals
+  for (const kw of MEGA_CORP_SIGNALS) {
+    if (lower.includes(kw)) return true;
+  }
+
+  // Block known enterprise chains
+  for (const kw of ENTERPRISE_BLOCKLIST) {
+    if (lower.includes(kw)) return true;
   }
 
   // Block names that are just generic addresses or single words
   const nameWords = name.split(' ').filter(w=>w.length>1);
   if (nameWords.length < 2 && !lower.includes('co') && !lower.includes('inc') && !lower.includes('llc')) {
-    // Single-word generic names are suspect unless they have contractor signals
     const hasSignal = CONTRACTOR_SIGNALS.some(s => lower.includes(s));
     if (!hasSignal) return true;
   }
@@ -276,14 +424,23 @@ router.post('/places-leads', async (req, res) => {
           const placeName = place.displayName?.text || '';
           const placeAddr = place.formattedAddress || '';
 
-          // Skip bad leads (banks, offices, unrelated businesses)
+          // Skip bad leads (banks, offices, unrelated businesses, enterprise, home-based)
           if (isBadLead(placeName, placeAddr, label)) continue;
 
-          // Skip leads with no phone (likely inactive or spam listings)
+          // Skip leads with no phone (inactive or uncontactable)
           if (!place.nationalPhoneNumber) continue;
 
           // Alum-A-Pole paint blocker
           if ((product||'').toLowerCase().includes('alum') && alumPoleBlocked(placeName)) continue;
+
+          // ICP: Skip micro businesses (< REVIEW_MIN_ICP reviews AND no website)
+          // A real mid-market contractor will have either a website or at least a few reviews
+          const reviewCount = place.userRatingCount || 0;
+          if (reviewCount < REVIEW_MIN_ICP && !place.websiteUri) continue;
+
+          // ICP: Compute reachability — skip LOW tier
+          const reach = getReachabilityScore(place, placeName);
+          if (reach.tier === 'LOW') continue;
           const addr = (place.formattedAddress || '').split(',');
           leadsMap.set(place.id, {
             company: placeName || 'Unknown',
@@ -296,15 +453,17 @@ router.post('/places-leads', async (req, res) => {
             contact: null,
             products: product,
             why: 'This ' + label + ' ' + why,
-            priority: (place.rating >= 4.5 && place.userRatingCount > 50) ? 'High' : (place.rating >= 4.0 && place.userRatingCount > 10) ? 'Medium' : 'Low',
+            reachability: reach.tier,
+            reachabilityLabel: reach.label,
+            reachabilityScore: reach.score,
+            reachabilitySignals: reach.signals,
+            sizeTier: getSizeTier(place),
+            inclusionReason: buildInclusionReason(place, placeName, label, reach),
+            // Legacy fields kept for UI compatibility
+            priority: reach.tier === 'HIGH' ? 'High' : reach.tier === 'MEDIUM' ? 'Medium' : 'Low',
             rating: place.rating || null,
             reviews: place.userRatingCount || 0,
-            confidence: Math.min(100, Math.round(
-              30 * (place.websiteUri ? 1 : 0) +         // has website = 30pts
-              20 * (place.nationalPhoneNumber ? 1 : 0) + // has phone = 20pts
-              Math.min(30, (place.userRatingCount || 0) / 5) + // up to 30pts for reviews
-              Math.min(20, (place.rating || 0) * 4)     // up to 20pts for rating
-            )),
+            confidence: reach.score,
             address: place.formattedAddress || null
           });
         }
@@ -312,9 +471,13 @@ router.post('/places-leads', async (req, res) => {
       }
     }
 
-    // Sort by quality: prioritize high-rating + high review count (biggest, most established businesses)
+    // Sort by ICP quality:
+    // Primary: Reachability score (HIGH > MEDIUM — LOW already filtered out)
+    // Secondary: rating × log(reviews) within same tier — rewards active established mid-market
     const leadsArr = Array.from(leadsMap.values()).sort((a, b) => {
-      // Score = rating * log(reviews+1) — rewards both high rating AND volume of reviews
+      const reachA = a.reachabilityScore || 0;
+      const reachB = b.reachabilityScore || 0;
+      if (reachB !== reachA) return reachB - reachA;
       const scoreA = (a.rating || 0) * Math.log1p(a.reviews || 0);
       const scoreB = (b.rating || 0) * Math.log1p(b.reviews || 0);
       return scoreB - scoreA;
