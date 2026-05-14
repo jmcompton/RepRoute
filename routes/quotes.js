@@ -19,6 +19,29 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /:id/pdf — serve stored PDF base64 data as an inline PDF for viewing
+router.get('/:id/pdf', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT pdf_data, pdf_filename FROM quotes WHERE id = $1`,
+      [req.params.id]
+    );
+    if (!result.rows.length || !result.rows[0].pdf_data) {
+      return res.status(404).json({ error: 'No PDF attached to this quote' });
+    }
+    const { pdf_data, pdf_filename } = result.rows[0];
+    // pdf_data is stored as base64 string
+    const buf = Buffer.from(pdf_data, 'base64');
+    res.set('Content-Type', 'application/pdf');
+    res.set('Content-Disposition', 'inline; filename="' + (pdf_filename || 'quote.pdf') + '"');
+    res.set('Content-Length', buf.length);
+    res.send(buf);
+  } catch (e) {
+    console.error('GET /api/quotes/:id/pdf error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // GET single quote — team-wide access
 router.get('/:id', async (req, res) => {
   try {
@@ -43,44 +66,47 @@ router.post('/', async (req, res) => {
     const {
       quote_number, status, account_name, contact_name,
       amount, products, comments, quote_date, follow_up_date,
-      pdf_data, pdf_filename, rep_name
+      pdf_data, pdf_filename, rep_name, force_override
     } = req.body;
 
     if (!account_name || !account_name.trim()) {
       return res.status(400).json({ error: 'Account name is required' });
     }
 
-    // ── Duplicate check 1: same quote_number (team-wide) ──
-    if (quote_number && quote_number.trim()) {
-      const dupNum = await pool.query(
-        `SELECT id FROM quotes WHERE LOWER(TRIM(quote_number)) = LOWER($1) LIMIT 1`,
-        [quote_number.trim()]
-      );
-      if (dupNum.rows.length > 0) {
-        return res.status(409).json({
-          error: 'duplicate',
-          message: 'A quote with number "' + quote_number.trim() + '" already exists.',
-          existing_id: dupNum.rows[0].id
-        });
+    // ── Duplicate checks — skipped if user explicitly chose to proceed (force_override) ──
+    if (!force_override) {
+      // Check 1: same quote_number (team-wide)
+      if (quote_number && quote_number.trim()) {
+        const dupNum = await pool.query(
+          `SELECT id FROM quotes WHERE LOWER(TRIM(quote_number)) = LOWER($1) LIMIT 1`,
+          [quote_number.trim()]
+        );
+        if (dupNum.rows.length > 0) {
+          return res.status(409).json({
+            error: 'duplicate',
+            message: 'A quote with number "' + quote_number.trim() + '" already exists.',
+            existing_id: dupNum.rows[0].id
+          });
+        }
       }
-    }
 
-    // ── Duplicate check 2: same account + amount + quote_date ──
-    if (account_name && amount && quote_date) {
-      const dupMatch = await pool.query(
-        `SELECT id FROM quotes
-         WHERE LOWER(TRIM(account_name)) = LOWER($1)
-           AND amount = $2
-           AND quote_date::date = $3::date
-         LIMIT 1`,
-        [account_name.trim(), parseFloat(amount) || 0, quote_date]
-      );
-      if (dupMatch.rows.length > 0) {
-        return res.status(409).json({
-          error: 'duplicate',
-          message: 'A quote for "' + account_name.trim() + '" with this amount and date already exists.',
-          existing_id: dupMatch.rows[0].id
-        });
+      // Check 2: same account + amount + quote_date
+      if (account_name && amount && quote_date) {
+        const dupMatch = await pool.query(
+          `SELECT id FROM quotes
+           WHERE LOWER(TRIM(account_name)) = LOWER($1)
+             AND amount = $2
+             AND quote_date::date = $3::date
+           LIMIT 1`,
+          [account_name.trim(), parseFloat(amount) || 0, quote_date]
+        );
+        if (dupMatch.rows.length > 0) {
+          return res.status(409).json({
+            error: 'duplicate',
+            message: 'A quote for "' + account_name.trim() + '" with this amount and date already exists.',
+            existing_id: dupMatch.rows[0].id
+          });
+        }
       }
     }
 
@@ -185,29 +211,6 @@ router.delete('/:id', async (req, res) => {
     await pool.query('DELETE FROM quotes WHERE id = $1', [req.params.id]);
     res.json({ success: true });
   } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// GET /:id/pdf — serve stored PDF base64 data as an inline PDF for viewing
-router.get('/:id/pdf', async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT pdf_data, pdf_filename FROM quotes WHERE id = $1`,
-      [req.params.id]
-    );
-    if (!result.rows.length || !result.rows[0].pdf_data) {
-      return res.status(404).json({ error: 'No PDF attached to this quote' });
-    }
-    const { pdf_data, pdf_filename } = result.rows[0];
-    // pdf_data is stored as base64 string
-    const buf = Buffer.from(pdf_data, 'base64');
-    res.set('Content-Type', 'application/pdf');
-    res.set('Content-Disposition', 'inline; filename="' + (pdf_filename || 'quote.pdf') + '"');
-    res.set('Content-Length', buf.length);
-    res.send(buf);
-  } catch (e) {
-    console.error('GET /api/quotes/:id/pdf error:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
