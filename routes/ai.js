@@ -365,11 +365,28 @@ router.post('/leads/save', async (req, res) => {
 
       if (isDup) continue; // skip duplicate
 
+      // Resolve company_type from category
+      function resolveType(cat) {
+        const distributorCats = ['Roofing Distributor','Decking Distributor','Siding Distributor','Window & Door Distributor'];
+        if (distributorCats.includes(cat)) return 'Distributor';
+        const lower = (cat||'').toLowerCase();
+        if (lower.includes('distributor')||lower.includes('dealer')||lower.includes('supply')||lower.includes('wholesale')) return 'Distributor';
+        return 'Contractor';
+      }
+      const company_type = resolveType(l.category);
+      const data_status = l.data_status || 'Unvetted';
+      const source_label = l.source || 'AI';
       const result = await pool.query(
-        `INSERT INTO prospects (user_id, company, category, city, state, phone, contact, website, products, notes, priority, source, google_place_id, address)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'AI',$12,$13) RETURNING *`,
-        [uid, l.company, l.category, l.city, l.state || 'GA', l.phone, l.contact, l.website,
-         l.products, l.notes || '', l.priority || 'Medium', l.place_id || null, l.address || null]
+        `INSERT INTO prospects
+           (user_id, company, category, company_type, city, state, phone, contact, website,
+            products, notes, priority, source, google_place_id, address,
+            data_status, manufacturer_assoc, last_activity_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,NOW()) RETURNING *`,
+        [uid, l.company, l.category, company_type,
+         l.city, l.state || 'GA', l.phone, l.contact, l.website,
+         l.products, l.notes || '', l.priority || 'Medium', source_label,
+         l.place_id || null, l.address || null,
+         data_status, l.manufacturer_assoc || null]
       );
       if (result.rows[0]) saved.push(result.rows[0]);
     } catch (e) {
