@@ -5601,6 +5601,18 @@ window.runDailyLeads = function() {
           '</div>';
         }
 
+        // Reachability badge
+        var reachColor = lead.reachability === 'HIGH' ? {bg:'#dcfce7',col:'#15803d'} : {bg:'#fef9c3',col:'#a16207'};
+        var reachBadge = lead.reachabilityLabel
+          ? '<span style="background:' + reachColor.bg + ';color:' + reachColor.col + ';font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">' + lead.reachabilityLabel + '</span>'
+          : '';
+        var sizeBadge = lead.sizeTier
+          ? '<span style="background:#f1f5f9;color:#64748b;font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px">' + lead.sizeTier + ' Co.</span>'
+          : '';
+        var whyLine = (lead.inclusionReason || lead.why)
+          ? '<div style="font-size:11px;color:var(--text3);margin-top:3px;font-style:italic">' + (lead.inclusionReason || lead.why) + '</div>'
+          : '';
+
         return '<div id="lead-card-' + i + '" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden">' +
           '<div style="display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer" onclick="toggleLeadCard(' + i + ')">' +
             '<div id="lead-check-' + i + '" style="width:20px;height:20px;border-radius:50%;border:2px solid var(--border);flex-shrink:0"></div>' +
@@ -5609,9 +5621,12 @@ window.runDailyLeads = function() {
                 '<span style="font-size:13.5px;font-weight:700;color:var(--navy)">' + (lead.company||'') + '</span>' +
                 segBadge +
               '</div>' +
-              '<div style="font-size:11.5px;color:var(--text2);margin-bottom:2px">' + (lead.category||'') + '</div>' +
+              '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:3px">' +
+                reachBadge + sizeBadge +
+              '</div>' +
               (mapsLink ? '<div style="margin-top:2px">' + mapsLink + '</div>' : '') +
               (rating ? '<div style="margin-top:3px">' + rating + '</div>' : '') +
+              whyLine +
             '</div>' +
             '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0">' +
               (lead.phone ? '<a href="tel:' + lead.phone + '" onclick="event.stopPropagation()" style="color:var(--accent);font-size:12px;text-decoration:none;font-weight:600">' + lead.phone + '</a>' : '') +
