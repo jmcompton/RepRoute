@@ -616,7 +616,7 @@ window.addEventListener('load', function() {
   <div class="sb-section">
     <div class="sb-sec-label">Sales</div>
     <button class="sb-item" onclick="go('contacts')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg>Contacts</button>
-    <button class="sb-item" onclick="go('accounts')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><rect x="2" y="4" width="12" height="9" rx="1"/><path d="M5 4V3a1 1 0 011-1h4a1 1 0 011 1v1"/></svg>Accounts</button>
+
     <button class="sb-item" onclick="go('deals')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 4h12M2 8h9M2 12h6"/></svg>Deal Pipeline</button>
     <button class="sb-item" onclick="go('quotes')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><path d="M3 2h10a1 1 0 011 1v11a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1zM5 7h6M5 9.5h4"/></svg>Quotes</button>
   </div>
@@ -1255,6 +1255,62 @@ window.addEventListener('load', function() {
       <div class="mod-tab" onclick="setQuoteFilter('Follow-Up',this)">Follow-Up</div>
       <div class="mod-tab" onclick="setQuoteFilter('Won',this)">Won</div>
       <div class="mod-tab" onclick="setQuoteFilter('Lost',this)">Lost</div>
+    </div>
+    <!-- Manufacturer + Account Filters -->
+    <div style="background:var(--bg);border-bottom:1px solid var(--border);padding:8px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:6px">
+        <label style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap">Manufacturer</label>
+        <select id="quote-mfr-filter" onchange="setQuoteManufacturer(this.value)" style="padding:5px 10px;font-size:12px;border:1px solid var(--border);border-radius:5px;background:var(--white);color:var(--text);font-family:inherit">
+          <option value="all">All</option>
+          <option value="Bilco">Bilco</option>
+          <option value="Metal Era">Metal Era</option>
+          <option value="Construction Specialties">Construction Specialties</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <label style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap">Account</label>
+        <input id="quote-acct-filter" placeholder="Filter by account..." oninput="setQuoteAccount(this.value)" style="padding:5px 10px;font-size:12px;border:1px solid var(--border);border-radius:5px;background:var(--white);color:var(--text);font-family:inherit;width:160px">
+      </div>
+      <button onclick="resetQuoteFilters()" style="padding:5px 12px;font-size:11px;font-weight:600;background:transparent;border:1px solid var(--border);border-radius:5px;cursor:pointer;color:var(--text3);font-family:inherit">Reset Filters</button>
+      <button onclick="toggleQuoteAnalytics()" style="padding:5px 12px;font-size:11px;font-weight:600;background:var(--navy);color:#fff;border:none;border-radius:5px;cursor:pointer;font-family:inherit;margin-left:auto">Analytics</button>
+    </div>
+    <!-- Analytics Panel (hidden by default) -->
+    <div id="quote-analytics-panel" style="display:none;background:var(--bg);border-bottom:1px solid var(--border);padding:14px 16px">
+      <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:10px">Quote Analytics</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px">
+        <div style="background:var(--white);border:1px solid var(--border);border-radius:6px;padding:10px 12px">
+          <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em">This Month</div>
+          <div style="font-size:20px;font-weight:700;color:var(--navy);margin-top:4px" id="qa-this-month-val">—</div>
+          <div style="font-size:11px;color:var(--text3)" id="qa-this-month-cnt">0 quotes</div>
+        </div>
+        <div style="background:var(--white);border:1px solid var(--border);border-radius:6px;padding:10px 12px">
+          <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em">Last Month</div>
+          <div style="font-size:20px;font-weight:700;color:var(--navy);margin-top:4px" id="qa-last-month-val">—</div>
+          <div style="font-size:11px;color:var(--text3)" id="qa-last-month-cnt">0 quotes</div>
+        </div>
+        <div style="background:var(--white);border:1px solid var(--border);border-radius:6px;padding:10px 12px">
+          <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em">MoM Change</div>
+          <div style="font-size:20px;font-weight:700;margin-top:4px" id="qa-mom-change">—</div>
+          <div style="font-size:11px;color:var(--text3)" id="qa-mom-cnt-change">—</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:12px">
+        <div style="background:var(--white);border:1px solid var(--border);border-radius:6px;padding:10px 12px">
+          <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em">This Year (YTD)</div>
+          <div style="font-size:20px;font-weight:700;color:var(--navy);margin-top:4px" id="qa-ytd-val">—</div>
+          <div style="font-size:11px;color:var(--text3)" id="qa-ytd-cnt">0 quotes</div>
+        </div>
+        <div style="background:var(--white);border:1px solid var(--border);border-radius:6px;padding:10px 12px">
+          <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em">Last Year</div>
+          <div style="font-size:20px;font-weight:700;color:var(--navy);margin-top:4px" id="qa-ly-val">—</div>
+          <div style="font-size:11px;color:var(--text3)" id="qa-ly-cnt">0 quotes</div>
+        </div>
+      </div>
+      <!-- Manufacturer breakdown -->
+      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">By Manufacturer</div>
+      <div id="qa-mfr-breakdown" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+        <!-- populated by JS -->
+      </div>
     </div>
     <!-- Table -->
     <div style="flex:1;overflow:auto;background:var(--white)">
@@ -2744,13 +2800,15 @@ function renderLeads() {
     return '<div class="lead-card ' + (selectedLeads.has(i)?'sel':'') + '" onclick="toggleLead(' + i + ')">' +
       '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px">' +
       '<div class="lc-name">' + l.company + '</div>' +
-      '<span class="badge ' + (l.priority==='High'?'b-hot':l.priority==='Low'?'b-cold':'b-warm') + '">' + (l.priority||'Medium') + '</span></div>' +
-      (l.address ? '<div class="lc-meta">📍 ' + l.address + ', ' + (l.city||'') + ', ' + (l.state||'GA') + '</div>' :
-        '<div class="lc-meta">📍 ' + (l.city||'') + ', ' + (l.state||'GA') + '</div>') +
+      '<span class="badge ' + (l.priority==='High'?'b-hot':l.priority==='Low'?'b-cold':'b-warm') + '">' + (l.priority||'Medium') + '</span>' +
+      (typeof l.confidence === 'number' ? '<span style="margin-left:6px;font-size:10px;font-weight:700;color:#475569;background:#f1f5f9;padding:2px 7px;border-radius:20px">' + l.confidence + '% match</span>' : '') +
+      '</div>' +
+      (l.address ? '<div class="lc-meta">' + l.address + ', ' + (l.city||'') + ', ' + (l.state||'GA') + '</div>' :
+        '<div class="lc-meta">' + (l.city||'') + ', ' + (l.state||'GA') + '</div>') +
       (l.phone ? '<div class="lc-meta">' + l.phone + '</div>' : '') +
       (l.contact ? '<div class="lc-meta">' + l.contact + '</div>' : '') +
       (l.email ? '<div class="lc-meta"> ' + l.email + '</div>' : '') +
-      (l.website ? '<div class="lc-meta">🌐 ' + l.website + '</div>' : '') +
+      (l.website ? '<div class="lc-meta">' + l.website + '</div>' : '') +
       '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">' +
       catBadge(l.category) +
       '<div class="lc-check ' + (selectedLeads.has(i)?'on':'') + '">' + (selectedLeads.has(i)?'✓':'') + '</div></div>' +
@@ -3308,35 +3366,83 @@ function globalSearch(q) {
 
 function loadNotes() {
   if (!currentRecord) return;
-  var notes = JSON.parse(localStorage.getItem('rr-notes-' + currentRecord.id) || '[]');
   var list = document.getElementById('notes-list');
   if (!list) return;
-  list.innerHTML = notes.length ? notes.map(function(n, i) {
-    return '<div style="background:#f8fafc;border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:8px">' +
-      '<div style="display:flex;justify-content:space-between;margin-bottom:4px">' +
-      '<div style="font-size:10px;color:var(--text3)">' + new Date(n.created).toLocaleString() + '</div>' +
-      '<button onclick="deleteNote(' + i + ')" style="background:transparent;border:none;color:var(--text3);cursor:pointer">x</button>' +
-      '</div><div style="font-size:12px;color:var(--navy);white-space:pre-wrap">' + n.text + '</div></div>';
-  }).join('') : '<div style="font-size:12px;color:var(--text3);text-align:center;padding:20px">No notes yet</div>';
+  list.innerHTML = '<div style="text-align:center;padding:12px;color:var(--text3);font-size:11px">Loading...</div>';
+  fetch('/api/calls')
+    .then(function(r) { return r.json(); })
+    .then(function(calls) {
+      var pid = currentRecord ? currentRecord.id : null;
+      var notes = (calls||[]).filter(function(c){ return c.call_type === 'Note' && String(c.prospect_id) === String(pid); });
+      list.innerHTML = notes.length
+        ? notes.map(function(n, i) {
+            return '<div style="background:#f8fafc;border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:8px">' +
+              '<div style="display:flex;justify-content:space-between;margin-bottom:4px">' +
+              '<div style="font-size:10px;color:var(--text3)">' + new Date(n.created_at||n.call_date).toLocaleString() + '</div>' +
+              '<button onclick="deleteNote(' + n.id + ')" style="background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:0">Delete</button>' +
+              '</div>' +
+              '<div style="font-size:12px;color:var(--text);white-space:pre-wrap">' + (n.notes||'') + '</div>' +
+              '</div>';
+          }).join('')
+        : '<div style="font-size:12px;color:var(--text3);text-align:center;padding:16px">No notes yet</div>';
+    })
+    .catch(function() {
+      list.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:16px">Could not load notes</div>';
+    });
 }
 function saveNote() {
   if (!currentRecord) return;
   var input = document.getElementById('note-input');
   var text = input.value.trim();
   if (!text) return;
-  var notes = JSON.parse(localStorage.getItem('rr-notes-' + currentRecord.id) || '[]');
-  notes.unshift({ text: text, created: new Date().toISOString() });
-  localStorage.setItem('rr-notes-' + currentRecord.id, JSON.stringify(notes));
-  input.value = '';
-  loadNotes();
-  showToast('Note saved');
+  var today = new Date().toISOString().split('T')[0];
+  var btn = document.querySelector('[onclick="saveNote()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+  fetch('/api/calls', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      prospect_id: currentRecord.id,
+      call_date: today,
+      call_type: 'Note',
+      outcome: 'Note Added',
+      notes: text
+    })
+  }).then(function(r) { return r.json(); })
+  .then(function() {
+    input.value = '';
+    if (btn) { btn.disabled = false; btn.textContent = '+ Add Note'; }
+    showToast('Note saved');
+    loadNotes();
+    // Also append to the prospect notes field
+    var existing = currentRecord.notes || '';
+    var todayFmt = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    var entry = '[' + todayFmt + ']: ' + text;
+    var updated = existing ? existing + '\n' + entry : entry;
+    fetch('/api/prospects/' + currentRecord.id, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes: updated })
+    }).then(function(r) { return r.json(); })
+    .then(function(p) {
+      if (p && p.id) {
+        currentRecord.notes = p.notes;
+        // refresh overview fields so Notes row updates live
+        var fval = document.querySelector('.fval.notes-cell');
+        if (fval) fval.innerHTML = '<span style="white-space:pre-wrap">' + (p.notes||'') + '</span>';
+      }
+    });
+  })
+  .catch(function() {
+    if (btn) { btn.disabled = false; btn.textContent = '+ Add Note'; }
+    showToast('Error saving note');
+  });
 }
-function deleteNote(idx) {
+function deleteNote(callId) {
   if (!currentRecord) return;
-  var notes = JSON.parse(localStorage.getItem('rr-notes-' + currentRecord.id) || '[]');
-  notes.splice(idx, 1);
-  localStorage.setItem('rr-notes-' + currentRecord.id, JSON.stringify(notes));
-  loadNotes();
+  fetch('/api/calls/' + callId, { method: 'DELETE' })
+    .then(function() { loadNotes(); showToast('Note deleted'); })
+    .catch(function() { showToast('Error deleting note'); });
 }
 function loadRecordDeals() {
   var list = document.getElementById('rec-deals-list');
@@ -4160,6 +4266,8 @@ var allQuotes = [];
 var quoteFilter = 'all';
 var currentQuoteId = null;
 var quoteSearchTerm = '';
+var quoteManufacturerFilter = 'all';
+var quoteAccountFilter = '';
 var quotePdfData = null;
 var quotePdfName = null;
 var quoteSortField = null;
@@ -4210,6 +4318,13 @@ function renderQuotesTable(quotes) {
   // Filter
   var filtered = quotes.filter(function(q){
     if (quoteFilter !== 'all' && q.status !== quoteFilter) return false;
+    if (quoteManufacturerFilter && quoteManufacturerFilter !== 'all') {
+      if (!(q.products||'').toLowerCase().includes(quoteManufacturerFilter.toLowerCase())) return false;
+    }
+    if (quoteAccountFilter) {
+      var af = quoteAccountFilter.toLowerCase();
+      if (!(q.account_name||'').toLowerCase().includes(af)) return false;
+    }
     if (quoteSearchTerm) {
       var s = quoteSearchTerm.toLowerCase();
       return (q.account_name||'').toLowerCase().includes(s) ||
@@ -4304,6 +4419,103 @@ function filterQuotes(term) {
   quoteSearchTerm = term;
   renderQuotesTable(allQuotes);
 }
+
+function setQuoteManufacturer(val) {
+  quoteManufacturerFilter = val;
+  renderQuotesTable(allQuotes);
+}
+
+function setQuoteAccount(val) {
+  quoteAccountFilter = val;
+  renderQuotesTable(allQuotes);
+}
+
+function resetQuoteFilters() {
+  quoteFilter = 'all';
+  quoteManufacturerFilter = 'all';
+  quoteAccountFilter = '';
+  quoteSearchTerm = '';
+  var search = document.getElementById('quote-search');
+  if (search) search.value = '';
+  var mfr = document.getElementById('quote-mfr-filter');
+  if (mfr) mfr.value = 'all';
+  var acct = document.getElementById('quote-acct-filter');
+  if (acct) acct.value = '';
+  document.querySelectorAll('#quote-status-tabs .mod-tab').forEach(function(t) { t.classList.remove('active'); });
+  var allTab = document.querySelector('#quote-status-tabs .mod-tab');
+  if (allTab) allTab.classList.add('active');
+  renderQuotesTable(allQuotes);
+}
+
+function toggleQuoteAnalytics() {
+  var panel = document.getElementById('quote-analytics-panel');
+  if (!panel) return;
+  var isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'block';
+  if (!isOpen) renderQuoteAnalytics(allQuotes);
+}
+
+function renderQuoteAnalytics(quotes) {
+  var now = new Date();
+  var thisYear = now.getFullYear();
+  var thisMonth = now.getMonth();
+  var lastYear = thisYear - 1;
+  var lastMonth = thisMonth === 0 ? 11 : thisMonth - 1;
+  var lastMonthYear = thisMonth === 0 ? thisYear - 1 : thisYear;
+
+  function matchMonth(q, year, month) {
+    if (!q.quote_date) return false;
+    var d = new Date(q.quote_date);
+    return d.getFullYear() === year && d.getMonth() === month;
+  }
+  function matchYear(q, year) {
+    if (!q.quote_date) return false;
+    return new Date(q.quote_date).getFullYear() === year;
+  }
+  function sumVal(qs) { return qs.reduce(function(s,q){ return s + (parseFloat(q.amount)||0); }, 0); }
+  function fmtMoney(v) { return '$' + v.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0}); }
+
+  var thisMonthQ = quotes.filter(function(q){ return matchMonth(q, thisYear, thisMonth); });
+  var lastMonthQ = quotes.filter(function(q){ return matchMonth(q, lastMonthYear, lastMonth); });
+  var ytdQ = quotes.filter(function(q){ return matchYear(q, thisYear); });
+  var lyQ  = quotes.filter(function(q){ return matchYear(q, lastYear); });
+
+  var tmVal = sumVal(thisMonthQ), lmVal = sumVal(lastMonthQ);
+  var momPct = lmVal ? Math.round((tmVal - lmVal) / lmVal * 100) : null;
+  var momCntPct = lastMonthQ.length ? Math.round((thisMonthQ.length - lastMonthQ.length) / lastMonthQ.length * 100) : null;
+
+  function setEl(id, v) { var e = document.getElementById(id); if (e) e.textContent = v; }
+  function setCol(id, v) { var e = document.getElementById(id); if (e) e.style.color = v > 0 ? '#059669' : v < 0 ? '#dc2626' : 'var(--navy)'; }
+
+  setEl('qa-this-month-val', fmtMoney(tmVal));
+  setEl('qa-this-month-cnt', thisMonthQ.length + ' quote' + (thisMonthQ.length !== 1 ? 's' : ''));
+  setEl('qa-last-month-val', fmtMoney(lmVal));
+  setEl('qa-last-month-cnt', lastMonthQ.length + ' quote' + (lastMonthQ.length !== 1 ? 's' : ''));
+  setEl('qa-mom-change', momPct !== null ? (momPct >= 0 ? '+' : '') + momPct + '%' : 'N/A');
+  setEl('qa-mom-cnt-change', momCntPct !== null ? (momCntPct >= 0 ? '+' : '') + momCntPct + '% quote count' : 'No prior data');
+  var momEl = document.getElementById('qa-mom-change');
+  if (momEl && momPct !== null) { momEl.style.color = momPct >= 0 ? '#059669' : '#dc2626'; }
+  setEl('qa-ytd-val', fmtMoney(sumVal(ytdQ)));
+  setEl('qa-ytd-cnt', ytdQ.length + ' quote' + (ytdQ.length !== 1 ? 's' : ''));
+  setEl('qa-ly-val', fmtMoney(sumVal(lyQ)));
+  setEl('qa-ly-cnt', lyQ.length + ' quote' + (lyQ.length !== 1 ? 's' : ''));
+
+  // Manufacturer breakdown
+  var mfrs = ['Bilco', 'Metal Era', 'Construction Specialties'];
+  var bd = document.getElementById('qa-mfr-breakdown');
+  if (bd) {
+    bd.innerHTML = mfrs.map(function(mfr) {
+      var mq = quotes.filter(function(q){ return (q.products||'').toLowerCase().includes(mfr.toLowerCase()); });
+      var mv = sumVal(mq);
+      return '<div style="background:var(--white);border:1px solid var(--border);border-radius:6px;padding:10px 12px">' +
+        '<div style="font-size:11px;font-weight:700;color:var(--navy)">' + mfr + '</div>' +
+        '<div style="font-size:16px;font-weight:700;color:var(--navy);margin-top:4px">' + fmtMoney(mv) + '</div>' +
+        '<div style="font-size:11px;color:var(--text3)">' + mq.length + ' quote' + (mq.length !== 1 ? 's' : '') + '</div>' +
+      '</div>';
+    }).join('');
+  }
+}
+
 
 function openNewQuoteModal() {
   currentQuoteId = null; quotePdfData = null; quotePdfName = null;
@@ -4850,7 +5062,7 @@ window._renderRoutePanel = function() {
         '<div style="width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">' + (i+1) + '</div>' +
         '<div style="flex:1;min-width:0">' +
           '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:2px">' +
-            '<span style="font-size:12.5px;font-weight:600;color:var(--navy)">' + s.company + '</span>' +
+            '<span style="font-size:12.5px;font-weight:600;color:var(--navy);cursor:pointer;text-decoration:underline;text-decoration-style:dotted" onclick="window._openRouteStopDetail(' + i + ',event)">' + s.company + '</span>' +
             segBadge +
           '</div>' +
           '<div style="font-size:11px;color:var(--text3)">' + (s.address||'') + '</div>' +
@@ -4871,6 +5083,7 @@ window.addToRoute = function(idx, evt) {
   var stops = window._routeStops || [];
   if (stops.length >= 10) { showToast('Route full (10 stops max)'); return; }
   if (stops.some(function(s){ return s.company === lead.company; })) { showToast('Already in route'); return; }
+  lead._leadIdx = idx;  // store original index for click-through
   stops.push(lead);
   window._routeStops = stops;
   _renderRoutePanel();
@@ -4885,6 +5098,62 @@ window._removeStop = function(idx) {
   window._routeStops = stops;
   _renderRoutePanel();
 };
+
+// Open full detail panel for a route stop
+window._openRouteStopDetail = function(stopIdx, evt) {
+  if (evt) evt.stopPropagation();
+  var stops = window._routeStops || [];
+  var stop = stops[stopIdx];
+  if (!stop) return;
+
+  // If this stop has a known _dailyLeads index, open the lead card inline
+  var leadIdx = stop._leadIdx;
+  if (typeof leadIdx === 'number' && window._dailyLeads && window._dailyLeads[leadIdx]) {
+    // Switch to lead finder tab if not already there
+    if (typeof go === 'function') go('daily');
+    setTimeout(function() {
+      var card = document.getElementById('lead-card-' + leadIdx);
+      if (card) {
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        toggleLeadCard(leadIdx);
+      }
+    }, 150);
+    return;
+  }
+
+  // Fallback: show a detail modal directly
+  var existing = document.getElementById('route-stop-modal');
+  if (existing) existing.remove();
+
+  var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  var mapsUrl = isIOS
+    ? 'maps://maps.apple.com/?q=' + encodeURIComponent((stop.address || stop.company) + ' ' + (stop.city || ''))
+    : 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent((stop.address || stop.company) + ' ' + (stop.city || ''));
+
+  var modal = document.createElement('div');
+  modal.id = 'route-stop-modal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:9000;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,0.45)';
+  modal.innerHTML = '<div style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:520px;padding:20px;max-height:80vh;overflow-y:auto">' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">' +
+      '<div style="font-size:15px;font-weight:700;color:var(--navy)">' + (stop.company||'—') + '</div>' +
+      '<button data-dismiss="route-stop-modal" onclick="window._closeStopModal()" style="background:transparent;border:none;font-size:20px;cursor:pointer;color:var(--text3)">×</button>' +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">' +
+      '<div style="font-size:11px;color:var(--text3)"><strong>Category</strong><br>' + (stop.category||stop.territory||'—') + '</div>' +
+      '<div style="font-size:11px;color:var(--text3)"><strong>City</strong><br>' + (stop.city||'—') + '</div>' +
+      '<div style="font-size:11px;color:var(--text3)"><strong>Phone</strong><br>' + (stop.phone ? '<a href="tel:' + stop.phone + '" style="color:var(--navy)">' + stop.phone + '</a>' : '—') + '</div>' +
+      '<div style="font-size:11px;color:var(--text3)"><strong>Website</strong><br>' + (stop.website ? '<a href="' + (stop.website.startsWith('http') ? stop.website : 'https://' + stop.website) + '" target="_blank" style="color:var(--navy)">' + stop.website + '</a>' : '—') + '</div>' +
+    '</div>' +
+    (stop.address ? '<div style="font-size:11px;color:var(--text3);margin-bottom:12px"><strong>Address</strong><br>' + stop.address + '</div>' : '') +
+    (stop.products ? '<div style="font-size:11px;color:var(--text3);margin-bottom:12px"><strong>Products</strong><br>' + stop.products + '</div>' : '') +
+    '<a href="' + mapsUrl + '" target="_blank" style="display:block;text-align:center;padding:10px;background:var(--navy);color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;margin-top:4px">Get Directions</a>' +
+  '</div>';
+  modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
+  document.body.appendChild(modal);
+
+window._closeStopModal = function() { var m = document.getElementById('route-stop-modal'); if (m) m.remove(); };
+};
+
 
 window._clearRoute = function() {
   window._routeStops = [];
