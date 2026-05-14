@@ -73,6 +73,30 @@ function isBadLead(name, address, category) {
   return false;
 }
 
+
+// Google Places API type-based exclusion — types that are NEVER valid leads
+const BAD_PLACE_TYPES = new Set([
+  'bank','finance','insurance_agency','real_estate_agency','lodging','hotel',
+  'motel','campground','rv_park','school','university','hospital','doctor',
+  'dentist','pharmacy','veterinary_care','church','mosque','synagogue','hindu_temple',
+  'funeral_home','cemetery','police','fire_station','post_office','local_government_office',
+  'city_hall','courthouse','embassy','library','museum','movie_theater','night_club',
+  'bar','casino','bowling_alley','amusement_park','zoo','park','stadium',
+  'food','restaurant','cafe','bakery','meal_delivery','meal_takeaway',
+  'grocery_or_supermarket','supermarket','convenience_store','gas_station',
+  'car_dealer','car_rental','car_repair','car_wash',
+  'beauty_salon','hair_care','spa','gym','fitness_center','laundry',
+  'clothing_store','shoe_store','jewelry_store','book_store','pet_store',
+  'florist','pharmacy','drugstore','atm','transit_station','parking','bus_station',
+  'airport','train_station','subway_station','taxi_stand'
+]);
+
+function hasBadPlaceType(types) {
+  if (!types || !types.length) return false;
+  return types.some(function(t) { return BAD_PLACE_TYPES.has(t); });
+}
+
+
 function hasContractorSignal(name, category) {
   const combined = ((name||'') + ' ' + (category||'')).toLowerCase();
   return CONTRACTOR_SIGNALS.some(s => combined.includes(s));
@@ -227,7 +251,7 @@ router.post('/places-leads', async (req, res) => {
             {
               'Content-Type': 'application/json',
               'X-Goog-Api-Key': PLACES_KEY,
-              'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.businessStatus'
+              'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.businessStatus,places.types,places.regularOpeningHours'
             },
             { textQuery: query, maxResultCount: 20, rankPreference: 'RELEVANCE' }
           );
@@ -244,6 +268,10 @@ router.post('/places-leads', async (req, res) => {
           if (leadsMap.size >= numLeads) break;
           if (leadsMap.has(place.id)) continue;
           if (place.businessStatus === 'CLOSED_PERMANENTLY') continue;
+          if (place.businessStatus === 'CLOSED_TEMPORARILY') continue;
+
+          // Type-based exclusion — skip businesses that are never valid leads
+          if (hasBadPlaceType(place.types || [])) continue;
 
           const placeName = place.displayName?.text || '';
           const placeAddr = place.formattedAddress || '';
@@ -271,6 +299,12 @@ router.post('/places-leads', async (req, res) => {
             priority: (place.rating >= 4.5 && place.userRatingCount > 50) ? 'High' : (place.rating >= 4.0 && place.userRatingCount > 10) ? 'Medium' : 'Low',
             rating: place.rating || null,
             reviews: place.userRatingCount || 0,
+            confidence: Math.min(100, Math.round(
+              30 * (place.websiteUri ? 1 : 0) +         // has website = 30pts
+              20 * (place.nationalPhoneNumber ? 1 : 0) + // has phone = 20pts
+              Math.min(30, (place.userRatingCount || 0) / 5) + // up to 30pts for reviews
+              Math.min(20, (place.rating || 0) * 4)     // up to 20pts for rating
+            )),
             address: place.formattedAddress || null
           });
         }
