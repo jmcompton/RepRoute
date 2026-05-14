@@ -810,7 +810,13 @@ window.addEventListener('load', function() {
         <div>
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
             <div style="font-size:13px;font-weight:700;color:var(--navy)">Today's Call List</div>
-            <span style="background:var(--border);color:var(--text3);font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px" id="list-count-badge">—</span>
+            <div style="display:flex;align-items:center;gap:8px">
+              <button onclick="openQuickCallLog()" style="display:inline-flex;align-items:center;gap:5px;padding:5px 12px;background:var(--navy);color:#fff;border:none;border-radius:6px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit" title="Quickly log a call for any company">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.8 19.79 19.79 0 013 1.18 2 2 0 015 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L9.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg>
+                Log a Call
+              </button>
+              <span style="background:var(--border);color:var(--text3);font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px" id="list-count-badge">—</span>
+            </div>
           </div>
           <div id="morning-call-list" style="display:flex;flex-direction:column;gap:8px"><div style="text-align:center;padding:32px 24px;background:var(--surface);border:1px dashed var(--border);border-radius:8px;color:var(--text3);font-size:13px">Enter a city above and click "Find Today's Leads" to populate your call list.</div></div>
         </div>
@@ -2070,6 +2076,117 @@ window.addEventListener('load', function() {
       <button class="btn btn-secondary" style="color:var(--red);border-color:var(--red)" onclick="deleteContact()">Delete</button>
       <button class="btn btn-primary" onclick="saveEditContact()">Save Changes</button>
     </div>
+  </div>
+</div>
+
+
+<!-- QUICK CALL LOG MODAL -->
+<div class="mo" id="modal-quick-call">
+  <div class="mb" style="max-width:500px;width:100%">
+
+    <!-- Header -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div>
+        <div style="font-size:16px;font-weight:700;color:var(--navy)">Log a Call</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">Search any company and log the outcome instantly</div>
+      </div>
+      <button onclick="closeQuickCallLog()" style="background:transparent;border:none;font-size:22px;cursor:pointer;color:var(--text3);line-height:1;padding:2px 6px">×</button>
+    </div>
+
+    <!-- Search Box -->
+    <div style="position:relative;margin-bottom:6px">
+      <div style="position:relative">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="qcl-search" type="text"
+          placeholder="Type company name..."
+          autocomplete="off" autocorrect="off" spellcheck="false"
+          oninput="qclSearchInput(this.value)"
+          style="width:100%;box-sizing:border-box;padding:10px 10px 10px 32px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;color:var(--navy)"
+          onkeydown="if(event.key==='Escape')closeQuickCallLog()">
+      </div>
+      <!-- Dropdown results -->
+      <div id="qcl-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:9999;max-height:220px;overflow-y:auto;margin-top:4px"></div>
+    </div>
+
+    <!-- Google Places fallback -->
+    <div id="qcl-gp-row" style="display:none;margin-bottom:14px">
+      <button onclick="qclSearchGoogle()" id="qcl-gp-btn"
+        style="width:100%;padding:8px;background:var(--surface);border:1px dashed var(--border);border-radius:6px;font-size:12px;color:var(--text3);cursor:pointer;font-family:inherit;font-weight:500">
+        🔍 No match in CRM — Search Google Places
+      </button>
+    </div>
+
+    <!-- Selected company banner -->
+    <div id="qcl-selected-banner" style="display:none;background:#f0f5ff;border:1px solid #c7d7ff;border-radius:8px;padding:10px 14px;margin-bottom:16px;display:none;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-size:13px;font-weight:700;color:var(--navy)" id="qcl-sel-name">—</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:1px" id="qcl-sel-meta">—</div>
+      </div>
+      <button onclick="qclClearSelection()" style="background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:18px;padding:2px 4px">×</button>
+    </div>
+
+    <!-- Duplicate call warning -->
+    <div id="qcl-dup-warn" style="display:none;background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:#92400e;font-weight:600"></div>
+
+    <!-- Call log form (hidden until company selected) -->
+    <div id="qcl-form" style="display:none">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Call Type</label>
+          <select id="qcl-type" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit">
+            <option>In-Person Visit</option>
+            <option>Phone Call</option>
+            <option>Text</option>
+            <option>Email</option>
+            <option>Jobsite Visit</option>
+            <option>Demo</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Outcome *</label>
+          <select id="qcl-outcome" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit">
+            <option value="">Select outcome...</option>
+            <option>Dropped In - Interested</option>
+            <option>Dropped In - Not Interested</option>
+            <option>Left Sample</option>
+            <option>Ready to Order</option>
+            <option>Left Voicemail</option>
+            <option>Follow-up Needed</option>
+            <option>Not Available</option>
+            <option>Phone - Interested</option>
+            <option>Phone - Not Interested</option>
+            <option>Order Placed</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="margin-bottom:12px">
+        <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Products Discussed</label>
+        <input id="qcl-products" type="text" placeholder="e.g. Fortress Framing, ShurTape 440" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit">
+      </div>
+
+      <div style="margin-bottom:12px">
+        <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Notes</label>
+        <textarea id="qcl-notes" placeholder="What happened? Who did you speak with?" rows="3" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;resize:vertical"></textarea>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Next Step</label>
+          <input id="qcl-nextstep" type="text" placeholder="e.g. Send samples, Call Friday" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Next Step Date</label>
+          <input id="qcl-nextdate" type="date" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit">
+        </div>
+      </div>
+
+      <div class="mfoot" style="display:flex;gap:10px;justify-content:flex-end;padding-top:12px;border-top:1px solid var(--border);margin-top:4px">
+        <button onclick="closeQuickCallLog()" style="padding:9px 20px;background:transparent;border:1px solid var(--border);border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text2)">Cancel</button>
+        <button id="qcl-save-btn" onclick="saveQuickCall()" style="padding:9px 22px;background:var(--navy);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Save Call</button>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -6090,6 +6207,414 @@ window.viewTeamRecord = function(prospectId) {
 
   if (typeof setRecTab === 'function') setRecTab('overview', null);
 };
+
+// ═══════════════════════════════════════════════════════════════════
+// QUICK CALL LOG — search-first call logging widget
+// ═══════════════════════════════════════════════════════════════════
+
+window._qclProspectId = null;    // selected prospect id (from CRM)
+window._qclGpData = null;        // selected company from Google Places
+window._qclSearchTimer = null;   // debounce timer
+window._qclAllProspects = null;  // cached prospects for local search
+
+window.openQuickCallLog = function() {
+  // Reset form state
+  window._qclProspectId = null;
+  window._qclGpData = null;
+  var ids = ['qcl-search','qcl-notes','qcl-products','qcl-nextstep','qcl-nextdate'];
+  ids.forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
+  var qclOutcome = document.getElementById('qcl-outcome');
+  if (qclOutcome) qclOutcome.value = '';
+  var qclType = document.getElementById('qcl-type');
+  if (qclType) qclType.value = 'In-Person Visit';
+  document.getElementById('qcl-dropdown').style.display = 'none';
+  document.getElementById('qcl-gp-row').style.display = 'none';
+  document.getElementById('qcl-dup-warn').style.display = 'none';
+  document.getElementById('qcl-form').style.display = 'none';
+  document.getElementById('qcl-selected-banner').style.display = 'none';
+
+  // Pre-load CRM prospects for fast local search
+  if (!window._qclAllProspects) {
+    fetch('/api/prospects')
+      .then(function(r) { return r.json(); })
+      .then(function(ps) { window._qclAllProspects = ps; })
+      .catch(function() {});
+  }
+
+  openModal('quick-call');
+  setTimeout(function() {
+    var inp = document.getElementById('qcl-search');
+    if (inp) inp.focus();
+  }, 150);
+};
+
+window.closeQuickCallLog = function() {
+  closeModal('quick-call');
+  var dd = document.getElementById('qcl-dropdown');
+  if (dd) dd.style.display = 'none';
+};
+
+window.qclSearchInput = function(val) {
+  clearTimeout(window._qclSearchTimer);
+  var dd = document.getElementById('qcl-dropdown');
+  var gpRow = document.getElementById('qcl-gp-row');
+
+  if (!val || val.length < 2) {
+    dd.style.display = 'none';
+    gpRow.style.display = 'none';
+    return;
+  }
+
+  window._qclSearchTimer = setTimeout(function() {
+    // First: instant local CRM search
+    var results = [];
+    var q = val.toLowerCase();
+    if (window._qclAllProspects) {
+      results = window._qclAllProspects.filter(function(p) {
+        return (p.company || '').toLowerCase().includes(q) ||
+               (p.contact || '').toLowerCase().includes(q) ||
+               (p.phone || '').includes(q);
+      }).slice(0, 8);
+    }
+
+    // Also do a quick server-side search for fresher results
+    fetch('/api/prospects?search=' + encodeURIComponent(val))
+      .then(function(r) { return r.json(); })
+      .then(function(serverResults) {
+        // Merge: server results take priority, dedupe by id
+        var seen = new Set(results.map(function(r) { return r.id; }));
+        serverResults.forEach(function(r) {
+          if (!seen.has(r.id)) { results.push(r); seen.add(r.id); }
+        });
+        results = results.slice(0, 8);
+        qclRenderDropdown(results, val);
+      })
+      .catch(function() {
+        qclRenderDropdown(results, val);
+      });
+  }, 180);
+};
+
+function qclRenderDropdown(results, query) {
+  var dd = document.getElementById('qcl-dropdown');
+  var gpRow = document.getElementById('qcl-gp-row');
+
+  if (!results.length) {
+    dd.style.display = 'none';
+    gpRow.style.display = 'block';
+    return;
+  }
+
+  gpRow.style.display = 'none';
+
+  // Build using DOM to avoid all quote-escaping issues
+  dd.innerHTML = '';
+
+  results.forEach(function(p) {
+    var meta = [p.category, p.city].filter(Boolean).join(' · ');
+    var statusColor = { Hot:'#ef4444', Warm:'#f59e0b', Cold:'#94a3b8', Active:'#10b981', New:'#3b82f6' }[p.status] || '#94a3b8';
+    var initials = (p.company||'?').split(' ').slice(0,2).map(function(w){return w[0]||'';}).join('').toUpperCase();
+
+    var row = document.createElement('div');
+    row.style.cssText = 'padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px';
+    row.onmouseover = function(){this.style.background='#f8fafc';};
+    row.onmouseout = function(){this.style.background='';};
+
+    var avatar = document.createElement('div');
+    avatar.style.cssText = 'width:30px;height:30px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0';
+    avatar.textContent = initials;
+
+    var info = document.createElement('div');
+    info.style.cssText = 'flex:1;min-width:0';
+
+    var nameEl = document.createElement('div');
+    nameEl.style.cssText = 'font-size:13px;font-weight:600;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+    nameEl.textContent = p.company || '';
+
+    var metaEl = document.createElement('div');
+    metaEl.style.cssText = 'font-size:11px;color:var(--text3)';
+    metaEl.textContent = meta;
+
+    info.appendChild(nameEl);
+    info.appendChild(metaEl);
+
+    var badge = document.createElement('span');
+    badge.style.cssText = 'background:' + statusColor + '22;color:' + statusColor + ';font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;flex-shrink:0';
+    badge.textContent = p.status || 'New';
+
+    row.appendChild(avatar);
+    row.appendChild(info);
+    row.appendChild(badge);
+
+    // Capture id and metadata cleanly
+    (function(pid, pcomp, pcity, pcat, pphone) {
+      row.onclick = function() { qclSelectCrmCompany(pid, pcomp, pcity, pcat, pphone); };
+    })(p.id, p.company||'', p.city||'', p.category||'', p.phone||'');
+
+    dd.appendChild(row);
+  });
+
+  // Google Places option at bottom
+  var gpRow2 = document.createElement('div');
+  gpRow2.style.cssText = 'padding:9px 14px;cursor:pointer;display:flex;align-items:center;gap:8px;background:var(--surface);border-radius:0 0 8px 8px';
+  gpRow2.onmouseover = function(){this.style.background='#f0f5ff';};
+  gpRow2.onmouseout = function(){this.style.background='var(--surface)';};
+  gpRow2.onclick = function() { qclSearchGoogle(); };
+
+  var searchIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  searchIcon.setAttribute('width','13'); searchIcon.setAttribute('height','13');
+  searchIcon.setAttribute('viewBox','0 0 24 24'); searchIcon.setAttribute('fill','none');
+  searchIcon.setAttribute('stroke','var(--text3)'); searchIcon.setAttribute('stroke-width','2');
+  var circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  circle.setAttribute('cx','11'); circle.setAttribute('cy','11'); circle.setAttribute('r','8');
+  var line = document.createElementNS('http://www.w3.org/2000/svg','line');
+  line.setAttribute('x1','21'); line.setAttribute('y1','21');
+  line.setAttribute('x2','16.65'); line.setAttribute('y2','16.65');
+  searchIcon.appendChild(circle); searchIcon.appendChild(line);
+
+  var gpLabel = document.createElement('span');
+  gpLabel.style.cssText = 'font-size:12px;color:var(--text3);font-weight:500';
+  gpLabel.textContent = 'Search "' + query + '" on Google Places';
+
+  gpRow2.appendChild(searchIcon);
+  gpRow2.appendChild(gpLabel);
+  dd.appendChild(gpRow2);
+
+  dd.style.display = 'block';
+}
+
+window.qclSelectCrmCompany = function(id, company, city, category, phone) {
+  window._qclProspectId = id;
+  window._qclGpData = null;
+
+  // Close dropdown, update search box
+  document.getElementById('qcl-search').value = company;
+  document.getElementById('qcl-dropdown').style.display = 'none';
+  document.getElementById('qcl-gp-row').style.display = 'none';
+
+  // Show selected banner
+  var banner = document.getElementById('qcl-selected-banner');
+  document.getElementById('qcl-sel-name').textContent = company;
+  document.getElementById('qcl-sel-meta').textContent = [category, city, phone].filter(Boolean).join(' · ') || 'No details on file';
+  banner.style.display = 'flex';
+
+  // Check for duplicate call today
+  qclCheckDuplicate(id, company);
+
+  // Show the call form
+  document.getElementById('qcl-form').style.display = 'block';
+};
+
+function qclCheckDuplicate(prospectId, company) {
+  var warn = document.getElementById('qcl-dup-warn');
+  fetch('/api/calls/today')
+    .then(function(r) { return r.json(); })
+    .then(function(calls) {
+      var dup = calls.find(function(c) {
+        return String(c.prospect_id) === String(prospectId);
+      });
+      if (dup) {
+        warn.style.display = 'block';
+        warn.textContent = '⚠️ You already logged a call for ' + company + ' today (' + (dup.outcome||'call') + '). You can still save another one.';
+      } else {
+        warn.style.display = 'none';
+      }
+    })
+    .catch(function() { warn.style.display = 'none'; });
+}
+
+window.qclSearchGoogle = function() {
+  var q = document.getElementById('qcl-search').value.trim();
+  if (!q || q.length < 2) return;
+  var btn = document.getElementById('qcl-gp-btn');
+  if (btn) { btn.textContent = 'Searching...'; btn.disabled = true; }
+  var dd = document.getElementById('qcl-dropdown');
+
+  fetch('/api/places/company-search?q=' + encodeURIComponent(q))
+    .then(function(r) { return r.json(); })
+    .then(function(results) {
+      if (btn) { btn.textContent = 'No match in CRM \u2014 Search Google Places'; btn.disabled = false; }
+      dd.innerHTML = '';
+
+      var hdr = document.createElement('div');
+      hdr.style.cssText = 'padding:8px 14px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;background:var(--surface)';
+      hdr.textContent = (results && results.length) ? 'Google Places Results' : 'No results found for "' + q + '"';
+      dd.appendChild(hdr);
+
+      if (!results || !results.length) { dd.style.display = 'block'; return; }
+
+      results.forEach(function(r) {
+        var row = document.createElement('div');
+        row.style.cssText = 'padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border)';
+        row.onmouseover = function(){this.style.background='#f8fafc';};
+        row.onmouseout = function(){this.style.background='';};
+        var nameEl = document.createElement('div');
+        nameEl.style.cssText = 'font-size:13px;font-weight:600;color:var(--navy)';
+        nameEl.textContent = r.company || '';
+        var metaEl = document.createElement('div');
+        metaEl.style.cssText = 'font-size:11px;color:var(--text3);margin-top:1px';
+        metaEl.textContent = [r.city, r.state, r.phone].filter(Boolean).join(' \u00b7 ');
+        row.appendChild(nameEl);
+        row.appendChild(metaEl);
+        (function(rd) {
+          row.onclick = function() {
+            qclSelectGoogleCompany(rd.place_id, rd.company||'', rd.city||'', rd.state||'', rd.phone||'', rd.address||'', rd.website||'');
+          };
+        })(r);
+        dd.appendChild(row);
+      });
+      dd.style.display = 'block';
+    })
+    .catch(function() {
+      if (btn) { btn.textContent = 'No match in CRM \u2014 Search Google Places'; btn.disabled = false; }
+      showToast('Google Places search failed');
+    });
+};
+window.qclSelectGoogleCompany = function(placeId, company, city, state, phone, address, website) {
+  window._qclProspectId = null;
+  window._qclGpData = { place_id: placeId, company: company, city: city, state: state, phone: phone, address: address, website: website };
+
+  document.getElementById('qcl-search').value = company;
+  document.getElementById('qcl-dropdown').style.display = 'none';
+  document.getElementById('qcl-gp-row').style.display = 'none';
+
+  var banner = document.getElementById('qcl-selected-banner');
+  document.getElementById('qcl-sel-name').textContent = company;
+  document.getElementById('qcl-sel-meta').textContent = [city, state, phone].filter(Boolean).join(' · ') + ' (New — will be added to CRM)';
+  banner.style.display = 'flex';
+
+  document.getElementById('qcl-dup-warn').style.display = 'none';
+  document.getElementById('qcl-form').style.display = 'block';
+};
+
+window.qclClearSelection = function() {
+  window._qclProspectId = null;
+  window._qclGpData = null;
+  document.getElementById('qcl-selected-banner').style.display = 'none';
+  document.getElementById('qcl-form').style.display = 'none';
+  document.getElementById('qcl-dup-warn').style.display = 'none';
+  var inp = document.getElementById('qcl-search');
+  inp.value = '';
+  inp.focus();
+  // Reload prospects cache
+  fetch('/api/prospects')
+    .then(function(r) { return r.json(); })
+    .then(function(ps) { window._qclAllProspects = ps; })
+    .catch(function() {});
+};
+
+window.saveQuickCall = function() {
+  var outcome = document.getElementById('qcl-outcome').value;
+  if (!outcome) { showToast('Please select an outcome'); document.getElementById('qcl-outcome').focus(); return; }
+
+  var saveBtn = document.getElementById('qcl-save-btn');
+  saveBtn.textContent = 'Saving...';
+  saveBtn.disabled = true;
+
+  var callType   = document.getElementById('qcl-type').value;
+  var products   = document.getElementById('qcl-products').value.trim();
+  var notes      = document.getElementById('qcl-notes').value.trim();
+  var nextStep   = document.getElementById('qcl-nextstep').value.trim();
+  var nextDate   = document.getElementById('qcl-nextdate').value;
+  var today      = new Date().toISOString().split('T')[0];
+
+  function doLogCall(prospectId) {
+    return fetch('/api/calls', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prospect_id: prospectId,
+        call_date: today,
+        call_type: callType,
+        outcome: outcome,
+        products_discussed: products,
+        next_step: nextStep,
+        next_step_date: nextDate || null,
+        notes: notes
+      })
+    });
+  }
+
+  if (window._qclProspectId) {
+    // Existing CRM contact — log directly
+    doLogCall(window._qclProspectId)
+      .then(function(r) { return r.json(); })
+      .then(function(result) {
+        if (result.error) throw new Error(result.error);
+        saveBtn.textContent = 'Save Call';
+        saveBtn.disabled = false;
+        closeQuickCallLog();
+        showToast('Call logged for ' + document.getElementById('qcl-sel-name').textContent);
+        // Refresh call list + dashboard counts
+        if (typeof loadCalls === 'function') loadCalls();
+        if (typeof loadDashboard === 'function') loadDashboard();
+        // Update cached prospects
+        window._qclAllProspects = null;
+      })
+      .catch(function(e) {
+        saveBtn.textContent = 'Save Call';
+        saveBtn.disabled = false;
+        showToast('Error: ' + e.message);
+      });
+
+  } else if (window._qclGpData) {
+    // New company from Google Places — create prospect first, then log call
+    var gp = window._qclGpData;
+    fetch('/api/prospects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        company: gp.company,
+        city: gp.city || '',
+        state: gp.state || 'GA',
+        phone: gp.phone || '',
+        address: gp.address || '',
+        website: gp.website || '',
+        google_place_id: gp.place_id || '',
+        category: 'Unknown',
+        status: outcome.includes('Not Interested') ? 'Cold' : outcome.includes('Interested') ? 'Warm' : outcome === 'Ready to Order' ? 'Hot' : 'New',
+        source: 'Quick Call',
+        notes: notes ? '[Created via Quick Call Log]' : ''
+      })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(prospect) {
+      if (!prospect || !prospect.id) throw new Error('Could not create prospect');
+      return doLogCall(prospect.id).then(function(r) { return r.json(); });
+    })
+    .then(function(result) {
+      if (result && result.error) throw new Error(result.error);
+      saveBtn.textContent = 'Save Call';
+      saveBtn.disabled = false;
+      closeQuickCallLog();
+      showToast(gp.company + ' added to CRM & call logged');
+      if (typeof loadProspects === 'function') loadProspects();
+      if (typeof loadCalls === 'function') loadCalls();
+      if (typeof loadDashboard === 'function') loadDashboard();
+      window._qclAllProspects = null;
+    })
+    .catch(function(e) {
+      saveBtn.textContent = 'Save Call';
+      saveBtn.disabled = false;
+      showToast('Error: ' + e.message);
+    });
+
+  } else {
+    saveBtn.textContent = 'Save Call';
+    saveBtn.disabled = false;
+    showToast('Please select a company first');
+  }
+};
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(e) {
+  var dd = document.getElementById('qcl-dropdown');
+  var container = document.getElementById('qcl-search');
+  if (dd && container && !dd.contains(e.target) && e.target !== container) {
+    dd.style.display = 'none';
+  }
+});
+
 </script>
 </body>
 </html>
