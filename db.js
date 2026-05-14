@@ -107,6 +107,7 @@ async function initDB() {
       closed_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+
     CREATE TABLE IF NOT EXISTS access_requests (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
@@ -121,7 +122,7 @@ async function initDB() {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS outlook_refresh_token TEXT;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS outlook_token_expiry TIMESTAMPTZ;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_call_goal INTEGER DEFAULT 10;
-        ALTER TABLE prospects ADD COLUMN IF NOT EXISTS address TEXT;
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS address TEXT;
     ALTER TABLE prospects ADD COLUMN IF NOT EXISTS google_place_id TEXT;
     CREATE INDEX IF NOT EXISTS idx_prospects_place_id ON prospects(user_id, google_place_id);
     CREATE INDEX IF NOT EXISTS idx_prospects_company_lower ON prospects(user_id, LOWER(company));
@@ -201,8 +202,37 @@ async function initDB() {
     CREATE INDEX IF NOT EXISTS idx_quotes_user ON quotes(user_id);
     CREATE INDEX IF NOT EXISTS idx_quotes_status ON quotes(status);
     CREATE INDEX IF NOT EXISTS idx_quotes_followup ON quotes(follow_up_date);
-    -- Migration: add rep_name column if it doesn't exist (safe for existing DBs)
     ALTER TABLE quotes ADD COLUMN IF NOT EXISTS rep_name TEXT;
+
+    -- ════════════════════════════════════════════════════════════
+    -- CRM Intelligence Upgrade: data_status + company_type
+    -- data_status: Unvetted | Contacted | Verified CRM Data
+    -- company_type: Distributor | Contractor
+    -- These columns exist permanently — no re-query dependency
+    -- ════════════════════════════════════════════════════════════
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS data_status TEXT DEFAULT 'Unvetted';
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS company_type TEXT DEFAULT 'Contractor';
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS manufacturer_assoc TEXT;
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ;
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMPTZ;
+
+    CREATE INDEX IF NOT EXISTS idx_prospects_data_status ON prospects(user_id, data_status);
+    CREATE INDEX IF NOT EXISTS idx_prospects_company_type ON prospects(user_id, company_type);
+
+    -- Auto-populate company_type from existing category data (one-time migration)
+    UPDATE prospects
+    SET company_type = 'Distributor'
+    WHERE company_type IS NULL OR company_type = 'Contractor'
+      AND category ILIKE ANY(ARRAY[
+        '%distributor%','%dealer%','%supply%','%wholesale%',
+        '%building material%','%lumber%'
+      ]);
+
+    -- Auto-populate data_status = 'Contacted' for prospects that have call records
+    UPDATE prospects p
+    SET data_status = 'Contacted'
+    WHERE (data_status IS NULL OR data_status = 'Unvetted')
+      AND EXISTS (SELECT 1 FROM calls c WHERE c.prospect_id = p.id);
 
   `);
   console.log('Database initialized');
