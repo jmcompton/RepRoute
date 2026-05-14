@@ -907,17 +907,25 @@ window.addEventListener('load', function() {
         <option value="Contacted">Contacted</option>
         <option value="Verified CRM Data">Verified</option>
       </select>
+      <select id="sort-contacts" onchange="handleContactSearch()" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:#fff;color:var(--navy)">
+        <option value="default">Sort: Default</option>
+        <option value="city_asc">Sort by City A-Z</option>
+        <option value="city_desc">Sort by City Z-A</option>
+        <option value="company_asc">Sort by Name A-Z</option>
+        <option value="status_asc">Sort by Status</option>
+      </select>
       <div style="display:flex;gap:6px;margin-left:auto">
         <button class="btn btn-secondary btn-sm" id="btn-add-contact" onclick="openModal('add-prospect')">+ New</button>
         <button class="btn btn-primary btn-sm" onclick="go('leads')">Find Leads</button>
         <button class="btn btn-sm" onclick="go('bulk')" style="background:var(--navy);color:#00FF87;border:none;font-weight:700;padding:6px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit">Bulk Import</button>
+        <button id="view-route-btn" onclick="go('leads')" style="display:none;padding:6px 12px;background:#059669;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">View Route (<span id="view-route-count">0</span>)</button>
       </div>
     </div>
 
     <!-- MY CONTACTS tab -->
     <div id="contact-tab-mine" class="list-wrap">
       <table class="ltable">
-        <thead><tr><th><input type="checkbox"/></th><th>Company Name</th><th>Type</th><th>Category</th><th>City</th><th>Contact</th><th>Phone</th><th>Status</th><th>Data Status</th><th>Source</th></tr></thead>
+        <thead><tr><th><input type="checkbox"/></th><th>Company Name</th><th>Type</th><th>Category</th><th onclick="cycleCitySort()" style="cursor:pointer;user-select:none" title="Click to sort by city">City <span id="city-sort-indicator" style="font-size:10px;color:var(--accent)"></span></th><th>Contact</th><th>Phone</th><th>Status</th><th>Data Status</th><th>Route</th></tr></thead>
         <tbody id="prospects-tbody"></tbody>
       </table>
       <div class="empty-state" id="p-empty" style="display:none">
@@ -934,7 +942,7 @@ window.addEventListener('load', function() {
     <div id="contact-tab-team" class="list-wrap" style="display:none">
       <div style="padding:10px 16px 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap" id="team-rep-filters"></div>
       <table class="ltable">
-        <thead><tr><th></th><th>Company Name</th><th>Rep</th><th>Category</th><th>City</th><th>Phone</th><th>Products</th><th>Status</th></tr></thead>
+        <thead><tr><th></th><th>Company Name</th><th>Rep</th><th>Category</th><th onclick="cycleCitySort()" style="cursor:pointer;user-select:none" title="Click to sort by city">City <span id="team-city-sort-indicator" style="font-size:10px;color:var(--accent)"></span></th><th>Phone</th><th>Products</th><th>Status</th><th>Route</th></tr></thead>
         <tbody id="team-prospects-tbody"></tbody>
       </table>
       <div class="empty-state" id="team-p-empty" style="display:none">
@@ -2830,7 +2838,40 @@ function renderProspects() {
   if (count) count.textContent = allProspects.length + ' record' + (allProspects.length !== 1 ? 's' : '');
   if (!allProspects.length) { tbody.innerHTML = ''; if (empty) empty.style.display = 'block'; return; }
   if (empty) empty.style.display = 'none';
-  tbody.innerHTML = allProspects.map(function(p) {
+
+  // Apply sort
+  var sortVal = (document.getElementById('sort-contacts') || {value:'default'}).value;
+  var sorted = allProspects.slice();
+  if (sortVal === 'city_asc')    sorted.sort(function(a,b){ return (a.city||'').localeCompare(b.city||''); });
+  else if (sortVal === 'city_desc') sorted.sort(function(a,b){ return (b.city||'').localeCompare(a.city||''); });
+  else if (sortVal === 'company_asc') sorted.sort(function(a,b){ return (a.company||'').localeCompare(b.company||''); });
+  else if (sortVal === 'status_asc')  sorted.sort(function(a,b){ return (a.status||'').localeCompare(b.status||''); });
+
+  var isCitySort = sortVal === 'city_asc' || sortVal === 'city_desc';
+  var rows = [];
+  var lastCity = null;
+
+  sorted.forEach(function(p) {
+    // City group header when sorted by city
+    if (isCitySort) {
+      var thisCity = p.city || 'Unknown City';
+      if (thisCity !== lastCity) {
+        var cityCount = sorted.filter(function(x){ return (x.city||'Unknown City') === thisCity; }).length;
+        rows.push(
+          '<tr class="city-group-row" style="background:#f0f4f8;border-top:2px solid var(--border)">' +
+          '<td colspan="10" style="padding:6px 12px">' +
+            '<div style="display:flex;align-items:center;justify-content:space-between">' +
+              '<span style="font-size:12px;font-weight:800;color:var(--navy);text-transform:uppercase;letter-spacing:.5px">' + thisCity + ' <span style="font-weight:500;color:var(--text3);font-size:11px;text-transform:none">(' + cityCount + ')</span></span>' +
+              '<button onclick="event.stopPropagation();addCityToRoute(' + JSON.stringify(thisCity) + ')" ' +
+                'style="padding:3px 10px;background:var(--navy);color:#00FF87;border:none;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit">+ All to Route</button>' +
+            '</div>' +
+          '</td>' +
+          '</tr>'
+        );
+        lastCity = thisCity;
+      }
+    }
+
     // company_type badge
     var ct = p.company_type || 'Contractor';
     var ctStyle = ct === 'Distributor'
@@ -2845,7 +2886,17 @@ function renderProspects() {
         ? 'background:#dbeafe;color:#1d4ed8;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px'
         : 'background:#fef9c3;color:#a16207;font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px';
     var dsBadge = '<span style="' + dsStyle + '">' + ds + '</span>';
-    return '<tr onclick="viewRecord(' + p.id + ')" style="' + (ct==='Distributor'?'background:#fafeff;':'') + '">' +
+    // Route button — check if already in route
+    var stops = window._routeStops || [];
+    var inRoute = stops.some(function(s){ return s.id === p.id || s.company === p.company; });
+    var routeBtn = p.address
+      ? '<button id="crm-route-btn-' + p.id + '" onclick="event.stopPropagation();addCrmContactToRoute(' + p.id + ')" ' +
+          'style="padding:3px 8px;background:' + (inRoute?'#d1fae5':'var(--navy)') + ';color:' + (inRoute?'#065f46':'#00FF87') + ';border:none;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">' +
+          (inRoute ? '&#10003; Added' : '+ Route') + '</button>'
+      : '<span style="font-size:10px;color:var(--text3)">No addr</span>';
+
+    rows.push(
+      '<tr onclick="viewRecord(' + p.id + ')" style="' + (ct==='Distributor'?'background:#fafeff;':'') + '">' +
       '<td><input type="checkbox" onclick="event.stopPropagation()"/></td>' +
       '<td><span class="rec-link">' + p.company + '</span>' + (p.manufacturer_assoc ? '<br><span style="font-size:10px;color:var(--text3)">' + p.manufacturer_assoc + '</span>' : '') + '</td>' +
       '<td>' + ctBadge + '</td>' +
@@ -2855,9 +2906,12 @@ function renderProspects() {
       '<td style="color:var(--text3)">' + (p.phone||'—') + '</td>' +
       '<td><span class="badge b-' + (p.status||'new').toLowerCase() + '">' + (p.status||'New') + '</span></td>' +
       '<td>' + dsBadge + '</td>' +
-      '<td><span class="badge ' + (p.source==='AI'||p.source==='Distribution Finder'?'b-ai':'b-manual') + '">' + (p.source||'Manual') + '</span></td>' +
-      '</tr>';
-  }).join('');
+      '<td>' + routeBtn + '</td>' +
+      '</tr>'
+    );
+  });
+
+  tbody.innerHTML = rows.join('');
 }
 
 function viewRecord(id) {
@@ -3254,6 +3308,183 @@ function renderBulkHistory() {
       '</div>' +
     '</div>';
   }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CRM → ROUTE HELPERS
+// ═══════════════════════════════════════════════════════════════
+
+// Add a single CRM contact (My Contacts) to the drive route
+// Works for both My Contacts (uses allProspects) and Team Contacts (inline args)
+function addCrmContactToRoute(id, isTeam, teamCompany, teamAddress, teamCity, teamCategory) {
+  if (!window._routeStops) window._routeStops = [];
+  var stops = window._routeStops;
+
+  var p = null;
+
+  if (isTeam) {
+    // Team contact — data passed directly as args to avoid a fetch
+    p = {
+      id: id,
+      company: teamCompany || '',
+      address: teamAddress || '',
+      city: teamCity || '',
+      category: teamCategory || '',
+      phone: null
+    };
+  } else {
+    // My contact — look up from allProspects
+    p = allProspects.find(function(x){ return x.id === id; });
+  }
+
+  if (!p) { showToast('Contact not found'); return; }
+  if (!p.address) { showToast(p.company + ' has no address — cannot add to route'); return; }
+  if (stops.length >= 10) { showToast('Route full (10 stops max)'); return; }
+  if (stops.some(function(s){ return s.company === p.company; })) {
+    showToast(p.company + ' is already in route'); return;
+  }
+
+  // Build a stop object compatible with _renderRoutePanel
+  stops.push({
+    id: p.id,
+    company: p.company,
+    address: p.address,
+    city: p.city || '',
+    category: p.category || '',
+    phone: p.phone || null,
+    territory: p.category || '',
+    _source: 'crm'
+  });
+  window._routeStops = stops;
+
+  // Update route panel
+  if (typeof window._renderRoutePanel === 'function') window._renderRoutePanel();
+
+  // Update the button state in the table
+  var myBtn   = document.getElementById('crm-route-btn-' + id);
+  var teamBtn = document.getElementById('team-route-btn-' + id);
+  [myBtn, teamBtn].forEach(function(btn) {
+    if (btn) {
+      btn.textContent = '\u2713 Added';
+      btn.style.background = '#d1fae5';
+      btn.style.color = '#065f46';
+      btn.disabled = true;
+    }
+  });
+
+  showToast(p.company + ' added to route');
+
+  // Navigate to leads page where route panel lives, if not already there
+  var currentPage = document.querySelector('.page.active');
+  var isOnLeads = currentPage && currentPage.id === 'page-leads';
+  if (!isOnLeads) {
+    showToast('Route updated. Go to Find Leads to view and launch route.');
+  }
+}
+
+// Add a team contact to route — reads from button data attributes to avoid inline string issues
+function addTeamContactToRoute(btn) {
+  var id       = parseInt(btn.getAttribute('data-id')) || 0;
+  var company  = btn.getAttribute('data-company') || '';
+  var address  = btn.getAttribute('data-address') || '';
+  var city     = btn.getAttribute('data-city') || '';
+  var category = btn.getAttribute('data-category') || '';
+  addCrmContactToRoute(id, true, company, address, city, category);
+}
+
+// Bulk-add all contacts in a city to the drive route
+function addCityToRoute(cityName) {
+  if (!window._routeStops) window._routeStops = [];
+  var stops = window._routeStops;
+
+  // Get source data — My Contacts or Team Contacts
+  var sourceList = (window._contactTab === 'team')
+    ? (window._teamContactsCache || [])
+    : allProspects;
+
+  var cityContacts = sourceList.filter(function(p) {
+    return (p.city || '').toLowerCase() === cityName.toLowerCase() && p.address;
+  });
+
+  if (!cityContacts.length) {
+    showToast('No contacts with addresses in ' + cityName);
+    return;
+  }
+
+  var added = 0;
+  var skipped = 0;
+  var full = false;
+
+  cityContacts.forEach(function(p) {
+    if (stops.length >= 10) { full = true; return; }
+    if (stops.some(function(s){ return s.company === p.company; })) { skipped++; return; }
+    stops.push({
+      id: p.id,
+      company: p.company,
+      address: p.address,
+      city: p.city || '',
+      category: p.category || p.territory || '',
+      phone: p.phone || null,
+      territory: p.category || p.territory || '',
+      _source: 'crm'
+    });
+    added++;
+  });
+
+  window._routeStops = stops;
+
+  // Nearest-neighbor sort if 2+ stops and user location is available
+  if (stops.length >= 2 && window._userLat && window._userLng) {
+    window._routeStops = nearestNeighborSort(stops, window._userLat, window._userLng);
+  }
+
+  if (typeof window._renderRoutePanel === 'function') window._renderRoutePanel();
+
+  // Refresh buttons in table
+  renderProspects();
+
+  var msg = added + ' ' + cityName + ' contact' + (added===1?'':'s') + ' added to route';
+  if (skipped > 0) msg += ' (' + skipped + ' already in route)';
+  if (full) msg += '. Route is full (10 max).';
+  showToast(msg);
+}
+
+// Nearest-neighbor sort for city bulk-add
+function nearestNeighborSort(stops, startLat, startLng) {
+  if (!stops || stops.length < 2) return stops;
+  var remaining = stops.slice();
+  var sorted = [];
+  var curLat = startLat;
+  var curLng = startLng;
+  while (remaining.length) {
+    var bestIdx = 0;
+    var bestDist = Infinity;
+    remaining.forEach(function(s, i) {
+      if (!s.lat || !s.lng) return;
+      var d = Math.pow(s.lat - curLat, 2) + Math.pow(s.lng - curLng, 2);
+      if (d < bestDist) { bestDist = d; bestIdx = i; }
+    });
+    var pick = remaining.splice(bestIdx, 1)[0];
+    sorted.push(pick);
+    curLat = pick.lat || curLat;
+    curLng = pick.lng || curLng;
+  }
+  return sorted;
+}
+
+// Cycle city sort via header click
+function cycleCitySort() {
+  var sel = document.getElementById('sort-contacts');
+  if (!sel) return;
+  if (sel.value === 'city_asc') sel.value = 'city_desc';
+  else sel.value = 'city_asc';
+  // Update indicator
+  var ind = document.getElementById('city-sort-indicator');
+  var ind2 = document.getElementById('team-city-sort-indicator');
+  var arrow = sel.value === 'city_asc' ? '\u25B2' : '\u25BC';
+  if (ind) ind.textContent = arrow;
+  if (ind2) ind2.textContent = arrow;
+  handleContactSearch();
 }
 
 // Load CRM Intelligence Stats bar
@@ -5706,6 +5937,11 @@ window._renderRoutePanel = function() {
   var optLbl = document.getElementById('route-optimized-label');
   if (badge)  badge.textContent  = stops.length + ' stop' + (stops.length === 1 ? '' : 's');
   if (optLbl) optLbl.textContent = stops.length >= 2 ? 'Optimized' : (stops.length === 1 ? '1 stop' : '');
+  // Update "View Route" shortcut button in Contacts page
+  var vrBtn = document.getElementById('view-route-btn');
+  var vrCount = document.getElementById('view-route-count');
+  if (vrBtn) vrBtn.style.display = stops.length > 0 ? 'inline-block' : 'none';
+  if (vrCount) vrCount.textContent = stops.length;
   if (!stops.length) {
     if (empty) { empty.style.display = 'block'; empty.innerHTML = 'Tap <strong>+ Route</strong> on any lead card to build your drive route.'; }
     if (list)  list.style.display  = 'none';
@@ -6239,8 +6475,16 @@ window.switchContactTab = function(tab) {
 };
 
 window.handleContactSearch = function() {
+  // Sync city-sort indicator with dropdown value
+  var sortVal = (document.getElementById('sort-contacts') || {value:'default'}).value;
+  var arrow = sortVal === 'city_asc' ? '\u25B2' : sortVal === 'city_desc' ? '\u25BC' : '';
+  var ind = document.getElementById('city-sort-indicator');
+  var ind2 = document.getElementById('team-city-sort-indicator');
+  if (ind) ind.textContent = arrow;
+  if (ind2) ind2.textContent = arrow;
+
   if (window._contactTab === 'team') {
-    renderTeamContacts(window._teamContactsCache || [], document.getElementById('p-search').value);
+    renderTeamContacts(window._teamContactsCache || [], (document.getElementById('p-search') || {value:''}).value);
   } else {
     loadProspects();
   }
@@ -6349,14 +6593,60 @@ function renderTeamContacts(rows, search) {
   var ci = 0;
   rows.forEach(function(r) { if (r.rep_name && !repColors[r.rep_name]) { repColors[r.rep_name] = palette[ci++ % palette.length]; } });
 
-  tbody.innerHTML = filtered.map(function(r) {
+  // Apply team sort
+  var sortVal = (document.getElementById('sort-contacts') || {value:'default'}).value;
+  if (sortVal === 'city_asc')    filtered.sort(function(a,b){ return (a.city||'').localeCompare(b.city||''); });
+  else if (sortVal === 'city_desc') filtered.sort(function(a,b){ return (b.city||'').localeCompare(a.city||''); });
+  else if (sortVal === 'company_asc') filtered.sort(function(a,b){ return (a.company||'').localeCompare(b.company||''); });
+  else if (sortVal === 'status_asc')  filtered.sort(function(a,b){ return (a.status||'').localeCompare(b.status||''); });
+
+  var isCitySort = sortVal === 'city_asc' || sortVal === 'city_desc';
+  var teamRows = [];
+  var lastTeamCity = null;
+
+  filtered.forEach(function(r) {
+    // City group header when sorted by city
+    if (isCitySort) {
+      var thisCity = r.city || 'Unknown City';
+      if (thisCity !== lastTeamCity) {
+        var cityCount = filtered.filter(function(x){ return (x.city||'Unknown City') === thisCity; }).length;
+        teamRows.push(
+          '<tr class="city-group-row" style="background:#f0f4f8;border-top:2px solid var(--border)">' +
+          '<td colspan="9" style="padding:6px 12px">' +
+            '<div style="display:flex;align-items:center;justify-content:space-between">' +
+              '<span style="font-size:12px;font-weight:800;color:var(--navy);text-transform:uppercase;letter-spacing:.5px">' + thisCity + ' <span style="font-weight:500;color:var(--text3);font-size:11px;text-transform:none">(' + cityCount + ')</span></span>' +
+              '<button onclick="event.stopPropagation();addCityToRoute(' + JSON.stringify(thisCity) + ')" ' +
+                'style="padding:3px 10px;background:var(--navy);color:#00FF87;border:none;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit">+ All to Route</button>' +
+            '</div>' +
+          '</td>' +
+          '</tr>'
+        );
+        lastTeamCity = thisCity;
+      }
+    }
+
     var color = repColors[r.rep_name] || '#64748b';
     var repBadge = '<span style="background:' + color + '22;color:' + color + ';font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;white-space:nowrap">' + (r.rep_name||'') + '</span>';
     var statusColors = { Hot:'#ef4444', Warm:'#f59e0b', Cold:'#94a3b8', Active:'#10b981', New:'#3b82f6' };
     var sc = statusColors[r.status] || '#94a3b8';
     var statusBadge = '<span style="background:' + sc + '22;color:' + sc + ';font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px">' + (r.status||'New') + '</span>';
     var safeId = parseInt(r.id) || 0;
-    return '<tr style="cursor:pointer" onclick="viewTeamRecord(' + safeId + ')" title="View contact">' +
+    // Route button
+    var stops = window._routeStops || [];
+    var inRoute = stops.some(function(s){ return s.id === r.id || s.company === r.company; });
+    var routeBtn = r.address
+      ? '<button id="team-route-btn-' + safeId + '" onclick="event.stopPropagation();addTeamContactToRoute(this)" ' +
+          'data-id="' + safeId + '" ' +
+          'data-company="' + (r.company||'').replace(/"/g,'&quot;') + '" ' +
+          'data-address="' + (r.address||'').replace(/"/g,'&quot;') + '" ' +
+          'data-city="' + (r.city||'').replace(/"/g,'&quot;') + '" ' +
+          'data-category="' + (r.category||'').replace(/"/g,'&quot;') + '" ' +
+          'style="padding:3px 8px;background:' + (inRoute?'#d1fae5':'var(--navy)') + ';color:' + (inRoute?'#065f46':'#00FF87') + ';border:none;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">' +
+          (inRoute ? '&#10003; Added' : '+ Route') + '</button>'
+      : '<span style="font-size:10px;color:var(--text3)">No addr</span>';
+
+    teamRows.push(
+      '<tr style="cursor:pointer" onclick="viewTeamRecord(' + safeId + ')" title="View contact">' +
       '<td></td>' +
       '<td><span style="font-weight:600;color:var(--navy)">' + (r.company||'') + '</span>' +
         (r.address ? '<div style="font-size:11px;color:var(--text3);margin-top:2px">' + r.address + '</div>' : '') + '</td>' +
@@ -6366,8 +6656,12 @@ function renderTeamContacts(rows, search) {
       '<td>' + (r.phone ? '<a href="tel:' + r.phone + '" style="color:var(--accent);font-size:12px;font-weight:600;text-decoration:none">' + r.phone + '</a>' : '—') + '</td>' +
       '<td style="font-size:11.5px">' + (r.products||'—') + '</td>' +
       '<td>' + statusBadge + '</td>' +
-    '</tr>';
-  }).join('');
+      '<td>' + routeBtn + '</td>' +
+    '</tr>'
+    );
+  });
+
+  tbody.innerHTML = teamRows.join('');
 }
 
 
