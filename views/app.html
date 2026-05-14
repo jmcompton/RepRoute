@@ -1385,8 +1385,42 @@ window.addEventListener('load', function() {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
           <div><label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Quote Number</label><input id="qd-quote-num" placeholder="e.g. QT-001" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px;background:var(--bg)"></div>
           <div><label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Status</label><select id="qd-status" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px;background:var(--bg)"><option value="Draft">Draft</option><option value="Sent">Sent</option><option value="Follow-Up">Follow-Up</option><option value="Won">Won</option><option value="Lost">Lost</option></select></div>
-          <div><label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Account Name *</label><input id="qd-acct" placeholder="Company name" oninput="document.getElementById('qd-account').textContent=this.value||'—'" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px"></div>
-          <div><label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Contact Name</label><input id="qd-cont" placeholder="Contact person" oninput="document.getElementById('qd-contact').textContent=this.value||'—'" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px"></div>
+          <div>
+  <label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Account Name *</label>
+  <input id="qd-acct" list="qd-acct-list" placeholder="Company name or select below"
+    oninput="document.getElementById('qd-account').textContent=this.value||'—'"
+    autocomplete="off"
+    style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px">
+  <datalist id="qd-acct-list">
+    <option value="CRS Internet Sales">
+    <option value="Curbs-Plus">
+    <option value="SRS Distribution">
+  </datalist>
+</div>
+          <div>
+  <label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Contact Name</label>
+  <input id="qd-cont" placeholder="Contact person" oninput="document.getElementById('qd-contact').textContent=this.value||'—'" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px">
+</div>
+<div>
+  <label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Rep</label>
+  <input id="qd-rep-input" list="qd-rep-list" placeholder="Select or type rep name"
+    oninput="document.getElementById('qd-rep').textContent=this.value||'—'"
+    autocomplete="off"
+    style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px">
+  <datalist id="qd-rep-list">
+    <option value="Chris Morris">
+    <option value="Ray Breedlove">
+    <option value="Daniel Compton">
+    <option value="Keith Compton">
+    <option value="Sean Conroy">
+    <option value="Andrew Brown">
+    <option value="Phil Brown">
+    <option value="Gary Hardin">
+    <option value="Kody Slater">
+    <option value="Will Maxey">
+    <option value="Jack Greene">
+  </datalist>
+</div>
           <div><label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Quote Amount ($)</label><input id="qd-amount" type="number" placeholder="0.00" step="0.01" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px"></div>
           <div><label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Follow-Up Date</label><input id="qd-followup" type="date" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px"></div>
           <div><label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Quote Date</label><input id="qd-date" type="date" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px"></div>
@@ -4642,7 +4676,9 @@ function openNewQuoteModal() {
   document.getElementById('qd-status-badge').style.cssText = 'background:#f1f5f9;color:#475569;font-size:11px;padding:3px 10px;border-radius:12px;font-weight:600';
   document.getElementById('qd-account').textContent = '—';
   document.getElementById('qd-contact').textContent = '—';
-  document.getElementById('qd-rep').textContent = (window.__userData && window.__userData.name) ? window.__userData.name : '—';
+  var defaultRep = (window.__userData && window.__userData.name) ? window.__userData.name : '';
+  document.getElementById('qd-rep').textContent = defaultRep || '—';
+  document.getElementById('qd-rep-input').value = defaultRep;
   ['qd-quote-num','qd-acct','qd-cont','qd-amount','qd-products','qd-comments'].forEach(function(id){ document.getElementById(id).value=''; });
   document.getElementById('qd-status').value = 'Draft';
   document.getElementById('qd-date').value = new Date().toISOString().split('T')[0];
@@ -4674,6 +4710,7 @@ function openQuoteDetail(id) {
   document.getElementById('qd-status').value = q.status||'Draft';
   document.getElementById('qd-acct').value = q.account_name||'';
   document.getElementById('qd-cont').value = q.contact_name||'';
+  document.getElementById('qd-rep-input').value = q.rep_name||'';
   document.getElementById('qd-amount').value = q.amount||'';
   document.getElementById('qd-products').value = q.products||'';
   document.getElementById('qd-comments').value = q.comments||'';
@@ -4710,6 +4747,7 @@ async function saveQuote() {
     status: document.getElementById('qd-status').value,
     account_name: acct,
     contact_name: cont,
+    rep_name: (document.getElementById('qd-rep-input').value || '').trim() || null,
     amount: parseFloat(document.getElementById('qd-amount').value) || null,
     products: document.getElementById('qd-products').value.trim() || null,
     comments: document.getElementById('qd-comments').value.trim() || null,
