@@ -909,10 +909,17 @@ window.addEventListener('load', function() {
       </select>
       <select id="sort-contacts" onchange="handleContactSearch()" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:#fff;color:var(--navy)">
         <option value="default">Sort: Default</option>
-        <option value="city_asc">Sort by City A-Z</option>
-        <option value="city_desc">Sort by City Z-A</option>
-        <option value="company_asc">Sort by Name A-Z</option>
-        <option value="status_asc">Sort by Status</option>
+        <option value="city_asc">City A→Z</option>
+        <option value="city_desc">City Z→A</option>
+        <option value="company_asc">Company A→Z</option>
+        <option value="company_desc">Company Z→A</option>
+        <option value="category_asc">Category A→Z</option>
+        <option value="category_desc">Category Z→A</option>
+        <option value="contact_asc">Contact A→Z</option>
+        <option value="status_asc">Status A→Z</option>
+        <option value="data_status_asc">Data Status</option>
+        <option value="newest">Newest First</option>
+        <option value="oldest">Oldest First</option>
       </select>
       <div style="display:flex;gap:6px;margin-left:auto">
         <button class="btn btn-secondary btn-sm" id="btn-add-contact" onclick="openModal('add-prospect')">+ New</button>
@@ -2853,11 +2860,22 @@ function renderProspects() {
   // Apply sort
   var sortVal = (document.getElementById('sort-contacts') || {value:'default'}).value;
   var sorted = allProspects.slice();
-  if (sortVal === 'city_asc')    sorted.sort(function(a,b){ return (a.city||'').localeCompare(b.city||''); });
-  else if (sortVal === 'city_desc') sorted.sort(function(a,b){ return (b.city||'').localeCompare(a.city||''); });
-  else if (sortVal === 'company_asc') sorted.sort(function(a,b){ return (a.company||'').localeCompare(b.company||''); });
-  else if (sortVal === 'status_asc')  sorted.sort(function(a,b){ return (a.status||'').localeCompare(b.status||''); });
+  // Ascending helper
+  function strAsc(key) { return function(a,b){ return (a[key]||'').localeCompare(b[key]||''); }; }
+  function strDesc(key){ return function(a,b){ return (b[key]||'').localeCompare(a[key]||''); }; }
+  if      (sortVal === 'city_asc')        sorted.sort(strAsc('city'));
+  else if (sortVal === 'city_desc')       sorted.sort(strDesc('city'));
+  else if (sortVal === 'company_asc')     sorted.sort(strAsc('company'));
+  else if (sortVal === 'company_desc')    sorted.sort(strDesc('company'));
+  else if (sortVal === 'category_asc')    sorted.sort(strAsc('category'));
+  else if (sortVal === 'category_desc')   sorted.sort(strDesc('category'));
+  else if (sortVal === 'contact_asc')     sorted.sort(strAsc('contact'));
+  else if (sortVal === 'status_asc')      sorted.sort(strAsc('status'));
+  else if (sortVal === 'data_status_asc') sorted.sort(strAsc('data_status'));
+  else if (sortVal === 'newest')  sorted.sort(function(a,b){ return new Date(b.created_at||0) - new Date(a.created_at||0); });
+  else if (sortVal === 'oldest')  sorted.sort(function(a,b){ return new Date(a.created_at||0) - new Date(b.created_at||0); });
 
+  // City grouping only when sorted by city
   var isCitySort = sortVal === 'city_asc' || sortVal === 'city_desc';
   var rows = [];
   var lastCity = null;
@@ -6058,22 +6076,7 @@ window._openRouteStopDetail = function(stopIdx, evt) {
   var stop = stops[stopIdx];
   if (!stop) return;
 
-  // If this stop has a known _dailyLeads index, open the lead card inline
-  var leadIdx = stop._leadIdx;
-  if (typeof leadIdx === 'number' && window._dailyLeads && window._dailyLeads[leadIdx]) {
-    // Switch to lead finder tab if not already there
-    if (typeof go === 'function') go('dashboard');
-    setTimeout(function() {
-      var card = document.getElementById('lead-card-' + leadIdx);
-      if (card) {
-        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        toggleLeadCard(leadIdx);
-      }
-    }, 150);
-    return;
-  }
-
-  // Fallback: show a detail modal directly
+  // Remove any existing modal
   var existing = document.getElementById('route-stop-modal');
   if (existing) existing.remove();
 
@@ -6082,28 +6085,241 @@ window._openRouteStopDetail = function(stopIdx, evt) {
     ? 'maps://maps.apple.com/?q=' + encodeURIComponent((stop.address || stop.company) + ' ' + (stop.city || ''))
     : 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent((stop.address || stop.company) + ' ' + (stop.city || ''));
 
+  var outcomes = ['Reached — Interested','Reached — Not Interested','Left Voicemail','No Answer','Appointment Set','Sample Left','Quoted'];
+  var outcomesHtml = outcomes.map(function(o) {
+    return '<option value="' + o + '">' + o + '</option>';
+  }).join('');
+
   var modal = document.createElement('div');
   modal.id = 'route-stop-modal';
-  modal.style.cssText = 'position:fixed;inset:0;z-index:9000;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,0.45)';
-  modal.innerHTML = '<div style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:520px;padding:20px;max-height:80vh;overflow-y:auto">' +
-    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">' +
-      '<div style="font-size:15px;font-weight:700;color:var(--navy)">' + (stop.company||'—') + '</div>' +
-      '<button data-dismiss="route-stop-modal" onclick="window._closeStopModal()" style="background:transparent;border:none;font-size:20px;cursor:pointer;color:var(--text3)">×</button>' +
-    '</div>' +
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">' +
-      '<div style="font-size:11px;color:var(--text3)"><strong>Category</strong><br>' + (stop.category||stop.territory||'—') + '</div>' +
-      '<div style="font-size:11px;color:var(--text3)"><strong>City</strong><br>' + (stop.city||'—') + '</div>' +
-      '<div style="font-size:11px;color:var(--text3)"><strong>Phone</strong><br>' + (stop.phone ? '<a href="tel:' + stop.phone + '" style="color:var(--navy)">' + stop.phone + '</a>' : '—') + '</div>' +
-      '<div style="font-size:11px;color:var(--text3)"><strong>Website</strong><br>' + (stop.website ? '<a href="' + (stop.website.startsWith('http') ? stop.website : 'https://' + stop.website) + '" target="_blank" style="color:var(--navy)">' + stop.website + '</a>' : '—') + '</div>' +
-    '</div>' +
-    (stop.address ? '<div style="font-size:11px;color:var(--text3);margin-bottom:12px"><strong>Address</strong><br>' + stop.address + '</div>' : '') +
-    (stop.products ? '<div style="font-size:11px;color:var(--text3);margin-bottom:12px"><strong>Products</strong><br>' + stop.products + '</div>' : '') +
-    '<a href="' + mapsUrl + '" target="_blank" style="display:block;text-align:center;padding:10px;background:var(--navy);color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;margin-top:4px">Get Directions</a>' +
-  '</div>';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:9100;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,0.5)';
+  modal.innerHTML =
+    '<div id="route-stop-sheet" style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:540px;padding:0;max-height:90vh;overflow-y:auto">' +
+      // Header
+      '<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px 12px;border-bottom:1px solid #e8ecf0;position:sticky;top:0;background:#fff;z-index:1">' +
+        '<div>' +
+          '<div style="font-size:16px;font-weight:800;color:var(--navy)">' + (stop.company||'Account') + '</div>' +
+          '<div style="font-size:11px;color:var(--text3);margin-top:2px">' + (stop.category||stop.territory||'') + (stop.city ? ' · ' + stop.city : '') + '</div>' +
+        '</div>' +
+        '<button onclick="window._closeStopModal()" style="background:transparent;border:none;font-size:22px;cursor:pointer;color:var(--text3);line-height:1">×</button>' +
+      '</div>' +
+
+      // Account info grid
+      '<div style="padding:14px 20px 0">' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">' +
+          '<div>' +
+            '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Address</div>' +
+            '<div style="font-size:12px;color:var(--navy)">' + (stop.address || '—') + '</div>' +
+          '</div>' +
+          '<div>' +
+            '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Phone</div>' +
+            '<div style="font-size:12px;color:var(--navy)">' + (stop.phone ? '<a href="tel:' + stop.phone + '" style="color:var(--navy);text-decoration:none">' + stop.phone + '</a>' : '—') + '</div>' +
+          '</div>' +
+        '</div>' +
+
+        // Directions quick-button
+        '<a href="' + mapsUrl + '" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:9px;background:var(--navy);color:#fff;border-radius:8px;text-decoration:none;font-size:12px;font-weight:700;margin-bottom:16px">' +
+          '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" style="width:14px;height:14px"><path d="M8 1L15 8 8 15M1 8h14"/></svg>Get Directions' +
+        '</a>' +
+
+        // Divider
+        '<div style="font-size:11px;font-weight:800;color:var(--navy);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;border-top:1px solid #e8ecf0;padding-top:14px">Log Call / Visit</div>' +
+
+        // Contact details fields
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">' +
+          '<div>' +
+            '<label style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:3px">Contact Name</label>' +
+            '<input id="rsd-contact" placeholder="Name" value="' + (stop.contact||'') + '" style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;color:var(--navy)">' +
+          '</div>' +
+          '<div>' +
+            '<label style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:3px">Phone</label>' +
+            '<input id="rsd-phone" placeholder="(555) 000-0000" value="' + (stop.phone||'') + '" style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;color:var(--navy)">' +
+          '</div>' +
+        '</div>' +
+        '<div style="margin-bottom:10px">' +
+          '<label style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:3px">Email Address</label>' +
+          '<input id="rsd-email" type="email" placeholder="contact@company.com" value="' + (stop.email||'') + '" style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;color:var(--navy)">' +
+        '</div>' +
+        '<div style="margin-bottom:10px">' +
+          '<label style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:3px">Call Outcome</label>' +
+          '<select id="rsd-outcome" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;color:var(--navy);background:#fff">' +
+            '<option value="">Select outcome...</option>' +
+            outcomesHtml +
+          '</select>' +
+        '</div>' +
+        '<div style="margin-bottom:16px">' +
+          '<label style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:3px">Notes</label>' +
+          '<textarea id="rsd-notes" placeholder="What happened? Products discussed, follow-up needed..." rows="3" style="width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;color:var(--navy);resize:vertical"></textarea>' +
+        '</div>' +
+
+        // Save button
+        '<div style="display:flex;gap:8px;padding-bottom:20px">' +
+          '<button id="rsd-save-btn" onclick="window._saveRouteStopLog(' + stopIdx + ')" style="flex:1;padding:11px;background:var(--navy);color:#00FF87;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Save to CRM</button>' +
+          '<button onclick="window._closeStopModal()" style="padding:11px 16px;background:#f1f5f9;color:var(--navy);border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Cancel</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
   modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
   document.body.appendChild(modal);
-
+  // Autofocus contact name if empty
+  if (!stop.contact) { setTimeout(function(){ var el=document.getElementById('rsd-contact'); if(el) el.focus(); }, 100); }
+}
 window._closeStopModal = function() { var m = document.getElementById('route-stop-modal'); if (m) m.remove(); };
+
+// Save route stop log — updates CRM account + logs call activity
+window._saveRouteStopLog = function(stopIdx) {
+  var stops = window._routeStops || [];
+  var stop  = stops[stopIdx];
+  if (!stop) return;
+
+  var contactName = (document.getElementById('rsd-contact') || {value:''}).value.trim();
+  var phone       = (document.getElementById('rsd-phone')   || {value:''}).value.trim();
+  var email       = (document.getElementById('rsd-email')   || {value:''}).value.trim();
+  var outcome     = (document.getElementById('rsd-outcome') || {value:''}).value;
+  var notes       = (document.getElementById('rsd-notes')   || {value:''}).value.trim();
+
+  if (!outcome) {
+    showToast('Please select a call outcome');
+    return;
+  }
+
+  var saveBtn = document.getElementById('rsd-save-btn');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; }
+
+  // Build the prospect update payload
+  var updatePayload = {};
+  if (contactName) updatePayload.contact = contactName;
+  if (phone)       updatePayload.phone   = phone;
+  if (email)       updatePayload.email   = email;
+
+  // Determine status upgrade from outcome
+  var statusMap = {
+    'Reached — Interested':     'Hot Lead',
+    'Reached — Not Interested': 'Not Interested',
+    'Left Voicemail':           'Contacted',
+    'No Answer':                'Contacted',
+    'Appointment Set':          'Hot Lead',
+    'Sample Left':              'Sampled',
+    'Quoted':                   'Quoted'
+  };
+  if (statusMap[outcome]) updatePayload.status = statusMap[outcome];
+  updatePayload.data_status = 'Contacted';
+
+  // Also update the in-memory stop so it reflects immediately
+  if (contactName) stop.contact = contactName;
+  if (phone)       stop.phone   = phone;
+  if (email)       stop.email   = email;
+
+  // Step 1: If stop has a known CRM id, update the prospect record
+  function logTheCall(prospectId) {
+    var callPayload = {
+      prospect_id:  prospectId,
+      outcome:      outcome,
+      notes:        notes || ('Drive Route call — ' + (stop.company||'')),
+      call_date:    new Date().toISOString().split('T')[0],
+      call_type:    'Outbound'
+    };
+    fetch('/api/calls', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(callPayload)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function() {
+      // Update in-memory allProspects cache
+      if (typeof allProspects !== 'undefined' && prospectId) {
+        allProspects = allProspects.map(function(p) {
+          if (p.id === prospectId || p.id === parseInt(prospectId)) {
+            return Object.assign({}, p, updatePayload);
+          }
+          return p;
+        });
+      }
+      if (typeof loadCrmStats === 'function') loadCrmStats();
+      window._closeStopModal();
+      showToast('✓ Call logged for ' + (stop.company||'account'));
+    })
+    .catch(function(e) {
+      console.error('log call error:', e);
+      window._closeStopModal();
+      showToast('Call logged (CRM sync pending)');
+    });
+  }
+
+  var prospectId = stop.id && typeof stop.id === 'number' ? stop.id : parseInt(stop.id) || null;
+
+  if (prospectId && Object.keys(updatePayload).length > 1) {
+    // Update the prospect contact details first
+    fetch('/api/prospects/' + prospectId, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatePayload)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function() { logTheCall(prospectId); })
+    .catch(function() { logTheCall(prospectId); });
+  } else if (prospectId) {
+    logTheCall(prospectId);
+  } else {
+    // No CRM id yet — find or create the prospect first
+    fetch('/api/prospects?search=' + encodeURIComponent(stop.company || ''))
+    .then(function(r) { return r.json(); })
+    .then(function(recs) {
+      var match = recs.find(function(r) {
+        return (r.company||'').toLowerCase() === (stop.company||'').toLowerCase();
+      });
+      if (match) {
+        prospectId = match.id;
+        stop.id = match.id;
+        if (Object.keys(updatePayload).length > 1) {
+          return fetch('/api/prospects/' + prospectId, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updatePayload)
+          }).then(function(){ logTheCall(prospectId); });
+        }
+        logTheCall(prospectId);
+      } else {
+        // Create a new prospect from the route stop data
+        var createPayload = {
+          company:   stop.company || 'Unknown',
+          category:  stop.category || stop.territory || '',
+          city:      stop.city || '',
+          address:   stop.address || '',
+          phone:     phone || stop.phone || null,
+          email:     email || null,
+          contact:   contactName || null,
+          status:    statusMap[outcome] || 'New',
+          data_status: 'Contacted',
+          source:    'Drive Route'
+        };
+        fetch('/api/prospects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(createPayload)
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(newRec) {
+          stop.id = newRec.id;
+          prospectId = newRec.id;
+          // Add to allProspects cache
+          if (typeof allProspects !== 'undefined') {
+            allProspects.unshift(newRec);
+          }
+          logTheCall(prospectId);
+        })
+        .catch(function() {
+          window._closeStopModal();
+          showToast('Call saved locally — sync when online');
+        });
+      }
+    })
+    .catch(function() {
+      window._closeStopModal();
+      showToast('Call saved — CRM sync pending');
+    });
+  }
 };
 
 
@@ -6637,12 +6853,21 @@ function renderTeamContacts(rows, search) {
   var ci = 0;
   rows.forEach(function(r) { if (r.rep_name && !repColors[r.rep_name]) { repColors[r.rep_name] = palette[ci++ % palette.length]; } });
 
-  // Apply team sort
+  // Apply team sort (matches My Contacts options)
   var sortVal = (document.getElementById('sort-contacts') || {value:'default'}).value;
-  if (sortVal === 'city_asc')    filtered.sort(function(a,b){ return (a.city||'').localeCompare(b.city||''); });
-  else if (sortVal === 'city_desc') filtered.sort(function(a,b){ return (b.city||'').localeCompare(a.city||''); });
-  else if (sortVal === 'company_asc') filtered.sort(function(a,b){ return (a.company||'').localeCompare(b.company||''); });
-  else if (sortVal === 'status_asc')  filtered.sort(function(a,b){ return (a.status||'').localeCompare(b.status||''); });
+  function tsAsc(k){ return function(a,b){ return (a[k]||'').localeCompare(b[k]||''); }; }
+  function tsDesc(k){ return function(a,b){ return (b[k]||'').localeCompare(a[k]||''); }; }
+  if      (sortVal === 'city_asc')        filtered.sort(tsAsc('city'));
+  else if (sortVal === 'city_desc')       filtered.sort(tsDesc('city'));
+  else if (sortVal === 'company_asc')     filtered.sort(tsAsc('company'));
+  else if (sortVal === 'company_desc')    filtered.sort(tsDesc('company'));
+  else if (sortVal === 'category_asc')    filtered.sort(tsAsc('category'));
+  else if (sortVal === 'category_desc')   filtered.sort(tsDesc('category'));
+  else if (sortVal === 'contact_asc')     filtered.sort(tsAsc('contact'));
+  else if (sortVal === 'status_asc')      filtered.sort(tsAsc('status'));
+  else if (sortVal === 'data_status_asc') filtered.sort(tsAsc('data_status'));
+  else if (sortVal === 'newest')  filtered.sort(function(a,b){ return new Date(b.created_at||0) - new Date(a.created_at||0); });
+  else if (sortVal === 'oldest')  filtered.sort(function(a,b){ return new Date(a.created_at||0) - new Date(b.created_at||0); });
 
   var isCitySort = sortVal === 'city_asc' || sortVal === 'city_desc';
   var teamRows = [];
