@@ -625,7 +625,7 @@ window.addEventListener('load', function() {
     <button class="sb-item" onclick="go('calendar')" style="padding-left:18px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><rect x="2" y="3" width="12" height="11" rx="1"/><path d="M5 2v2M11 2v2M2 7h12"/></svg>Team Calendar</button>
     <button class="sb-item" onclick="go('email')" style="padding-left:18px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><rect x="1" y="3" width="14" height="10" rx="1"/><path d="M1 4l7 5 7-5"/></svg>Email</button>
     <button class="sb-item" onclick="go('command')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><path d="M9 2L7 14M3 6l-2 2 2 2M13 6l2 2-2 2"/></svg>AI Command</button>
-    <button class="sb-item" onclick="go('bulk')" style="border-left:3px solid #00FF87"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2 2h5v5H2z"/><path d="M9 2h5v5H9z"/><path d="M2 9h5v5H2z"/><path d="M9 9h5v5H9z"/></svg> Bulk Ingest</button>
+    <button class="sb-item" onclick="go('bulk')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 2h5v5H2z"/><path d="M9 2h5v5H9z"/><path d="M2 9h5v5H2z"/><path d="M9 9h5v5H9z"/></svg>Bulk Import</button>
   </div>
   <div class="sb-section manager-only" style="display:none">
     <div class="sb-sec-label">Team</div>
@@ -2459,6 +2459,12 @@ function go(id) {
   }
   if (id === 'email') loadEmailPage();
   if (id === 'samples') loadSamples();
+  // Refresh route panel whenever user navigates to home/dashboard
+  if (id === 'dashboard' || id === 'home') {
+    if (typeof window._renderRoutePanel === 'function') {
+      setTimeout(function() { window._renderRoutePanel(); }, 50);
+    }
+  }
 }
 
 function setModTab(cat, el) {
@@ -2560,6 +2566,11 @@ function loadDashboard() {
 
       // Load morning briefing
       loadMorningBriefing(false);
+
+      // Refresh drive route panel (shows stops added from Contacts)
+      if (typeof window._renderRoutePanel === 'function') {
+        window._renderRoutePanel();
+      }
     });
 }
 
@@ -2862,7 +2873,7 @@ function renderProspects() {
           '<td colspan="10" style="padding:6px 12px">' +
             '<div style="display:flex;align-items:center;justify-content:space-between">' +
               '<span style="font-size:12px;font-weight:800;color:var(--navy);text-transform:uppercase;letter-spacing:.5px">' + thisCity + ' <span style="font-weight:500;color:var(--text3);font-size:11px;text-transform:none">(' + cityCount + ')</span></span>' +
-              '<button onclick="event.stopPropagation();addCityToRoute(' + JSON.stringify(thisCity) + ')" ' +
+              '<button onclick="addCityToRoute(this.getAttribute(\x27data-city\x27))" data-city="' + thisCity.replace(/"/g,'&quot;') + '" ' +
                 'style="padding:3px 10px;background:var(--navy);color:#00FF87;border:none;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit">+ All to Route</button>' +
             '</div>' +
           '</td>' +
@@ -3372,14 +3383,13 @@ function addCrmContactToRoute(id, isTeam, teamCompany, teamAddress, teamCity, te
     }
   });
 
-  showToast(p.company + ' added to route');
+  // Update view-route button immediately
+  var vrBtn   = document.getElementById('view-route-btn');
+  var vrCount = document.getElementById('view-route-count');
+  if (vrBtn)   { vrBtn.style.display = 'inline-block'; }
+  if (vrCount) { vrCount.textContent = (window._routeStops || []).length; }
 
-  // Navigate to leads page where route panel lives, if not already there
-  var currentPage = document.querySelector('.page.active');
-  var isOnLeads = currentPage && currentPage.id === 'page-leads';
-  if (!isOnLeads) {
-    showToast('Route updated. Go to Find Leads to view and launch route.');
-  }
+  showToast(p.company + ' added to route');
 }
 
 // Add a team contact to route — reads from button data attributes to avoid inline string issues
@@ -3438,15 +3448,26 @@ function addCityToRoute(cityName) {
     window._routeStops = nearestNeighborSort(stops, window._userLat, window._userLng);
   }
 
+  // Always render panel — works even when dashboard is not the active page
   if (typeof window._renderRoutePanel === 'function') window._renderRoutePanel();
 
-  // Refresh buttons in table
-  renderProspects();
+  // Refresh route buttons in whichever table is currently visible
+  if (window._contactTab === 'team') {
+    renderTeamContacts(window._teamContactsCache || [], (document.getElementById('p-search') || {value:''}).value);
+  } else {
+    renderProspects();
+  }
 
-  var msg = added + ' ' + cityName + ' contact' + (added===1?'':'s') + ' added to route';
-  if (skipped > 0) msg += ' (' + skipped + ' already in route)';
-  if (full) msg += '. Route is full (10 max).';
+  var msg = added + ' ' + cityName + ' stop' + (added===1?'':'s') + ' added to route';
+  if (skipped > 0) msg += ' · ' + skipped + ' already in route';
+  if (full) msg += ' · Route full (10 max)';
   showToast(msg);
+
+  // Show the route shortcut badge
+  var vrBtn = document.getElementById('view-route-btn');
+  var vrCount = document.getElementById('view-route-count');
+  if (vrBtn) vrBtn.style.display = 'inline-block';
+  if (vrCount) vrCount.textContent = window._routeStops.length;
 }
 
 // Nearest-neighbor sort for city bulk-add
@@ -4007,15 +4028,38 @@ function saveEditContact() {
 function deleteContact() {
   var id = document.getElementById('ep-id').value;
   var name = document.getElementById('ep-name').value;
+  var numId = parseInt(id);
   if (!confirm('Delete ' + name + '? This cannot be undone.')) return;
   fetch('/api/prospects/' + id, { method: 'DELETE' })
     .then(function(r) { return r.json(); })
     .then(function() {
+      // 1. Remove from in-memory prospect cache immediately
+      if (typeof allProspects !== 'undefined') {
+        allProspects = allProspects.filter(function(p) { return p.id !== numId && p.id !== id; });
+      }
+      // 2. Remove from team contacts cache
+      if (window._teamContactsCache) {
+        window._teamContactsCache = window._teamContactsCache.filter(function(p) {
+          return p.id !== numId && p.id !== id && (p.company||'') !== name;
+        });
+      }
+      // 3. Remove from active drive route
+      if (window._routeStops) {
+        window._routeStops = window._routeStops.filter(function(s) {
+          return s.id !== numId && s.id !== id && (s.company||'') !== name;
+        });
+        if (typeof window._renderRoutePanel === 'function') window._renderRoutePanel();
+      }
+      // 4. Close modal + refresh UI
       closeModal('edit-prospect');
-      showToast('Contact deleted');
+      showToast(name + ' deleted');
       loadProspects();
       loadDashboard();
       go('contacts');
+    })
+    .catch(function(e) {
+      showToast('Delete failed — please try again');
+      console.error('deleteContact error:', e);
     });
 }
 
@@ -6615,7 +6659,7 @@ function renderTeamContacts(rows, search) {
           '<td colspan="9" style="padding:6px 12px">' +
             '<div style="display:flex;align-items:center;justify-content:space-between">' +
               '<span style="font-size:12px;font-weight:800;color:var(--navy);text-transform:uppercase;letter-spacing:.5px">' + thisCity + ' <span style="font-weight:500;color:var(--text3);font-size:11px;text-transform:none">(' + cityCount + ')</span></span>' +
-              '<button onclick="event.stopPropagation();addCityToRoute(' + JSON.stringify(thisCity) + ')" ' +
+              '<button onclick="addCityToRoute(this.getAttribute(\x27data-city\x27))" data-city="' + thisCity.replace(/"/g,'&quot;') + '" ' +
                 'style="padding:3px 10px;background:var(--navy);color:#00FF87;border:none;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit">+ All to Route</button>' +
             '</div>' +
           '</td>' +
