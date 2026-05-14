@@ -3,6 +3,12 @@ const { pool } = require('../db');
 const router = express.Router();
 const PLACES_KEY = process.env.GOOGLE_PLACES_API_KEY;
 
+// ═══════════════════════════════════════════════════════════════
+// DISTRIBUTION-FIRST LEAD ENGINE
+// This system targets distribution accounts, dealer networks,
+// contractor supply chains, and mid-market commercial buyers.
+// It does NOT target residential contractors or retail consumers.
+// ═══════════════════════════════════════════════════════════════
 
 // Hard block — never return paint shops/painters as Alum-A-Pole leads
 const ALUM_PAINT_BLOCK = ['paint', 'painting', 'painter', 'painters'];
@@ -11,79 +17,89 @@ function alumPoleBlocked(name) {
   return ALUM_PAINT_BLOCK.some(kw => lower.includes(kw));
 }
 
-// Global bad-lead blocklist — never return these for any contractor search
+// Garage door block — applies to all Window/Door segment searches
+const GARAGE_DOOR_BLOCK = ['garage door', 'garage doors', 'overhead door', 'overhead garage'];
+function garageDoorBlocked(name) {
+  const lower = (name || '').toLowerCase();
+  return GARAGE_DOOR_BLOCK.some(kw => lower.includes(kw));
+}
+
+// ── Global bad-lead blocklist ────────────────────────────────────
 const BAD_LEAD_KEYWORDS = [
-  // Financial
   'bank','credit union','financial','insurance','mortgage','lending','loan','wealth',
   'investment','securities','advisor','brokerage','finance',
-  // Medical
   'hospital','clinic','medical','dental','doctor','physician','healthcare','therapy',
   'urgent care','pharmacy','chiropractor','optom','vision center',
-  // Retail/unrelated
   'restaurant','diner','cafe','coffee','food','grocery','supermarket','walmart',
   'target','home depot','lowes','ace hardware',
-  // Government/institutional
   'government','county','city hall','police','fire station','post office','dmv',
   'school district','university','college','church','temple','mosque','synagogue',
-  // Office parks/generic
   'office park','business center','coworking','regus','wework','executive suites',
-  // Real estate (not contractors)
   'realty','realtor','real estate','property management','apartment','condo','hoa',
-  // Auto
   'auto dealer','car dealer','dealership','used cars','automotive repair',
-  // Unrelated services
   'hair salon','nail salon','spa','massage','tattoo','gym','fitness','yoga',
   'daycare','childcare','staffing agency','temp agency',
-  // Residential (addresses)
-  'unit ','apt ','suite \d','#\d'
+  // Residential-only signals (excluded — we want commercial/distribution)
+  'handyman','honey-do','fix-it','home repair services','odd jobs',
+  'house painting','residential painting','interior painting','exterior painting',
+  'landscaping','lawn care','lawn service','pest control','pool service',
+  'pressure washing','window cleaning','gutter cleaning','house cleaning',
+  'carpet cleaning','junk removal','moving company','storage unit'
 ];
 
-// Contractor-relevant keywords — a match boosts confidence
-const CONTRACTOR_SIGNALS = [
-  'contractor','contracting','construction','roofing','siding','deck','window','door',
-  'builder','building','remodel','renovati','installation','installer','install',
-  'cornice','fascia','soffit','framing','scaffold','supply','distributor','dealer',
-  'trade','exterior','interior','structural','commercial','residential','industrial',
-  'plumbing','electrical','hvac','flooring','masonry','concrete','waterproof',
-  'painting','drywall','insulation','sheet metal','metal',
-  'home improvement','handyman','repair','restoration','maintenance services'
+// ── Distribution-positive signals (boost confidence) ──────────
+const DISTRIBUTION_SIGNALS = [
+  'distributor','distribution','dealer','dealership','dealer network',
+  'supply','supplies','supplier','wholesale','wholesaler',
+  'building products','building materials','building supply',
+  'contractor supply','trade supply','industrial supply',
+  'lumber dealer','specialty lumber','hardwood dealer',
+  'roofing supply','roofing distributor','roofing materials',
+  'siding supply','siding distributor','exterior products',
+  'deck supply','decking distributor','deck dealer',
+  'fastener supply','tool dealer','equipment dealer',
+  'manufacturer rep','authorized dealer','stocking dealer',
+  '2-step','two step distributor','regional distributor',
+  'commercial roofing','commercial contractor','commercial builder',
+  'metal roofing','flat roofing','low slope','tpo','epdm','pvc roofing'
 ];
 
+// ── Residential-only exclusion (applies to all searches) ────────
+// We still include residential contractors if they are explicitly
+// a target for a brand — but pure residential-only businesses are out
+const RESIDENTIAL_ONLY_SIGNALS = [
+  'residential only','homeowner','home owner service','house call',
+  'home service','home services','home improvement handyman',
+  'home repair handyman','household repair','residential cleaning',
+];
 
-// ── ICP: Words that signal enterprise/mega-corp gatekeeping ─────
+// ── Enterprise chains that don't buy from small reps ────────────
 const ENTERPRISE_BLOCKLIST = [
-  'inc\. nationwide','national','corp nationwide',
-  // Mega-contractors / publicly traded / franchise chains
   'dr horton','nvr ','toll brothers','kb home','lennar','pulte','centex',
   'beazer','meritage','william lyon','century communities',
   'abc supply','builders firstsource','us lbm','builders general',
-  'beacon roofing','bradco','gulfeagle','atlas roofing corp',
+  'beacon roofing supply','bradco','gulfeagle','atlas roofing corp',
   'allied building products','northwest building products',
-  // Brand-franchise only, not decision-maker accessible
   'servpro','servicemaster','restoration 1','paul davis',
-  // National chains with procurement layers
   'home services of america','2-10 home buyers',
 ];
 
-// ── ICP: Home-based / micro signals ─────────────────────────────
+// ── Home-based / micro signals ───────────────────────────────────
 const HOME_BASED_SIGNALS = [
   'home-based','home based','owner operator','owner-operator',
   'sole prop','one man','one-man','1 man','handyman services',
-  // Residential address patterns caught at name level
   'my home','from home',
 ];
 
-// ── ICP: Terms that suggest very large corporate structure ───────
+// ── Large corporate holding signals ─────────────────────────────
 const MEGA_CORP_SIGNALS = [
   'group llc nationwide','holding','holdings','properties llc',
   'development corp','developments llc','realty group','realty corp',
   'global services','international services','worldwide',
 ];
 
-// ── Review sweet-spot thresholds for mid-market ICP ─────────────
-// Too few = micro/home-based. Too many = big corporate.
-const REVIEW_MIN_ICP = 5;   // fewer than this = likely micro/home-based
-const REVIEW_MAX_ICP = 600; // more than this = likely mega-corp
+const REVIEW_MIN_ICP = 5;
+const REVIEW_MAX_ICP = 600;
 
 // ── Reachability scorer ──────────────────────────────────────────
 function getReachabilityScore(place, name) {
@@ -98,37 +114,31 @@ function getReachabilityScore(place, name) {
   let reasons = [];
   let deductions = [];
 
-  // ── POSITIVE signals ──
   if (hasPhone) { score += 30; reasons.push('direct phone listed'); }
   if (hasWebsite) { score += 10; reasons.push('website present'); }
   if (hasHours) { score += 10; reasons.push('business hours listed'); }
 
-  // Sweet-spot review count = mid-market (5–300)
   if (reviews >= REVIEW_MIN_ICP && reviews <= 300) {
-    score += 25;
-    reasons.push('review count signals mid-market size');
+    score += 25; reasons.push('review count signals mid-market size');
   } else if (reviews > 300 && reviews <= REVIEW_MAX_ICP) {
-    score += 10;
-    reasons.push('established business, may have some gatekeeping');
+    score += 10; reasons.push('established business, may have some gatekeeping');
   }
 
-  // Good rating with reasonable review count = real business, decision-maker accessible
   if (rating >= 4.0 && reviews >= REVIEW_MIN_ICP) {
-    score += 15;
-    reasons.push('highly rated active business');
+    score += 15; reasons.push('highly rated active business');
   }
 
-  // ── NEGATIVE signals ──
+  // Distribution bonus — these are prime targets
+  for (const kw of DISTRIBUTION_SIGNALS) {
+    if (lower.includes(kw)) { score += 20; reasons.push('distribution/dealer signal: ' + kw); break; }
+  }
+
   if (reviews < REVIEW_MIN_ICP) {
-    score -= 20;
-    deductions.push('very few reviews — likely micro or home-based');
+    score -= 20; deductions.push('very few reviews — likely micro or home-based');
   }
   if (reviews > REVIEW_MAX_ICP) {
-    score -= 25;
-    deductions.push('very high review volume — likely large corp with procurement layers');
+    score -= 25; deductions.push('very high review volume — likely large corp');
   }
-
-  // Enterprise / mega-corp blockers
   for (const kw of ENTERPRISE_BLOCKLIST) {
     if (lower.includes(kw)) { score -= 40; deductions.push('enterprise signal: ' + kw); break; }
   }
@@ -139,90 +149,43 @@ function getReachabilityScore(place, name) {
     if (lower.includes(kw)) { score -= 35; deductions.push('home-based or solo operator signal'); break; }
   }
 
-  // ── Tier assignment ──
   const finalScore = Math.max(0, Math.min(100, score));
   let tier, label;
-  if (finalScore >= 60) {
-    tier = 'HIGH';
-    label = 'High Reachability';
-  } else if (finalScore >= 35) {
-    tier = 'MEDIUM';
-    label = 'Medium Reachability';
-  } else {
-    tier = 'LOW';
-    label = 'Low Reachability';
-  }
+  if (finalScore >= 60) { tier = 'HIGH'; label = 'High Reachability'; }
+  else if (finalScore >= 35) { tier = 'MEDIUM'; label = 'Medium Reachability'; }
+  else { tier = 'LOW'; label = 'Low Reachability'; }
 
-  const allSignals = [...reasons, ...deductions.map(d => '(-) ' + d)];
-  return { tier, label, score: finalScore, signals: allSignals };
+  return { tier, label, score: finalScore, signals: [...reasons, ...deductions.map(d => '(-) ' + d)] };
 }
 
-// ── Estimate company size tier ───────────────────────────────────
 function getSizeTier(place) {
   const reviews = place.userRatingCount || 0;
-  // Heuristic: reviews strongly correlate with business size/visibility
   if (reviews < REVIEW_MIN_ICP) return 'Micro';
   if (reviews < 30) return 'Small';
   if (reviews < 150) return 'Mid';
   return 'Large';
 }
 
-// ── Why this lead? Build a 1-line justification ──────────────────
 function buildInclusionReason(place, name, category, reachability) {
   const reviews = place.userRatingCount || 0;
   const rating = place.rating || 0;
   const hasPhone = !!place.nationalPhoneNumber;
   const hasWebsite = !!place.websiteUri;
+  const lower = (name || '').toLowerCase();
 
   const parts = [];
   if (hasPhone) parts.push('direct phone available');
   if (rating >= 4.0 && reviews >= 10) parts.push(rating.toFixed(1) + '★ with ' + reviews + ' reviews');
   else if (reviews >= 10) parts.push(reviews + ' reviews');
   if (hasWebsite) parts.push('web presence confirmed');
-
+  // Highlight if it's a distributor or dealer
+  for (const kw of ['distributor','dealer','supply','wholesale']) {
+    if (lower.includes(kw)) { parts.unshift('distribution/dealer account'); break; }
+  }
   return parts.length ? parts.join(', ') + '.' : 'Active ' + category + ' in target territory.';
 }
 
-function isBadLead(name, address, category) {
-  if (!name) return true;
-  const lower = name.toLowerCase();
-  const addrLower = (address||'').toLowerCase();
-
-  // Block bad-lead keywords (financial, medical, retail, etc.)
-  for (const kw of BAD_LEAD_KEYWORDS) {
-    if (new RegExp(kw).test(lower)) return true;
-  }
-
-  // Block home-based / solo operator signals
-  for (const kw of HOME_BASED_SIGNALS) {
-    if (lower.includes(kw)) return true;
-  }
-
-  // Block mega-corp signals
-  for (const kw of MEGA_CORP_SIGNALS) {
-    if (lower.includes(kw)) return true;
-  }
-
-  // Block known enterprise chains
-  for (const kw of ENTERPRISE_BLOCKLIST) {
-    if (lower.includes(kw)) return true;
-  }
-
-  // Block names that are just generic addresses or single words
-  const nameWords = name.split(' ').filter(w=>w.length>1);
-  if (nameWords.length < 2 && !lower.includes('co') && !lower.includes('inc') && !lower.includes('llc')) {
-    const hasSignal = CONTRACTOR_SIGNALS.some(s => lower.includes(s));
-    if (!hasSignal) return true;
-  }
-
-  // PO Box addresses
-  if (/po box|p\.o\. box/i.test(addrLower)) return true;
-
-  return false;
-}
-
-
-// Google Places API type-based exclusion — types that are NEVER valid leads
+// Google Place type exclusions
 const BAD_PLACE_TYPES = new Set([
   'bank','finance','insurance_agency','real_estate_agency','lodging','hotel',
   'motel','campground','rv_park','school','university','hospital','doctor',
@@ -244,111 +207,289 @@ function hasBadPlaceType(types) {
   return types.some(function(t) { return BAD_PLACE_TYPES.has(t); });
 }
 
+function isBadLead(name, address, category) {
+  if (!name) return true;
+  const lower = name.toLowerCase();
 
-function hasContractorSignal(name, category) {
-  const combined = ((name||'') + ' ' + (category||'')).toLowerCase();
-  return CONTRACTOR_SIGNALS.some(s => combined.includes(s));
+  for (const kw of BAD_LEAD_KEYWORDS) {
+    if (new RegExp(kw).test(lower)) return true;
+  }
+  for (const kw of HOME_BASED_SIGNALS) {
+    if (lower.includes(kw)) return true;
+  }
+  for (const kw of MEGA_CORP_SIGNALS) {
+    if (lower.includes(kw)) return true;
+  }
+  for (const kw of ENTERPRISE_BLOCKLIST) {
+    if (lower.includes(kw)) return true;
+  }
+  for (const kw of RESIDENTIAL_ONLY_SIGNALS) {
+    if (lower.includes(kw)) return true;
+  }
+
+  const nameWords = name.split(' ').filter(w => w.length > 1);
+  if (nameWords.length < 2 && !lower.includes('co') && !lower.includes('inc') && !lower.includes('llc')) {
+    const hasSignal = DISTRIBUTION_SIGNALS.some(s => lower.includes(s));
+    if (!hasSignal) return true;
+  }
+
+  if (/po box|p\.o\. box/i.test((address||'').toLowerCase())) return true;
+
+  return false;
 }
 
-function httpsPost(hostname, path, headers, body) {
-  const https = require('https');
-  return new Promise((resolve, reject) => {
-    const data = JSON.stringify(body);
-    const opts = { hostname, path, method: 'POST', headers: { ...headers, 'Content-Length': Buffer.byteLength(data) } };
-    const req = https.request(opts, (res) => {
-      let raw = '';
-      res.on('data', c => raw += c);
-      res.on('end', () => { try { resolve(JSON.parse(raw)); } catch(e) { reject(new Error('Parse: ' + raw.slice(0,100))); } });
-    });
-    req.on('error', reject);
-    req.write(data);
-    req.end();
-  });
-}
-
-function httpsGet(url) {
-  const https = require('https');
-  return new Promise((resolve, reject) => {
-    https.get(url, (res) => {
-      let raw = '';
-      res.on('data', c => raw += c);
-      res.on('end', () => { try { resolve(JSON.parse(raw)); } catch(e) { reject(new Error('Parse')); } });
-    }).on('error', reject);
-  });
-}
-
-function getSearchQueries(product, customerType) {
+// ═══════════════════════════════════════════════════════════════
+// DISTRIBUTION-FIRST SEARCH QUERY LIBRARY
+// Each segment has queries ordered: distributors first, then dealers,
+// then commercial contractors. Residential-only queries removed.
+// ═══════════════════════════════════════════════════════════════
+function getSearchQueries(product, customerType, segment) {
   const p = (product || '').toLowerCase();
-  const ct = (customerType || '').toLowerCase();
-  if (ct && ct !== 'any building products buyer') return [
-    customerType, customerType + ' contractor', customerType + ' company',
-    customerType + ' services', customerType + ' specialist', customerType + ' installer',
-    customerType + ' builder', customerType + ' pro', customerType + ' repair',
-    customerType + ' residential', customerType + ' commercial', customerType + ' local',
-    customerType + ' near me', 'best ' + customerType, customerType + ' renovation'
-  ];
-  if (p.includes('alum') || p.includes('scaffolding')) return [
-    'siding contractor installation',
-    'vinyl siding contractor',
-    'James Hardie siding installer',
-    'fiber cement siding company',
-    'LP SmartSide installer',
-    'soffit fascia cornice contractor',
-    'exterior siding company',
-    'siding supply distributor',
-    'fastener supply store construction',
-    'scaffolding rental supply',
-    'building materials distributor siding',
-    'exterior building products distributor',
-    'construction equipment dealer scaffolding',
-    'cornice contractor trim',
-    'residential siding contractor'
-  ];
-  if (p.includes('soudal') || p.includes('sealant') || p.includes('adhesive')) return [
-    'window installation contractor', 'door installation company', 'glazing contractor',
-    'window and door installer', 'commercial glazing company', 'residential window installer',
-    'waterproofing contractor', 'insulation contractor', 'weatherproofing company',
-    'window replacement company', 'door replacement contractor', 'caulking contractor',
-    'commercial window installer', 'building envelope contractor', 'window repair company'
-  ];
-  if (p.includes('shurtape') || p.includes('flashing')) return [
-    'roofing contractor', 'commercial roofing company', 'residential roofing contractor',
-    'window installer', 'door installation contractor', 'deck contractor',
-    'metal roofing contractor', 'flat roof contractor', 'roofing company',
-    'exterior contractor', 'home builder', 'remodeling contractor',
-    'general contractor', 'TPO roofing contractor', 'shingle roofing company'
-  ];
-  if (p.includes('framing') || (p.includes('fortress') && !p.includes('rail'))) return [
-    'deck builder', 'deck contractor', 'custom deck builder',
-    'composite deck installer', 'Trex deck installer', 'TimberTech installer',
-    'deck construction company', 'remodeling contractor', 'outdoor living contractor',
-    'porch builder', 'pergola builder', 'deck repair company',
-    'residential deck contractor', 'backyard contractor', 'home improvement contractor'
-  ];
-  if (p.includes('railing') || p.includes('fortress')) return [
-    'deck contractor', 'railing installer', 'fence contractor',
-    'iron railing company', 'aluminum railing installer', 'cable railing installer',
-    'stair railing contractor', 'glass railing installer', 'porch railing company',
-    'deck builder', 'balcony railing contractor', 'commercial railing installer',
-    'fence and railing company', 'outdoor contractor', 'deck railing company'
-  ];
+  const seg = (segment || customerType || '').toLowerCase();
+
+  // ── Window / Door Installer (exterior only — no garage doors) ──
+  if (seg.includes('window') || seg.includes('door')) {
+    return [
+      'exterior window distributor building products',
+      'window and door dealer contractor supply',
+      'commercial window installation company',
+      'storefront window glazing contractor commercial',
+      'exterior door distributor building supply',
+      'replacement window dealer contractor',
+      'window manufacturer dealer authorized',
+      'commercial door installation contractor',
+      'building envelope contractor commercial',
+      'fenestration dealer building products supply',
+      'impact window dealer commercial',
+      'window and door supply house wholesale',
+    ];
+  }
+
+  // ── Deck Distributor / Dealer — Trex, TimberTech, Deckorators ──
+  if (seg.includes('deck') && (seg.includes('distrib') || seg.includes('dealer') || seg.includes('supply') || seg.includes('lumber'))) {
+    return [
+      'Trex composite decking authorized dealer',
+      'TimberTech AZEK decking dealer',
+      'Deckorators dealer lumber supply',
+      'Fiberon composite decking dealer',
+      'MoistureShield decking dealer',
+      'specialty lumber dealer deck products',
+      'decking products distributor wholesale',
+      'composite decking supply house',
+      'deck materials distributor contractor supply',
+      '2-step decking distributor building products',
+      'lumber yard deck products contractor',
+      'outdoor living products distributor',
+    ];
+  }
+
+  // ── Deck Contractor (commercial / mid-market) ──
+  if (seg.includes('deck') && seg.includes('contractor')) {
+    return [
+      'commercial deck contractor composite',
+      'deck builder composite Trex TimberTech',
+      'custom deck construction company commercial',
+      'outdoor living contractor deck builder',
+      'deck installation contractor commercial',
+      'deck contractor steel framing commercial',
+      'deck construction company multi-unit',
+      'resort hotel deck contractor commercial',
+    ];
+  }
+
+  // ── Roofing Distributor — Commercial brands only ──
+  if (seg.includes('roofing') && (seg.includes('distrib') || seg.includes('supply'))) {
+    return [
+      'commercial roofing distributor authorized dealer',
+      'Carlisle roofing authorized dealer distributor',
+      'Johns Manville commercial roofing dealer',
+      'CertainTeed commercial roofing distributor',
+      'Sika Sarnafil roofing dealer',
+      'Tremco roofing products distributor',
+      'IKO commercial roofing dealer',
+      'Holcim Amrize roofing product distributor',
+      'metal roofing distributor dealer supply',
+      'TPO EPDM roofing supply house wholesale',
+      'low slope roofing materials distributor',
+      'commercial roofing supply house contractor',
+      'Metal-Era Membranes dealer distributor',
+      'Derbigum roofing dealer authorized',
+    ];
+  }
+
+  // ── Commercial Roofing Contractor ──
+  if (seg.includes('roofing') && seg.includes('contractor')) {
+    return [
+      'commercial roofing contractor TPO EPDM',
+      'commercial roofing company flat roof',
+      'metal roofing contractor commercial',
+      'low slope roofing contractor commercial',
+      'industrial roofing contractor',
+      'institutional roofing company commercial',
+      'Carlisle TPO authorized roofing contractor',
+      'Johns Manville roofing contractor certified',
+      'CertainTeed commercial roofing applicator',
+      'Sika Sarnafil approved contractor',
+      'green roof contractor commercial',
+      'roofing contractor warehouse industrial',
+    ];
+  }
+
+  // ── Siding Contractor ──
+  if (seg.includes('siding') && seg.includes('contractor')) {
+    return [
+      'siding contractor James Hardie installer',
+      'fiber cement siding contractor commercial',
+      'LP SmartSide contractor commercial',
+      'vinyl siding contractor commercial',
+      'exterior siding company contractor',
+      'soffit fascia cornice contractor exterior',
+      'commercial siding contractor multi-family',
+      'stucco EIFS siding contractor commercial',
+    ];
+  }
+
+  // ── Siding Distributor ──
+  if (seg.includes('siding') && (seg.includes('distrib') || seg.includes('supply') || seg.includes('dealer'))) {
+    return [
+      'siding distributor building products wholesale',
+      'James Hardie authorized distributor dealer',
+      'LP SmartSide distributor dealer',
+      'exterior building products distributor',
+      'siding supply house contractor',
+      'vinyl siding distributor wholesale',
+      'building products dealer siding soffit',
+      '2-step siding distributor regional',
+    ];
+  }
+
+  // ── Cornice Contractor ──
+  if (seg.includes('cornice')) {
+    return [
+      'cornice contractor exterior trim',
+      'soffit fascia installer commercial',
+      'exterior trim contractor cornice',
+      'aluminum capping contractor exterior',
+      'commercial cornice trim contractor',
+      'metal trim contractor exterior building',
+      'fascia soffit cornice company',
+      'exterior sheet metal contractor',
+    ];
+  }
+
+  // ── Fastener / Tool / Equipment Dealer ──
+  if (seg.includes('fastener') || seg.includes('tool') || seg.includes('equipment')) {
+    return [
+      'fastener supply distributor contractor',
+      'construction fastener dealer wholesale',
+      'building products tool dealer supply',
+      'scaffold equipment dealer rental supply',
+      'ladder supply contractor dealer',
+      'Alum-A-Pole dealer scaffold supply',
+      'pump jack scaffold dealer contractor',
+      'roofing tool supply dealer',
+      'siding tool fastener supply house',
+      'contractor tool equipment dealer',
+      'building hardware distributor wholesale',
+    ];
+  }
+
+  // ── Alum-A-Pole Scaffolding (siding/cornice focus) ──
+  if (p.includes('alum') || p.includes('scaffolding')) {
+    return [
+      'scaffold equipment dealer contractor supply',
+      'siding contractor installation commercial',
+      'vinyl siding contractor commercial',
+      'James Hardie siding installer commercial',
+      'fiber cement siding company contractor',
+      'LP SmartSide installer commercial',
+      'soffit fascia cornice contractor exterior',
+      'siding supply distributor building products',
+      'fastener supply store construction contractor',
+      'scaffolding rental supply contractor',
+      'building materials distributor siding exterior',
+      'exterior building products distributor',
+      'construction equipment dealer scaffolding pump jack',
+      'cornice contractor trim exterior',
+    ];
+  }
+
+  // ── BOSS Sealants — distributor and commercial ──
+  if (p.includes('soudal') || p.includes('sealant') || p.includes('adhesive') || p.includes('boss')) {
+    return [
+      'roofing products distributor authorized',
+      'building products distributor sealant adhesive',
+      'commercial roofing contractor TPO EPDM',
+      'window door distributor building supply',
+      'commercial glazing contractor',
+      'building envelope distributor contractor supply',
+      'waterproofing contractor commercial',
+      'insulation contractor commercial',
+      'commercial window installer contractor',
+      'caulking sealant distributor supply',
+      'exterior contractor commercial sealant',
+      'roofing supply house distributor',
+    ];
+  }
+
+  // ── ShurTape Flashing / Deck Tape ──
+  if (p.includes('shurtape') || p.includes('flashing') || p.includes('deck tape')) {
+    return [
+      'roofing distributor authorized dealer commercial',
+      'commercial roofing contractor certified',
+      'window door dealer contractor supply',
+      'deck contractor composite commercial',
+      'metal roofing contractor commercial',
+      'flat roof contractor commercial TPO',
+      'building products distributor flashing tape',
+      'exterior contractor commercial flashing',
+      'roofing supply house commercial',
+      'roofing contractor industrial commercial',
+      'deck supply house contractor wholesale',
+    ];
+  }
+
+  // ── Fortress / Decking (framing and railing) ──
+  if (p.includes('framing') || p.includes('fortress')) {
+    return [
+      'deck products distributor dealer composite',
+      'Trex deck authorized dealer',
+      'TimberTech AZEK dealer supply',
+      'composite deck supply house wholesale',
+      'deck contractor commercial composite',
+      'outdoor living contractor commercial deck',
+      'railing distributor dealer wholesale',
+      'aluminum railing dealer contractor supply',
+      'cable railing dealer commercial',
+      'deck railing distributor supply house',
+      'commercial deck contractor multi-family',
+    ];
+  }
+
+  // Default fallback — distribution focus
   return [
-    'general contractor', 'construction company', 'remodeling contractor',
-    'home builder', 'building contractor', 'renovation contractor',
-    'residential contractor', 'commercial contractor', 'home improvement contractor',
-    'custom home builder', 'design build contractor', 'exterior contractor',
-    'specialty contractor', 'construction management company', 'licensed contractor'
+    'building products distributor authorized dealer',
+    'contractor supply house wholesale',
+    'commercial contractor building products',
+    'building materials distributor regional',
+    'specialty trade distributor contractor supply',
+    'commercial contractor mid-market',
   ];
 }
 
-function getProductWhy(product) {
+function getProductWhy(product, segment) {
   const p = (product || '').toLowerCase();
-  if (p.includes('soudal') || p.includes('sealant') || p.includes('boss')) return 'distributes roofing and siding products and can add Soudal BOSS sealants to their product line';
-  if (p.includes('shurtape') || p.includes('flashing') || p.includes('deck tape')) return 'sells to builders and contractors and needs flashing tape as a stocked SKU';
-  if (p.includes('alum') || p.includes('scaffolding') || p.includes('pump jack')) return 'supplies tools and equipment to contractors and needs Alum-A-Pole scaffolding in inventory';
-  if (p.includes('framing')) return 'needs rot-proof steel framing as a wood alternative for decks';
-  if (p.includes('railing')) return 'installs railing systems on decks, stairs, and porches';
-  return 'distributes building products to contractors and builders in the Southeast';
+  const seg = (segment || '').toLowerCase();
+
+  if (seg.includes('deck') && seg.includes('distrib')) return 'is a dealer or distributor in the decking supply chain and can stock and sell our products to their contractor customer base';
+  if (seg.includes('roofing') && seg.includes('distrib')) return 'is a commercial roofing distributor and authorized dealer who can carry and resell our products to roofing contractors';
+  if (seg.includes('roofing') && seg.includes('contractor')) return 'is a commercial roofing contractor who applies our products directly on jobs';
+  if (p.includes('soudal') || p.includes('sealant') || p.includes('boss')) return 'distributes or uses roofing and siding products and can add Soudal BOSS sealants to their product line';
+  if (p.includes('shurtape') || p.includes('flashing')) return 'sells to or works with builders and contractors and needs flashing tape as a stocked or specified SKU';
+  if (p.includes('alum') || p.includes('scaffolding')) return 'supplies tools and equipment to contractors and needs Alum-A-Pole scaffolding in inventory';
+  if (p.includes('framing')) return 'installs or distributes composite decking and needs rot-proof steel framing as a wood alternative';
+  if (p.includes('railing')) return 'installs or distributes railing systems on decks, stairs, and commercial buildings';
+  return 'distributes or supplies building products to contractors and builders in the Southeast';
 }
 
 function getCities(loc) {
@@ -367,22 +508,25 @@ function getCities(loc) {
 }
 
 router.post('/places-leads', async (req, res) => {
-  const { category, territory, count, customer_type } = req.body;
+  const { category, territory, count, customer_type, segment } = req.body;
   const user = req.session.user;
   const product = category;
   const numLeads = Math.min(parseInt(count) || 20, 50);
   const loc = territory || user.territory || 'Atlanta, GA';
-  const queries = getSearchQueries(product, customer_type);
-  const why = getProductWhy(product);
-  const cities = getCities(loc);
 
-  console.log('Searching:', product, '|', loc, '|', numLeads, 'leads');
+  // Use the new segment-aware query library
+  const queries = getSearchQueries(product, customer_type, segment || customer_type);
+  const why = getProductWhy(product, segment || customer_type);
+  const cities = getCities(loc);
+  const isWindowDoor = (segment || customer_type || '').toLowerCase().includes('window') ||
+                        (segment || customer_type || '').toLowerCase().includes('door');
+
+  console.log('Distribution search:', product, '|', segment || customer_type, '|', loc, '|', numLeads, 'leads');
   console.log('Queries:', queries.length, '| Cities:', cities.length);
 
   try {
     const leadsMap = new Map();
 
-    // Each query gets its own city, rotating through city list
     const jobs = queries.map((query, i) => ({
       query: query + ' ' + cities[i % cities.length],
       label: query
@@ -417,30 +561,26 @@ router.post('/places-leads', async (req, res) => {
           if (leadsMap.has(place.id)) continue;
           if (place.businessStatus === 'CLOSED_PERMANENTLY') continue;
           if (place.businessStatus === 'CLOSED_TEMPORARILY') continue;
-
-          // Type-based exclusion — skip businesses that are never valid leads
           if (hasBadPlaceType(place.types || [])) continue;
 
           const placeName = place.displayName?.text || '';
           const placeAddr = place.formattedAddress || '';
 
-          // Skip bad leads (banks, offices, unrelated businesses, enterprise, home-based)
           if (isBadLead(placeName, placeAddr, label)) continue;
-
-          // Skip leads with no phone (inactive or uncontactable)
           if (!place.nationalPhoneNumber) continue;
 
-          // Alum-A-Pole paint blocker
+          // Alum-A-Pole paint block
           if ((product||'').toLowerCase().includes('alum') && alumPoleBlocked(placeName)) continue;
 
-          // ICP: Skip micro businesses (< REVIEW_MIN_ICP reviews AND no website)
-          // A real mid-market contractor will have either a website or at least a few reviews
+          // Window/Door segment: block garage door companies
+          if (isWindowDoor && garageDoorBlocked(placeName)) continue;
+
           const reviewCount = place.userRatingCount || 0;
           if (reviewCount < REVIEW_MIN_ICP && !place.websiteUri) continue;
 
-          // ICP: Compute reachability — skip LOW tier
           const reach = getReachabilityScore(place, placeName);
           if (reach.tier === 'LOW') continue;
+
           const addr = (place.formattedAddress || '').split(',');
           leadsMap.set(place.id, {
             company: placeName || 'Unknown',
@@ -459,7 +599,6 @@ router.post('/places-leads', async (req, res) => {
             reachabilitySignals: reach.signals,
             sizeTier: getSizeTier(place),
             inclusionReason: buildInclusionReason(place, placeName, label, reach),
-            // Legacy fields kept for UI compatibility
             priority: reach.tier === 'HIGH' ? 'High' : reach.tier === 'MEDIUM' ? 'Medium' : 'Low',
             rating: place.rating || null,
             reviews: place.userRatingCount || 0,
@@ -471,9 +610,6 @@ router.post('/places-leads', async (req, res) => {
       }
     }
 
-    // Sort by ICP quality:
-    // Primary: Reachability score (HIGH > MEDIUM — LOW already filtered out)
-    // Secondary: rating × log(reviews) within same tier — rewards active established mid-market
     const leadsArr = Array.from(leadsMap.values()).sort((a, b) => {
       const reachA = a.reachabilityScore || 0;
       const reachB = b.reachabilityScore || 0;
@@ -482,11 +618,12 @@ router.post('/places-leads', async (req, res) => {
       const scoreB = (b.rating || 0) * Math.log1p(b.reviews || 0);
       return scoreB - scoreA;
     });
-    console.log('Final (sorted by quality):', leadsArr.length, 'leads');
-    if (leadsArr.length === 0) return res.json({ error: 'No results found. Try a different territory or product.' });
+
+    console.log('Final distribution-first results:', leadsArr.length, 'leads');
+    if (leadsArr.length === 0) return res.json({ error: 'No results found. Try a different territory or segment.' });
     res.json({ leads: leadsArr, source: 'google' });
   } catch(e) {
-    console.error('Error:', e.message);
+    console.error('places-leads error:', e.message);
     res.json({ error: 'Search failed: ' + e.message });
   }
 });
@@ -496,16 +633,12 @@ router.get('/test', async (req, res) => {
     const data = await httpsPost(
       'places.googleapis.com', '/v1/places:searchText',
       { 'Content-Type': 'application/json', 'X-Goog-Api-Key': PLACES_KEY, 'X-Goog-FieldMask': 'places.id,places.displayName' },
-      { textQuery: 'siding contractor Atlanta GA', maxResultCount: 3 }
+      { textQuery: 'commercial roofing distributor Atlanta GA', maxResultCount: 3 }
     );
     res.json({ ok: true, count: data.places?.length, first: data.places?.[0]?.displayName?.text });
   } catch(e) { res.json({ ok: false, error: e.message }); }
 });
 
-
-// GET /api/places/company-search?q=searchText
-// Typeahead: search existing prospects first (done in frontend),
-// this endpoint handles Google Places fallback for companies not in CRM
 router.get('/company-search', async (req, res) => {
   const q = (req.query.q || '').trim();
   if (!q || q.length < 2) return res.json([]);
@@ -514,7 +647,6 @@ router.get('/company-search', async (req, res) => {
   try {
     const fetch = require('node-fetch');
 
-    // Use findplacefromtext to find candidate companies
     const findUrl = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json` +
       `?input=${encodeURIComponent(q)}` +
       `&inputtype=textquery` +
@@ -525,7 +657,6 @@ router.get('/company-search', async (req, res) => {
     const findData = await findRes.json();
     const candidates = (findData.candidates || []).slice(0, 5);
 
-    // Get details for each candidate
     const results = await Promise.all(candidates.map(async (c) => {
       try {
         const detailUrl = `https://maps.googleapis.com/maps/api/place/details/json` +
@@ -574,5 +705,32 @@ router.get('/company-search', async (req, res) => {
     res.json([]);
   }
 });
+
+function httpsPost(hostname, path, headers, body) {
+  const https = require('https');
+  return new Promise((resolve, reject) => {
+    const data = JSON.stringify(body);
+    const opts = { hostname, path, method: 'POST', headers: { ...headers, 'Content-Length': Buffer.byteLength(data) } };
+    const req = https.request(opts, (res) => {
+      let raw = '';
+      res.on('data', c => raw += c);
+      res.on('end', () => { try { resolve(JSON.parse(raw)); } catch(e) { reject(new Error('Parse: ' + raw.slice(0,100))); } });
+    });
+    req.on('error', reject);
+    req.write(data);
+    req.end();
+  });
+}
+
+function httpsGet(url) {
+  const https = require('https');
+  return new Promise((resolve, reject) => {
+    https.get(url, (res) => {
+      let raw = '';
+      res.on('data', c => raw += c);
+      res.on('end', () => { try { resolve(JSON.parse(raw)); } catch(e) { reject(new Error('Parse')); } });
+    }).on('error', reject);
+  });
+}
 
 module.exports = router;
