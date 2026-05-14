@@ -339,4 +339,77 @@ router.get('/test', async (req, res) => {
   } catch(e) { res.json({ ok: false, error: e.message }); }
 });
 
+
+// GET /api/places/company-search?q=searchText
+// Typeahead: search existing prospects first (done in frontend),
+// this endpoint handles Google Places fallback for companies not in CRM
+router.get('/company-search', async (req, res) => {
+  const q = (req.query.q || '').trim();
+  if (!q || q.length < 2) return res.json([]);
+  if (!PLACES_KEY) return res.json([]);
+
+  try {
+    const fetch = require('node-fetch');
+
+    // Use findplacefromtext to find candidate companies
+    const findUrl = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json` +
+      `?input=${encodeURIComponent(q)}` +
+      `&inputtype=textquery` +
+      `&fields=place_id,name,formatted_address` +
+      `&key=${PLACES_KEY}`;
+
+    const findRes = await fetch(findUrl);
+    const findData = await findRes.json();
+    const candidates = (findData.candidates || []).slice(0, 5);
+
+    // Get details for each candidate
+    const results = await Promise.all(candidates.map(async (c) => {
+      try {
+        const detailUrl = `https://maps.googleapis.com/maps/api/place/details/json` +
+          `?place_id=${c.place_id}` +
+          `&fields=name,formatted_phone_number,website,formatted_address,address_components` +
+          `&key=${PLACES_KEY}`;
+        const detRes = await fetch(detailUrl);
+        const detData = await detRes.json();
+        const r = detData.result || {};
+
+        let city = '', state = '';
+        if (r.address_components) {
+          for (const comp of r.address_components) {
+            if (comp.types.includes('locality')) city = comp.long_name;
+            if (comp.types.includes('administrative_area_level_1')) state = comp.short_name;
+          }
+        }
+
+        return {
+          place_id: c.place_id,
+          company: r.name || c.name,
+          address: r.formatted_address || c.formatted_address || '',
+          phone: r.formatted_phone_number || '',
+          website: r.website || '',
+          city,
+          state,
+          source: 'google'
+        };
+      } catch(e) {
+        return {
+          place_id: c.place_id,
+          company: c.name,
+          address: c.formatted_address || '',
+          phone: '',
+          website: '',
+          city: '',
+          state: '',
+          source: 'google'
+        };
+      }
+    }));
+
+    res.json(results.filter(r => r.company));
+  } catch(e) {
+    console.error('company-search error:', e.message);
+    res.json([]);
+  }
+});
+
 module.exports = router;
