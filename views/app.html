@@ -1527,7 +1527,6 @@ window.addEventListener('load', function() {
     <option value="Ray Breedlove">Ray Breedlove</option>
     <option value="Daniel Compton">Daniel Compton</option>
     <option value="Keith Compton">Keith Compton</option>
-    <option value="Sean Conroy">Sean Conroy</option>
     <option value="Andrew Brown">Andrew Brown</option>
     <option value="Phil Brown">Phil Brown</option>
     <option value="Gary Hardin">Gary Hardin</option>
@@ -5590,10 +5589,19 @@ async function saveQuote() {
     })
     .catch(function(e){ console.error('upsert-prospect error:', e); });
 
+    // ── Update allQuotes cache immediately so re-opening shows fresh data ──
+    if (currentQuoteId) {
+      allQuotes = allQuotes.map(function(q){ return q.id === resData.id ? resData : q; });
+    } else {
+      allQuotes.unshift(resData);
+    }
     closeQuoteDetail();
     loadQuotes();
-  } catch(e) { alert('Save error: '+e.message); }
-  btn.textContent = 'Save Quote'; btn.disabled = false;
+  } catch(e) {
+    alert('Save error: ' + e.message);
+  } finally {
+    btn.textContent = 'Save Quote'; btn.disabled = false;
+  }
 }
 
 async function deleteCurrentQuote() {
