@@ -1254,6 +1254,8 @@ router.post('/bulk-ingest', async (req, res) => {
 
     console.log('[BulkIngest] Inserted:', imported, '| Duplicates skipped:', topRecords.length - toInsert.length);
 
+    // Derive display company_type from the category for the response
+    const display_company_type = resolveBulkCompanyType(category);
     res.json({
       ok: true,
       imported,
@@ -1262,8 +1264,8 @@ router.post('/bulk-ingest', async (req, res) => {
       category,
       territory: loc,
       manufacturer: mfrAssoc || null,
-      company_type,
-      message: `${imported} records imported into your CRM as ${company_type} / ${category}.`
+      company_type: display_company_type,
+      message: `${imported} records imported into your CRM (${display_company_type} / ${category}).`
     });
 
   } catch(e) {
