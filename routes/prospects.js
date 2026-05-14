@@ -55,7 +55,11 @@ router.get('/', async (req, res) => {
   const params = [uid];
   if (category && category !== 'All') { params.push(category); query += ` AND category=$${params.length}`; }
   if (status && status !== 'All') { params.push(status); query += ` AND status=$${params.length}`; }
-  if (search) { params.push('%' + search + '%'); query += ` AND (company ILIKE $${params.length} OR city ILIKE $${params.length} OR contact ILIKE $${params.length})`; }
+  if (search) {
+    params.push('%' + search + '%');
+    const p = params.length;
+    query += ` AND (company ILIKE $${p} OR contact ILIKE $${p} OR phone ILIKE $${p} OR email ILIKE $${p} OR city ILIKE $${p})`;
+  }
   query += ' ORDER BY created_at DESC';
   const result = await pool.query(query, params);
   res.json(result.rows);
