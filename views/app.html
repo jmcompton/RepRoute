@@ -888,20 +888,34 @@ window.addEventListener('load', function() {
     <div style="display:flex;align-items:center;gap:0;padding:10px 16px 0;border-bottom:1px solid var(--border);background:var(--surface)">
       <button id="tab-my-contacts" onclick="switchContactTab('mine')" style="padding:8px 20px;border:none;border-bottom:2px solid var(--accent);background:transparent;color:var(--navy);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">My Contacts</button>
       <button id="tab-team-contacts" onclick="switchContactTab('team')" style="padding:8px 20px;border:none;border-bottom:2px solid transparent;background:transparent;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Team Contacts</button>
+      <div id="crm-stats-bar" style="display:flex;gap:12px;align-items:center;margin-left:auto;padding-right:16px;font-size:11px">
+        <!-- populated by loadCrmStats() -->
+      </div>
     </div>
-    <div class="list-bar">
+    <div class="list-bar" style="flex-wrap:wrap;gap:6px">
       <span class="list-count" id="list-count">0 records</span>
-      <div class="sb-in"><span style="font-size:12px;color:var(--text3)">🔍</span><input id="p-search" placeholder="Search contacts..." oninput="handleContactSearch()" /></div>
+      <div class="sb-in"><span style="font-size:12px;color:var(--text3)">&#128269;</span><input id="p-search" placeholder="Search contacts..." oninput="handleContactSearch()" /></div>
+      <select id="filter-company-type" onchange="handleContactSearch()" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:#fff;color:var(--navy)">
+        <option value="All">All Types</option>
+        <option value="Distributor">Distributor</option>
+        <option value="Contractor">Contractor</option>
+      </select>
+      <select id="filter-data-status" onchange="handleContactSearch()" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:#fff;color:var(--navy)">
+        <option value="All">All Data Status</option>
+        <option value="Unvetted">Unvetted</option>
+        <option value="Contacted">Contacted</option>
+        <option value="Verified CRM Data">Verified</option>
+      </select>
       <div style="display:flex;gap:6px;margin-left:auto">
         <button class="btn btn-secondary btn-sm" id="btn-add-contact" onclick="openModal('add-prospect')">+ New</button>
-        <button class="btn btn-primary btn-sm" onclick="go('leads')">AI Find Leads</button>
+        <button class="btn btn-primary btn-sm" onclick="go('leads')">Find Leads</button>
       </div>
     </div>
 
     <!-- MY CONTACTS tab -->
     <div id="contact-tab-mine" class="list-wrap">
       <table class="ltable">
-        <thead><tr><th><input type="checkbox"/></th><th>Company Name</th><th>Category</th><th>City</th><th>Contact</th><th>Phone</th><th>Products</th><th>Status</th><th>Priority</th><th>Source</th></tr></thead>
+        <thead><tr><th><input type="checkbox"/></th><th>Company Name</th><th>Type</th><th>Category</th><th>City</th><th>Contact</th><th>Phone</th><th>Status</th><th>Data Status</th><th>Source</th></tr></thead>
         <tbody id="prospects-tbody"></tbody>
       </table>
       <div class="empty-state" id="p-empty" style="display:none">
@@ -1906,15 +1920,20 @@ window.addEventListener('load', function() {
     <div class="fg"><label>Company Name *</label><input type="text" id="ap-name" placeholder="Enter company name then click AI Lookup" /></div>
     <div class="g2">
       <div class="fg"><label>Category *</label><select id="ap-cat">
-        <option value="Roofing Contractor">Roofing Contractor</option>
-        <option value="Commercial Roofing Contractor">Commercial Roofing Contractor</option>
-        <option value="Siding Contractor">Siding Contractor</option>
-        <option value="Window & Door Installer">Window/Door Installer</option>
-        <option value="Deck Contractor">Deck Contractor</option>
-        <option value="Cornice Contractor">Cornice Contractor</option>
-        <option value="Building Material Dealer">Dealer / Distributor</option>
-        <option value="Construction Equipment Supplier">Equipment Supplier</option>
-        <option value="Account">Account</option>
+        <optgroup label="── Distributors ──">
+          <option value="Roofing Distributor">Roofing Distributor</option>
+          <option value="Decking Distributor">Decking Distributor</option>
+          <option value="Siding Distributor">Siding Distributor</option>
+          <option value="Window & Door Distributor">Window &amp; Door Distributor</option>
+        </optgroup>
+        <optgroup label="── Contractors ──">
+          <option value="Roofing Contractor">Roofing Contractor</option>
+          <option value="Decking Contractor">Decking Contractor</option>
+          <option value="Siding Contractor">Siding Contractor</option>
+          <option value="Window & Door Installer">Window &amp; Door Installer</option>
+          <option value="Cornice Contractor">Cornice Contractor</option>
+          <option value="Fastener/Tool Dealer">Fastener / Tool Dealer</option>
+        </optgroup>
       </select></div>
       <div class="fg"><label>City</label><input type="text" id="ap-city" placeholder="Atlanta" /></div>
     </div>
@@ -1932,6 +1951,14 @@ window.addEventListener('load', function() {
       <div class="fg"><label>Status</label><select id="ap-status"><option>New</option><option>Warm</option><option>Hot</option><option>Cold</option></select></div>
       <div class="fg"><label>Priority</label><select id="ap-priority"><option>High</option><option>Medium</option><option>Low</option></select></div>
     </div>
+    <div class="fg"><label>Data Status</label>
+      <select id="ap-data-status">
+        <option value="Unvetted">Unvetted (AI Imported)</option>
+        <option value="Contacted">Contacted</option>
+        <option value="Verified CRM Data">Verified CRM Data</option>
+      </select>
+    </div>
+    <div class="fg"><label>Manufacturer Association</label><input type="text" id="ap-mfr" placeholder="e.g. Trex, Carlisle, Johns Manville" /></div>
     <div class="fg"><label>Notes</label><textarea id="ap-notes" rows="2"></textarea></div>
     <div class="mfoot">
       <button class="btn btn-secondary" onclick="closeModal('add-prospect')">Cancel</button>
@@ -2342,7 +2369,7 @@ function go(id) {
   if (id === 'calls') { loadCallProspects(); loadCalls(); }
   if (id === 'weekly') loadWeeklyPlan();
   if (id === 'manager') loadManager();
-  if (id === 'contacts') loadProspects();
+  if (id === 'contacts') { loadProspects(); loadCrmStats(); }
   // if (id === 'onboarding') loadMyOnboarding(); // disabled - show only newly generated plans
   if (id === 'deals') loadPipeline();
   if (id === 'quotes') loadQuotes();
@@ -2712,12 +2739,22 @@ function loadProspects() {
   var search = (document.getElementById('p-search') || {value:''}).value;
   var cat = categoryFilter !== 'All' ? '&category=' + encodeURIComponent(categoryFilter) : '';
   var q = search ? '&search=' + encodeURIComponent(search) : '';
-  fetch('/api/prospects?' + cat + q)
+  // New: company_type + data_status filter params
+  var ctFilter = (document.getElementById('filter-company-type') || {value:'All'}).value;
+  var dsFilter = (document.getElementById('filter-data-status') || {value:'All'}).value;
+  var ctParam = ctFilter && ctFilter !== 'All' ? '&company_type=' + encodeURIComponent(ctFilter) : '';
+  var dsParam = dsFilter && dsFilter !== 'All' ? '&data_status=' + encodeURIComponent(dsFilter) : '';
+  fetch('/api/prospects?1=1' + cat + q + ctParam + dsParam)
     .then(function(r) { return r.json(); })
     .then(function(data) {
       allProspects = data;
       renderProspects();
     });
+}
+
+// handleContactSearch — triggered by search input OR filter dropdowns
+function handleContactSearch() {
+  loadProspects();
 }
 
 function renderProspects() {
@@ -2729,17 +2766,31 @@ function renderProspects() {
   if (!allProspects.length) { tbody.innerHTML = ''; if (empty) empty.style.display = 'block'; return; }
   if (empty) empty.style.display = 'none';
   tbody.innerHTML = allProspects.map(function(p) {
-    return '<tr onclick="viewRecord(' + p.id + ')">' +
+    // company_type badge
+    var ct = p.company_type || 'Contractor';
+    var ctStyle = ct === 'Distributor'
+      ? 'background:#1e3a5f;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px'
+      : 'background:#f1f5f9;color:#475569;font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px';
+    var ctBadge = '<span style="' + ctStyle + '">' + ct + '</span>';
+    // data_status badge
+    var ds = p.data_status || 'Unvetted';
+    var dsStyle = ds === 'Verified CRM Data'
+      ? 'background:#dcfce7;color:#15803d;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px'
+      : ds === 'Contacted'
+        ? 'background:#dbeafe;color:#1d4ed8;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px'
+        : 'background:#fef9c3;color:#a16207;font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px';
+    var dsBadge = '<span style="' + dsStyle + '">' + ds + '</span>';
+    return '<tr onclick="viewRecord(' + p.id + ')" style="' + (ct==='Distributor'?'background:#fafeff;':'') + '">' +
       '<td><input type="checkbox" onclick="event.stopPropagation()"/></td>' +
-      '<td><span class="rec-link">' + p.company + '</span></td>' +
+      '<td><span class="rec-link">' + p.company + '</span>' + (p.manufacturer_assoc ? '<br><span style="font-size:10px;color:var(--text3)">' + p.manufacturer_assoc + '</span>' : '') + '</td>' +
+      '<td>' + ctBadge + '</td>' +
       '<td>' + catBadge(p.category) + '</td>' +
       '<td style="color:var(--text3)">' + (p.city||'—') + '</td>' +
       '<td>' + (p.contact||'—') + '</td>' +
       '<td style="color:var(--text3)">' + (p.phone||'—') + '</td>' +
-      '<td style="font-size:11px;color:var(--text2)">' + (p.products||'—') + '</td>' +
       '<td><span class="badge b-' + (p.status||'new').toLowerCase() + '">' + (p.status||'New') + '</span></td>' +
-      '<td><span class="badge b-' + (p.priority||'medium').toLowerCase() + '">' + (p.priority||'Medium') + '</span></td>' +
-      '<td><span class="badge ' + (p.source==='AI'?'b-ai':'b-manual') + '">' + (p.source||'Manual') + '</span></td>' +
+      '<td>' + dsBadge + '</td>' +
+      '<td><span class="badge ' + (p.source==='AI'||p.source==='Distribution Finder'?'b-ai':'b-manual') + '">' + (p.source||'Manual') + '</span></td>' +
       '</tr>';
   }).join('');
 }
@@ -2760,14 +2811,28 @@ function viewRecord(id) {
       document.getElementById('rq-email').innerHTML = p.email ? '<a href="mailto:' + p.email + '">' + p.email + '</a>' : '—';
       document.getElementById('rq-phone').textContent = p.phone || '—';
       document.getElementById('rq-status').innerHTML = '<span class="badge b-' + (p.status||'new').toLowerCase() + '">' + (p.status||'New') + '</span>';
+      // data_status and company_type for detail view
+      var dsRec = p.data_status || 'Unvetted';
+      var dsRecStyle = dsRec==='Verified CRM Data' ? 'background:#dcfce7;color:#15803d;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px'
+        : dsRec==='Contacted' ? 'background:#dbeafe;color:#1d4ed8;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px'
+        : 'background:#fef9c3;color:#a16207;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px';
+      var dsBadgeRec = '<span style="' + dsRecStyle + '">' + dsRec + '</span>';
+      var ctRec = p.company_type || 'Contractor';
+      var ctRecBadge = '<span style="' + (ctRec==='Distributor'?'background:#1e3a5f;color:#fff':'background:#f1f5f9;color:#475569') + ';font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px">' + ctRec + '</span>';
+      var verifyBtn = dsRec !== 'Verified CRM Data'
+        ? '<button onclick="verifyRecord(' + p.id + ')" style="padding:3px 10px;background:#059669;color:#fff;border:none;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;margin-left:6px">Mark Verified</button>'
+        : '';
       var fields = [
-        ['Contact Owner','You'],['Lead Source','—'],
+        ['Contact Owner','You'],['Company Type',ctRecBadge],
         ['Contact Name',p.contact||'—'],['Account Name',p.company],
         ['Email',p.email ? '<a href="mailto:' + p.email + '">' + p.email + '</a>' : '—'],['Phone',p.phone||'—'],
         ['City',p.city||'—'],['State',p.state||'GA'],
+        ['Address',p.address||'—'],['Website',p.website ? '<a href="' + p.website + '" target="_blank">Website</a>' : '—'],
         ['Status','<span class="badge b-' + (p.status||'new').toLowerCase() + '">' + (p.status||'New') + '</span>'],
+        ['Data Status', dsBadgeRec + verifyBtn],
+        ['Manufacturer',p.manufacturer_assoc||'—'],
         ['Created',p.created_at ? new Date(p.created_at).toLocaleDateString() : '—'],
-        ['Created By','You'],['Notes',p.notes||'—']
+        ['Notes',p.notes||'—']
       ];
       document.getElementById('rec-fields').innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0">' +
         fields.map(function(f) { return '<div class="frow"><div class="flabel">' + f[0] + '</div><div class="fval' + (f[1]==='—'?' empty':'') + '">' + f[1] + '</div></div>'; }).join('') + '</div>';
@@ -2862,13 +2927,17 @@ function addProspect() {
       status: document.getElementById('ap-status').value,
       priority: document.getElementById('ap-priority').value,
       notes: document.getElementById('ap-notes').value,
+      data_status: (document.getElementById('ap-data-status') || {value:'Unvetted'}).value || 'Unvetted',
+      manufacturer_assoc: (document.getElementById('ap-mfr') || {value:''}).value || null,
       source: 'Manual'
     })
   }).then(function() {
     closeModal('add-prospect'); loadProspects(); loadDashboard(); showToast('Contact saved!');
-    ['ap-name','ap-city','ap-state','ap-contact','ap-phone','ap-email','ap-website','ap-products','ap-notes'].forEach(function(id) {
+    ['ap-name','ap-city','ap-state','ap-contact','ap-phone','ap-email','ap-website','ap-products','ap-notes','ap-mfr'].forEach(function(id) {
       var el = document.getElementById(id); if (el) el.value = '';
     });
+    var dsEl = document.getElementById('ap-data-status');
+    if (dsEl) dsEl.value = 'Unvetted';
     var aiStatus = document.getElementById('ap-ai-status');
     if (aiStatus) { aiStatus.style.display = 'none'; aiStatus.textContent = ''; }
   });
@@ -2998,6 +3067,41 @@ function renderLeads() {
 function toggleLead(i) { if (selectedLeads.has(i)) selectedLeads.delete(i); else selectedLeads.add(i); renderLeads(); }
 function selectAllLeads() { foundLeads.forEach(function(l,i) { selectedLeads.add(i); }); renderLeads(); }
 
+// Load CRM Intelligence Stats bar
+function loadCrmStats() {
+  fetch('/api/prospects/stats')
+    .then(function(r) { return r.json(); })
+    .then(function(s) {
+      var bar = document.getElementById('crm-stats-bar');
+      if (!bar) return;
+      bar.innerHTML =
+        '<span style="background:#1e3a5f;color:#fff;padding:2px 9px;border-radius:10px;font-weight:700">' + (s.distributors||0) + ' Distributors</span>' +
+        '<span style="background:#f1f5f9;color:#475569;padding:2px 9px;border-radius:10px;font-weight:600">' + (s.contractors||0) + ' Contractors</span>' +
+        '<span style="background:#dcfce7;color:#15803d;padding:2px 9px;border-radius:10px;font-weight:600">' + (s.verified||0) + ' Verified</span>' +
+        '<span style="background:#dbeafe;color:#1d4ed8;padding:2px 9px;border-radius:10px;font-weight:600">' + (s.contacted||0) + ' Contacted</span>' +
+        '<span style="background:#fef9c3;color:#a16207;padding:2px 9px;border-radius:10px;font-weight:600">' + (s.unvetted||0) + ' Unvetted</span>';
+    })
+    .catch(function() {});
+}
+
+// Mark a CRM record as Verified CRM Data
+function verifyRecord(id) {
+  fetch('/api/prospects/' + id + '/verify', { method:'POST', headers:{'Content-Type':'application/json'} })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.ok) {
+        showToast('Record marked as Verified CRM Data ✓');
+        // Reload record detail
+        if (currentRecord && currentRecord.id === id) {
+          currentRecord.data_status = 'Verified CRM Data';
+          viewRecord(id);
+        }
+        loadProspects();
+      }
+    })
+    .catch(function() { showToast('Verify failed — try again'); });
+}
+
 // Save a single lead to CRM with pre-call notes and category before visiting
 function saveLeadWithNotes(idx, event) {
   if (event) event.stopPropagation();
@@ -3024,7 +3128,9 @@ function saveLeadWithNotes(idx, event) {
         address: lead.address || null,
         products: lead.products || null,
         notes: notes || null,
-        source: 'Distribution Finder'
+        data_status: 'Unvetted',
+        source: 'Distribution Finder',
+        manufacturer_assoc: lead.manufacturer_assoc || null
       }]
     })
   })
