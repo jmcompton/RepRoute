@@ -733,4 +733,460 @@ function httpsGet(url) {
   });
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════
+// BULK INGESTION MODE
+// POST /api/places/bulk-ingest
+//
+// Single query → full ecosystem expansion → clean → dedup → bulk CRM save
+// AI runs ONCE. Data is stored permanently. No re-query needed.
+// ═══════════════════════════════════════════════════════════════════════
+
+// Bulk query expansion — turn natural language into ecosystem queries
+function expandBulkQuery(rawQuery) {
+  const q = (rawQuery || '').toLowerCase();
+
+  // Detect manufacturer / brand
+  const brands = {
+    trex:       { cat: 'Decking Distributor', mfr: 'Trex' },
+    timbertech: { cat: 'Decking Distributor', mfr: 'TimberTech/AZEK' },
+    azek:       { cat: 'Decking Distributor', mfr: 'TimberTech/AZEK' },
+    fiberon:    { cat: 'Decking Distributor', mfr: 'Fiberon' },
+    deckorators:{ cat: 'Decking Distributor', mfr: 'Deckorators' },
+    moistureshield:{ cat: 'Decking Distributor', mfr: 'MoistureShield' },
+    carlisle:   { cat: 'Roofing Distributor', mfr: 'Carlisle' },
+    'johns manville': { cat: 'Roofing Distributor', mfr: 'Johns Manville' },
+    sarnafil:   { cat: 'Roofing Distributor', mfr: 'Sika Sarnafil' },
+    sika:       { cat: 'Roofing Distributor', mfr: 'Sika' },
+    tremco:     { cat: 'Roofing Distributor', mfr: 'Tremco' },
+    certainteed:{ cat: 'Roofing Distributor', mfr: 'CertainTeed' },
+    iko:        { cat: 'Roofing Distributor', mfr: 'IKO' },
+    'james hardie': { cat: 'Siding Contractor', mfr: 'James Hardie' },
+    hardie:     { cat: 'Siding Contractor', mfr: 'James Hardie' },
+    'lp smartside': { cat: 'Siding Contractor', mfr: 'LP SmartSide' },
+    smartside:  { cat: 'Siding Contractor', mfr: 'LP SmartSide' },
+    shurtape:   { cat: 'Roofing Distributor', mfr: 'ShurTape' },
+    'alum-a-pole': { cat: 'Fastener/Tool Dealer', mfr: 'Alum-A-Pole' },
+    'alum a pole': { cat: 'Fastener/Tool Dealer', mfr: 'Alum-A-Pole' },
+    'boss':     { cat: 'Roofing Distributor', mfr: 'Boss Products' },
+    fortress:   { cat: 'Decking Distributor', mfr: 'Fortress Building Products' },
+  };
+
+  // Detect segment from query
+  const segmentMap = {
+    'decking distributor': 'Decking Distributor',
+    'deck distributor':    'Decking Distributor',
+    'deck dealer':         'Decking Distributor',
+    'decking dealer':      'Decking Distributor',
+    'roofing distributor': 'Roofing Distributor',
+    'roofing supply':      'Roofing Distributor',
+    'siding distributor':  'Siding Distributor',
+    'siding supply':       'Siding Distributor',
+    'window distributor':  'Window & Door Distributor',
+    'door distributor':    'Window & Door Distributor',
+    'window dealer':       'Window & Door Distributor',
+    'roofing contractor':  'Roofing Contractor',
+    'deck contractor':     'Decking Contractor',
+    'deck builder':        'Decking Contractor',
+    'siding contractor':   'Siding Contractor',
+    'window installer':    'Window & Door Installer',
+    'door installer':      'Window & Door Installer',
+    'cornice':             'Cornice Contractor',
+    'fastener':            'Fastener/Tool Dealer',
+    'scaffold':            'Fastener/Tool Dealer',
+    'tool dealer':         'Fastener/Tool Dealer',
+    'lumber dealer':       'Decking Distributor',
+    'lumber yard':         'Decking Distributor',
+    'building supply':     'Siding Distributor',
+    'building products':   'Roofing Distributor',
+  };
+
+  // Detect territory / geography
+  function extractTerritory(text) {
+    const territories = [
+      'Atlanta', 'Birmingham', 'Nashville', 'Charlotte', 'Southeast',
+      'Georgia', 'Tennessee', 'Alabama', 'North Carolina', 'South Carolina',
+      'Florida', 'Virginia', 'Kentucky'
+    ];
+    for (const t of territories) {
+      if (text.toLowerCase().includes(t.toLowerCase())) return t;
+    }
+    return 'Atlanta';
+  }
+
+  // Resolve brand
+  let detectedBrand = null;
+  for (const [kw, info] of Object.entries(brands)) {
+    if (q.includes(kw)) { detectedBrand = { keyword: kw, ...info }; break; }
+  }
+
+  // Resolve segment
+  let detectedCategory = detectedBrand ? detectedBrand.cat : null;
+  if (!detectedCategory) {
+    for (const [kw, cat] of Object.entries(segmentMap)) {
+      if (q.includes(kw)) { detectedCategory = cat; break; }
+    }
+  }
+  if (!detectedCategory) detectedCategory = 'Roofing Distributor'; // safest fallback
+
+  const territory = extractTerritory(rawQuery);
+  const mfrAssoc = detectedBrand ? detectedBrand.mfr : null;
+
+  // Build search query set for the category
+  const querySet = getSearchQueriesForCategory(detectedCategory, detectedBrand ? detectedBrand.keyword : null);
+
+  return { category: detectedCategory, territory, mfrAssoc, querySet, rawQuery };
+}
+
+function getSearchQueriesForCategory(category, brandHint) {
+  const cat = (category || '').toLowerCase();
+
+  if (cat.includes('decking distributor')) {
+    const base = [
+      'Trex composite decking authorized dealer',
+      'TimberTech AZEK decking dealer lumber supply',
+      'Fiberon composite decking dealer',
+      'Deckorators deck products dealer',
+      'MoistureShield decking dealer distributor',
+      'composite decking distributor wholesale',
+      'specialty lumber dealer deck products',
+      'deck materials supply house contractor',
+      '2-step decking distributor building products',
+      'outdoor living products distributor',
+      'lumber yard deck composite contractor',
+      'deck products wholesale contractor supply',
+    ];
+    if (brandHint) base.unshift(`${brandHint} authorized dealer distributor`);
+    return base;
+  }
+
+  if (cat.includes('decking contractor')) {
+    return [
+      'composite deck contractor Trex TimberTech commercial',
+      'commercial deck builder composite deck',
+      'outdoor living contractor deck builder commercial',
+      'deck installation contractor commercial multi-family',
+      'custom deck construction company commercial',
+      'deck contractor steel framing composite',
+    ];
+  }
+
+  if (cat.includes('roofing distributor')) {
+    const base = [
+      'commercial roofing distributor authorized dealer',
+      'Carlisle roofing authorized dealer distributor',
+      'Johns Manville commercial roofing distributor',
+      'CertainTeed commercial roofing distributor dealer',
+      'Sika Sarnafil roofing dealer distributor',
+      'Tremco roofing products distributor',
+      'TPO EPDM roofing supply house wholesale',
+      'metal roofing distributor dealer commercial',
+      'low slope roofing materials distributor',
+      'commercial roofing supply house contractor',
+      'IKO commercial roofing dealer distributor',
+      'roofing products wholesale distributor',
+    ];
+    if (brandHint) base.unshift(`${brandHint} roofing authorized dealer distributor`);
+    return base;
+  }
+
+  if (cat.includes('roofing contractor')) {
+    return [
+      'commercial roofing contractor TPO EPDM flat roof',
+      'commercial roofing company low slope',
+      'metal roofing contractor commercial industrial',
+      'Carlisle TPO certified roofing contractor',
+      'Johns Manville roofing contractor certified applicator',
+      'CertainTeed commercial roofing applicator',
+      'industrial roofing contractor warehouse',
+      'institutional roofing contractor commercial',
+      'green roof contractor commercial building',
+    ];
+  }
+
+  if (cat.includes('siding distributor')) {
+    const base = [
+      'siding products distributor wholesale building',
+      'James Hardie authorized distributor dealer',
+      'LP SmartSide distributor authorized dealer',
+      'exterior building products distributor',
+      'siding supply house contractor wholesale',
+      'vinyl siding distributor wholesale',
+      'building products dealer siding soffit fascia',
+      '2-step siding distributor regional',
+      'fiber cement siding distributor dealer',
+    ];
+    if (brandHint) base.unshift(`${brandHint} siding authorized distributor dealer`);
+    return base;
+  }
+
+  if (cat.includes('siding contractor')) {
+    return [
+      'James Hardie siding installer contractor commercial',
+      'fiber cement siding contractor commercial',
+      'LP SmartSide contractor commercial installer',
+      'vinyl siding contractor commercial multi-family',
+      'exterior siding company commercial contractor',
+      'soffit fascia cornice contractor exterior',
+      'commercial siding contractor multi-unit',
+    ];
+  }
+
+  if (cat.includes('window') || cat.includes('door')) {
+    return [
+      'exterior window distributor building products',
+      'window and door dealer contractor supply',
+      'commercial window installation contractor',
+      'storefront window glazing contractor commercial',
+      'exterior door distributor building supply',
+      'replacement window dealer contractor authorized',
+      'window manufacturer dealer authorized',
+      'building envelope contractor commercial',
+      'fenestration dealer building products supply',
+      'window and door supply house wholesale',
+    ];
+  }
+
+  if (cat.includes('cornice')) {
+    return [
+      'cornice contractor exterior trim commercial',
+      'soffit fascia installer commercial contractor',
+      'aluminum capping contractor exterior building',
+      'metal trim contractor exterior commercial',
+      'exterior sheet metal contractor commercial',
+      'fascia soffit cornice company contractor',
+    ];
+  }
+
+  if (cat.includes('fastener') || cat.includes('tool')) {
+    return [
+      'fastener supply distributor contractor wholesale',
+      'construction fastener dealer supply house',
+      'building products tool dealer supply',
+      'scaffold equipment dealer rental supply',
+      'ladder supply contractor dealer',
+      'Alum-A-Pole dealer scaffold pump jack',
+      'roofing tool supply dealer contractor',
+      'siding tool fastener supply house',
+      'building hardware distributor wholesale',
+      'contractor tool equipment dealer supply',
+    ];
+  }
+
+  // Fallback
+  return [
+    'building products distributor authorized dealer',
+    'contractor supply house wholesale',
+    'commercial building products distributor regional',
+    'specialty trade distributor contractor supply',
+  ];
+}
+
+// ── Main bulk ingestion route ────────────────────────────────────
+router.post('/bulk-ingest', async (req, res) => {
+  const uid = req.session.user.id;
+  const { query, territory, max_records } = req.body;
+
+  if (!query || !query.trim()) {
+    return res.status(400).json({ error: 'Query is required (e.g. "Trex decking dealers Atlanta")' });
+  }
+
+  const maxRecs = Math.min(parseInt(max_records) || 50, 100);
+  const { category, territory: detectedTerritory, mfrAssoc, querySet } = expandBulkQuery(query);
+  const loc = territory || detectedTerritory || 'Atlanta';
+  const cities = getCities(loc);
+
+  const isWindowDoor = category.toLowerCase().includes('window') || category.toLowerCase().includes('door');
+
+  console.log('[BulkIngest] Query:', query, '| Category:', category, '| Territory:', loc, '| Max:', maxRecs);
+
+  try {
+    // ── Phase 1: Collect raw results ──────────────────────────────
+    const rawMap = new Map(); // place_id → raw place data
+
+    const jobs = querySet.map((q, i) => ({
+      query: q + ' ' + cities[i % cities.length],
+      label: q
+    }));
+
+    const BATCH = 4;
+    for (let i = 0; i < jobs.length && rawMap.size < maxRecs * 2; i += BATCH) {
+      const batch = jobs.slice(i, i + BATCH);
+      const results = await Promise.all(batch.map(async ({ query: bq, label }) => {
+        try {
+          const data = await httpsPost(
+            'places.googleapis.com', '/v1/places:searchText',
+            {
+              'Content-Type': 'application/json',
+              'X-Goog-Api-Key': PLACES_KEY,
+              'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.businessStatus,places.types,places.regularOpeningHours'
+            },
+            { textQuery: bq, maxResultCount: 20, rankPreference: 'RELEVANCE' }
+          );
+          return { label, places: data.places || [] };
+        } catch(e) {
+          console.error('[BulkIngest] Query error:', label, e.message);
+          return { label, places: [] };
+        }
+      }));
+
+      for (const { label, places } of results) {
+        for (const place of places) {
+          if (rawMap.has(place.id)) continue;
+          rawMap.set(place.id, { place, label });
+        }
+      }
+    }
+
+    console.log('[BulkIngest] Raw results collected:', rawMap.size);
+
+    // ── Phase 2: Clean + score ────────────────────────────────────
+    const cleaned = [];
+    for (const [placeId, { place, label }] of rawMap) {
+      if (place.businessStatus === 'CLOSED_PERMANENTLY') continue;
+      if (place.businessStatus === 'CLOSED_TEMPORARILY') continue;
+      if (hasBadPlaceType(place.types || [])) continue;
+
+      const name = place.displayName?.text || '';
+      const addr = place.formattedAddress || '';
+
+      if (isBadLead(name, addr, label)) continue;
+      if (!place.nationalPhoneNumber && !place.websiteUri) continue; // need at least one contact signal
+
+      if ((category || '').toLowerCase().includes('alum') && alumPoleBlocked(name)) continue;
+      if (isWindowDoor && garageDoorBlocked(name)) continue;
+
+      const reach = getReachabilityScore(place, name);
+      if (reach.tier === 'LOW') continue; // keep MEDIUM + HIGH only
+
+      const addrParts = addr.split(',');
+
+      cleaned.push({
+        place_id: placeId,
+        company: name,
+        category: category,
+        city: addrParts[1]?.trim() || '',
+        state: addrParts[2]?.trim().split(' ')[0] || '',
+        phone: place.nationalPhoneNumber || null,
+        email: null,
+        website: place.websiteUri || null,
+        address: addr,
+        source: 'Bulk Ingestion',
+        data_status: 'Unvetted',
+        manufacturer_assoc: mfrAssoc || null,
+        reachabilityScore: reach.score,
+        reachabilityTier: reach.tier,
+      });
+    }
+
+    // Sort by reachability score descending, take top maxRecs
+    cleaned.sort((a, b) => b.reachabilityScore - a.reachabilityScore);
+    const topRecords = cleaned.slice(0, maxRecs);
+
+    console.log('[BulkIngest] Cleaned records:', topRecords.length);
+
+    // ── Phase 3: Deduplicate against existing CRM records ─────────
+    function normName(n) { return (n||'').toLowerCase().replace(/[^a-z0-9]/g,''); }
+    function normPhone(p) { return (p||'').replace(/[^0-9]/g,''); }
+
+    const existingByPlaceId = new Set();
+    const existingByNameCity = new Set();
+    const existingByPhone = new Set();
+
+    // Pull all current user's place_ids, name+city combos, phones
+    const existingRows = await pool.query(
+      'SELECT google_place_id, company, city, phone FROM prospects WHERE user_id=$1',
+      [uid]
+    );
+    for (const r of existingRows.rows) {
+      if (r.google_place_id) existingByPlaceId.add(r.google_place_id);
+      existingByNameCity.add(normName(r.company) + '|' + (r.city||'').toLowerCase());
+      const np = normPhone(r.phone);
+      if (np && np.length >= 10) existingByPhone.add(np);
+    }
+
+    const toInsert = [];
+    const sessionSeen = new Set(); // dedup within this batch itself
+
+    for (const rec of topRecords) {
+      if (existingByPlaceId.has(rec.place_id)) continue;
+      const nameCity = normName(rec.company) + '|' + (rec.city||'').toLowerCase();
+      if (existingByNameCity.has(nameCity)) continue;
+      const np = normPhone(rec.phone || '');
+      if (np && np.length >= 10 && existingByPhone.has(np)) continue;
+
+      // Also dedup within this ingestion batch
+      if (sessionSeen.has(nameCity)) continue;
+      sessionSeen.add(nameCity);
+
+      toInsert.push(rec);
+    }
+
+    console.log('[BulkIngest] After dedup:', toInsert.length, 'new records to insert');
+
+    if (toInsert.length === 0) {
+      return res.json({
+        ok: true,
+        imported: 0,
+        skipped_duplicates: topRecords.length,
+        category,
+        territory: loc,
+        message: 'All results already exist in your CRM.'
+      });
+    }
+
+    // ── Phase 4: Bulk insert into CRM ────────────────────────────
+    // Resolve company_type from category
+    const DISTRIBUTOR_CATS = new Set([
+      'Roofing Distributor','Decking Distributor','Siding Distributor','Window & Door Distributor'
+    ]);
+    const company_type = DISTRIBUTOR_CATS.has(category) ? 'Distributor' : 'Contractor';
+
+    let imported = 0;
+    for (const rec of toInsert) {
+      try {
+        await pool.query(
+          `INSERT INTO prospects
+             (user_id, company, category, company_type, city, state, phone, email,
+              contact, website, products, status, priority, source, google_place_id,
+              address, data_status, manufacturer_assoc, last_activity_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW())
+           ON CONFLICT DO NOTHING`,
+          [
+            uid, rec.company, rec.category, company_type,
+            rec.city, rec.state || 'GA',
+            rec.phone || null, null,
+            null, rec.website || null,
+            null, 'New', rec.reachabilityTier === 'HIGH' ? 'High' : 'Medium',
+            'Bulk Ingestion', rec.place_id,
+            rec.address, 'Unvetted', rec.manufacturer_assoc
+          ]
+        );
+        imported++;
+      } catch(e) {
+        console.error('[BulkIngest] Insert error:', rec.company, e.message);
+      }
+    }
+
+    console.log('[BulkIngest] Inserted:', imported, '| Duplicates skipped:', topRecords.length - toInsert.length);
+
+    res.json({
+      ok: true,
+      imported,
+      skipped_duplicates: topRecords.length - toInsert.length,
+      total_found: rawMap.size,
+      category,
+      territory: loc,
+      manufacturer: mfrAssoc || null,
+      company_type,
+      message: `${imported} records imported into your CRM as ${company_type} / ${category}.`
+    });
+
+  } catch(e) {
+    console.error('[BulkIngest] Fatal error:', e.message);
+    res.status(500).json({ error: 'Bulk ingestion failed: ' + e.message });
+  }
+});
+
+
 module.exports = router;
