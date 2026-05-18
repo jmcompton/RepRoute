@@ -1264,11 +1264,11 @@ router.post('/bulk-ingest', async (req, res) => {
     function normPhone(p) { return (p||'').replace(/[^0-9]/g,''); }
     function normAddr(a)  { return (a||'').toLowerCase().replace(/[^a-z0-9]/g,''); }
 
-    // Pull richer existing data for scoring
+    // Pull team-wide existing data for scoring — prevents same company being
+    // imported by two reps and showing as duplicates in team view
     const existingRows = await pool.query(
       `SELECT google_place_id, company, city, phone, address, website, category
-       FROM prospects WHERE user_id = $1`,
-      [uid]
+       FROM prospects`
     );
 
     // Fast-path Sets for definitive single-field matches
