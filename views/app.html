@@ -1342,6 +1342,7 @@ window.addEventListener('load', function() {
       </div>
       <div style="display:flex;gap:8px;align-items:center">
         <input id="quote-search" placeholder="Search quotes..." oninput="filterQuotes(this.value)" style="padding:7px 12px;font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);width:200px">
+        <button id="fix-rep-btn" onclick="fixRepNames()" style="padding:6px 12px;font-size:11px;font-weight:600;background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:5px;cursor:pointer">Fix Rep Names</button>
         <button class="btn btn-primary btn-sm" onclick="openNewQuoteModal()">+ New Quote</button>
       </div>
     </div>
@@ -5557,6 +5558,35 @@ document.addEventListener('click', function(e) {
   }
 });
 
+
+async function fixRepNames() {
+  var btn = document.getElementById('fix-rep-btn');
+  if (!confirm('This will update all quotes where REP = "Sean Conroy" to "Ray Breedlove".\n\nProceed?')) return;
+  btn.textContent = 'Fixing...'; btn.disabled = true;
+  fetch('/api/quotes/fix-rep', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ find: 'Sean Conroy', replace: 'Ray Breedlove' })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.success) {
+      showToast('Updated ' + d.updated + ' quotes: Sean Conroy → Ray Breedlove');
+      btn.textContent = '✓ Fixed (' + d.updated + ')';
+      btn.style.background = '#d1fae5';
+      btn.style.color = '#065f46';
+      btn.style.borderColor = '#6ee7b7';
+      loadQuotes(); // reload table
+    } else {
+      showToast('Error: ' + (d.error || 'Unknown'));
+      btn.textContent = 'Fix Rep Names'; btn.disabled = false;
+    }
+  })
+  .catch(function(e) {
+    showToast('Network error: ' + e.message);
+    btn.textContent = 'Fix Rep Names'; btn.disabled = false;
+  });
+}
 
 async function saveQuote() {
   var btn = document.getElementById('qd-save-btn');
