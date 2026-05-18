@@ -1215,38 +1215,39 @@ function classifyAndFilter(record) {
 function scoreConfidence(record, sourceTier) {
   let score = 0;
 
-  // Source tier bonus (max 30)
-  const tierBonus = { 1: 30, 2: 22, 3: 15, 4: 5 };
-  score += tierBonus[sourceTier] || 10;
+  // Source tier base (max 25 for Google Places)
+  const tierBonus = { 1: 35, 2: 28, 3: 20, 4: 8 };
+  score += tierBonus[sourceTier] || 15;
 
-  // Has phone (20 pts)
+  // Has Google Place ID (verified Google listing = strong signal)
+  if (record.place_id) score += 15;
+
+  // Has phone (critical for CRM value)
   if (record.phone && record.phone.replace(/\D/g,'').length >= 10) score += 20;
 
-  // Has website (15 pts)
-  if (record.website && record.website.length > 5) score += 15;
-
-  // Has full address (15 pts)
+  // Has full address
   if (record.address && record.address.length > 10) score += 15;
 
-  // Has Google Place ID (10 pts — verified Google listing)
-  if (record.place_id) score += 10;
+  // Has website
+  if (record.website && record.website.length > 5) score += 12;
 
-  // Has reviews/rating (up to 10 pts)
-  if (record.rating >= 4.0) score += 10;
-  else if (record.rating >= 3.0) score += 5;
+  // Has reviews/rating
+  if (record.rating >= 4.0) score += 8;
+  else if (record.rating >= 3.0) score += 4;
 
-  // Name quality (not too generic, not too short)
+  // Name quality
   const name = record.company || '';
   if (name.length >= 5 && name.split(' ').length >= 2) score += 5;
 
   // Penalty: no contact info at all
-  if (!record.phone && !record.website && !record.email) score -= 15;
+  if (!record.phone && !record.website) score -= 10;
 
   // Penalty: very generic name
-  if (/^(the|a|an)\s/i.test(name) && name.length < 15) score -= 10;
+  if (/^(the|a|an)\s/i.test(name) && name.length < 15) score -= 8;
 
   return Math.max(0, Math.min(100, score));
 }
+
 
 // ── Deduplication (team-wide, multi-signal) ─────────────────────────────────
 function normName(n)  { return (n||'').toLowerCase().replace(/[^a-z0-9]/g,''); }
@@ -1310,75 +1311,58 @@ function isDuplicate(rec, index) {
 }
 
 // ── Google Places search with retry ────────────────────────────────────────
-async function placesSearch(queryText, locationStr, apiKey, excludedIds = new Set()) {
-  const fetch = require('node-fetch');
-  const results = [];
-  const seenIds = new Set(excludedIds);
-  const coordMap = {};
+async function placesSearch(queryText, locationStr, apiKey, excludedIds) {
+  excludedIds = excludedIds || new Set();
+  const results  = [];
+  const seenIds  = new Set(excludedIds);
 
-  // Build coordinate bias from territory string
-  const geoMap = {
-    'atlanta': '33.749,-84.388', 'savannah': '32.0809,-81.0912',
-    'brunswick': '31.1499,-81.4915', 'augusta': '33.4735,-82.0105',
-    'macon': '32.8407,-83.6324', 'jacksonville': '30.3322,-81.6557',
-    'gainesville fl': '29.6516,-82.3248', 'valdosta': '30.8327,-83.2785',
-    'tallahassee': '30.4383,-84.2807', 'columbia sc': '34.0007,-81.0348',
-    'charleston sc': '32.7765,-79.9311', 'charlotte': '35.2271,-80.8431',
-    'southeast': '31.5,-83.0', 'georgia': '32.5,-83.5',
-    'north florida': '30.5,-83.5'
-  };
+  // Get city list for this territory (reuse existing getCities)
+  const cities = getCities(locationStr || queryText);
+  // Use up to 4 cities to keep under rate limits
+  const targetCities = cities.slice(0, 4);
 
-  let locationBias = '31.5,-83.0'; // default SE Georgia
-  for (const [key, coord] of Object.entries(geoMap)) {
-    if ((locationStr||'').toLowerCase().includes(key)) { locationBias = coord; break; }
-    if ((queryText||'').toLowerCase().includes(key))   { locationBias = coord; break; }
-  }
-  const [lat, lng] = locationBias.split(',');
+  for (const city of targetCities) {
+    // Embed city directly into query — most reliable signal for Places API
+    const fullQuery = queryText.toLowerCase().includes(city.toLowerCase().split(' ')[0])
+      ? queryText           // city already in query
+      : queryText + ' ' + city;
 
-  try {
-    const body = {
-      textQuery: queryText,
-      maxResultCount: 20,
-      locationBias: {
-        circle: { center: { latitude: parseFloat(lat), longitude: parseFloat(lng) }, radius: 80000 }
-      }
-    };
-    const resp = await fetch(
-      'https://places.googleapis.com/v1/places:searchText',
-      {
-        method: 'POST',
-        headers: {
+    try {
+      const data = await httpsPost(
+        'places.googleapis.com',
+        '/v1/places:searchText',
+        {
           'Content-Type': 'application/json',
-          'X-Goog-Api-Key': apiKey,
-          'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.types,places.businessStatus'
+          'X-Goog-Api-Key': PLACES_KEY,
+          'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.businessStatus,places.types'
         },
-        body: JSON.stringify(body)
+        { textQuery: fullQuery, maxResultCount: 20, rankPreference: 'RELEVANCE' }
+      );
+
+      for (const place of (data.places || [])) {
+        if (place.businessStatus === 'CLOSED_PERMANENTLY') continue;
+        if (seenIds.has(place.id)) continue;
+        seenIds.add(place.id);
+
+        const addrParts = (place.formattedAddress || '').split(',');
+        const rec = {
+          place_id: place.id,
+          company:  (place.displayName || {}).text || '',
+          address:  place.formattedAddress || '',
+          phone:    place.nationalPhoneNumber || '',
+          website:  place.websiteUri || '',
+          rating:   place.rating || 0,
+          types:    place.types || [],
+          category: '',
+          source_tier: SOURCE_TIERS.TIER3,
+          city:  addrParts.length >= 3 ? addrParts[addrParts.length - 3].trim() : city.split(' ')[0],
+          state: addrParts.length >= 2 ? addrParts[addrParts.length - 2].trim().replace(/\s+\d{5}.*/, '') : ''
+        };
+        results.push(rec);
       }
-    );
-    const data = await resp.json();
-    for (const p of (data.places || [])) {
-      if (p.businessStatus === 'CLOSED_PERMANENTLY') continue;
-      if (seenIds.has(p.id)) continue;
-      seenIds.add(p.id);
-      const rec = {
-        place_id: p.id,
-        company:  (p.displayName||{}).text || '',
-        address:  p.formattedAddress || '',
-        phone:    p.nationalPhoneNumber || '',
-        website:  p.websiteUri || '',
-        rating:   p.rating || 0,
-        types:    p.types || [],
-        category: '',
-        source_tier: SOURCE_TIERS.TIER3
-      };
-      // Extract city/state from address
-      const addrParts = rec.address.split(',');
-      rec.city  = addrParts.length >= 3 ? addrParts[addrParts.length-3].trim() : '';
-      rec.state = addrParts.length >= 2 ? addrParts[addrParts.length-2].trim().replace(/\s+\d{5}.*/,'') : '';
-      results.push(rec);
+    } catch (e) {
+      console.error('[placesSearch] error for query:', fullQuery, e.message);
     }
-  } catch (e) {
-    console.error('[placesSearch] error for query:', queryText, e.message);
   }
 
   return results;
@@ -1439,7 +1423,7 @@ router.post('/bulk-ingest', async (req, res) => {
     const scored = [];
     for (const rec of classified) {
       const conf = scoreConfidence(rec, rec.source_tier || SOURCE_TIERS.TIER3);
-      if (conf < 50) {
+      if (conf < 45) {
         console.log(`[BulkIngest v2] DISCARDED (low conf ${conf}): ${rec.company}`);
         continue;
       }
