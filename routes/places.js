@@ -1373,25 +1373,29 @@ async function placesSearch(queryText, locationStr, apiKey, excludedIds) {
 // ══════════════════════════════════════════════════════════════════════════════
 router.post('/bulk-ingest', async (req, res) => {
   const uid = req.session.user.id;
-  const { query, territory, max_records } = req.body;
+  const { query, territory, max_records, scope } = req.body;
+  // scope: 'team' (default) = dedup against all team contacts
+  //        'mine'           = dedup only against this user's contacts
+  //        'off'            = skip DB dedup entirely (session dedup only)
+  const dedupScope = scope || 'team';
 
   if (!query || !query.trim()) {
-    return res.status(400).json({ error: 'Query is required (e.g. "roofing distributors Atlanta")' });
+    return res.status(400).json({ error: 'Query is required (e.g. "roofing contractors Georgia")' });
   }
 
   const maxRecs = Math.min(parseInt(max_records) || 40, 80);
   const apiKey  = process.env.GOOGLE_PLACES_API_KEY;
 
   try {
-    console.log(`[BulkIngest v2] Query="${query}" territory="${territory}" max=${maxRecs}`);
+    console.log(`[BulkIngest v3] Query="${query}" territory="${territory}" max=${maxRecs} scope=${dedupScope}`);
 
-    // ── Phase 1: Expand query into multiple search variations ──────────────
+    // ── Phase 1: Expand query ──────────────────────────────────────────────
     const expandedQueries = expandQuery(query, territory);
-    console.log('[BulkIngest v2] Expanded queries:', expandedQueries);
+    console.log('[BulkIngest v3] Expanded queries:', expandedQueries);
 
-    // ── Phase 2: Fetch from Google Places across all expanded queries ───────
+    // ── Phase 2: Fetch from Google Places ─────────────────────────────────
     const rawResults = [];
-    const seenPlaceIds = new Set();
+    const seenPlaceIds = new Set(); // strict session-level place_id dedup only
 
     for (const eq of expandedQueries) {
       const batch = await placesSearch(eq, territory, apiKey, seenPlaceIds);
@@ -1401,72 +1405,77 @@ router.post('/bulk-ingest', async (req, res) => {
           rawResults.push(r);
         }
       }
-      if (rawResults.length >= maxRecs * 3) break; // enough candidates
+      if (rawResults.length >= maxRecs * 3) break;
     }
 
-    console.log(`[BulkIngest v2] Raw results: ${rawResults.length} from ${expandedQueries.length} queries`);
+    console.log(`[BulkIngest v3] Raw results: ${rawResults.length} across ${expandedQueries.length} queries`);
 
     // ── Phase 3: Pre-ingestion filtering + classification ──────────────────
     const classified = [];
+    let filteredCount = 0;
     for (const rec of rawResults) {
       const cls = classifyAndFilter(rec);
-      if (!cls) {
-        console.log(`[BulkIngest v2] EXCLUDED: ${rec.company} (failed pre-filter)`);
-        continue;
-      }
-      rec.company_type   = cls.company_type;
-      rec.category       = cls.category_label;
+      if (!cls) { filteredCount++; continue; }
+      rec.company_type  = cls.company_type;
+      rec.category      = cls.category_label;
       classified.push(rec);
     }
 
-    // ── Phase 4: Confidence scoring — discard < 50 ────────────────────────
+    // ── Phase 4: Confidence scoring ────────────────────────────────────────
     const scored = [];
+    let lowConfCount = 0;
     for (const rec of classified) {
       const conf = scoreConfidence(rec, rec.source_tier || SOURCE_TIERS.TIER3);
-      if (conf < 45) {
-        console.log(`[BulkIngest v2] DISCARDED (low conf ${conf}): ${rec.company}`);
-        continue;
-      }
+      if (conf < 45) { lowConfCount++; continue; }
       rec.confidence_score = conf;
       rec.data_status = conf >= 90 ? 'Verified' : conf >= 70 ? 'Likely Valid' : 'Unvetted';
       scored.push(rec);
     }
-
-    // Sort by confidence descending
     scored.sort((a, b) => b.confidence_score - a.confidence_score);
 
     // ── Phase 5: Team-wide deduplication ──────────────────────────────────
-    const existingRows = await pool.query(
-      `SELECT google_place_id, company, address, phone, website, category
-       FROM prospects`
-    );
+    let existingRows = { rows: [] };
+    if (dedupScope !== 'off') {
+      const dbQuery = dedupScope === 'mine'
+        ? `SELECT google_place_id, company, address, phone, website FROM prospects WHERE user_id = $1`
+        : `SELECT google_place_id, company, address, phone, website FROM prospects`;
+      const dbParams = dedupScope === 'mine' ? [uid] : [];
+      existingRows = await pool.query(dbQuery, dbParams);
+      console.log(`[BulkIngest v3] DB index size: ${existingRows.rows.length} (scope=${dedupScope})`);
+    }
+
     const dupIndex = buildExistingIndex(existingRows.rows);
 
-    // Also build session-level dedup
-    const sessionSeen = new Set();
-
-    const toInsert   = [];
-    const skipped    = [];
+    // Track skipped details for reporting (first 15)
+    const skipped        = [];
+    const skippedSample  = [];
+    const toInsert       = [];
+    const sessionNames   = new Set(); // name-only dedup within THIS batch
 
     for (const rec of scored) {
-      // Session dedup
-      const sessionKey = normName(rec.company) + '|' + (rec.city||'').toLowerCase();
-      if (sessionSeen.has(sessionKey)) {
-        skipped.push({ reason: 'session_dup', company: rec.company });
-        continue;
-      }
-      sessionSeen.add(sessionKey);
-
-      // Team-wide dedup
-      const dupCheck = isDuplicate(rec, dupIndex);
-      if (dupCheck.dup) {
-        skipped.push({ reason: dupCheck.reason, company: rec.company });
+      // Batch dedup: don't save same company name twice in one run
+      const batchKey = normName(rec.company);
+      if (batchKey.length > 3 && sessionNames.has(batchKey)) {
+        skipped.push({ reason: 'batch_dup', company: rec.company });
+        if (skippedSample.length < 15) skippedSample.push({ company: rec.company, reason: 'Already in this batch' });
         continue;
       }
 
-      // Add to insert queue and update index so later records in this batch won't dup it
+      // DB dedup
+      if (dedupScope !== 'off') {
+        const dupCheck = isDuplicate(rec, dupIndex);
+        if (dupCheck.dup) {
+          skipped.push({ reason: dupCheck.reason, company: rec.company });
+          if (skippedSample.length < 15) skippedSample.push({ company: rec.company, reason: dupCheck.reason });
+          continue;
+        }
+      }
+
+      // Good to insert
+      sessionNames.add(batchKey);
       toInsert.push(rec);
-      // Update in-memory index to prevent batch-internal dups
+
+      // Update live index so later records in this batch don't match against each other
       if (rec.place_id) dupIndex.byPlaceId.add(rec.place_id);
       const np = normPhone(rec.phone);
       if (np.length >= 10) dupIndex.byPhone.add(np);
@@ -1476,9 +1485,19 @@ router.post('/bulk-ingest', async (req, res) => {
       if (toInsert.length >= maxRecs) break;
     }
 
-    console.log(`[BulkIngest v2] Insert queue: ${toInsert.length} | Skipped: ${skipped.length}`);
+    console.log(`[BulkIngest v3] toInsert: ${toInsert.length} | skipped: ${skipped.length}`);
 
-    // ── Phase 6: Bulk insert into CRM ─────────────────────────────────────
+    // Skip breakdown
+    const skipBreakdown = {
+      place_id: skipped.filter(s => s.reason === 'place_id').length,
+      phone:    skipped.filter(s => s.reason === 'phone').length,
+      domain:   skipped.filter(s => s.reason === 'domain').length,
+      fuzzy:    skipped.filter(s => s.reason === 'fuzzy').length,
+      batch:    skipped.filter(s => s.reason === 'batch_dup').length
+    };
+    console.log('[BulkIngest v3] Skip breakdown:', JSON.stringify(skipBreakdown));
+
+    // ── Phase 6: Bulk insert ───────────────────────────────────────────────
     let imported = 0;
     const importedRecords = [];
 
@@ -1506,7 +1525,7 @@ router.post('/bulk-ingest', async (req, res) => {
             rec.website || null,
             'New',
             rec.confidence_score >= 80 ? 'High' : rec.confidence_score >= 65 ? 'Medium' : 'Low',
-            'Bulk Ingest v2',
+            'Bulk Ingest v3',
             rec.place_id || null,
             rec.address  || null,
             rec.data_status || 'Unvetted',
@@ -1519,30 +1538,34 @@ router.post('/bulk-ingest', async (req, res) => {
         if (result.rows.length > 0) {
           imported++;
           importedRecords.push({
-            id: result.rows[0].id,
-            company: rec.company,
-            category: rec.category,
+            id:           result.rows[0].id,
+            company:      rec.company,
+            category:     rec.category,
             company_type: rec.company_type,
-            city: rec.city,
-            confidence: rec.confidence_score,
-            status: rec.data_status
+            city:         rec.city,
+            confidence:   rec.confidence_score,
+            status:       rec.data_status
           });
         }
       } catch (insertErr) {
-        console.error('[BulkIngest v2] Insert error for', rec.company, ':', insertErr.message);
+        console.error('[BulkIngest v3] Insert error:', rec.company, insertErr.message);
       }
     }
 
-    // ── Phase 7: Return structured summary ─────────────────────────────────
+    // ── Phase 7: Response ──────────────────────────────────────────────────
     const summary = {
       ok: true,
       imported,
       skipped_duplicates: skipped.length,
-      excluded_filtered: rawResults.length - classified.length,
-      excluded_low_confidence: classified.length - scored.length,
-      queries_run: expandedQueries.length,
-      raw_candidates: rawResults.length,
-      records: importedRecords,
+      excluded_filtered:  filteredCount,
+      excluded_low_conf:  lowConfCount,
+      queries_run:        expandedQueries.length,
+      raw_candidates:     rawResults.length,
+      dedup_scope:        dedupScope,
+      db_index_size:      existingRows.rows.length,
+      skip_breakdown:     skipBreakdown,
+      skipped_sample:     skippedSample,
+      records:            importedRecords,
       breakdown: {
         distributors: importedRecords.filter(r => r.company_type === 'Distributor').length,
         contractors:  importedRecords.filter(r => r.company_type === 'Contractor').length,
@@ -1552,18 +1575,19 @@ router.post('/bulk-ingest', async (req, res) => {
         unvetted:     importedRecords.filter(r => r.status === 'Unvetted').length
       },
       message: imported === 0
-        ? `No new records found (${skipped.length} duplicates skipped, ${rawResults.length - classified.length} excluded by filters)`
+        ? `No new records — ${skipped.length} already in DB (${skipBreakdown.place_id} by Place ID, ${skipBreakdown.fuzzy} fuzzy), ${filteredCount} filtered out`
         : `Imported ${imported} records — ${importedRecords.filter(r=>r.company_type==='Distributor').length} distributors, ${importedRecords.filter(r=>r.company_type==='Contractor').length} contractors`
     };
 
-    console.log('[BulkIngest v2] Complete:', summary.message);
+    console.log('[BulkIngest v3] Complete:', summary.message);
     res.json(summary);
 
   } catch (e) {
-    console.error('[BulkIngest v2] Fatal error:', e.message);
+    console.error('[BulkIngest v3] Fatal:', e.message, e.stack);
     res.status(500).json({ error: 'Bulk ingestion failed: ' + e.message });
   }
 });
+
 
 
 module.exports = router;
