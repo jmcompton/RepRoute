@@ -1047,7 +1047,7 @@ window.addEventListener('load', function() {
           <p style="margin:0;color:var(--text3);font-size:13px">Tiered · Confidence-scored · Deduplicated · Classification-filtered</p>
         </div>
         <div style="display:flex;gap:6px">
-          <span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:12px;background:#d1fae5;color:#065f46">50+ score saved</span>
+          <span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:12px;background:#d1fae5;color:#065f46">45+ score saved</span>
           <span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:12px;background:#e0f2fe;color:#0369a1">Team dedup</span>
           <span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:12px;background:#fef3c7;color:#92400e">Auto-classify</span>
         </div>
@@ -5648,31 +5648,50 @@ document.addEventListener('click', function(e) {
 
 async function fixRepNames() {
   var btn = document.getElementById('fix-rep-btn');
-  if (!confirm('This will update all quotes where REP = "Sean Conroy" to "Ray Breedlove".\n\nProceed?')) return;
-  btn.textContent = 'Fixing...'; btn.disabled = true;
-  fetch('/api/quotes/fix-rep', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ find: 'Sean Conroy', replace: 'Ray Breedlove' })
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(d) {
-    if (d.success) {
-      showToast('Updated ' + d.updated + ' quotes: Sean Conroy → Ray Breedlove');
-      btn.textContent = '✓ Fixed (' + d.updated + ')';
+  btn.textContent = 'Checking DB...'; btn.disabled = true;
+
+  try {
+    // Step 1: Check what rep names actually exist in DB
+    var debugRes = await fetch('/api/quotes/debug-reps');
+    var debugData = await debugRes.json();
+
+    var repSummary = (debugData.reps || [])
+      .map(function(r) { return r.count + 'x "' + r.rep_name + '"'; })
+      .join('\n');
+
+    var confirmMsg = 'Current rep names in database:\n\n' + repSummary +
+      '\n\nClick OK to update ALL quotes to "Ray Breedlove".';
+
+    if (!confirm(confirmMsg)) {
+      btn.textContent = 'Fix Rep Names'; btn.disabled = false;
+      return;
+    }
+
+    btn.textContent = 'Updating all...';
+
+    // Step 2: Nuclear force-update — set ALL quotes to Ray Breedlove
+    var res = await fetch('/api/quotes/force-rep-update', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ rep: 'Ray Breedlove' })
+    });
+    var data = await res.json();
+
+    if (data.success) {
+      showToast(data.message);
+      btn.textContent = 'Done (' + data.updated + ' updated)';
       btn.style.background = '#d1fae5';
       btn.style.color = '#065f46';
       btn.style.borderColor = '#6ee7b7';
-      loadQuotes(); // reload table
+      loadQuotes();
     } else {
-      showToast('Error: ' + (d.error || 'Unknown'));
+      showToast('Error: ' + (data.error || 'Unknown error'));
       btn.textContent = 'Fix Rep Names'; btn.disabled = false;
     }
-  })
-  .catch(function(e) {
-    showToast('Network error: ' + e.message);
+  } catch(e) {
+    showToast('Error: ' + e.message);
     btn.textContent = 'Fix Rep Names'; btn.disabled = false;
-  });
+  }
 }
 
 async function saveQuote() {
