@@ -97,6 +97,35 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST create quote — with duplicate prevention (team-wide)
+// POST /api/quotes/fix-rep — hardcoded migration: Sean Conroy → Ray Breedlove
+// Placed FIRST so /:id route never intercepts it
+router.post('/fix-rep', async (req, res) => {
+  try {
+    const findName    = (req.body && req.body.find)    || 'Sean Conroy';
+    const replaceName = (req.body && req.body.replace) || 'Ray Breedlove';
+
+    const result = await pool.query(
+      `UPDATE quotes
+         SET rep_name = $1, updated_at = NOW()
+       WHERE LOWER(COALESCE(rep_name,'')) = LOWER($2)
+       RETURNING id, quote_number, account_name, rep_name`,
+      [replaceName, findName]
+    );
+
+    console.log('[fix-rep] Updated', result.rowCount, 'quotes:', findName, '→', replaceName);
+    res.json({
+      success: true,
+      updated: result.rowCount,
+      message: `Updated ${result.rowCount} quotes from "${findName}" to "${replaceName}"`,
+      quotes: result.rows.map(r => ({ id: r.id, quote_number: r.quote_number, account: r.account_name }))
+    });
+  } catch (e) {
+    console.error('[fix-rep] error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+
 router.post('/', async (req, res) => {
   try {
     const userId = req.session.user.id;
@@ -496,32 +525,5 @@ router.post('/upsert-prospect', async (req, res) => {
 });
 
 
-// POST /api/quotes/fix-rep — one-shot migration: replace any rep_name value with correct name
-// Usage: POST { "find": "Sean Conroy", "replace": "Ray Breedlove" }
-router.post('/fix-rep', async (req, res) => {
-  try {
-    if (!req.session || !req.session.user) return res.status(401).json({ error: 'Not authenticated' });
-    const { find, replace } = req.body;
-    if (!find || !replace) return res.status(400).json({ error: 'find and replace are required' });
-
-    // Update all quotes with rep_name matching find value (case-insensitive)
-    const result = await pool.query(
-      `UPDATE quotes SET rep_name = $1, updated_at = NOW()
-       WHERE LOWER(rep_name) = LOWER($2)
-       RETURNING id, quote_number, account_name, rep_name`,
-      [replace, find]
-    );
-
-    console.log(`[fix-rep] Updated ${result.rowCount} quotes: "${find}" → "${replace}"`);
-    res.json({
-      success: true,
-      updated: result.rowCount,
-      quotes: result.rows.map(r => ({ id: r.id, quote_number: r.quote_number, account: r.account_name }))
-    });
-  } catch (e) {
-    console.error('[fix-rep] error:', e.message);
-    res.status(500).json({ error: e.message });
-  }
-});
 
 module.exports = router;
