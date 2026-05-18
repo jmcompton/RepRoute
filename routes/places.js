@@ -989,47 +989,66 @@ function getSearchQueriesForCategory(category, brandHint) {
 // are strictly separated to prevent cross-contamination.
 
 // ── Ecosystem keyword libraries ──────────────────────────────────────────────
+// ── Manufacturer/Brand ecosystem signals (definitive) ──────────────────────
 const ROOFING_MANUFACTURER_SIGNALS = [
   'carlisle', 'johns manville', 'sarnafil', 'sika', 'tremco', 'certainteed',
   'iko', 'gaf', 'owens corning', 'firestone', 'versico', 'polyglass',
-  'henry', 'soprema', 'mulehide', 'mule-hide', 'atlas roofing',
-  'bur', 'tpo', 'epdm', 'mod bit', 'modified bitumen'
+  'henry building', 'soprema', 'mulehide', 'mule-hide', 'atlas roofing',
 ];
-
 const DECKING_MANUFACTURER_SIGNALS = [
   'trex', 'timbertech', 'azek', 'fiberon', 'deckorators', 'deckorator',
-  'moistureshield', 'moisture shield', 'fortress', 'wolf decking',
-  'ipe', 'composite deck', 'composite decking', 'pvc deck', 'pvc decking'
+  'moistureshield', 'moisture shield', 'fortress building', 'wolf decking',
 ];
 
+// ── Known distributor networks (named brands — HIGH confidence) ──────────────
 const ROOFING_DISTRIBUTOR_SIGNALS = [
-  'abc supply', 'beacon', 'gulf eagle', 'bradco', 'allied', 'gulfeagle',
-  'beacon roofing', 'western states', 'famco', 'hepler',
-  'roofing supply', 'roofing products supply', 'roofing wholesale'
+  'abc supply', 'beacon roofing', 'beacon supply', 'gulf eagle', 'gulfeagle',
+  'bradco', 'allied building', 'western states roofing', 'famco', 'hepler',
+  'srs distribution', 'contractor source', 'roofing supply house',
 ];
-
 const DECKING_DISTRIBUTOR_SIGNALS = [
-  '84 lumber', 'us lbm', 'lbm', 'bmc', 'pro build', 'probuild',
+  '84 lumber', 'us lbm', 'uslbm', 'bmc stock', 'pro build', 'probuild',
   'builders firstsource', 'universal forest', 'ufp', 'weyerhaeuser',
   'hancock lumber', 'carter lumber', 'mc supply', 'mr. lumber',
-  'outdoor living supply', 'deck supply', 'decking supply', 'decking wholesale',
-  'composite deck supply', 'deck products dealer'
+  'outdoor living supply', 'deck supply house', 'composite deck supply',
 ];
 
-const DISTRIBUTOR_GENERIC_SIGNALS = [
-  'supply co', 'supply company', 'supply house', 'distribut', 'wholesale',
-  'dealer', 'distributor', 'materials inc', 'materials co',
-  'building products', 'building supply', 'building materials',
-  'millwork', 'millworks', 'lumber yard', 'lumber co', 'lumber company',
-  'hdw', 'hardware supply', 'products inc', 'products co', 'products llc'
+// ── HIGH-CONFIDENCE distributor signals (company structure signals) ──────────
+// Only words that genuinely indicate a supply/distribution business
+const DISTRIBUTOR_STRONG = [
+  'supply co', 'supply company', 'supply house', 'supply inc',
+  'distribut',   // catches distributor/distribution/distributing
+  'wholesale',
+  'building supply', 'building products', 'building materials',
+  'millwork', 'millworks',
+  'lumber yard', 'lumber co ', 'lumber company', 'lumber inc', 'lumber llc',
+  'hdw', 'hardware supply',
+  'roofing supply', 'siding supply', 'deck supply',
+  'material supply', 'materials supply',
 ];
 
-const CONTRACTOR_GENERIC_SIGNALS = [
-  'contracting', 'contractor', 'construction', 'builders', 'install',
-  'installer', 'renovation', 'restoration', 'remodel', 'remodeling',
-  'roofing co', 'roofing inc', 'roofing llc', 'deck co', 'deck inc',
-  'deck llc', 'exterior solutions', 'exteriors', 'home improvement',
-  'services llc', 'services inc', 'company inc', 'company llc'
+// ── HIGH-CONFIDENCE contractor signals (company structure signals) ───────────
+const CONTRACTOR_STRONG = [
+  'contracting', 'contractor', 'construction co', 'construction inc', 'construction llc',
+  'construction company', 'construction corp',
+  'builders inc', 'builders llc', 'builders co',
+  'installation', 'installing', 'installer',
+  'renovation', 'renovations', 'remodel', 'remodeling',
+  'restoration', 'restorations',
+  'roofing co', 'roofing inc', 'roofing llc', 'roofing company', 'roofing corp',
+  'deck co', 'deck inc', 'deck llc', 'deck company', 'decking co', 'decking inc',
+  'decking llc', 'decking company',
+  'siding co', 'siding inc', 'siding company',
+  'exterior solutions', 'exteriors inc', 'exteriors llc',
+  'home improvement', 'home services',
+];
+
+// ── WEAK / AMBIGUOUS signals — only used when combined with ecosystem context ──
+// "products", "materials", "services", "company" alone are NOT enough
+const DISTRIBUTOR_WEAK  = ['dealer', 'products inc', 'products co', 'products llc', 'products corp'];
+const CONTRACTOR_WEAK   = [
+  'services', 'company', 'companies', 'builders',  // too generic alone
+  'enterprises', 'solutions', 'group',
 ];
 
 function hasAny(name, signals) {
@@ -1037,72 +1056,87 @@ function hasAny(name, signals) {
 }
 
 function classifyRecord(companyName, baseCategory) {
-  const n = (companyName || '').toLowerCase();
+  const n = (companyName || '').toLowerCase().trim();
   const base = (baseCategory || '').toLowerCase();
 
-  // ── Step 1: Determine base ecosystem from baseCategory ───────────────
-  const isRoofingContext = base.includes('roof');
-  const isDeckingContext = base.includes('deck');
-  const isSidingContext  = base.includes('siding');
-  const isWindowContext  = base.includes('window') || base.includes('door');
+  // ── Ecosystem context flags ───────────────────────────────────────────
+  const isRoofCtx  = base.includes('roof');
+  const isDeckCtx  = base.includes('deck');
+  const isSideCtx  = base.includes('siding');
+  const isWinCtx   = base.includes('window') || base.includes('door');
 
-  // ── Step 2: Strong manufacturer brand signals override everything ─────
-  // These are definitive — if the company name contains a known brand, trust it
+  // ── Step 1: Named manufacturer brand signals (ecosystem-aware) ────────
   if (hasAny(n, ROOFING_MANUFACTURER_SIGNALS)) {
-    // Even in a decking query, a company named "Carlisle Supply" is Roofing
-    const isDist = hasAny(n, DISTRIBUTOR_GENERIC_SIGNALS) || hasAny(n, ROOFING_DISTRIBUTOR_SIGNALS);
+    const isDist = hasAny(n, DISTRIBUTOR_STRONG) || hasAny(n, ROOFING_DISTRIBUTOR_SIGNALS);
     return isDist ? 'Roofing Distributor' : 'Roofing Contractor';
   }
   if (hasAny(n, DECKING_MANUFACTURER_SIGNALS)) {
-    const isDist = hasAny(n, DISTRIBUTOR_GENERIC_SIGNALS) || hasAny(n, DECKING_DISTRIBUTOR_SIGNALS);
+    const isDist = hasAny(n, DISTRIBUTOR_STRONG) || hasAny(n, DECKING_DISTRIBUTOR_SIGNALS);
     return isDist ? 'Decking Distributor' : 'Decking Contractor';
   }
 
-  // ── Step 3: Distributor network brand signals ─────────────────────────
-  if (hasAny(n, ROOFING_DISTRIBUTOR_SIGNALS)) return 'Roofing Distributor';
-  if (hasAny(n, DECKING_DISTRIBUTOR_SIGNALS)) return 'Decking Distributor';
+  // ── Step 2: Named distributor network brands ──────────────────────────
+  if (hasAny(n, ROOFING_DISTRIBUTOR_SIGNALS))  return 'Roofing Distributor';
+  if (hasAny(n, DECKING_DISTRIBUTOR_SIGNALS))  return 'Decking Distributor';
 
-  // ── Step 4: Context-specific classification using name signals ─────────
-  if (isRoofingContext) {
-    if (hasAny(n, DISTRIBUTOR_GENERIC_SIGNALS)) return 'Roofing Distributor';
-    if (hasAny(n, CONTRACTOR_GENERIC_SIGNALS))  return 'Roofing Contractor';
-    // Roofing-specific name patterns
+  // ── Step 3: HIGH-CONFIDENCE contractor signals — check BEFORE weak distributor ──
+  // "Smith Roofing Company LLC" should never be classified as distributor
+  if (hasAny(n, CONTRACTOR_STRONG)) {
+    if (isRoofCtx)  return 'Roofing Contractor';
+    if (isDeckCtx)  return 'Decking Contractor';
+    if (isSideCtx)  return 'Siding Contractor';
+    if (isWinCtx)   return 'Window & Door Installer';
+    return baseCategory;
+  }
+
+  // ── Step 4: HIGH-CONFIDENCE distributor signals ───────────────────────
+  if (hasAny(n, DISTRIBUTOR_STRONG)) {
+    if (isRoofCtx)  return 'Roofing Distributor';
+    if (isDeckCtx)  return 'Decking Distributor';
+    if (isSideCtx)  return 'Siding Distributor';
+    if (isWinCtx)   return 'Window & Door Distributor';
+    return baseCategory;
+  }
+
+  // ── Step 5: Ecosystem-specific name patterns (e.g. "Atlanta Roofing") ─
+  if (isRoofCtx) {
     if (n.includes('roof')) {
-      if (n.includes('supply') || n.includes('product') || n.includes('material') || n.includes('wholesale')) return 'Roofing Distributor';
-      return 'Roofing Contractor'; // "ABC Roofing" without supply signals = contractor
+      // "XYZ Roofing Supply / Products / Materials" → distributor
+      if (n.includes('supply') || n.includes('wholesale') || n.includes('material')) return 'Roofing Distributor';
+      // "XYZ Roofing" alone → contractor (no supply signal)
+      return 'Roofing Contractor';
     }
+    // In roofing context, weak contractor signals lean contractor
+    if (hasAny(n, CONTRACTOR_WEAK)) return 'Roofing Contractor';
+    if (hasAny(n, DISTRIBUTOR_WEAK)) return 'Roofing Distributor';
     return baseCategory;
   }
 
-  if (isDeckingContext) {
-    if (hasAny(n, DISTRIBUTOR_GENERIC_SIGNALS)) return 'Decking Distributor';
-    if (hasAny(n, CONTRACTOR_GENERIC_SIGNALS))  return 'Decking Contractor';
+  if (isDeckCtx) {
     if (n.includes('deck') || n.includes('outdoor living') || n.includes('patio')) {
-      if (n.includes('supply') || n.includes('product') || n.includes('material') || n.includes('wholesale')) return 'Decking Distributor';
-      if (n.includes('build') || n.includes('install') || n.includes('design')) return 'Decking Contractor';
+      if (n.includes('supply') || n.includes('wholesale') || n.includes('material')) return 'Decking Distributor';
+      if (n.includes('build') || n.includes('install') || n.includes('design'))      return 'Decking Contractor';
     }
+    if (hasAny(n, CONTRACTOR_WEAK)) return 'Decking Contractor';
+    if (hasAny(n, DISTRIBUTOR_WEAK)) return 'Decking Distributor';
     return baseCategory;
   }
 
-  if (isSidingContext) {
-    if (hasAny(n, DISTRIBUTOR_GENERIC_SIGNALS)) return 'Siding Distributor';
-    if (hasAny(n, CONTRACTOR_GENERIC_SIGNALS))  return 'Siding Contractor';
+  if (isSideCtx) {
+    if (hasAny(n, CONTRACTOR_WEAK)) return 'Siding Contractor';
+    if (hasAny(n, DISTRIBUTOR_WEAK)) return 'Siding Distributor';
     return baseCategory;
   }
 
-  if (isWindowContext) {
-    if (n.includes('supply') || n.includes('distribut') || n.includes('wholesale') ||
-        n.includes('products') || n.includes('materials') || n.includes('dealer')) {
+  if (isWinCtx) {
+    if (n.includes('supply') || n.includes('wholesale') || n.includes('distribut') || hasAny(n, DISTRIBUTOR_WEAK)) {
       return 'Window & Door Distributor';
     }
-    if (n.includes('install') || n.includes('contractor') || n.includes('contracting') ||
-        n.includes('services') || n.includes('builders') || n.includes('construction')) {
-      return 'Window & Door Installer';
-    }
+    if (n.includes('install') || hasAny(n, CONTRACTOR_WEAK)) return 'Window & Door Installer';
     return baseCategory;
   }
 
-  // ── Step 5: Generic fallback — use base category as-is ───────────────
+  // ── Step 6: Absolute fallback — keep base category ────────────────────
   return baseCategory;
 }
 
