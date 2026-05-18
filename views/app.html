@@ -1220,15 +1220,29 @@ window.addEventListener('load', function() {
     <div style="padding:16px">
       <div class="ai-panel">
         <div class="ai-phdr"><span class="ai-badge">LIVE AI</span><span class="ai-ptitle">AI Command Center</span></div>
-        <div class="ai-row"><input class="ai-in" id="cmd-input" placeholder="Ask about strategy, pricing, objections, Atlanta market..." /><button class="ai-send" onclick="runCmd()">Ask →</button></div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:10px;padding:0 2px">AI has access to your live CRM — ask about specific accounts, follow-ups, and routes.</div>
+        <div class="ai-row"><input class="ai-in" id="cmd-input" placeholder="Ask about accounts, strategy, objections, follow-ups..." /><button class="ai-send" onclick="runCmd()">Ask →</button></div>
+
+        <!-- CRM-Aware Quick Actions -->
+        <div style="margin:10px 0 6px;font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.05em;text-transform:uppercase">CRM Actions</div>
         <div class="ai-qb">
-          <button class="ai-q" onclick="setQ('Fortress Steel Framing pitch for deck contractor')">Fortress pitch</button>
-          <button class="ai-q" onclick="setQ('How to overcome objections from contractors using competitor brands')">Handle objections</button>
-          <button class="ai-q" onclick="setQ('How to get a building material dealer to carry our products')">Get shelf space</button>
-          <button class="ai-q" onclick="setQ('30-second cold call opener for commercial roofer in Atlanta')">Cold call script</button>
-          <button class="ai-q" onclick="setQ('Best pitch for ShurTape flashing tape to window installer')">ShurTape pitch</button>
-          <button class="ai-q" onclick="setQ('How to train a summer intern to demo building products')">Train intern</button>
+          <button class="ai-q" onclick="setQ('Who are my highest-priority accounts right now and what should I say to each one?')">Top priority accounts</button>
+          <button class="ai-q" onclick="setQ('Which accounts need a follow-up this week based on my CRM?')">Follow-ups this week</button>
+          <button class="ai-q" onclick="setQ('Build me a 3-day drive route from my top prospects in order of priority')">Suggest a drive route</button>
+          <button class="ai-q" onclick="setQ('Which accounts have I not contacted in over 30 days?')">Cold accounts</button>
+          <button class="ai-q" onclick="setQ('Summarize my open quotes and tell me which ones to prioritize closing')">Open quotes review</button>
         </div>
+
+        <!-- Sales Strategy Quick Actions -->
+        <div style="margin:10px 0 6px;font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.05em;text-transform:uppercase">Sales Strategy</div>
+        <div class="ai-qb">
+          <button class="ai-q" onclick="setQ('Give me a specific pitch for Soudal BOSS to a roofing distributor that sells both residential and commercial')">Soudal BOSS pitch</button>
+          <button class="ai-q" onclick="setQ('How to overcome objections from a distributor who already carries a competing sealant brand')">Handle objections</button>
+          <button class="ai-q" onclick="setQ('How do I get a building material dealer to add ShurTape to their inventory? What argument works best?')">ShurTape shelf space</button>
+          <button class="ai-q" onclick="setQ('Best 30-second cold call opener for a commercial roofing contractor')">Cold call script</button>
+          <button class="ai-q" onclick="setQ('How to pitch Alum-A-Pole to a siding contractor who says he rents scaffolding')">Alum-A-Pole pitch</button>
+        </div>
+
         <div class="ai-resp" id="cmd-resp"></div>
       </div>
     </div>
@@ -2820,7 +2834,8 @@ function runDashAI() {
   var resp = document.getElementById('dash-ai-resp');
   resp.style.display = 'block';
   resp.textContent = 'Thinking...';
-  fetch('/api/ai/command', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({prompt: prompt}) })
+  var crmContext = (typeof buildCrmContext === 'function') ? buildCrmContext() : {};
+  fetch('/api/ai/command', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({prompt:prompt, crm_context:crmContext}) })
     .then(function(r) { return r.json(); })
     .then(function(d) { resp.innerHTML = (d.response||d.error||'').replace(/\n/g,'<br/>'); });
 }
@@ -3367,7 +3382,7 @@ function addCrmContactToRoute(id, isTeam, teamCompany, teamAddress, teamCity, te
 
   if (!p) { showToast('Contact not found'); return; }
   if (!p.address) { showToast(p.company + ' has no address — cannot add to route'); return; }
-  if (stops.length >= 10) { showToast('Route full (10 stops max)'); return; }
+  if (stops.length >= 20) { showToast('Route full (20 stops max)'); return; }
   if (stops.some(function(s){ return s.company === p.company; })) {
     showToast(p.company + ' is already in route'); return;
   }
@@ -3443,7 +3458,7 @@ function addCityToRoute(cityName) {
   var full = false;
 
   cityContacts.forEach(function(p) {
-    if (stops.length >= 10) { full = true; return; }
+    if (stops.length >= 20) { full = true; return; }
     if (stops.some(function(s){ return s.company === p.company; })) { skipped++; return; }
     stops.push({
       id: p.id,
@@ -3796,9 +3811,30 @@ function runCmd() {
   var resp = document.getElementById('cmd-resp');
   resp.className = 'ai-resp vis';
   resp.innerHTML = '<div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>';
-  fetch('/api/ai/command', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({prompt:prompt}) })
+  // Inject live CRM context so AI gives account-specific answers
+  var crmContext = buildCrmContext();
+  fetch('/api/ai/command', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({prompt:prompt, crm_context:crmContext}) })
     .then(function(r) { return r.json(); })
     .then(function(d) { resp.innerHTML = (d.response||d.error||'').replace(/\n/g,'<br/>'); });
+}
+
+// Build a compact CRM snapshot to inject into AI queries
+function buildCrmContext() {
+  var ctx = {};
+  var ud = window.__userData || {};
+  ctx.rep = ud.name || 'Unknown Rep';
+  ctx.territory = ud.territory || 'Southeast GA / North FL';
+  ctx.top_prospects = (window.allProspects || []).slice(0,15).map(function(p) {
+    return { company:p.company, category:p.category, city:p.city, status:p.status, priority:p.priority, products:p.products||null, notes:(p.notes||'').slice(0,80)||null };
+  });
+  ctx.recent_quotes = (window.allQuotes || []).slice(0,8).map(function(q) {
+    return { account:q.account_name, status:q.status, amount:q.amount, products:q.products };
+  });
+  var today = new Date().toISOString().split('T')[0];
+  ctx.follow_ups_due = (window.allProspects || []).filter(function(p) {
+    return p.next_followup && p.next_followup.split('T')[0] <= today && p.status !== 'Won';
+  }).map(function(p) { return p.company + ' (' + (p.city||'') + ')'; });
+  return ctx;
 }
 
 function runOutreach() {
@@ -6059,7 +6095,7 @@ window.addToRoute = function(idx, evt) {
   if (!lead) return;
   if (!lead.address) { showToast('No address for this lead'); return; }
   var stops = window._routeStops || [];
-  if (stops.length >= 10) { showToast('Route full (10 stops max)'); return; }
+  if (stops.length >= 20) { showToast('Route full (20 stops max)'); return; }
   if (stops.some(function(s){ return s.company === lead.company; })) { showToast('Already in route'); return; }
   lead._leadIdx = idx;  // store original index for click-through
   stops.push(lead);
@@ -6382,7 +6418,7 @@ window.openRouteInMaps = function(provider) {
   var stops = window._routeStops || [];
   if (!stops.length) { showToast('No stops in route'); return; }
 
-  var addresses = stops.map(function(s) { return s.address || s.company; }).filter(Boolean).slice(0, 10);
+  var addresses = stops.map(function(s) { return s.address || s.company; }).filter(Boolean).slice(0, 20);
 
   // Auto-detect: use Apple Maps on iOS/macOS, Google elsewhere
   if (!provider) {
