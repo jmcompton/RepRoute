@@ -102,13 +102,24 @@ router.get('/:id', async (req, res) => {
 // GET /api/quotes/debug-reps — show all distinct rep_name values in DB
 router.get('/debug-reps', async (req, res) => {
   try {
+    // Show actual user names via join (rep_name is derived from users table, not a direct column)
     const result = await pool.query(
-      `SELECT COALESCE(rep_name, '(NULL)') as rep_name, COUNT(*) as count
-       FROM quotes
-       GROUP BY rep_name
+      `SELECT COALESCE(u.name, 'Unknown (user_id=' || q.user_id::text || ')') as rep_name,
+              COUNT(*) as count,
+              q.user_id
+       FROM quotes q
+       LEFT JOIN users u ON q.user_id = u.id
+       GROUP BY u.name, q.user_id
        ORDER BY count DESC`
     );
-    res.json({ reps: result.rows, total: result.rows.reduce((s,r) => s + parseInt(r.count), 0) });
+    // Also list all users for reference
+    const users = await pool.query(`SELECT id, name, email FROM users ORDER BY name`);
+    res.json({
+      reps: result.rows,
+      all_users: users.rows,
+      total: result.rows.reduce((s,r) => s + parseInt(r.count), 0),
+      note: 'rep_name is derived from users.name via user_id JOIN — update user_id to change rep'
+    });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -154,25 +165,67 @@ router.post('/fix-rep', async (req, res) => {
   }
 });
 
-// POST /api/quotes/force-rep-update — nuclear option: update ALL 46 quotes to Ray Breedlove
-// regardless of current rep_name value (admin only, no dry run)
+// POST /api/quotes/force-rep-update — reassign all quotes from one rep to another
+// Looks up user IDs by name and updates user_id on all matching quotes
 router.post('/force-rep-update', async (req, res) => {
   try {
-    const targetRep = ((req.body && req.body.rep) || 'Ray Breedlove').trim();
-    // Only update records that are NOT already the target rep
+    const fromName = ((req.body && req.body.from) || 'Sean Conroy').trim();
+    const toName   = ((req.body && req.body.rep)  || 'Ray Breedlove').trim();
+
+    // Look up the target user ID by name
+    const toUserResult = await pool.query(
+      `SELECT id, name FROM users WHERE LOWER(TRIM(name)) = LOWER($1) LIMIT 1`,
+      [toName]
+    );
+
+    if (toUserResult.rows.length === 0) {
+      // If target user not found, try partial match
+      const partialResult = await pool.query(
+        `SELECT id, name FROM users WHERE LOWER(name) LIKE $1 LIMIT 1`,
+        ['%' + toName.toLowerCase().split(' ')[0] + '%']
+      );
+      if (partialResult.rows.length === 0) {
+        return res.json({
+          success: false,
+          error: 'Target rep "' + toName + '" not found in users table',
+          hint: 'Run GET /api/quotes/debug-reps to see available users'
+        });
+      }
+      toUserResult.rows = partialResult.rows;
+    }
+
+    const toUserId = toUserResult.rows[0].id;
+    const foundToName = toUserResult.rows[0].name;
+    console.log('[force-rep-update] Target user:', foundToName, 'id:', toUserId);
+
+    // Count quotes currently assigned to different reps
+    const countResult = await pool.query(
+      `SELECT u.name, COUNT(*) as count
+       FROM quotes q
+       LEFT JOIN users u ON q.user_id = u.id
+       WHERE LOWER(TRIM(COALESCE(u.name,''))) != LOWER($1)
+       GROUP BY u.name`,
+      [toName]
+    );
+    console.log('[force-rep-update] Quotes by other reps:', JSON.stringify(countResult.rows));
+
+    // Update all quotes NOT already assigned to the target rep
     const result = await pool.query(
       `UPDATE quotes
-         SET rep_name = $1, updated_at = NOW()
-       WHERE TRIM(COALESCE(rep_name,'')) != $1
-       RETURNING id, quote_number, account_name, rep_name`,
-      [targetRep]
+         SET user_id = $1, updated_at = NOW()
+       WHERE user_id != $1
+       RETURNING id, quote_number, account_name, user_id`,
+      [toUserId]
     );
-    console.log('[force-rep-update] Updated', result.rowCount, 'quotes to', targetRep);
+
+    console.log('[force-rep-update] Updated', result.rowCount, 'quotes to user_id', toUserId, '(' + foundToName + ')');
     res.json({
       success: true,
       updated: result.rowCount,
-      message: `Force-updated ${result.rowCount} quotes to "${targetRep}"`,
-      quotes: result.rows.map(r => ({ id: r.id, account: r.account_name, old_rep: r.rep_name }))
+      to_user: foundToName,
+      to_user_id: toUserId,
+      previous_reps: countResult.rows,
+      message: 'Force-updated ' + result.rowCount + ' quotes to "' + foundToName + '"'
     });
   } catch (e) {
     console.error('[force-rep-update] error:', e.message);
