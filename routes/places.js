@@ -1055,390 +1055,528 @@ function hasAny(name, signals) {
   return signals.some(sig => name.includes(sig));
 }
 
-function classifyRecord(companyName, baseCategory) {
-  const n = (companyName || '').toLowerCase().trim();
-  const base = (baseCategory || '').toLowerCase();
+// ════════════════════════════════════════════════════════════════════════════
+//  BULK INGESTION ENGINE v2
+//  Tiered, confidence-scored, deduplicated CRM intelligence pipeline
+// ════════════════════════════════════════════════════════════════════════════
 
-  // ── Ecosystem context flags ───────────────────────────────────────────
-  const isRoofCtx  = base.includes('roof');
-  const isDeckCtx  = base.includes('deck');
-  const isSideCtx  = base.includes('siding');
-  const isWinCtx   = base.includes('window') || base.includes('door');
+// ── Tier definitions ────────────────────────────────────────────────────────
+const SOURCE_TIERS = {
+  TIER1: 1, // Manufacturer "Where to Buy" / official dealer locators
+  TIER2: 2, // Industry association lists, verified distributor databases
+  TIER3: 3, // Google Places (filtered)
+  TIER4: 4  // General web / low-confidence fallback
+};
 
-  // ── Step 1: Named manufacturer brand signals (ecosystem-aware) ────────
-  if (hasAny(n, ROOFING_MANUFACTURER_SIGNALS)) {
-    const isDist = hasAny(n, DISTRIBUTOR_STRONG) || hasAny(n, ROOFING_DISTRIBUTOR_SIGNALS);
-    return isDist ? 'Roofing Distributor' : 'Roofing Contractor';
-  }
-  if (hasAny(n, DECKING_MANUFACTURER_SIGNALS)) {
-    const isDist = hasAny(n, DISTRIBUTOR_STRONG) || hasAny(n, DECKING_DISTRIBUTOR_SIGNALS);
-    return isDist ? 'Decking Distributor' : 'Decking Contractor';
-  }
+// ── Classification signals ─────────────────────────────────────────────────
+const CONTRACTOR_SIGNALS = [
+  'roofing contractor','roofing company','roofing co','roofer','roofing services',
+  'roofing & sheet','commercial roofing','residential roofing','roof repair',
+  'decking contractor','deck builder','deck builder','custom decks','deck construction',
+  'decks and patios','outdoor living','composite decking',
+  'siding contractor','siding company','siding & windows','siding installers',
+  'window installer','window company','window & door','door installer',
+  'construction company','general contractor','remodeling','home improvement',
+  'exteriors','exterior contractor','cladding'
+];
+const DISTRIBUTOR_SIGNALS = [
+  'supply','supplies','distribution','distributing','distributor','distributors',
+  'wholesale','wholesaler','building materials','lumber','builders supply',
+  'roofing supply','deck supply','siding supply','window supply','door supply',
+  'material yard','dealer','dealers','building center','pro dealer',
+  '84 lumber','abc supply','beacon roofing','gulfeagle','ply gem',
+  'builders firstsource','us lbm','carter lumber','mccoy\'s','sutherland',
+  'hd supply','wesco','hajoca','re-michel','famco'
+];
+const RETAIL_EXCLUSIONS = [
+  'home depot','lowe\'s','lowes','menards','ace hardware','true value',
+  'walmart','costco','amazon','wayfair','big box'
+];
+const MANUFACTURER_EXCLUSIONS = [
+  'manufacturing','manufacturer','mfg','fabricat','factory','industrial',
+  'raw material','steel mill','chemical plant'
+];
+const RESIDENTIAL_EXCLUSIONS = [
+  'residential only','homeowner','diy','do-it-yourself','consumer grade'
+];
 
-  // ── Step 2: Named distributor network brands ──────────────────────────
-  if (hasAny(n, ROOFING_DISTRIBUTOR_SIGNALS))  return 'Roofing Distributor';
-  if (hasAny(n, DECKING_DISTRIBUTOR_SIGNALS))  return 'Decking Distributor';
+// ── Query expansion engine ──────────────────────────────────────────────────
+function expandQuery(rawQuery, territory) {
+  const q = rawQuery.toLowerCase().trim();
+  const loc = territory || '';
+  const expansions = [];
 
-  // ── Step 3: HIGH-CONFIDENCE contractor signals — check BEFORE weak distributor ──
-  // "Smith Roofing Company LLC" should never be classified as distributor
-  if (hasAny(n, CONTRACTOR_STRONG)) {
-    if (isRoofCtx)  return 'Roofing Contractor';
-    if (isDeckCtx)  return 'Decking Contractor';
-    if (isSideCtx)  return 'Siding Contractor';
-    if (isWinCtx)   return 'Window & Door Installer';
-    return baseCategory;
-  }
+  // Always include original
+  expansions.push(rawQuery);
 
-  // ── Step 4: HIGH-CONFIDENCE distributor signals ───────────────────────
-  if (hasAny(n, DISTRIBUTOR_STRONG)) {
-    if (isRoofCtx)  return 'Roofing Distributor';
-    if (isDeckCtx)  return 'Decking Distributor';
-    if (isSideCtx)  return 'Siding Distributor';
-    if (isWinCtx)   return 'Window & Door Distributor';
-    return baseCategory;
-  }
+  // Detect brand intent
+  const brands = {
+    trex: ['Trex authorized dealers', 'Trex decking suppliers', 'lumber yards Trex', 'decking distributors Trex', 'composite decking dealers'],
+    shurtape: ['ShurTape flashing tape dealers', 'ShurTape distributors', 'building tape suppliers', 'construction tape dealers'],
+    'alum-a-pole': ['Alum-A-Pole scaffolding dealers', 'pump jack scaffolding suppliers', 'scaffolding equipment dealers', 'tool supply dealers scaffolding'],
+    alumapole: ['Alum-A-Pole scaffolding dealers', 'pump jack scaffolding suppliers', 'scaffolding tool supply'],
+    boss: ['Soudal BOSS sealant distributors', 'construction sealant dealers', 'roofing sealant distributors'],
+    soudal: ['Soudal sealant distributors', 'construction adhesive dealers', 'roofing supply sealants'],
+    fortress: ['Fortress steel framing dealers', 'steel railing dealers', 'deck framing suppliers']
+  };
 
-  // ── Step 5: Ecosystem-specific name patterns (e.g. "Atlanta Roofing") ─
-  if (isRoofCtx) {
-    if (n.includes('roof')) {
-      // "XYZ Roofing Supply / Products / Materials" → distributor
-      if (n.includes('supply') || n.includes('wholesale') || n.includes('material')) return 'Roofing Distributor';
-      // "XYZ Roofing" alone → contractor (no supply signal)
-      return 'Roofing Contractor';
+  for (const [brand, variants] of Object.entries(brands)) {
+    if (q.includes(brand)) {
+      variants.forEach(v => expansions.push(loc ? `${v} ${loc}` : v));
+      break;
     }
-    // In roofing context, weak contractor signals lean contractor
-    if (hasAny(n, CONTRACTOR_WEAK)) return 'Roofing Contractor';
-    if (hasAny(n, DISTRIBUTOR_WEAK)) return 'Roofing Distributor';
-    return baseCategory;
   }
 
-  if (isDeckCtx) {
-    if (n.includes('deck') || n.includes('outdoor living') || n.includes('patio')) {
-      if (n.includes('supply') || n.includes('wholesale') || n.includes('material')) return 'Decking Distributor';
-      if (n.includes('build') || n.includes('install') || n.includes('design'))      return 'Decking Contractor';
+  // Detect category intent and add variations
+  const catExpansions = {
+    'roof': [
+      `roofing distributors ${loc}`, `roofing supply ${loc}`,
+      `commercial roofing contractors ${loc}`, `roofing materials dealer ${loc}`
+    ],
+    'deck': [
+      `decking distributors ${loc}`, `deck supply ${loc}`,
+      `composite decking dealers ${loc}`, `lumber yard deck supplies ${loc}`
+    ],
+    'sid': [
+      `siding distributors ${loc}`, `siding supply ${loc}`,
+      `siding contractors ${loc}`, `building materials siding ${loc}`
+    ],
+    'window': [
+      `window distributors ${loc}`, `window dealers ${loc}`,
+      `window and door installers ${loc}`, `door distributors ${loc}`
+    ],
+    'lumber': [
+      `lumber yards ${loc}`, `building supply dealers ${loc}`,
+      `pro dealer lumber ${loc}`, `builders supply ${loc}`
+    ]
+  };
+
+  for (const [key, variants] of Object.entries(catExpansions)) {
+    if (q.includes(key)) {
+      variants.forEach(v => { if (!expansions.includes(v)) expansions.push(v); });
     }
-    if (hasAny(n, CONTRACTOR_WEAK)) return 'Decking Contractor';
-    if (hasAny(n, DISTRIBUTOR_WEAK)) return 'Decking Distributor';
-    return baseCategory;
   }
 
-  if (isSideCtx) {
-    if (hasAny(n, CONTRACTOR_WEAK)) return 'Siding Contractor';
-    if (hasAny(n, DISTRIBUTOR_WEAK)) return 'Siding Distributor';
-    return baseCategory;
-  }
-
-  if (isWinCtx) {
-    if (n.includes('supply') || n.includes('wholesale') || n.includes('distribut') || hasAny(n, DISTRIBUTOR_WEAK)) {
-      return 'Window & Door Distributor';
-    }
-    if (n.includes('install') || hasAny(n, CONTRACTOR_WEAK)) return 'Window & Door Installer';
-    return baseCategory;
-  }
-
-  // ── Step 6: Absolute fallback — keep base category ────────────────────
-  return baseCategory;
+  // De-dupe and cap at 6 queries
+  return [...new Set(expansions)].slice(0, 6);
 }
 
-const BULK_DISTRIBUTOR_CATS = new Set([
-  'Roofing Distributor', 'Decking Distributor', 'Siding Distributor', 'Window & Door Distributor'
-]);
-function resolveBulkCompanyType(cat) {
-  if (BULK_DISTRIBUTOR_CATS.has(cat)) return 'Distributor';
-  const lower = (cat || '').toLowerCase();
-  if (lower.includes('distributor') || lower.includes('supply') || lower.includes('dealer') ||
-      lower.includes('wholesale') || lower.includes('lumber')) return 'Distributor';
-  return 'Contractor';
+// ── Pre-ingestion classifier ────────────────────────────────────────────────
+function classifyAndFilter(record) {
+  const name    = (record.company || '').toLowerCase();
+  const cats    = (record.category || '').toLowerCase();
+  const types   = (record.types || []).map(t => t.toLowerCase());
+  const website = (record.website || '').toLowerCase();
+  const allText = `${name} ${cats} ${types.join(' ')} ${website}`;
+
+  // Hard exclusions first
+  if (RETAIL_EXCLUSIONS.some(ex  => allText.includes(ex)))       return null;
+  if (MANUFACTURER_EXCLUSIONS.some(ex => allText.includes(ex)))  return null;
+  if (RESIDENTIAL_EXCLUSIONS.some(ex => allText.includes(ex)))   return null;
+  // Garage door exclusion (per standing rule)
+  if (/garage|overhead door/i.test(name))                        return null;
+  // Painting contractor exclusion (Alum-A-Pole rule)
+  if (/paint(ing)?\s*(contractor|company|co\b|services)/i.test(name)) return null;
+
+  // Determine company_type and category label
+  const isDistributor = DISTRIBUTOR_SIGNALS.some(s => allText.includes(s));
+  const isContractor  = CONTRACTOR_SIGNALS.some(s => allText.includes(s));
+
+  let company_type = 'Unknown';
+  let category_label = record.category || 'Unknown';
+
+  if (isDistributor && !isContractor) {
+    company_type = 'Distributor';
+    // Refine distributor category
+    if (/roof/i.test(allText))          category_label = 'Roofing Distributor';
+    else if (/deck|composite/i.test(allText)) category_label = 'Decking Distributor';
+    else if (/sid/i.test(allText))      category_label = 'Siding Distributor';
+    else if (/window|door/i.test(allText)) category_label = 'Window & Door Distributor';
+    else                                category_label = 'Building Materials Distributor';
+  } else if (isContractor) {
+    company_type = 'Contractor';
+    if (/roof/i.test(allText))          category_label = 'Roofing Contractor';
+    else if (/deck/i.test(allText))     category_label = 'Decking Contractor';
+    else if (/sid/i.test(allText))      category_label = 'Siding Contractor';
+    else if (/window|door/i.test(allText)) category_label = 'Window & Door Installer';
+    else                                category_label = 'General Contractor';
+  } else if (isDistributor) {
+    company_type = 'Distributor';
+    category_label = record.category || 'Building Materials Distributor';
+  } else {
+    // Ambiguous — keep with lower confidence
+    company_type = 'Unknown';
+  }
+
+  return { company_type, category_label };
 }
 
+// ── Confidence scoring engine ───────────────────────────────────────────────
+function scoreConfidence(record, sourceTier) {
+  let score = 0;
+
+  // Source tier bonus (max 30)
+  const tierBonus = { 1: 30, 2: 22, 3: 15, 4: 5 };
+  score += tierBonus[sourceTier] || 10;
+
+  // Has phone (20 pts)
+  if (record.phone && record.phone.replace(/\D/g,'').length >= 10) score += 20;
+
+  // Has website (15 pts)
+  if (record.website && record.website.length > 5) score += 15;
+
+  // Has full address (15 pts)
+  if (record.address && record.address.length > 10) score += 15;
+
+  // Has Google Place ID (10 pts — verified Google listing)
+  if (record.place_id) score += 10;
+
+  // Has reviews/rating (up to 10 pts)
+  if (record.rating >= 4.0) score += 10;
+  else if (record.rating >= 3.0) score += 5;
+
+  // Name quality (not too generic, not too short)
+  const name = record.company || '';
+  if (name.length >= 5 && name.split(' ').length >= 2) score += 5;
+
+  // Penalty: no contact info at all
+  if (!record.phone && !record.website && !record.email) score -= 15;
+
+  // Penalty: very generic name
+  if (/^(the|a|an)\s/i.test(name) && name.length < 15) score -= 10;
+
+  return Math.max(0, Math.min(100, score));
+}
+
+// ── Deduplication (team-wide, multi-signal) ─────────────────────────────────
+function normName(n)  { return (n||'').toLowerCase().replace(/[^a-z0-9]/g,''); }
+function normPhone(p) { return (p||'').replace(/[^0-9]/g,''); }
+function normAddr(a)  { return (a||'').toLowerCase().replace(/[^a-z0-9\s]/g,'').trim(); }
+function normDomain(w) {
+  return (w||'').toLowerCase()
+    .replace(/^https?:\/\//,'').replace(/^www\./,'')
+    .split('/')[0].split('?')[0];
+}
+
+function buildExistingIndex(rows) {
+  const byPlaceId  = new Set();
+  const byPhone    = new Set();
+  const byDomain   = new Set();
+  const records    = [];
+
+  for (const r of rows) {
+    if (r.google_place_id) byPlaceId.add(r.google_place_id);
+    const np = normPhone(r.phone);
+    if (np.length >= 10) byPhone.add(np);
+    const nd = normDomain(r.website);
+    if (nd.length > 4 && !nd.includes('google')) byDomain.add(nd);
+    records.push({
+      nameNorm:   normName(r.company),
+      addrNorm:   normAddr(r.address),
+      phoneNorm:  np,
+      domainNorm: nd
+    });
+  }
+  return { byPlaceId, byPhone, byDomain, records };
+}
+
+function isDuplicate(rec, index) {
+  // Hard matches — definitive
+  if (rec.place_id && index.byPlaceId.has(rec.place_id)) return { dup: true, reason: 'place_id' };
+
+  const np = normPhone(rec.phone);
+  if (np.length >= 10 && index.byPhone.has(np)) return { dup: true, reason: 'phone' };
+
+  const nd = normDomain(rec.website);
+  if (nd.length > 4 && !nd.includes('google') && index.byDomain.has(nd)) return { dup: true, reason: 'domain' };
+
+  // Scored fuzzy match
+  const recName = normName(rec.company);
+  const recAddr = normAddr(rec.address);
+
+  for (const ex of index.records) {
+    let score = 0;
+    if (recName === ex.nameNorm && recName.length > 3) score += 50;
+    else if (recName.length > 6 && ex.nameNorm.length > 6 &&
+             (recName.includes(ex.nameNorm) || ex.nameNorm.includes(recName))) score += 25;
+
+    if (score > 0 && recAddr.length > 8 && ex.addrNorm.length > 8 && recAddr === ex.addrNorm) score += 40;
+    if (score > 0 && np.length >= 10 && ex.phoneNorm === np) score += 30;
+
+    if (score >= 70) return { dup: true, reason: 'fuzzy', score };
+  }
+
+  return { dup: false };
+}
+
+// ── Google Places search with retry ────────────────────────────────────────
+async function placesSearch(queryText, locationStr, apiKey, excludedIds = new Set()) {
+  const fetch = require('node-fetch');
+  const results = [];
+  const seenIds = new Set(excludedIds);
+  const coordMap = {};
+
+  // Build coordinate bias from territory string
+  const geoMap = {
+    'atlanta': '33.749,-84.388', 'savannah': '32.0809,-81.0912',
+    'brunswick': '31.1499,-81.4915', 'augusta': '33.4735,-82.0105',
+    'macon': '32.8407,-83.6324', 'jacksonville': '30.3322,-81.6557',
+    'gainesville fl': '29.6516,-82.3248', 'valdosta': '30.8327,-83.2785',
+    'tallahassee': '30.4383,-84.2807', 'columbia sc': '34.0007,-81.0348',
+    'charleston sc': '32.7765,-79.9311', 'charlotte': '35.2271,-80.8431',
+    'southeast': '31.5,-83.0', 'georgia': '32.5,-83.5',
+    'north florida': '30.5,-83.5'
+  };
+
+  let locationBias = '31.5,-83.0'; // default SE Georgia
+  for (const [key, coord] of Object.entries(geoMap)) {
+    if ((locationStr||'').toLowerCase().includes(key)) { locationBias = coord; break; }
+    if ((queryText||'').toLowerCase().includes(key))   { locationBias = coord; break; }
+  }
+  const [lat, lng] = locationBias.split(',');
+
+  try {
+    const body = {
+      textQuery: queryText,
+      maxResultCount: 20,
+      locationBias: {
+        circle: { center: { latitude: parseFloat(lat), longitude: parseFloat(lng) }, radius: 80000 }
+      }
+    };
+    const resp = await fetch(
+      'https://places.googleapis.com/v1/places:searchText',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': apiKey,
+          'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.types,places.businessStatus'
+        },
+        body: JSON.stringify(body)
+      }
+    );
+    const data = await resp.json();
+    for (const p of (data.places || [])) {
+      if (p.businessStatus === 'CLOSED_PERMANENTLY') continue;
+      if (seenIds.has(p.id)) continue;
+      seenIds.add(p.id);
+      const rec = {
+        place_id: p.id,
+        company:  (p.displayName||{}).text || '',
+        address:  p.formattedAddress || '',
+        phone:    p.nationalPhoneNumber || '',
+        website:  p.websiteUri || '',
+        rating:   p.rating || 0,
+        types:    p.types || [],
+        category: '',
+        source_tier: SOURCE_TIERS.TIER3
+      };
+      // Extract city/state from address
+      const addrParts = rec.address.split(',');
+      rec.city  = addrParts.length >= 3 ? addrParts[addrParts.length-3].trim() : '';
+      rec.state = addrParts.length >= 2 ? addrParts[addrParts.length-2].trim().replace(/\s+\d{5}.*/,'') : '';
+      results.push(rec);
+    }
+  } catch (e) {
+    console.error('[placesSearch] error for query:', queryText, e.message);
+  }
+
+  return results;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  MAIN BULK INGEST ROUTE
+// ══════════════════════════════════════════════════════════════════════════════
 router.post('/bulk-ingest', async (req, res) => {
   const uid = req.session.user.id;
   const { query, territory, max_records } = req.body;
 
   if (!query || !query.trim()) {
-    return res.status(400).json({ error: 'Query is required (e.g. "Trex decking dealers Atlanta")' });
+    return res.status(400).json({ error: 'Query is required (e.g. "roofing distributors Atlanta")' });
   }
 
-  const maxRecs = Math.min(parseInt(max_records) || 50, 100);
-  const { category, territory: detectedTerritory, mfrAssoc, querySet } = expandBulkQuery(query);
-  const loc = territory || detectedTerritory || 'Atlanta';
-  const cities = getCities(loc);
-
-  const isWindowDoor = category.toLowerCase().includes('window') || category.toLowerCase().includes('door');
-
-  console.log('[BulkIngest] Query:', query, '| Category:', category, '| Territory:', loc, '| Max:', maxRecs);
+  const maxRecs = Math.min(parseInt(max_records) || 40, 80);
+  const apiKey  = process.env.GOOGLE_PLACES_API_KEY;
 
   try {
-    // ── Phase 1: Collect raw results ──────────────────────────────
-    const rawMap = new Map(); // place_id → raw place data
+    console.log(`[BulkIngest v2] Query="${query}" territory="${territory}" max=${maxRecs}`);
 
-    const jobs = querySet.map((q, i) => ({
-      query: q + ' ' + cities[i % cities.length],
-      label: q
-    }));
+    // ── Phase 1: Expand query into multiple search variations ──────────────
+    const expandedQueries = expandQuery(query, territory);
+    console.log('[BulkIngest v2] Expanded queries:', expandedQueries);
 
-    const BATCH = 4;
-    for (let i = 0; i < jobs.length && rawMap.size < maxRecs * 2; i += BATCH) {
-      const batch = jobs.slice(i, i + BATCH);
-      const results = await Promise.all(batch.map(async ({ query: bq, label }) => {
-        try {
-          const data = await httpsPost(
-            'places.googleapis.com', '/v1/places:searchText',
-            {
-              'Content-Type': 'application/json',
-              'X-Goog-Api-Key': PLACES_KEY,
-              'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.businessStatus,places.types,places.regularOpeningHours'
-            },
-            { textQuery: bq, maxResultCount: 20, rankPreference: 'RELEVANCE' }
-          );
-          return { label, places: data.places || [] };
-        } catch(e) {
-          console.error('[BulkIngest] Query error:', label, e.message);
-          return { label, places: [] };
-        }
-      }));
+    // ── Phase 2: Fetch from Google Places across all expanded queries ───────
+    const rawResults = [];
+    const seenPlaceIds = new Set();
 
-      for (const { label, places } of results) {
-        for (const place of places) {
-          if (rawMap.has(place.id)) continue;
-          rawMap.set(place.id, { place, label });
+    for (const eq of expandedQueries) {
+      const batch = await placesSearch(eq, territory, apiKey, seenPlaceIds);
+      for (const r of batch) {
+        if (!seenPlaceIds.has(r.place_id)) {
+          seenPlaceIds.add(r.place_id);
+          rawResults.push(r);
         }
       }
+      if (rawResults.length >= maxRecs * 3) break; // enough candidates
     }
 
-    console.log('[BulkIngest] Raw results collected:', rawMap.size);
+    console.log(`[BulkIngest v2] Raw results: ${rawResults.length} from ${expandedQueries.length} queries`);
 
-    // ── Phase 2: Clean + score ────────────────────────────────────
-    const cleaned = [];
-    for (const [placeId, { place, label }] of rawMap) {
-      if (place.businessStatus === 'CLOSED_PERMANENTLY') continue;
-      if (place.businessStatus === 'CLOSED_TEMPORARILY') continue;
-      if (hasBadPlaceType(place.types || [])) continue;
-
-      const name = place.displayName?.text || '';
-      const addr = place.formattedAddress || '';
-
-      if (isBadLead(name, addr, label)) continue;
-      if (!place.nationalPhoneNumber && !place.websiteUri) continue; // need at least one contact signal
-
-      if ((category || '').toLowerCase().includes('alum') && alumPoleBlocked(name)) continue;
-      if (isWindowDoor && garageDoorBlocked(name)) continue;
-
-      const reach = getReachabilityScore(place, name);
-      if (reach.tier === 'LOW') continue; // keep MEDIUM + HIGH only
-
-      const addrParts = addr.split(',');
-
-      const recCategory = classifyRecord(name, category);
-      cleaned.push({
-        place_id: placeId,
-        company: name,
-        category: recCategory,
-        city: addrParts[1]?.trim() || '',
-        state: addrParts[2]?.trim().split(' ')[0] || '',
-        phone: place.nationalPhoneNumber || null,
-        email: null,
-        website: place.websiteUri || null,
-        address: addr,
-        source: 'Bulk Ingestion',
-        data_status: 'Unvetted',
-        manufacturer_assoc: mfrAssoc || null,
-        reachabilityScore: reach.score,
-        reachabilityTier: reach.tier,
-      });
+    // ── Phase 3: Pre-ingestion filtering + classification ──────────────────
+    const classified = [];
+    for (const rec of rawResults) {
+      const cls = classifyAndFilter(rec);
+      if (!cls) {
+        console.log(`[BulkIngest v2] EXCLUDED: ${rec.company} (failed pre-filter)`);
+        continue;
+      }
+      rec.company_type   = cls.company_type;
+      rec.category       = cls.category_label;
+      classified.push(rec);
     }
 
-    // Sort by reachability score descending, take top maxRecs
-    cleaned.sort((a, b) => b.reachabilityScore - a.reachabilityScore);
-    const topRecords = cleaned.slice(0, maxRecs);
+    // ── Phase 4: Confidence scoring — discard < 50 ────────────────────────
+    const scored = [];
+    for (const rec of classified) {
+      const conf = scoreConfidence(rec, rec.source_tier || SOURCE_TIERS.TIER3);
+      if (conf < 50) {
+        console.log(`[BulkIngest v2] DISCARDED (low conf ${conf}): ${rec.company}`);
+        continue;
+      }
+      rec.confidence_score = conf;
+      rec.data_status = conf >= 90 ? 'Verified' : conf >= 70 ? 'Likely Valid' : 'Unvetted';
+      scored.push(rec);
+    }
 
-    console.log('[BulkIngest] Cleaned records:', topRecords.length);
+    // Sort by confidence descending
+    scored.sort((a, b) => b.confidence_score - a.confidence_score);
 
-    // ── Phase 3: Confidence-scored deduplication ────────────────────────
-    // A record is only skipped if it scores ≥ DUP_THRESHOLD.
-    // This prevents false positives from matching only on company name
-    // when roofing and decking companies can share generic names.
-    const DUP_THRESHOLD = 80; // points needed to flag as duplicate
-
-    function normName(n) { return (n||'').toLowerCase().replace(/[^a-z0-9]/g,''); }
-    function normPhone(p) { return (p||'').replace(/[^0-9]/g,''); }
-    function normAddr(a)  { return (a||'').toLowerCase().replace(/[^a-z0-9]/g,''); }
-
-    // Pull team-wide existing data for scoring — prevents same company being
-    // imported by two reps and showing as duplicates in team view
+    // ── Phase 5: Team-wide deduplication ──────────────────────────────────
     const existingRows = await pool.query(
-      `SELECT google_place_id, company, city, phone, address, website, category
+      `SELECT google_place_id, company, address, phone, website, category
        FROM prospects`
     );
+    const dupIndex = buildExistingIndex(existingRows.rows);
 
-    // Fast-path Sets for definitive single-field matches
-    const existingByPlaceId  = new Set();
-    const existingByPhone    = new Set();
+    // Also build session-level dedup
+    const sessionSeen = new Set();
 
-    // Lookup structure for scored matching (name+city or address)
-    const existingRecords = [];
+    const toInsert   = [];
+    const skipped    = [];
 
-    for (const r of existingRows.rows) {
-      if (r.google_place_id) existingByPlaceId.add(r.google_place_id);
-      const np = normPhone(r.phone);
-      if (np && np.length >= 10) existingByPhone.add(np);
-      existingRecords.push({
-        nameNorm:  normName(r.company),
-        cityNorm:  (r.city||'').toLowerCase().trim(),
-        addrNorm:  normAddr(r.address),
-        phoneNorm: np,
-        category:  (r.category||'').toLowerCase(),
-      });
-    }
-
-    // Score a candidate record against all existing records
-    function getDupScore(rec) {
-      const recName  = normName(rec.company);
-      const recCity  = (rec.city||'').toLowerCase().trim();
-      const recAddr  = normAddr(rec.address);
-      const recPhone = normPhone(rec.phone||'');
-      const recCat   = (rec.category||'').toLowerCase();
-
-      let bestScore = 0;
-      for (const ex of existingRecords) {
-        let score = 0;
-
-        // Name match (up to 40 pts) — partial credit for close-but-not-identical
-        if (recName === ex.nameNorm && recName.length > 3) {
-          score += 40;
-        } else if (recName.length > 5 && ex.nameNorm.length > 5 &&
-                   (recName.includes(ex.nameNorm) || ex.nameNorm.includes(recName))) {
-          score += 20; // substring match — partial
-        }
-
-        // City match (up to 20 pts) — only matters WITH name match
-        if (score > 0 && recCity && ex.cityNorm && recCity === ex.cityNorm) {
-          score += 20;
-        }
-
-        // Address match (up to 30 pts) — strong signal
-        if (recAddr.length > 8 && ex.addrNorm.length > 8 && recAddr === ex.addrNorm) {
-          score += 30;
-        }
-
-        // Phone match (up to 40 pts) — very strong signal
-        if (recPhone && recPhone.length >= 10 && ex.phoneNorm === recPhone) {
-          score += 40;
-        }
-
-        // Cross-category PENALTY — same name in different ecosystem = NOT a dup
-        // e.g. "Atlanta Roofing Supply" (Roofing) vs "Atlanta Roofing Supply" (Decking) should NOT merge
-        if (score >= 40 && recCat && ex.category) {
-          const recIsRoof  = recCat.includes('roof');
-          const recIsDeck  = recCat.includes('deck');
-          const exIsRoof   = ex.category.includes('roof');
-          const exIsDeck   = ex.category.includes('deck');
-          const crossEco   = (recIsRoof && exIsDeck) || (recIsDeck && exIsRoof);
-          if (crossEco) score = Math.max(0, score - 60); // heavy penalty
-        }
-
-        if (score > bestScore) bestScore = score;
-        if (bestScore >= DUP_THRESHOLD) break; // early exit once confirmed dup
+    for (const rec of scored) {
+      // Session dedup
+      const sessionKey = normName(rec.company) + '|' + (rec.city||'').toLowerCase();
+      if (sessionSeen.has(sessionKey)) {
+        skipped.push({ reason: 'session_dup', company: rec.company });
+        continue;
       }
-      return bestScore;
-    }
+      sessionSeen.add(sessionKey);
 
-    const toInsert = [];
-    const skippedDups = [];
-    const sessionSeenByNameCity = new Set();
-
-    for (const rec of topRecords) {
-      // ── Definitive single-field matches (always skip) ──────────────
-      if (existingByPlaceId.has(rec.place_id)) {
-        skippedDups.push({ reason: 'place_id', company: rec.company });
+      // Team-wide dedup
+      const dupCheck = isDuplicate(rec, dupIndex);
+      if (dupCheck.dup) {
+        skipped.push({ reason: dupCheck.reason, company: rec.company });
         continue;
       }
 
-      const recPhone = normPhone(rec.phone||'');
-      if (recPhone && recPhone.length >= 10 && existingByPhone.has(recPhone)) {
-        skippedDups.push({ reason: 'phone', company: rec.company });
-        continue;
-      }
-
-      // ── Confidence-scored multi-field match ───────────────────────
-      const dupScore = getDupScore(rec);
-      if (dupScore >= DUP_THRESHOLD) {
-        skippedDups.push({ reason: 'scored_dup', score: dupScore, company: rec.company });
-        continue;
-      }
-
-      // ── Within-batch dedup (prevent same company twice in one run) ──
-      const nameCity = normName(rec.company) + '|' + (rec.city||'').toLowerCase();
-      if (sessionSeenByNameCity.has(nameCity)) continue;
-      sessionSeenByNameCity.add(nameCity);
-
+      // Add to insert queue and update index so later records in this batch won't dup it
       toInsert.push(rec);
+      // Update in-memory index to prevent batch-internal dups
+      if (rec.place_id) dupIndex.byPlaceId.add(rec.place_id);
+      const np = normPhone(rec.phone);
+      if (np.length >= 10) dupIndex.byPhone.add(np);
+      const nd = normDomain(rec.website);
+      if (nd.length > 4) dupIndex.byDomain.add(nd);
+
+      if (toInsert.length >= maxRecs) break;
     }
 
-    console.log('[BulkIngest] After dedup:', toInsert.length, 'new records to insert',
-                '| skipped:', skippedDups.length, '(', skippedDups.filter(d=>d.reason==='scored_dup').length, 'scored,',
-                skippedDups.filter(d=>d.reason==='place_id').length, 'placeId,',
-                skippedDups.filter(d=>d.reason==='phone').length, 'phone )');
+    console.log(`[BulkIngest v2] Insert queue: ${toInsert.length} | Skipped: ${skipped.length}`);
 
-    if (toInsert.length === 0) {
-      return res.json({
-        ok: true,
-        imported: 0,
-        skipped_duplicates: topRecords.length,
-        category,
-        territory: loc,
-        message: 'All results already exist in your CRM.'
-      });
-    }
-
-    // ── Phase 4: Bulk insert into CRM ────────────────────────────
-    // company_type resolved per-record using classifyRecord output
+    // ── Phase 6: Bulk insert into CRM ─────────────────────────────────────
     let imported = 0;
+    const importedRecords = [];
+
     for (const rec of toInsert) {
-      // Per-record company_type resolution (not shared top-level)
-      const rec_company_type = resolveBulkCompanyType(rec.category);
       try {
-        await pool.query(
+        const result = await pool.query(
           `INSERT INTO prospects
              (user_id, company, category, company_type, city, state, phone, email,
-              contact, website, products, status, priority, source, google_place_id,
-              address, data_status, manufacturer_assoc, last_activity_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW())
-           ON CONFLICT DO NOTHING`,
+              contact, website, status, priority, source, google_place_id,
+              address, data_status, manufacturer_assoc, confidence_score,
+              source_tier, last_activity_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW())
+           ON CONFLICT DO NOTHING
+           RETURNING id`,
           [
-            uid, rec.company, rec.category, rec_company_type,
-            rec.city, rec.state || 'GA',
-            rec.phone || null, null,
-            null, rec.website || null,
-            null, 'New', rec.reachabilityTier === 'HIGH' ? 'High' : 'Medium',
-            'Bulk Ingestion', rec.place_id,
-            rec.address, 'Unvetted', rec.manufacturer_assoc
+            uid,
+            rec.company,
+            rec.category,
+            rec.company_type,
+            rec.city   || null,
+            rec.state  || null,
+            rec.phone  || null,
+            rec.email  || null,
+            null,
+            rec.website || null,
+            'New',
+            rec.confidence_score >= 80 ? 'High' : rec.confidence_score >= 65 ? 'Medium' : 'Low',
+            'Bulk Ingest v2',
+            rec.place_id || null,
+            rec.address  || null,
+            rec.data_status || 'Unvetted',
+            null,
+            rec.confidence_score,
+            rec.source_tier || 3,
+            null
           ]
         );
-        imported++;
-      } catch(e) {
-        console.error('[BulkIngest] Insert error:', rec.company, e.message);
+        if (result.rows.length > 0) {
+          imported++;
+          importedRecords.push({
+            id: result.rows[0].id,
+            company: rec.company,
+            category: rec.category,
+            company_type: rec.company_type,
+            city: rec.city,
+            confidence: rec.confidence_score,
+            status: rec.data_status
+          });
+        }
+      } catch (insertErr) {
+        console.error('[BulkIngest v2] Insert error for', rec.company, ':', insertErr.message);
       }
     }
 
-    console.log('[BulkIngest] Inserted:', imported, '| Duplicates skipped:', topRecords.length - toInsert.length);
-
-    // Derive display company_type from the category for the response
-    const display_company_type = resolveBulkCompanyType(category);
-    res.json({
+    // ── Phase 7: Return structured summary ─────────────────────────────────
+    const summary = {
       ok: true,
       imported,
-      skipped_duplicates: skippedDups.length,
-      total_found: rawMap.size,
-      category,
-      territory: loc,
-      manufacturer: mfrAssoc || null,
-      company_type: display_company_type,
-      message: `${imported} records imported into your CRM (${display_company_type} / ${category}).`
-    });
+      skipped_duplicates: skipped.length,
+      excluded_filtered: rawResults.length - classified.length,
+      excluded_low_confidence: classified.length - scored.length,
+      queries_run: expandedQueries.length,
+      raw_candidates: rawResults.length,
+      records: importedRecords,
+      breakdown: {
+        distributors: importedRecords.filter(r => r.company_type === 'Distributor').length,
+        contractors:  importedRecords.filter(r => r.company_type === 'Contractor').length,
+        unknown:      importedRecords.filter(r => r.company_type === 'Unknown').length,
+        verified:     importedRecords.filter(r => r.status === 'Verified').length,
+        likely_valid: importedRecords.filter(r => r.status === 'Likely Valid').length,
+        unvetted:     importedRecords.filter(r => r.status === 'Unvetted').length
+      },
+      message: imported === 0
+        ? `No new records found (${skipped.length} duplicates skipped, ${rawResults.length - classified.length} excluded by filters)`
+        : `Imported ${imported} records — ${importedRecords.filter(r=>r.company_type==='Distributor').length} distributors, ${importedRecords.filter(r=>r.company_type==='Contractor').length} contractors`
+    };
 
-  } catch(e) {
-    console.error('[BulkIngest] Fatal error:', e.message);
+    console.log('[BulkIngest v2] Complete:', summary.message);
+    res.json(summary);
+
+  } catch (e) {
+    console.error('[BulkIngest v2] Fatal error:', e.message);
     res.status(500).json({ error: 'Bulk ingestion failed: ' + e.message });
   }
 });
