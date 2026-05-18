@@ -1037,29 +1037,38 @@ window.addEventListener('load', function() {
 
   <!-- AI LEAD FINDER -->
   <div class="page" id="page-bulk">
-  <div style="max-width:720px;margin:0 auto;padding:24px 20px">
+  <div style="max-width:760px;margin:0 auto;padding:24px 20px">
 
     <!-- Header -->
     <div style="margin-bottom:20px">
-      <h2 style="margin:0 0 4px;color:var(--navy);font-size:20px;font-weight:800;letter-spacing:-.3px">Bulk Ingestion Mode</h2>
-      <p style="margin:0;color:var(--text3);font-size:13px">One search. Full territory database. No re-query needed.</p>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div>
+          <h2 style="margin:0 0 4px;color:var(--navy);font-size:20px;font-weight:800;letter-spacing:-.3px">Bulk Ingestion v2</h2>
+          <p style="margin:0;color:var(--text3);font-size:13px">Tiered · Confidence-scored · Deduplicated · Classification-filtered</p>
+        </div>
+        <div style="display:flex;gap:6px">
+          <span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:12px;background:#d1fae5;color:#065f46">50+ score saved</span>
+          <span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:12px;background:#e0f2fe;color:#0369a1">Team dedup</span>
+          <span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:12px;background:#fef3c7;color:#92400e">Auto-classify</span>
+        </div>
+      </div>
     </div>
 
     <!-- Query builder card -->
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px">
-      <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px">Search Query</div>
+      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px">Search Query — Engine auto-expands into multiple targeted variations</div>
 
       <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
         <input id="bulk-query" type="text"
-          placeholder='e.g. "Trex decking dealers Atlanta" or "Carlisle roofing distributors Southeast"'
+          placeholder='e.g. "roofing distributors Atlanta" or "Trex decking dealers Southeast GA"'
           style="flex:1;min-width:240px;padding:10px 14px;border:1px solid var(--border);border-radius:7px;font-size:14px;font-family:inherit;color:var(--navy)"
           onkeydown="if(event.key==='Enter') startBulkIngest()"
         />
         <select id="bulk-max" style="padding:10px 12px;border:1px solid var(--border);border-radius:7px;font-size:13px;font-family:inherit;color:var(--navy);background:#fff">
-          <option value="25">25 records</option>
-          <option value="50" selected>50 records</option>
-          <option value="75">75 records</option>
-          <option value="100">100 records</option>
+          <option value="20">20 records</option>
+          <option value="40" selected>40 records</option>
+          <option value="60">60 records</option>
+          <option value="80">80 records</option>
         </select>
         <button onclick="startBulkIngest()" id="bulk-btn"
           style="padding:10px 22px;background:var(--navy);color:#00FF87;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:.3px;white-space:nowrap">
@@ -1068,30 +1077,51 @@ window.addEventListener('load', function() {
       </div>
 
       <!-- Quick examples -->
-      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Quick examples:</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <button onclick="setBulkQuery('Trex decking dealers Atlanta')" style="padding:4px 10px;background:#f1f5f9;border:1px solid var(--border);border-radius:12px;font-size:11px;cursor:pointer;font-family:inherit;color:var(--navy)">Trex decking dealers Atlanta</button>
-        <button onclick="setBulkQuery('Carlisle roofing distributors Southeast')" style="padding:4px 10px;background:#f1f5f9;border:1px solid var(--border);border-radius:12px;font-size:11px;cursor:pointer;font-family:inherit;color:var(--navy)">Carlisle roofing distributors Southeast</button>
-        <button onclick="setBulkQuery('James Hardie siding contractors Atlanta')" style="padding:4px 10px;background:#f1f5f9;border:1px solid var(--border);border-radius:12px;font-size:11px;cursor:pointer;font-family:inherit;color:var(--navy)">James Hardie siding contractors Atlanta</button>
-        <button onclick="setBulkQuery('Fiberon dealers Georgia')" style="padding:4px 10px;background:#f1f5f9;border:1px solid var(--border);border-radius:12px;font-size:11px;cursor:pointer;font-family:inherit;color:var(--navy)">Fiberon dealers Georgia</button>
-        <button onclick="setBulkQuery('scaffold tool dealer Atlanta')" style="padding:4px 10px;background:#f1f5f9;border:1px solid var(--border);border-radius:12px;font-size:11px;cursor:pointer;font-family:inherit;color:var(--navy)">scaffold tool dealer Atlanta</button>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:6px;font-weight:600">Quick searches:</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        <button onclick="document.getElementById('bulk-query').value=this.textContent" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:5px;background:var(--bg);color:var(--text2);cursor:pointer">roofing distributors Atlanta</button>
+        <button onclick="document.getElementById('bulk-query').value=this.textContent" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:5px;background:var(--bg);color:var(--text2);cursor:pointer">Trex decking dealers Southeast GA</button>
+        <button onclick="document.getElementById('bulk-query').value=this.textContent" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:5px;background:var(--bg);color:var(--text2);cursor:pointer">siding distributors Georgia</button>
+        <button onclick="document.getElementById('bulk-query').value=this.textContent" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:5px;background:var(--bg);color:var(--text2);cursor:pointer">window door distributors Jacksonville</button>
+        <button onclick="document.getElementById('bulk-query').value=this.textContent" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:5px;background:var(--bg);color:var(--text2);cursor:pointer">lumber yard building supply Savannah</button>
+        <button onclick="document.getElementById('bulk-query').value=this.textContent" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:5px;background:var(--bg);color:var(--text2);cursor:pointer">commercial roofing contractors Augusta</button>
       </div>
     </div>
 
-    <!-- Progress / status -->
-    <div id="bulk-progress" style="display:none;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px 16px;margin-bottom:16px">
-      <div style="display:flex;align-items:center;gap:10px">
-        <div id="bulk-spinner" style="width:16px;height:16px;border:2px solid #bbf7d0;border-top-color:#059669;border-radius:50%;animation:spin 0.8s linear infinite"></div>
-        <span id="bulk-progress-text" style="font-size:13px;color:#166534;font-weight:600">Searching...</span>
+    <!-- Status / progress -->
+    <div id="bulk-status" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div id="bulk-spinner" style="width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--navy);border-radius:50%;animation:spin .7s linear infinite"></div>
+        <span id="bulk-status-text" style="font-size:13px;font-weight:600;color:var(--navy)">Initializing...</span>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap" id="bulk-phase-pills"></div>
+    </div>
+
+    <!-- Results summary -->
+    <div id="bulk-results" style="display:none">
+
+      <!-- Stats row -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px" id="bulk-stats-row"></div>
+
+      <!-- Breakdown row -->
+      <div id="bulk-breakdown" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px;display:none">
+        <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Ingestion Breakdown</div>
+        <div id="bulk-breakdown-inner" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+      </div>
+
+      <!-- Records list -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+        <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+          <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px">Imported Records</div>
+          <div id="bulk-record-count" style="font-size:11px;color:var(--text3)"></div>
+        </div>
+        <div id="bulk-record-list" style="max-height:420px;overflow-y:auto"></div>
       </div>
     </div>
 
-    <!-- Result card -->
-    <div id="bulk-result" style="display:none;border-radius:10px;padding:20px;margin-bottom:16px"></div>
-
-    <!-- History log -->
-    <div id="bulk-history" style="display:none">
-      <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">This Session</div>
+    <!-- Session history -->
+    <div style="margin-top:20px">
+      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">This Session</div>
       <div id="bulk-history-list" style="display:flex;flex-direction:column;gap:6px"></div>
     </div>
 
@@ -3254,85 +3284,142 @@ function startBulkIngest() {
   var query = (document.getElementById('bulk-query') || {value:''}).value.trim();
   if (!query) { showToast('Enter a search query first'); return; }
 
-  var maxRecs = parseInt((document.getElementById('bulk-max') || {value:'50'}).value) || 50;
-  var btn = document.getElementById('bulk-btn');
-  var progress = document.getElementById('bulk-progress');
-  var progressText = document.getElementById('bulk-progress-text');
-  var result = document.getElementById('bulk-result');
+  var maxRecs = parseInt((document.getElementById('bulk-max') || {value:'40'}).value) || 40;
+  var btn     = document.getElementById('bulk-btn');
+  var status  = document.getElementById('bulk-status');
+  var results = document.getElementById('bulk-results');
 
-  // UI state: loading
-  if (btn) { btn.disabled = true; btn.textContent = 'Running...'; }
-  if (progress) progress.style.display = 'block';
-  if (progressText) progressText.textContent = 'Searching Google Places for "' + query + '"...';
-  if (result) { result.style.display = 'none'; result.innerHTML = ''; }
+  // Reset UI
+  btn.textContent = 'Running...'; btn.disabled = true;
+  if (status)  { status.style.display = 'block'; }
+  if (results) { results.style.display = 'none'; }
+
+  var statusText  = document.getElementById('bulk-status-text');
+  var phasePills  = document.getElementById('bulk-phase-pills');
+  var spinner     = document.getElementById('bulk-spinner');
+
+  function setPhase(label, done) {
+    if (statusText) statusText.textContent = label;
+    if (phasePills && done) {
+      var pill = document.createElement('span');
+      pill.textContent = done;
+      pill.style.cssText = 'font-size:10px;font-weight:700;padding:3px 8px;border-radius:12px;background:#d1fae5;color:#065f46';
+      phasePills.appendChild(pill);
+    }
+  }
+
+  if (phasePills) phasePills.innerHTML = '';
+  setPhase('Expanding query into targeted variations...');
+
+  var territory = (window.currentTerritory) || '';
 
   fetch('/api/places/bulk-ingest', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query: query, max_records: maxRecs })
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ query: query, territory: territory, max_records: maxRecs })
   })
   .then(function(r) { return r.json(); })
-  .then(function(data) {
-    if (btn) { btn.disabled = false; btn.textContent = 'Run Ingestion'; }
-    if (progress) progress.style.display = 'none';
+  .then(function(d) {
+    btn.textContent = 'Run Ingestion'; btn.disabled = false;
+    if (spinner) spinner.style.display = 'none';
 
-    if (data.error) {
-      if (result) {
-        result.style.display = 'block';
-        result.style.background = '#fef2f2';
-        result.style.border = '1px solid #fecaca';
-        result.innerHTML = '<div style="color:#dc2626;font-weight:700;font-size:14px">Error</div><div style="color:#7f1d1d;font-size:13px;margin-top:4px">' + data.error + '</div>';
-      }
+    if (d.error) {
+      if (statusText) statusText.textContent = 'Error: ' + d.error;
+      showToast('Ingestion error: ' + d.error);
       return;
     }
 
-    // Success
-    var imported = data.imported || 0;
-    var skipped = data.skipped_duplicates || 0;
-    var category = data.category || '';
-    var companyType = data.company_type || '';
-    var territory = data.territory || '';
-    var mfr = data.manufacturer || '';
+    // Update status
+    setPhase('Complete — ' + (d.message || ''), '✓ Done');
 
-    var typeColor = companyType === 'Distributor' ? '#1e3a5f' : '#475569';
-    var typeBg = companyType === 'Distributor' ? '#dbeafe' : '#f1f5f9';
+    // Show results
+    if (results) results.style.display = 'block';
 
-    if (result) {
-      result.style.display = 'block';
-      result.style.background = imported > 0 ? '#f0fdf4' : '#fefce8';
-      result.style.border = imported > 0 ? '1px solid #bbf7d0' : '1px solid #fde68a';
-      var actionBtns = imported > 0
-        ? '<div style="display:flex;gap:8px"><button onclick="go(String.fromCharCode(99,111,110,116,97,99,116,115))" style="padding:8px 16px;background:var(--navy);color:#00FF87;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">View in CRM</button><button onclick="bulkGoFilter(\''+companyType+'\')" style="padding:8px 16px;background:#fff;color:var(--navy);border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Filter '+companyType+'s</button></div>'
-        : '<div style="font-size:13px;color:var(--text3)">All matching businesses are already in your CRM.</div>';
-      result.innerHTML =
-        '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">' +
-          '<div style="font-size:32px;font-weight:900;color:' + (imported > 0 ? '#059669' : '#d97706') + '">' + imported + '</div>' +
-          '<div>' +
-            '<div style="font-size:15px;font-weight:700;color:var(--navy)">' + (imported > 0 ? 'Records imported into your CRM' : 'No new records') + '</div>' +
-            '<div style="font-size:12px;color:var(--text3);margin-top:2px">' + skipped + ' duplicates skipped</div>' +
-          '</div>' +
-        '</div>' +
-        '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">' +
-          '<span style="background:' + typeBg + ';color:' + typeColor + ';padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700">' + companyType + '</span>' +
-          '<span style="background:#f1f5f9;color:#475569;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600">' + category + '</span>' +
-          (mfr ? '<span style="background:#f1f5f9;color:#475569;padding:3px 10px;border-radius:10px;font-size:11px">' + mfr + '</span>' : '') +
-          '<span style="background:#f1f5f9;color:#475569;padding:3px 10px;border-radius:10px;font-size:11px">' + territory + '</span>' +
-        '</div>' + actionBtns;
+    // Stats row
+    var statsRow = document.getElementById('bulk-stats-row');
+    if (statsRow) {
+      statsRow.innerHTML =
+        statCard('Imported', d.imported, '#065f46', '#d1fae5') +
+        statCard('Skipped Dups', d.skipped_duplicates, '#92400e', '#fef3c7') +
+        statCard('Filtered Out', (d.excluded_filtered||0) + (d.excluded_low_confidence||0), '#374151', '#f3f4f6');
     }
 
-    // Add to session history
-    bulkHistory.unshift({ query: query, imported: imported, skipped: skipped, category: category, territory: territory, ts: new Date().toLocaleTimeString() });
-    renderBulkHistory();
+    // Breakdown
+    var bdiv = document.getElementById('bulk-breakdown');
+    var binner = document.getElementById('bulk-breakdown-inner');
+    if (bdiv && binner && d.breakdown) {
+      binner.innerHTML = '';
+      var b = d.breakdown;
+      var pills = [
+        { label: 'Distributors', val: b.distributors, color: '#1e40af', bg: '#dbeafe' },
+        { label: 'Contractors',  val: b.contractors,  color: '#065f46', bg: '#d1fae5' },
+        { label: 'Unknown',      val: b.unknown,      color: '#6b7280', bg: '#f3f4f6' },
+        { label: 'Verified',     val: b.verified,     color: '#065f46', bg: '#d1fae5' },
+        { label: 'Likely Valid', val: b.likely_valid,  color: '#92400e', bg: '#fef3c7' },
+        { label: 'Unvetted',     val: b.unvetted,     color: '#991b1b', bg: '#fee2e2' }
+      ];
+      pills.forEach(function(p) {
+        if (p.val > 0) {
+          binner.innerHTML += '<span style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:12px;background:'+p.bg+';color:'+p.color+'">' + p.val + ' ' + p.label + '</span>';
+        }
+      });
+      bdiv.style.display = 'block';
+    }
 
-    // Refresh CRM stats if on contacts page
-    loadCrmStats();
+    // Records list
+    var recList = document.getElementById('bulk-record-list');
+    var recCount = document.getElementById('bulk-record-count');
+    if (recList) {
+      recList.innerHTML = '';
+      if (!d.records || d.records.length === 0) {
+        recList.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text3);font-size:13px">No new records were imported this run.</div>';
+      } else {
+        if (recCount) recCount.textContent = d.records.length + ' records';
+        d.records.forEach(function(rec) {
+          var confColor = rec.confidence >= 90 ? '#065f46' : rec.confidence >= 70 ? '#92400e' : '#991b1b';
+          var confBg    = rec.confidence >= 90 ? '#d1fae5' : rec.confidence >= 70 ? '#fef3c7' : '#fee2e2';
+          var typeColor = rec.company_type === 'Distributor' ? '#1e40af' : rec.company_type === 'Contractor' ? '#065f46' : '#6b7280';
+          var typeBg    = rec.company_type === 'Distributor' ? '#dbeafe' : rec.company_type === 'Contractor' ? '#d1fae5' : '#f3f4f6';
+          recList.innerHTML += '<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px">' +
+            '<div style="min-width:0">' +
+              '<div style="font-size:13px;font-weight:600;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + (rec.company||'') + '</div>' +
+              '<div style="font-size:11px;color:var(--text3);margin-top:1px">' + (rec.category||'') + (rec.city ? ' · ' + rec.city : '') + '</div>' +
+            '</div>' +
+            '<div style="display:flex;gap:5px;flex-shrink:0">' +
+              '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:'+typeBg+';color:'+typeColor+'">' + (rec.company_type||'') + '</span>' +
+              '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:'+confBg+';color:'+confColor+'">' + (rec.confidence||0) + '</span>' +
+            '</div>' +
+          '</div>';
+        });
+      }
+    }
+
+    // Session history
+    addBulkHistoryEntry(query, d.imported, d.skipped_duplicates);
+    showToast(d.message || ('Imported ' + d.imported + ' records'));
   })
   .catch(function(e) {
-    if (btn) { btn.disabled = false; btn.textContent = 'Run Ingestion'; }
-    if (progress) progress.style.display = 'none';
-    showToast('Ingestion request failed — check connection');
-    console.error('Bulk ingest error:', e);
+    btn.textContent = 'Run Ingestion'; btn.disabled = false;
+    if (statusText) statusText.textContent = 'Network error: ' + e.message;
+    showToast('Network error: ' + e.message);
   });
+}
+
+function statCard(label, val, color, bg) {
+  return '<div style="background:'+bg+';border-radius:8px;padding:12px 14px;text-align:center">' +
+    '<div style="font-size:22px;font-weight:800;color:'+color+'">' + (val||0) + '</div>' +
+    '<div style="font-size:11px;font-weight:600;color:'+color+';margin-top:2px">' + label + '</div>' +
+  '</div>';
+}
+
+function addBulkHistoryEntry(query, imported, skipped) {
+  var list = document.getElementById('bulk-history-list');
+  if (!list) return;
+  var el = document.createElement('div');
+  el.style.cssText = 'background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px';
+  el.innerHTML = '<span style="font-size:12px;color:var(--text2);font-weight:500">' + query + '</span>' +
+    '<span style="font-size:11px;color:var(--text3)">' + imported + ' imported · ' + skipped + ' skipped · ' + new Date().toLocaleTimeString() + '</span>';
+  list.prepend(el);
 }
 
 function renderBulkHistory() {
