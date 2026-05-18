@@ -99,15 +99,43 @@ router.get('/:id', async (req, res) => {
 // POST create quote — with duplicate prevention (team-wide)
 // POST /api/quotes/fix-rep — hardcoded migration: Sean Conroy → Ray Breedlove
 // Placed FIRST so /:id route never intercepts it
+// GET /api/quotes/debug-reps — show all distinct rep_name values in DB
+router.get('/debug-reps', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT COALESCE(rep_name, '(NULL)') as rep_name, COUNT(*) as count
+       FROM quotes
+       GROUP BY rep_name
+       ORDER BY count DESC`
+    );
+    res.json({ reps: result.rows, total: result.rows.reduce((s,r) => s + parseInt(r.count), 0) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/quotes/fix-rep — bulk rename any rep to another rep
+// Hardcoded fallback: Sean Conroy → Ray Breedlove
+// Matches on TRIM + case-insensitive to catch any whitespace variants
 router.post('/fix-rep', async (req, res) => {
   try {
-    const findName    = (req.body && req.body.find)    || 'Sean Conroy';
-    const replaceName = (req.body && req.body.replace) || 'Ray Breedlove';
+    const findName    = ((req.body && req.body.find)    || 'Sean Conroy').trim();
+    const replaceName = ((req.body && req.body.replace) || 'Ray Breedlove').trim();
+
+    // First: check how many rows match
+    const checkResult = await pool.query(
+      `SELECT id, rep_name FROM quotes WHERE LOWER(TRIM(COALESCE(rep_name,''))) = LOWER($1)`,
+      [findName]
+    );
+    console.log('[fix-rep] Found', checkResult.rowCount, 'rows matching "' + findName + '"');
+    if (checkResult.rowCount > 0) {
+      console.log('[fix-rep] Sample rep_name values:', checkResult.rows.slice(0,3).map(r => JSON.stringify(r.rep_name)));
+    }
 
     const result = await pool.query(
       `UPDATE quotes
          SET rep_name = $1, updated_at = NOW()
-       WHERE LOWER(COALESCE(rep_name,'')) = LOWER($2)
+       WHERE LOWER(TRIM(COALESCE(rep_name,''))) = LOWER($2)
        RETURNING id, quote_number, account_name, rep_name`,
       [replaceName, findName]
     );
@@ -116,11 +144,38 @@ router.post('/fix-rep', async (req, res) => {
     res.json({
       success: true,
       updated: result.rowCount,
-      message: `Updated ${result.rowCount} quotes from "${findName}" to "${replaceName}"`,
-      quotes: result.rows.map(r => ({ id: r.id, quote_number: r.quote_number, account: r.account_name }))
+      found_before_update: checkResult.rowCount,
+      message: `Updated ${result.rowCount} of ${checkResult.rowCount} matching quotes from "${findName}" to "${replaceName}"`,
+      quotes: result.rows.slice(0, 10).map(r => ({ id: r.id, quote_number: r.quote_number, account: r.account_name }))
     });
   } catch (e) {
     console.error('[fix-rep] error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/quotes/force-rep-update — nuclear option: update ALL 46 quotes to Ray Breedlove
+// regardless of current rep_name value (admin only, no dry run)
+router.post('/force-rep-update', async (req, res) => {
+  try {
+    const targetRep = ((req.body && req.body.rep) || 'Ray Breedlove').trim();
+    // Only update records that are NOT already the target rep
+    const result = await pool.query(
+      `UPDATE quotes
+         SET rep_name = $1, updated_at = NOW()
+       WHERE TRIM(COALESCE(rep_name,'')) != $1
+       RETURNING id, quote_number, account_name, rep_name`,
+      [targetRep]
+    );
+    console.log('[force-rep-update] Updated', result.rowCount, 'quotes to', targetRep);
+    res.json({
+      success: true,
+      updated: result.rowCount,
+      message: `Force-updated ${result.rowCount} quotes to "${targetRep}"`,
+      quotes: result.rows.map(r => ({ id: r.id, account: r.account_name, old_rep: r.rep_name }))
+    });
+  } catch (e) {
+    console.error('[force-rep-update] error:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
