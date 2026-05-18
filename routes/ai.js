@@ -428,27 +428,69 @@ router.post('/leads/dedupe', async (req, res) => {
 
 // AI Command Center
 router.post('/command', async (req, res) => {
-  const { prompt } = req.body;
+  const { prompt, crm_context } = req.body;
   const user = req.session.user;
-  const full = `You are an expert sales coach for Compton Group LLC, a manufacturer's rep in Atlanta, GA.
-Products: Soudal BOSS Sealants & Adhesives, ShurTape Deck Flashing Tape & Window Flashing Tape, Fortress Evolution Steel Framing, Fortress Railing, Alum-A-Pole Pump Jack Scaffolding.
-Go-to-market strategy:
-- Soudal: Target roofing and siding distributors (Beacon, SRS), lumber yards, one-step distributors — NOT direct contractors yet
-- ShurTape: Target lumber dealers, Builders FirstSource, building material dealers who sell to builders — NOT contractors yet
-- Alum-A-Pole: Target tool and equipment suppliers who sell to siding and roofing contractors
-- Fortress: Target deck builders and contractors directly
-- Overall focus: distributor and dealer channel first, then work into contractor side
-Primary customers: Roofing distributors, siding distributors, lumber yards, building material dealers, tool & equipment suppliers.
-Rep: ${user.name}, Territory: ${user.territory || 'Atlanta Metro'}
-Question: ${prompt}
-Give a specific, actionable, concise response.`;
+
+  // ── Build CRM context block from injected frontend data ──────────────
+  let crmBlock = '';
+  if (crm_context && typeof crm_context === 'object') {
+    const ctx = crm_context;
+
+    if (ctx.rep) crmBlock += `Rep: ${ctx.rep}\n`;
+    if (ctx.territory) crmBlock += `Territory: ${ctx.territory}\n`;
+
+    if (Array.isArray(ctx.top_prospects) && ctx.top_prospects.length > 0) {
+      crmBlock += '\nCURRENT CRM ACCOUNTS (live data):\n';
+      ctx.top_prospects.forEach(p => {
+        const line = [p.company, p.category, p.city, p.status, p.priority ? p.priority + ' priority' : null, p.products, p.notes].filter(Boolean).join(' | ');
+        crmBlock += `  - ${line}\n`;
+      });
+    }
+
+    if (Array.isArray(ctx.recent_quotes) && ctx.recent_quotes.length > 0) {
+      crmBlock += '\nOPEN QUOTES:\n';
+      ctx.recent_quotes.forEach(q => {
+        const line = [q.account, q.status, q.amount ? '$' + q.amount : null, q.products].filter(Boolean).join(' | ');
+        crmBlock += `  - ${line}\n`;
+      });
+    }
+
+    if (Array.isArray(ctx.follow_ups_due) && ctx.follow_ups_due.length > 0) {
+      crmBlock += `\nACCOUNTS DUE FOR FOLLOW-UP: ${ctx.follow_ups_due.slice(0, 8).join(', ')}\n`;
+    }
+  }
+
+  // ── Build full system prompt ─────────────────────────────────────────
+  const systemPrompt = `You are the AI sales assistant embedded inside RepRoute CRM for Compton Group LLC, a manufacturer's rep covering the Southeast.
+
+PRODUCT LINE:
+- Soudal BOSS Sealants & Adhesives → Target: roofing distributors, siding distributors, lumber yards, one-step distributors (NOT direct contractors yet)
+- ShurTape Deck & Window Flashing Tape → Target: lumber dealers, Builders FirstSource, building material dealers who sell to builders (NOT contractors yet)
+- Alum-A-Pole Pump Jack Scaffolding → Target: tool and equipment suppliers who sell to siding and roofing contractors
+- Fortress Evolution Steel Framing & Railing → Target: deck builders and contractors directly
+- Overall channel strategy: distributor and dealer first, then leverage into contractor side
+
+TERRITORY: Southeast GA / North FL
+PRIMARY CUSTOMERS: Roofing distributors, siding distributors, lumber yards, building material dealers, tool & equipment suppliers
+
+${crmBlock ? 'LIVE CRM DATA:\n' + crmBlock : ''}
+
+INSTRUCTIONS:
+- If the question mentions a specific account name, cross-reference it with CRM data above and give account-specific advice
+- If asked about follow-ups or route planning, reference the actual accounts listed in CRM data
+- Give specific, actionable, concise responses — not generic advice
+- Format with short paragraphs or brief bullets; no long essays`;
+
+  const full = systemPrompt + `\n\nREP'S QUESTION: ${prompt}\n\nProvide a specific, helpful, actionable response.`;
+
   try {
     const text = await callClaude(full);
     res.json({ response: text });
   } catch (e) {
-    res.json({ error: 'AI error' });
+    console.error('[AI /command] error:', e.message);
+    res.json({ error: 'AI error: ' + e.message });
   }
-});
+});;
 
 // Outreach Writer
 router.post('/outreach', async (req, res) => {
