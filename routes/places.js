@@ -1667,14 +1667,13 @@ router.post('/bulk-ingest', async (req, res) => {
 
       const cityParts = (rec.address || '').split(',');
       const city      = cityParts.length >= 2 ? cityParts[cityParts.length - 3]?.trim() || '' : '';
-      const zip       = (rec.address || '').match(/\b(\d{5})\b/)?.[1] || '';
 
       const insertSQL = `
         INSERT INTO prospects
-          (user_id, company, address, city, state, zip, phone, website,
-           google_place_id, category, data_status, confidence_score, source,
+          (user_id, company, address, city, state, phone, website,
+           google_place_id, category, data_status, source,
            territory, created_at, last_activity_at)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW(),NOW())
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW(),NOW())
         ON CONFLICT DO NOTHING
         RETURNING id`;
 
@@ -1684,13 +1683,11 @@ router.post('/bulk-ingest', async (req, res) => {
         rec.address || '',
         city,
         rec.state   || stateCode,
-        zip,
         rec.phone   || '',
         rec.website || '',
         rec.place_id || null,
         companyTypeLabel,
         rec.data_status || 'Unvetted',
-        rec.field_quality_score,
         `Bulk Import v3 — ${stateCode}`,
         stateCode,
       ];
@@ -1754,10 +1751,13 @@ router.post('/bulk-ingest', async (req, res) => {
       queries_used:        queries,
       breakdown,
       records,
+      insert_errors:       insertErrors.slice(0, 3),
       message: imported > 0
         ? `${imported} new CRM records added in ${stateCode} — ${breakdown.distributors} distributors, ${breakdown.contractors} contractors`
-        : hardDups.length > 0
-          ? `${hardDups.length} exact duplicates found at same address — already in CRM. Try a different category or "No Dedup" scope.`
+        : insertErrors.length > 0
+          ? `DB error: ${insertErrors[0]?.error} — check server logs`
+          : hardDups.length > 0
+          ? `${hardDups.length} exact duplicates found at same address — already in CRM. Try "No Dedup" scope to force import.`
           : `0 imported — ${filteredOut.length} filtered · ${lowQuality.length} low quality · ${geoRejected.length} wrong state`,
     });
 
