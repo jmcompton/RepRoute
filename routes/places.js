@@ -1066,49 +1066,7 @@ function hasAny(name, signals) {
 // ════════════════════════════════════════════════════════════════════════════
 
 // ── Source tier constants ────────────────────────────────────────────────────
-const SOURCE_TIERS = {
-  TIER1: 1, // Manufacturer "Where to Buy" / official dealer locators
-  TIER2: 2, // Industry association lists, verified distributor databases
-  TIER3: 3, // Google Places (filtered)
-  TIER4: 4  // Unverified / scraped
-};
 
-// ── Exclusion lists ───────────────────────────────────────────────────────────
-const RETAIL_EXCLUSIONS = [
-  'home depot','lowes','lowe\'s','menards','ace hardware','true value',
-  'walmart','costco','amazon','wayfair','big box'
-];
-const MANUFACTURER_EXCLUSIONS = [
-  'manufacturing','manufacturer',' mfg ','fabricat','factory ',
-  'raw material','steel mill','chemical plant'
-];
-const RESIDENTIAL_EXCLUSIONS = [
-  'residential only','homeowner','diy','do-it-yourself','consumer grade'
-];
-
-// ── Distributor / Contractor signal sets ─────────────────────────────────────
-const DISTRIBUTOR_SIGNALS = [
-  'supply','supplies','distribution','distributing','distributor','distributors',
-  'wholesale','wholesaler','building materials','lumber','builders supply',
-  'roofing supply','deck supply','siding supply','window supply','door supply',
-  'material yard','dealer','dealers','building center','pro dealer',
-  '84 lumber','abc supply','beacon roofing','gulfeagle','ply gem',
-  'builders firstsource','us lbm','carter lumber','mccoy\'s','sutherland',
-  'hd supply','wesco','hajoca','re-michel','famco'
-];
-const CONTRACTOR_SIGNALS = [
-  'roofing contractor','roofing company','roofing co','roofer','roofing services',
-  'roofing & sheet','commercial roofing','roof repair',
-  'decking contractor','deck builder','custom decks','deck construction',
-  'decks and patios','outdoor living',
-  'siding contractor','siding company','siding & windows',
-  'siding installer','window installer','door installer',
-  'window & door','window and door','fenestration',
-  'general contractor','construction company','construction co',
-  'builder','builders','remodeling','renovation'
-];
-
-// ── Normalization helpers ─────────────────────────────────────────────────────
 function normName(n) {
   return (n || '')
     .toLowerCase()
@@ -1286,6 +1244,114 @@ function isDuplicate(rec, index) {
   // ── Rule 4: Import as new ──────────────────────────────────────────────────
   return { dup: false, action: 'import', reason: '', confidence: 0 };
 }
+
+// ── Exclusion lists ───────────────────────────────────────────────────────────
+const RETAIL_EXCLUSIONS = [
+  'home depot','lowes','lowe\'s','menards','ace hardware','true value',
+  'walmart','costco','amazon','wayfair','big box'
+];
+const MANUFACTURER_EXCLUSIONS = [
+  'manufacturing','manufacturer',' mfg ','fabricat','factory ',
+  'raw material','steel mill','chemical plant'
+];
+const RESIDENTIAL_EXCLUSIONS = [
+  'residential only','homeowner','diy','do-it-yourself','consumer grade'
+];
+
+const DISTRIBUTOR_SIGNALS = [
+  'supply','supplies','distribution','distributing','distributor','distributors',
+  'wholesale','wholesaler','building materials','lumber','builders supply',
+  'roofing supply','deck supply','siding supply','window supply','door supply',
+  'material yard','dealer','dealers','building center','pro dealer',
+  '84 lumber','abc supply','beacon roofing','gulfeagle','ply gem',
+  'builders firstsource','us lbm','carter lumber','mccoy\'s','sutherland',
+  'hd supply','wesco','hajoca','re-michel','famco'
+];
+const CONTRACTOR_SIGNALS = [
+  'roofing contractor','roofing company','roofing co','roofer','roofing services',
+  'roofing & sheet','commercial roofing','roof repair',
+  'decking contractor','deck builder','custom decks','deck construction',
+  'decks and patios','outdoor living',
+  'siding contractor','siding company','siding & windows',
+  'siding installer','window installer','door installer',
+  'window & door','window and door','fenestration',
+  'general contractor','construction company','construction co',
+  'builder','builders','remodeling','renovation'
+];
+
+// Source tier constants
+const SOURCE_TIERS = {
+  TIER1: 1, TIER2: 2, TIER3: 3, TIER4: 4
+};
+
+// ── Category map ──────────────────────────────────────────────────────────────
+const CATEGORY_MAP = [
+  { slug: 'roofing_contractor',  label: 'Roofing Contractor',        type: 'Contractor',  keys: ['roofing contractor','roofer','roofing company','roofing co','commercial roofing','roof repair','roofing services','roofing & sheet'] },
+  { slug: 'roofing_distributor', label: 'Roofing Distributor',       type: 'Distributor', keys: ['roofing supply','roofing distributor','roofing materials','roofing wholesale','roofing dealer'] },
+  { slug: 'decking_contractor',  label: 'Decking Contractor',        type: 'Contractor',  keys: ['deck builder','decking contractor','deck construction','custom decks','decks and patios','outdoor living','composite decking contractor'] },
+  { slug: 'decking_distributor', label: 'Decking Distributor',       type: 'Distributor', keys: ['deck supply','decking distributor','decking dealer','lumber yard','trex dealer','composite decking dealer','fiberon dealer','decking wholesale'] },
+  { slug: 'siding_contractor',   label: 'Siding Contractor',         type: 'Contractor',  keys: ['siding contractor','siding company','siding installer','siding & windows','cornice contractor','siding services'] },
+  { slug: 'siding_distributor',  label: 'Siding Distributor',        type: 'Distributor', keys: ['siding supply','siding distributor','siding dealer','siding wholesale','siding materials'] },
+  { slug: 'window_contractor',   label: 'Window & Door Installer',   type: 'Contractor',  keys: ['window installer','door installer','window contractor','window & door contractor','fenestration contractor','window replacement'] },
+  { slug: 'window_distributor',  label: 'Window & Door Distributor', type: 'Distributor', keys: ['window distributor','window dealer','door dealer','window supply','window wholesale','window & door supply'] },
+  { slug: 'tool_dealer',         label: 'Fastener & Tool Dealer',    type: 'Distributor', keys: ['scaffolding dealer','tool supply','fastener dealer','pump jack dealer','equipment supply','tool dealer','scaffold supply'] },
+  { slug: 'building_materials',  label: 'Building Materials Dealer', type: 'Distributor', keys: ['building materials','builders supply','building supply','lumber yard','lumber dealer','pro dealer','building center'] },
+  { slug: 'general_contractor',  label: 'General Contractor',        type: 'Contractor',  keys: ['general contractor','construction company','construction co','builder','remodeling','renovation'] }
+];
+
+// ── classifyRecord ────────────────────────────────────────────────────────────
+function classifyRecord(record) {
+  const name    = (record.company  || '').toLowerCase();
+  const cats    = (record.category || '').toLowerCase();
+  const types   = (record.types    || []).map(t => t.toLowerCase()).join(' ');
+  const website = (record.website  || '').toLowerCase();
+  const allText = `${name} ${cats} ${types} ${website}`;
+
+  // Hard exclusions
+  if (RETAIL_EXCLUSIONS.some(ex        => allText.includes(ex))) return null;
+  if (MANUFACTURER_EXCLUSIONS.some(ex  => allText.includes(ex))) return null;
+  if (RESIDENTIAL_EXCLUSIONS.some(ex   => allText.includes(ex))) return null;
+  if (/garage|overhead door/i.test(name))                        return null;
+  if (/paint(ing)?\s*(contractor|company|co\b|services)/i.test(name)) return null;
+
+  // Score each category
+  let bestScore = 0;
+  let bestCat   = null;
+  for (const cat of CATEGORY_MAP) {
+    const hits = cat.keys.filter(k => allText.includes(k)).length;
+    if (hits > bestScore) { bestScore = hits; bestCat = cat; }
+  }
+  if (bestCat && bestScore > 0) {
+    return { company_type: bestCat.type, category_label: bestCat.label, category_slug: bestCat.slug };
+  }
+
+  // Fallback broad signals
+  const isDist = DISTRIBUTOR_SIGNALS.some(s => allText.includes(s));
+  const isCont = CONTRACTOR_SIGNALS.some(s  => allText.includes(s));
+  if (isDist && !isCont) return { company_type: 'Distributor', category_label: 'Building Materials Dealer',  category_slug: 'building_materials' };
+  if (isCont)            return { company_type: 'Contractor',  category_label: 'General Contractor',         category_slug: 'general_contractor' };
+  if (isDist)            return { company_type: 'Distributor', category_label: 'Building Materials Dealer',  category_slug: 'building_materials' };
+
+  return { company_type: 'Unknown', category_label: cats || 'Unknown', category_slug: 'unknown' };
+}
+
+// Backwards-compat alias
+const classifyAndFilter = classifyRecord;
+
+// ── scoreConfidence ───────────────────────────────────────────────────────────
+function scoreConfidence(record, sourceTier) {
+  let score = 0;
+  const tierBonus = { 1: 35, 2: 28, 3: 20, 4: 8 };
+  score += tierBonus[sourceTier] || 15;
+  if (record.place_id)                                                   score += 15;
+  if (record.phone && record.phone.replace(/\D/g,'').length >= 10)       score += 20;
+  if (record.address && record.address.length > 10)                      score += 15;
+  if (record.website && record.website.length > 5)                       score += 12;
+  if (record.company && record.company.length > 3)                       score += 8;
+  return Math.min(score, 100);
+}
+
+
 
 
 // ── Query expansion engine v3 ─────────────────────────────────────────────────
