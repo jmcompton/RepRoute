@@ -1202,57 +1202,7 @@ window.addEventListener('load', function() {
 
 </div>
 
-id="page-leads" style="overflow-y:auto">
-    <div style="padding:24px 24px 60px 24px;width:100%;box-sizing:border-box">
-
-      <!-- Header -->
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <div>
-          <div style="font-size:20px;font-weight:700;color:var(--navy)">Distribution Intelligence Finder</div>
-          <div style="font-size:12px;color:var(--text3);margin-top:3px">Targets distributors, dealer networks, and commercial contractors — not residential leads</div>
-        </div>
-        <button onclick="runDailyLeads()" id="lead-find-btn" style="padding:10px 22px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px">
-          <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z"/></svg>
-          Find Today's Leads
-        </button>
-      </div>
-
-      <!-- Product tags -->
-      <div style="display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap">
-        <span style="background:#fee2e2;color:#b91c1c;font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px">BOSS Products</span>
-        <span style="background:#dbeafe;color:#1d4ed8;font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px">ShurTape</span>
-        <span style="background:#d1fae5;color:#065f46;font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px">Alum-A-Pole</span>
-        <span style="background:#f1f5f9;color:var(--text3);font-size:11px;font-weight:500;padding:3px 10px;border-radius:20px">Atlanta Metro, GA</span>
-        <span style="background:#f1f5f9;color:var(--text3);font-size:11px;font-weight:500;padding:3px 10px;border-radius:20px">Birmingham, AL</span>
-        <span style="background:#d1fae5;color:#065f46;font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px">Distributors First</span>
-      </div>
-
-      <!-- Loading state -->
-      <div id="lead-loading" style="display:none;text-align:center;padding:48px 24px">
-        <div style="font-size:14px;font-weight:600;color:var(--navy);margin-bottom:8px">Finding leads...</div>
-        <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Searching for distributors, dealer networks, and commercial accounts...</div>
-        <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
-      </div>
-
-      <!-- Results summary -->
-      <div id="lead-summary" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 18px;margin-bottom:16px;display:none">
-        <span id="lead-summary-text" style="font-size:13px;color:var(--navy);font-weight:500"></span>
-      </div>
-
-      <!-- Lead cards grid -->
-      <div id="lead-results" style="display:grid;grid-template-columns:1fr 1fr;gap:12px"></div>
-
-      <!-- Empty state -->
-      <div id="lead-empty" style="text-align:center;padding:60px 24px;color:var(--text3)">
-        <div style="font-size:32px;margin-bottom:12px">&#9889;</div>
-        <div style="font-size:14px;font-weight:600;color:var(--navy);margin-bottom:6px">Ready to find leads</div>
-        <div style="font-size:12px;margin-bottom:20px">Hit the button above to find 10 fresh leads for today</div>
-      </div>
-
-    </div>
-  </div>
-
-  <div class="page" id="page-calls" style="overflow-y:auto">
+<div class="page" id="page-calls" style="overflow-y:auto">
     <div style="padding:16px">
       <div class="call-card">
         <div class="call-card-title">Log a Call</div>
@@ -2489,7 +2439,7 @@ var pageTitles = {
     reports: 'Reports', analytics: 'Analytics', accounts: 'Accounts',
     forecasts: 'Forecasts', campaigns: 'Campaigns', tasks: 'Tasks',
   dashboard: 'Home', contacts: 'Contacts', record: 'Contact Detail',
-  leads: 'AI Lead Finder', bulk: 'Bulk Ingestion Mode', calls: 'Calls', weekly: 'Weekly Plan',
+   bulk: 'Bulk Ingestion Mode', calls: 'Calls', weekly: 'Weekly Plan',
   command: 'AI Command Center', outreach: 'Outreach Writer',
   onboarding: 'Onboarding', manager: 'Team Dashboard', deals: 'Deal Pipeline', quotes: 'Quotes',
   calendar: 'Team Calendar',
@@ -3596,6 +3546,13 @@ function addBulkHistoryEntry(entry) {
   list.insertBefore(div, list.firstChild);
   if (list.children.length > 8) list.removeChild(list.lastChild);
 }
+function statCard(label, val, color, bg) {
+  return '<div style="background:' + bg + ';border-radius:8px;padding:12px 14px;text-align:center">' +
+    '<div style="font-size:22px;font-weight:800;color:' + color + '">' + (val !== undefined ? val : 0) + '</div>' +
+    '<div style="font-size:10px;font-weight:700;color:' + color + ';text-transform:uppercase;letter-spacing:.4px;margin-top:2px;opacity:.8">' + label + '</div>' +
+    '</div>';
+}
+
 
 
 
