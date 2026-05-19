@@ -3357,6 +3357,7 @@ async function startBulkIngest() {
     if (statsRow) {
       var addrDups      = d.exact_address_dups      || 0;
       var possibleDups  = d.possible_duplicates      || 0;
+      var geoRejected   = d.geo_rejected             || 0;
       var filtered      = (d.excluded_filtered||0) + (d.excluded_low_conf||0);
       statsRow.innerHTML =
         statCard('Imported',           d.imported,     '#065f46', '#d1fae5') +
