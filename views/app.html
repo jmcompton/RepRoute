@@ -3293,48 +3293,35 @@ function bulkGoFilter(ctype) {
   }, 200);
 }
 
-function startBulkIngest() {
+async function startBulkIngest() {
   var query = (document.getElementById('bulk-query') || {value:''}).value.trim();
   if (!query) { showToast('Enter a search query first'); return; }
 
-  var maxRecs = parseInt((document.getElementById('bulk-max') || {value:'40'}).value) || 40;
+  var maxRecs = parseInt((document.getElementById('bulk-max')   || {value:'40'}).value) || 40;
+  var scope   = (document.getElementById('bulk-scope') || {value:'team'}).value;
   var btn     = document.getElementById('bulk-btn');
   var status  = document.getElementById('bulk-status');
   var results = document.getElementById('bulk-results');
 
-  // Reset UI
   btn.textContent = 'Running...'; btn.disabled = true;
-  if (status)  { status.style.display = 'block'; }
-  if (results) { results.style.display = 'none'; }
+  if (status)  status.style.display  = 'block';
+  if (results) results.style.display = 'none';
 
-  var statusText  = document.getElementById('bulk-status-text');
-  var phasePills  = document.getElementById('bulk-phase-pills');
-  var spinner     = document.getElementById('bulk-spinner');
-
-  function setPhase(label, done) {
-    if (statusText) statusText.textContent = label;
-    if (phasePills && done) {
-      var pill = document.createElement('span');
-      pill.textContent = done;
-      pill.style.cssText = 'font-size:10px;font-weight:700;padding:3px 8px;border-radius:12px;background:#d1fae5;color:#065f46';
-      phasePills.appendChild(pill);
-    }
-  }
-
+  var statusText = document.getElementById('bulk-status-text');
+  var phasePills = document.getElementById('bulk-phase-pills');
   if (phasePills) phasePills.innerHTML = '';
-  setPhase('Expanding query into targeted variations...');
+  if (statusText) statusText.textContent = 'Expanding query · Searching Google Places...';
 
   var territory = (window.currentTerritory) || '';
 
-  fetch('/api/places/bulk-ingest', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ query: query, territory: territory, max_records: maxRecs })
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(d) {
+  try {
+    var resp = await fetch('/api/places/bulk-ingest', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ query: query, territory: territory, max_records: maxRecs, scope: scope })
+    });
+    var d = await resp.json();
     btn.textContent = 'Run Ingestion'; btn.disabled = false;
-    if (spinner) spinner.style.display = 'none';
 
     if (d.error) {
       if (statusText) statusText.textContent = 'Error: ' + d.error;
@@ -3342,80 +3329,137 @@ function startBulkIngest() {
       return;
     }
 
-    // Update status
-    setPhase('Complete — ' + (d.message || ''), '✓ Done');
-
-    // Show results
+    // Status pill
+    var scopeLabel = scope === 'off' ? 'no dedup' : scope === 'mine' ? 'my contacts' : 'team (' + (d.db_index_size||0) + ' in DB)';
+    if (statusText) statusText.textContent = 'Complete · ' + scopeLabel;
+    if (phasePills) {
+      var pill = document.createElement('span');
+      pill.textContent = '✓ Done';
+      pill.style.cssText = 'font-size:10px;font-weight:700;padding:3px 8px;border-radius:12px;background:#d1fae5;color:#065f46';
+      phasePills.appendChild(pill);
+    }
     if (results) results.style.display = 'block';
+
+    // Queries used
+    var qUsedDiv = document.getElementById('bulk-queries-used');
+    if (qUsedDiv && d.queries_used && d.queries_used.length > 0) {
+      qUsedDiv.innerHTML = '<div style="font-size:10px;color:var(--text3);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.4px">Queries Run</div>' +
+        d.queries_used.map(function(q) {
+          return '<span style="font-size:11px;background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:2px 7px;color:var(--text2)">' + q + '</span>';
+        }).join(' ');
+      qUsedDiv.style.display = 'flex';
+      qUsedDiv.style.flexWrap = 'wrap';
+      qUsedDiv.style.gap = '4px';
+      qUsedDiv.style.marginBottom = '12px';
+    }
 
     // Stats row
     var statsRow = document.getElementById('bulk-stats-row');
     if (statsRow) {
       statsRow.innerHTML =
-        statCard('Imported', d.imported, '#065f46', '#d1fae5') +
-        statCard('Skipped Dups', d.skipped_duplicates, '#92400e', '#fef3c7') +
-        statCard('Filtered Out', (d.excluded_filtered||0) + (d.excluded_low_confidence||0), '#374151', '#f3f4f6');
+        statCard('Imported',      d.imported,               '#065f46', '#d1fae5') +
+        statCard('Skipped Dups',  d.skipped_duplicates,     '#92400e', '#fef3c7') +
+        statCard('Filtered Out',  (d.excluded_filtered||0)+(d.excluded_low_conf||0), '#374151', '#f3f4f6') +
+        (d.review_flagged > 0 ? statCard('For Review', d.review_flagged, '#1e40af', '#dbeafe') : '');
     }
 
-    // Breakdown
-    var bdiv = document.getElementById('bulk-breakdown');
+    // Breakdown pills
+    var bdiv   = document.getElementById('bulk-breakdown');
     var binner = document.getElementById('bulk-breakdown-inner');
-    if (bdiv && binner && d.breakdown) {
-      binner.innerHTML = '';
-      var b = d.breakdown;
+    if (bdiv && binner && d.imported > 0) {
+      var b = d.breakdown || {};
       var pills = [
-        { label: 'Distributors', val: b.distributors, color: '#1e40af', bg: '#dbeafe' },
-        { label: 'Contractors',  val: b.contractors,  color: '#065f46', bg: '#d1fae5' },
-        { label: 'Unknown',      val: b.unknown,      color: '#6b7280', bg: '#f3f4f6' },
-        { label: 'Verified',     val: b.verified,     color: '#065f46', bg: '#d1fae5' },
-        { label: 'Likely Valid', val: b.likely_valid,  color: '#92400e', bg: '#fef3c7' },
-        { label: 'Unvetted',     val: b.unvetted,     color: '#991b1b', bg: '#fee2e2' }
+        { label: 'Distributors',  val: b.distributors,  color: '#1e40af', bg: '#dbeafe' },
+        { label: 'Contractors',   val: b.contractors,   color: '#065f46', bg: '#d1fae5' },
+        { label: 'For Review',    val: b.review,        color: '#1e40af', bg: '#ede9fe' },
+        { label: 'Verified',      val: b.verified,      color: '#065f46', bg: '#d1fae5' },
+        { label: 'Likely Valid',  val: b.likely_valid,  color: '#92400e', bg: '#fef3c7' },
+        { label: 'Unvetted',      val: b.unvetted,      color: '#991b1b', bg: '#fee2e2' }
       ];
+      binner.innerHTML = '';
       pills.forEach(function(p) {
-        if (p.val > 0) {
-          binner.innerHTML += '<span style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:12px;background:'+p.bg+';color:'+p.color+'">' + p.val + ' ' + p.label + '</span>';
-        }
+        if (p.val > 0) binner.innerHTML += '<span style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:12px;background:'+p.bg+';color:'+p.color+'">' + p.val + ' ' + p.label + '</span>';
       });
       bdiv.style.display = 'block';
-    }
+    } else if (bdiv) bdiv.style.display = 'none';
+
+    // Skip reasons panel
+    var skipDiv    = document.getElementById('bulk-skip-reasons');
+    var skipBD     = document.getElementById('bulk-skip-breakdown');
+    var skipSample = document.getElementById('bulk-skip-sample');
+    if (skipDiv && d.skipped_duplicates > 0 && d.skip_breakdown) {
+      skipDiv.style.display = 'block';
+      var sb = d.skip_breakdown;
+      if (skipBD) {
+        var skipPills = [
+          { label: 'Place ID match', val: sb.place_id, tip: 'Same Google listing already in CRM' },
+          { label: 'Phone match',    val: sb.phone,    tip: 'Same phone number already in CRM' },
+          { label: 'Domain match',   val: sb.domain,   tip: 'Same website already in CRM' },
+          { label: 'Name match',     val: sb.fuzzy,    tip: 'Similar company name + address in CRM' },
+          { label: 'Batch dup',      val: sb.batch,    tip: 'Same company appeared twice in results' }
+        ];
+        skipBD.innerHTML = '';
+        skipPills.forEach(function(p) {
+          if (p.val > 0) skipBD.innerHTML += '<span title="'+p.tip+'" style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:10px;background:#fef3c7;color:#92400e;cursor:help">'+p.val+' '+p.label+'</span>';
+        });
+        if (sb.place_id === d.skipped_duplicates) {
+          skipBD.innerHTML += '<div style="font-size:11px;color:#0369a1;margin-top:6px;padding:6px 8px;background:#e0f2fe;border-radius:5px">All skipped records are already in your CRM from previous searches. Switch to <strong>No dedup</strong> or try a new territory.</div>';
+        }
+      }
+      if (skipSample && d.skipped_sample) {
+        skipSample.innerHTML = '';
+        d.skipped_sample.slice(0, 8).forEach(function(s) {
+          var confLabel = s.confidence ? ' (conf: ' + s.confidence + ')' : '';
+          skipSample.innerHTML += '<div style="font-size:11px;color:var(--text2);display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border)">' +
+            '<span>' + (s.company||'') + '</span>' +
+            '<span style="color:#92400e;font-weight:600">' + (s.reason||'') + confLabel + '</span>' +
+          '</div>';
+        });
+      }
+    } else if (skipDiv) skipDiv.style.display = 'none';
 
     // Records list
-    var recList = document.getElementById('bulk-record-list');
+    var recList  = document.getElementById('bulk-record-list');
     var recCount = document.getElementById('bulk-record-count');
     if (recList) {
       recList.innerHTML = '';
       if (!d.records || d.records.length === 0) {
-        recList.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text3);font-size:13px">No new records were imported this run.</div>';
+        recList.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text3);font-size:13px">' +
+          (d.skipped_duplicates > 0
+            ? 'All results already exist in the CRM. Try <strong>No dedup</strong> scope to re-import, or search a different territory.'
+            : 'No matching records found for this query.') +
+          '</div>';
       } else {
         if (recCount) recCount.textContent = d.records.length + ' records';
         d.records.forEach(function(rec) {
-          var confColor = rec.confidence >= 90 ? '#065f46' : rec.confidence >= 70 ? '#92400e' : '#991b1b';
-          var confBg    = rec.confidence >= 90 ? '#d1fae5' : rec.confidence >= 70 ? '#fef3c7' : '#fee2e2';
+          var conf = rec.confidence || 0;
+          var confColor = conf >= 90 ? '#065f46' : conf >= 70 ? '#92400e' : '#991b1b';
+          var confBg    = conf >= 90 ? '#d1fae5' : conf >= 70 ? '#fef3c7' : '#fee2e2';
           var typeColor = rec.company_type === 'Distributor' ? '#1e40af' : rec.company_type === 'Contractor' ? '#065f46' : '#6b7280';
           var typeBg    = rec.company_type === 'Distributor' ? '#dbeafe' : rec.company_type === 'Contractor' ? '#d1fae5' : '#f3f4f6';
+          var reviewBadge = rec.flagged ? '<span style="font-size:9px;font-weight:700;padding:2px 5px;border-radius:8px;background:#ede9fe;color:#5b21b6;margin-left:4px">REVIEW</span>' : '';
           recList.innerHTML += '<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px">' +
             '<div style="min-width:0">' +
-              '<div style="font-size:13px;font-weight:600;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + (rec.company||'') + '</div>' +
+              '<div style="font-size:13px;font-weight:600;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + (rec.company||'') + reviewBadge + '</div>' +
               '<div style="font-size:11px;color:var(--text3);margin-top:1px">' + (rec.category||'') + (rec.city ? ' · ' + rec.city : '') + '</div>' +
             '</div>' +
             '<div style="display:flex;gap:5px;flex-shrink:0">' +
-              '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:'+typeBg+';color:'+typeColor+'">' + (rec.company_type||'') + '</span>' +
-              '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:'+confBg+';color:'+confColor+'">' + (rec.confidence||0) + '</span>' +
+              '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:'+typeBg+';color:'+typeColor+'">' + (rec.company_type||'Unknown') + '</span>' +
+              '<span title="Confidence score" style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:'+confBg+';color:'+confColor+'">' + conf + '</span>' +
             '</div>' +
           '</div>';
         });
       }
     }
 
-    // Session history
-    addBulkHistoryEntry(query, d.imported, d.skipped_duplicates);
+    addBulkHistoryEntry(query, d.imported, d.skipped_duplicates, scope);
     showToast(d.message || ('Imported ' + d.imported + ' records'));
-  })
-  .catch(function(e) {
+
+  } catch(e) {
     btn.textContent = 'Run Ingestion'; btn.disabled = false;
     if (statusText) statusText.textContent = 'Network error: ' + e.message;
     showToast('Network error: ' + e.message);
-  });
+  }
 }
 
 function statCard(label, val, color, bg) {
@@ -3425,15 +3469,16 @@ function statCard(label, val, color, bg) {
   '</div>';
 }
 
-function addBulkHistoryEntry(query, imported, skipped) {
+function addBulkHistoryEntry(query, imported, skipped, scope) {
   var list = document.getElementById('bulk-history-list');
   if (!list) return;
   var el = document.createElement('div');
   el.style.cssText = 'background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px';
   el.innerHTML = '<span style="font-size:12px;color:var(--text2);font-weight:500">' + query + '</span>' +
-    '<span style="font-size:11px;color:var(--text3)">' + imported + ' imported · ' + skipped + ' skipped · ' + new Date().toLocaleTimeString() + '</span>';
+    '<span style="font-size:11px;color:var(--text3)">' + imported + ' imported · ' + skipped + ' skipped · ' + (scope||'team') + ' · ' + new Date().toLocaleTimeString() + '</span>';
   list.prepend(el);
 }
+
 
 function renderBulkHistory() {
   var hist = document.getElementById('bulk-history');
