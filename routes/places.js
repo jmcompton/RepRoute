@@ -44,7 +44,13 @@ const BAD_LEAD_KEYWORDS = [
   'house painting','residential painting','interior painting','exterior painting',
   'landscaping','lawn care','lawn service','pest control','pool service',
   'pressure washing','window cleaning','gutter cleaning','house cleaning',
-  'carpet cleaning','junk removal','moving company','storage unit'
+  'carpet cleaning','junk removal','moving company','storage unit',
+  // Virtual offices / mail drops — no physical location, no value as lead
+  'virtual office','virtual address','mail forwarding','mail drop','mailbox rental',
+  'ups store','the ups store','postal annex','pak mail','mailboxes etc',
+  'regus','wework','spaces coworking','industrious','coworking space',
+  'shared office','executive suite','business address service',
+  'registered agent','incorporation service','llc formation'
 ];
 
 // ── Distribution-positive signals (boost confidence) ──────────
@@ -234,6 +240,14 @@ function isBadLead(name, address, category) {
   }
 
   if (/po box|p\.o\. box/i.test((address||'').toLowerCase())) return true;
+  // Virtual office / mail-drop addresses
+  const addrLow = (address||'').toLowerCase();
+  if (/suite\s+[a-z]\d+|#[a-z]\d+/i.test(address||'')) {
+    // Flag suspiciously small suite numbers common in virtual offices
+    // but only if combined with other virtual signals in the name
+    const nameHasVirtSig = ['virtual','mail','postal','suite services'].some(s => (name||'').toLowerCase().includes(s));
+    if (nameHasVirtSig) return true;
+  }
 
   return false;
 }
@@ -568,6 +582,16 @@ router.post('/places-leads', async (req, res) => {
 
           if (isBadLead(placeName, placeAddr, label)) continue;
           if (!place.nationalPhoneNumber) continue;
+
+          // ── Geo filter: enforce territory state ─────────────────────────
+          const addrSegments   = placeAddr.split(',').map(s => s.trim());
+          const stateZipToken  = addrSegments[addrSegments.length - 2] || '';
+          const placeStateCode = stateZipToken.replace(/\s*\d{5}.*/, '').trim().toUpperCase();
+          const territInfo     = resolveTerritory(loc);
+          if (territInfo.state && placeStateCode && placeStateCode !== territInfo.state) {
+            console.log('[GeoFilter] Rejected:', placeName, '|', placeStateCode, '!==', territInfo.state);
+            continue;
+          }
 
           // Alum-A-Pole paint block
           if ((product||'').toLowerCase().includes('alum') && alumPoleBlocked(placeName)) continue;
