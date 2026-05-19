@@ -1060,20 +1060,41 @@ window.addEventListener('load', function() {
 
       <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
         <input id="bulk-query" type="text"
-          placeholder='e.g. "roofing distributors Atlanta" or "Trex decking dealers Southeast GA"'
+          placeholder='e.g. "Trex decking dealers" or "roofing distributors" or "siding contractors"'
           style="flex:1;min-width:240px;padding:10px 14px;border:1px solid var(--border);border-radius:7px;font-size:14px;font-family:inherit;color:var(--navy)"
           onkeydown="if(event.key==='Enter') startBulkIngest()"
         />
+        <!-- Search State — EXPLICIT geo lock, highest priority -->
+        <select id="bulk-state" title="Search State (overrides all other geography)" style="padding:10px 12px;border:2px solid #00FF87;border-radius:7px;font-size:13px;font-weight:700;font-family:inherit;color:var(--navy);background:#fff">
+          <option value="">-- State --</option>
+          <option value="AL">Alabama</option>
+          <option value="AR">Arkansas</option>
+          <option value="FL">Florida</option>
+          <option value="GA">Georgia</option>
+          <option value="KY">Kentucky</option>
+          <option value="LA">Louisiana</option>
+          <option value="MS">Mississippi</option>
+          <option value="NC">North Carolina</option>
+          <option value="SC">South Carolina</option>
+          <option value="TN">Tennessee</option>
+          <option value="TX">Texas</option>
+          <option value="VA">Virginia</option>
+          <option value="WV">West Virginia</option>
+        </select>
         <select id="bulk-max" style="padding:10px 12px;border:1px solid var(--border);border-radius:7px;font-size:13px;font-family:inherit;color:var(--navy);background:#fff">
           <option value="20">20 records</option>
           <option value="40" selected>40 records</option>
           <option value="60">60 records</option>
           <option value="80">80 records</option>
         </select>
+        <select id="bulk-mode" title="Ingestion Mode" style="padding:10px 12px;border:1px solid var(--border);border-radius:7px;font-size:13px;font-family:inherit;color:var(--navy);background:#fff">
+          <option value="growth" selected>Growth Mode</option>
+          <option value="strict">Strict Dedup</option>
+        </select>
         <select id="bulk-scope" title="Dedup scope" style="padding:10px 12px;border:1px solid var(--border);border-radius:7px;font-size:13px;font-family:inherit;color:var(--navy);background:#fff">
           <option value="team">Team dedup</option>
           <option value="mine">My contacts only</option>
-          <option value="off">No dedup (all results)</option>
+          <option value="off">No dedup</option>
         </select>
         <button onclick="startBulkIngest()" id="bulk-btn"
           style="padding:10px 22px;background:var(--navy);color:#00FF87;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:.3px;white-space:nowrap">
@@ -3312,13 +3333,45 @@ async function startBulkIngest() {
   if (phasePills) phasePills.innerHTML = '';
   if (statusText) statusText.textContent = 'Searching Google Places...';
 
-  var territory = (window.currentTerritory) || '';
+  // Search State: explicit dropdown (highest priority) > parsed from query > profile territory
+  var searchStateEl = document.getElementById('bulk-state');
+  var explicitState = searchStateEl ? searchStateEl.value.trim().toUpperCase() : '';
+  var ingestMode    = (document.getElementById('bulk-mode') || {value:'growth'}).value || 'growth';
+
+  // Parse state from query text as fallback (e.g. "dealers alabama" → "AL")
+  var STATE_NAMES = {
+    'alabama':'AL','alaska':'AK','arizona':'AZ','arkansas':'AR','california':'CA',
+    'colorado':'CO','connecticut':'CT','florida':'FL','georgia':'GA','idaho':'ID',
+    'illinois':'IL','indiana':'IN','iowa':'IA','kansas':'KS','kentucky':'KY',
+    'louisiana':'LA','maine':'ME','maryland':'MD','massachusetts':'MA','michigan':'MI',
+    'minnesota':'MN','mississippi':'MS','missouri':'MO','montana':'MT','nebraska':'NE',
+    'nevada':'NV','new hampshire':'NH','new jersey':'NJ','new mexico':'NM','new york':'NY',
+    'north carolina':'NC','north dakota':'ND','ohio':'OH','oklahoma':'OK','oregon':'OR',
+    'pennsylvania':'PA','rhode island':'RI','south carolina':'SC','south dakota':'SD',
+    'tennessee':'TN','texas':'TX','utah':'UT','vermont':'VT','virginia':'VA',
+    'washington':'WA','west virginia':'WV','wisconsin':'WI','wyoming':'WY'
+  };
+  var queryLow = query.toLowerCase();
+  var parsedState = '';
+  // Check full state name in query
+  for (var sn in STATE_NAMES) {
+    if (queryLow.includes(sn)) { parsedState = STATE_NAMES[sn]; break; }
+  }
+  // Check 2-letter abbrev at end of query (e.g. "dealers GA")
+  if (!parsedState) {
+    var abbrMatch = query.match(/\b([A-Z]{2})\b/);
+    if (abbrMatch) parsedState = abbrMatch[1];
+  }
+
+  // Priority: explicit dropdown > parsed from query > profile territory
+  var searchState = explicitState || parsedState || '';
+  var territory   = searchState || (window.currentTerritory) || '';
 
   try {
     var resp = await fetch('/api/places/bulk-ingest', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ query: query, territory: territory, max_records: maxRecs, scope: scope })
+      body: JSON.stringify({ query: query, territory: territory, search_state: searchState, ingest_mode: ingestMode, max_records: maxRecs, scope: scope })
     });
     var d = await resp.json();
     btn.textContent = 'Run Ingestion'; btn.disabled = false;
@@ -3332,7 +3385,15 @@ async function startBulkIngest() {
     // Status line
     var scopeLabel = scope === 'off' ? 'no dedup' : scope === 'mine' ? 'my contacts' : 'team (' + (d.db_index_size||0) + ' in DB)';
     var stateLabel = d.territory_state ? ' · state filter: ' + d.territory_state : '';
-    if (statusText) statusText.textContent = 'Complete · ' + (d.geo_valid || d.raw_candidates||0) + ' in-territory · ' + (d.raw_candidates||0) + ' raw · ' + scopeLabel + stateLabel;
+    if (statusText) {
+        var activeState = d.search_state_used || d.territory_state || '';
+        var modeBadge   = d.ingest_mode === 'growth' ? ' · GROWTH MODE' : ' · STRICT MODE';
+        statusText.textContent = 'Complete · '
+          + (d.geo_valid || d.raw_candidates || 0) + ' in-state'
+          + (activeState ? ' (' + activeState + ')' : '')
+          + ' · ' + (d.raw_candidates || 0) + ' raw · '
+          + scopeLabel + modeBadge;
+      }
     if (phasePills) {
       phasePills.innerHTML = '<span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:12px;background:#d1fae5;color:#065f46">✓ Done</span>';
     }
@@ -3362,7 +3423,7 @@ async function startBulkIngest() {
       statsRow.innerHTML =
         statCard('Imported',           d.imported,     '#065f46', '#d1fae5') +
         (geoRejected > 0  ? statCard('Wrong State',    geoRejected,  '#7c3aed', '#ede9fe') : '') +
-        statCard('Exact Dups',         addrDups,       '#92400e', '#fef3c7') +
+        statCard('Exact Addr Dups',    addrDups,       '#92400e', '#fef3c7') +
         (possibleDups > 0 ? statCard('Possible Dups',  possibleDups, '#1e40af', '#dbeafe') : '') +
         (filtered > 0     ? statCard('Filtered Out',   filtered,     '#374151', '#f3f4f6') : '');
     }
