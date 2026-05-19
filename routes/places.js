@@ -508,16 +508,48 @@ function getProductWhy(product, segment) {
 
 function getCities(loc) {
   const t = (loc || '').toLowerCase();
-  if (t.includes('atlanta') || t === 'atl')
-    return ['Atlanta GA', 'Marietta GA', 'Kennesaw GA', 'Alpharetta GA', 'Roswell GA', 'Smyrna GA', 'Dunwoody GA', 'Decatur GA', 'Norcross GA', 'Duluth GA', 'Lawrenceville GA', 'Buford GA', 'Cumming GA', 'Woodstock GA', 'Acworth GA'];
-  if (t.includes('birmingham'))
-    return ['Birmingham AL', 'Hoover AL', 'Vestavia Hills AL', 'Homewood AL', 'Bessemer AL', 'Pelham AL', 'Alabaster AL', 'Helena AL', 'Trussville AL', 'Gardendale AL', 'Leeds AL', 'Northport AL', 'Anniston AL', 'Talladega AL', 'Calera AL'];
-  if (t.includes('nashville'))
-    return ['Nashville TN', 'Brentwood TN', 'Franklin TN', 'Murfreesboro TN', 'Smyrna TN', 'Hendersonville TN', 'Gallatin TN', 'Mount Juliet TN', 'Nolensville TN', 'Spring Hill TN', 'Columbia TN', 'Clarksville TN', 'Lebanon TN', 'Dickson TN', 'Shelbyville TN'];
-  if (t.includes('charlotte'))
-    return ['Charlotte NC', 'Concord NC', 'Kannapolis NC', 'Gastonia NC', 'Huntersville NC', 'Cornelius NC', 'Mooresville NC', 'Matthews NC', 'Monroe NC', 'Waxhaw NC', 'Rock Hill SC', 'Fort Mill SC', 'Tega Cay SC', 'Indian Trail NC', 'Mint Hill NC'];
+
+  // Direct state code — return major metros for that state
+  const STATE_CITIES = {
+    'AL': ['Birmingham AL','Huntsville AL','Mobile AL','Montgomery AL','Tuscaloosa AL','Hoover AL','Decatur AL','Auburn AL','Dothan AL','Gadsden AL','Anniston AL','Alabaster AL','Florence AL','Phenix City AL'],
+    'GA': ['Atlanta GA','Marietta GA','Savannah GA','Augusta GA','Columbus GA','Macon GA','Alpharetta GA','Roswell GA','Athens GA','Warner Robins GA','Kennesaw GA','Valdosta GA','Brunswick GA','Rome GA'],
+    'TN': ['Nashville TN','Memphis TN','Knoxville TN','Chattanooga TN','Clarksville TN','Murfreesboro TN','Franklin TN','Brentwood TN','Jackson TN','Johnson City TN','Hendersonville TN','Cookeville TN'],
+    'FL': ['Jacksonville FL','Tampa FL','Orlando FL','Miami FL','Fort Lauderdale FL','Tallahassee FL','Gainesville FL','Pensacola FL','Naples FL','Sarasota FL','Fort Myers FL','Daytona Beach FL','Ocala FL'],
+    'NC': ['Charlotte NC','Raleigh NC','Greensboro NC','Durham NC','Winston-Salem NC','Fayetteville NC','Cary NC','Wilmington NC','High Point NC','Concord NC','Asheville NC','Gastonia NC','Mooresville NC'],
+    'SC': ['Columbia SC','Charleston SC','Greenville SC','Spartanburg SC','Rock Hill SC','Florence SC','Myrtle Beach SC','Anderson SC','Aiken SC','Sumter SC','Hilton Head SC'],
+    'MS': ['Jackson MS','Gulfport MS','Biloxi MS','Hattiesburg MS','Meridian MS','Tupelo MS','Southaven MS','Olive Branch MS'],
+    'AR': ['Little Rock AR','Fort Smith AR','Fayetteville AR','Springdale AR','Jonesboro AR','North Little Rock AR','Conway AR','Rogers AR','Bentonville AR'],
+    'LA': ['New Orleans LA','Baton Rouge LA','Shreveport LA','Lafayette LA','Metairie LA','Bossier City LA','Lake Charles LA','Monroe LA','Alexandria LA'],
+    'VA': ['Virginia Beach VA','Norfolk VA','Chesapeake VA','Richmond VA','Newport News VA','Alexandria VA','Hampton VA','Roanoke VA','Portsmouth VA','Suffolk VA','Lynchburg VA'],
+    'KY': ['Louisville KY','Lexington KY','Bowling Green KY','Owensboro KY','Covington KY','Georgetown KY','Florence KY','Hopkinsville KY','Paducah KY'],
+    'WV': ['Charleston WV','Huntington WV','Parkersburg WV','Morgantown WV','Wheeling WV','Martinsburg WV'],
+    'TX': ['Houston TX','Dallas TX','San Antonio TX','Austin TX','Fort Worth TX','El Paso TX','Arlington TX','Corpus Christi TX','Plano TX','Lubbock TX','Garland TX','Irving TX','Frisco TX','McKinney TX'],
+  };
+
+  // Check if loc is a 2-letter state code
+  const trimmed = (loc||'').trim().toUpperCase();
+  if (STATE_CITIES[trimmed]) return STATE_CITIES[trimmed].slice(0,8);
+
+  // Check for state name in loc string
+  const STATE_NAME_TO_CODE_LC = {
+    'alabama':'AL','georgia':'GA','tennessee':'TN','florida':'FL','north carolina':'NC',
+    'south carolina':'SC','mississippi':'MS','arkansas':'AR','louisiana':'LA',
+    'virginia':'VA','kentucky':'KY','west virginia':'WV','texas':'TX'
+  };
+  for (const [name, code] of Object.entries(STATE_NAME_TO_CODE_LC)) {
+    if (t.includes(name) && STATE_CITIES[code]) return STATE_CITIES[code].slice(0,8);
+  }
+
+  // Legacy territory keywords
+  if (t.includes('atlanta'))      return STATE_CITIES['GA'].slice(0,8);
+  if (t.includes('birmingham'))   return STATE_CITIES['AL'].slice(0,8);
+  if (t.includes('nashville'))    return STATE_CITIES['TN'].slice(0,8);
+  if (t.includes('charlotte'))    return STATE_CITIES['NC'].slice(0,8);
+  if (t.includes('jacksonville')) return STATE_CITIES['FL'].slice(0,8);
+  if (t.includes('savannah'))     return ['Savannah GA','Augusta GA','Brunswick GA','Statesboro GA','Valdosta GA'];
   if (t.includes('southeast') || t.includes('south east'))
-    return ['Atlanta GA', 'Marietta GA', 'Birmingham AL', 'Hoover AL', 'Nashville TN', 'Franklin TN', 'Charlotte NC', 'Concord NC', 'Columbia SC', 'Greenville SC', 'Chattanooga TN', 'Knoxville TN', 'Memphis TN', 'Savannah GA', 'Augusta GA'];
+    return ['Atlanta GA','Birmingham AL','Nashville TN','Charlotte NC','Columbia SC','Savannah GA','Knoxville TN','Chattanooga TN'];
+
   return [loc];
 }
 
@@ -1189,17 +1221,56 @@ const TERRITORY_MAP = {
   'southeast':    { state: null, cities: [] }  // multi-state, no filter
 };
 
-// Resolve territory → { state, citySet }
-function resolveTerritory(loc) {
-  const t = (loc || '').toLowerCase();
-  for (const [key, val] of Object.entries(TERRITORY_MAP)) {
-    if (t.includes(key)) {
-      return { key, state: val.state, citySet: new Set(val.cities.map(c => c.toLowerCase())) };
-    }
+// ── State name → abbreviation map ────────────────────────────────────────────
+const STATE_NAME_TO_CODE = {
+  'alabama':'AL','alaska':'AK','arizona':'AZ','arkansas':'AR','california':'CA',
+  'colorado':'CO','connecticut':'CT','delaware':'DE','florida':'FL','georgia':'GA',
+  'hawaii':'HI','idaho':'ID','illinois':'IL','indiana':'IN','iowa':'IA','kansas':'KS',
+  'kentucky':'KY','louisiana':'LA','maine':'ME','maryland':'MD','massachusetts':'MA',
+  'michigan':'MI','minnesota':'MN','mississippi':'MS','missouri':'MO','montana':'MT',
+  'nebraska':'NE','nevada':'NV','new hampshire':'NH','new jersey':'NJ',
+  'new mexico':'NM','new york':'NY','north carolina':'NC','north dakota':'ND',
+  'ohio':'OH','oklahoma':'OK','oregon':'OR','pennsylvania':'PA',
+  'rhode island':'RI','south carolina':'SC','south dakota':'SD',
+  'tennessee':'TN','texas':'TX','utah':'UT','vermont':'VT','virginia':'VA',
+  'washington':'WA','west virginia':'WV','wisconsin':'WI','wyoming':'WY'
+};
+
+// Resolve territory/search_state → { state }
+// Priority: explicit 2-letter code > state name in string > territory keyword > null
+function resolveTerritory(loc, explicitState) {
+  // Priority 1: explicit state code passed directly from frontend dropdown
+  if (explicitState && /^[A-Z]{2}$/.test(explicitState.trim().toUpperCase())) {
+    return { key: explicitState.toUpperCase(), state: explicitState.toUpperCase() };
   }
-  // Unknown territory — extract state abbreviation if present (e.g. "Huntsville AL")
-  const stateMatch = t.match(/\b([a-z]{2})\s*$/);
-  return { key: 'custom', state: stateMatch ? stateMatch[1].toUpperCase() : null, citySet: new Set() };
+
+  const t = (loc || '').toLowerCase().trim();
+
+  // Priority 2: 2-letter state abbrev anywhere in loc (e.g. "dealers AL" or "Alabama AL")
+  const abbrMatch = (loc || '').match(/\b([A-Z]{2})\b/);
+  if (abbrMatch && Object.values(STATE_NAME_TO_CODE).includes(abbrMatch[1])) {
+    return { key: abbrMatch[1], state: abbrMatch[1] };
+  }
+
+  // Priority 3: Full state name in query string
+  for (const [name, code] of Object.entries(STATE_NAME_TO_CODE)) {
+    if (t.includes(name)) return { key: code, state: code };
+  }
+
+  // Priority 4: Legacy territory keyword → known state
+  if (t.includes('atlanta'))      return { key: 'atlanta',      state: 'GA' };
+  if (t.includes('birmingham'))   return { key: 'birmingham',   state: 'AL' };
+  if (t.includes('nashville'))    return { key: 'nashville',    state: 'TN' };
+  if (t.includes('charlotte'))    return { key: 'charlotte',    state: 'NC' };
+  if (t.includes('jacksonville')) return { key: 'jacksonville', state: 'FL' };
+  if (t.includes('savannah'))     return { key: 'savannah',     state: 'GA' };
+  if (t.includes('augusta'))      return { key: 'augusta',      state: 'GA' };
+  if (t.includes('memphis'))      return { key: 'memphis',      state: 'TN' };
+  if (t.includes('raleigh'))      return { key: 'raleigh',      state: 'NC' };
+  if (t.includes('columbia'))     return { key: 'columbia',     state: 'SC' };
+
+  // No match — no state filter
+  return { key: 'unknown', state: null };
 }
 
 // ── Geo-validation ─────────────────────────────────────────────────────────────
@@ -1302,14 +1373,12 @@ async function placesSearch(queryText, locationStr, apiKey, excludedIds) {
   excludedIds = excludedIds || new Set();
   const results = [];
   const seenIds = new Set(excludedIds);
-  const terr    = resolveTerritory(locationStr);
+  const terr       = resolveTerritory(locationStr);
+  const stateCode  = terr.state || '';
 
-  // Use territory cities for query targeting
-  const territoryKey = terr.key;
-  const cityList     = TERRITORY_MAP[territoryKey]?.cities || [];
-  const targetCities = cityList.length > 0
-    ? cityList.slice(0, 5).map(c => `${c} ${terr.state || ''}`.trim())
-    : [locationStr || queryText];
+  // Use getCities with state code — returns state-specific metros
+  const cityList   = getCities(stateCode || locationStr || queryText);
+  const targetCities = cityList.slice(0, 6);
 
   for (const city of targetCities) {
     const cityFirstWord = city.split(' ')[0].toLowerCase();
@@ -1556,8 +1625,9 @@ function scoreConfidence(record, sourceTier) {
 // ══════════════════════════════════════════════════════════════════════════════
 router.post('/bulk-ingest', async (req, res) => {
   const uid = req.session.user.id;
-  const { query, territory, max_records, scope } = req.body;
-  const dedupScope = scope || 'team';
+  const { query, territory, search_state, ingest_mode, max_records, scope } = req.body;
+  const dedupScope  = scope        || 'team';
+  const ingestMode  = ingest_mode  || 'growth';  // 'growth' = CRM builder, 'strict' = legacy
 
   if (!query || !query.trim()) {
     return res.status(400).json({ error: 'Query is required' });
@@ -1567,14 +1637,37 @@ router.post('/bulk-ingest', async (req, res) => {
   const apiKey  = process.env.GOOGLE_PLACES_API_KEY;
 
   try {
-    console.log(`[BulkIngest v6] Query="${query}" territory="${territory}" max=${maxRecs} scope=${dedupScope}`);
+    // ── Determine search state — PRIORITY: explicit dropdown > parsed from query > territory ──
+    // 1. Explicit state from frontend dropdown (highest trust)
+    const explicitState = (search_state || '').trim().toUpperCase();
 
-    // Resolve territory for geo filter
-    const territoryInfo = resolveTerritory(territory || '');
-    console.log(`[BulkIngest v6] Territory: key=${territoryInfo.key} state=${territoryInfo.state}`);
+    // 2. Parse state name from query text
+    const queryLow = (query || '').toLowerCase();
+    let parsedState = '';
+    for (const [name, code] of Object.entries(STATE_NAME_TO_CODE)) {
+      if (queryLow.includes(name)) { parsedState = code; break; }
+    }
+    // Also check for 2-letter abbrev in query
+    if (!parsedState) {
+      const abbrM = (query || '').match(/\b([A-Z]{2})\b/);
+      if (abbrM && Object.values(STATE_NAME_TO_CODE).includes(abbrM[1])) parsedState = abbrM[1];
+    }
+
+    // 3. Resolve from territory string (profile-based, LOWEST priority)
+    const profileTerritInfo = resolveTerritory(territory || '');
+
+    // Final: explicit > parsed > profile
+    const searchStateUsed = explicitState || parsedState || profileTerritInfo.state || null;
+    const territoryInfo   = searchStateUsed
+      ? { key: searchStateUsed, state: searchStateUsed }
+      : profileTerritInfo;
+
+    console.log(`[BulkIngest v7] Query="${query}" explicit="${explicitState}" parsed="${parsedState}" profile="${profileTerritInfo.state}" state_used="${searchStateUsed}" mode=${ingestMode} scope=${dedupScope}`);
 
     // ── Phase 1: Expand query (geo-locked) ───────────────────────────────
-    const expandedQueries = expandQuery(query, territory);
+    // Build search location string from confirmed state
+    const searchLocStr = searchStateUsed || territory || '';
+    const expandedQueries = expandQuery(query, searchLocStr);
     console.log('[BulkIngest v6] Expanded to', expandedQueries.length, 'queries:', expandedQueries);
 
     // ── Phase 2: Fetch from Google Places ────────────────────────────────
@@ -1582,7 +1675,7 @@ router.post('/bulk-ingest', async (req, res) => {
     const seenPlaceIds = new Set();
 
     for (const eq of expandedQueries) {
-      const batch = await placesSearch(eq, territory, apiKey, seenPlaceIds);
+      const batch = await placesSearch(eq, searchLocStr, apiKey, seenPlaceIds);
       for (const r of batch) {
         if (!seenPlaceIds.has(r.place_id)) {
           seenPlaceIds.add(r.place_id);
@@ -1675,24 +1768,34 @@ router.post('/bulk-ingest', async (req, res) => {
         const dupCheck = isDuplicate(rec, dupIndex);
 
         if (dupCheck.action === 'skip') {
-          skipped.push({
-            reason:          dupCheck.reason,
-            company:         rec.company,
-            address:         rec.address,
-            detail:          dupCheck.detail || '',
-            matched_company: dupCheck.matched_company || ''
-          });
-          if (skippedSample.length < 20) skippedSample.push({
-            company:         rec.company,
-            address:         rec.address || '(no address)',
-            reason:          'Exact address + name match',
-            detail:          dupCheck.detail || '',
-            matched_company: dupCheck.matched_company || ''
-          });
-          continue;
-        }
-
-        if (dupCheck.action === 'review') {
+          // In Growth Mode, only block TRUE exact duplicates (exact_address_and_name or place_id_confirmed)
+          // In Strict Mode, block all skip actions
+          const isHardDup = ['exact_address_and_name','place_id_confirmed'].includes(dupCheck.reason);
+          if (isHardDup || ingestMode === 'strict') {
+            skipped.push({
+              reason:          dupCheck.reason,
+              company:         rec.company,
+              address:         rec.address,
+              detail:          dupCheck.detail || '',
+              matched_company: dupCheck.matched_company || ''
+            });
+            if (skippedSample.length < 20) skippedSample.push({
+              company:         rec.company,
+              address:         rec.address || '(no address)',
+              reason:          'Exact address + name match',
+              detail:          dupCheck.detail || '',
+              matched_company: dupCheck.matched_company || ''
+            });
+            continue;
+          }
+          // Non-hard dup in Growth Mode → flag but import
+          rec.data_status = 'Review';
+          rec.dup_reason  = dupCheck.reason;
+          rec.dup_detail  = dupCheck.detail || '';
+          possibleDups.push(rec);
+        } else if (dupCheck.action === 'review') {
+          // Growth mode: flag and still import
+          // Strict mode: flag and still import (reviews are always imported)
           rec.data_status    = 'Review';
           rec.dup_reason     = dupCheck.reason;
           rec.dup_detail     = dupCheck.detail || '';
@@ -1783,6 +1886,8 @@ router.post('/bulk-ingest', async (req, res) => {
 
     res.json({
       ok:                  true,
+      search_state_used:   searchStateUsed || null,
+      ingest_mode:         ingestMode,
       imported,
       geo_rejected:        geoRejected,
       geo_rejected_sample: geoRejectedSample,
