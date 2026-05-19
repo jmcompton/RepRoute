@@ -1153,95 +1153,88 @@ function isDuplicate(rec, index) {
   const recAddr  = normAddr(rec.address);
   const recName  = normName(rec.company);
 
-  // ── Rule 1: Exact address match → duplicate ───────────────────────────────
-  if (recAddr.length > 8 && index.byAddr.has(recAddr)) {
-    const existingAtAddr = index.byAddr.get(recAddr);
-    // Any record at this address — it's a physical duplicate
-    const matchedName = existingAtAddr[0].nameNorm;
-    return {
-      dup:        true,
-      action:     'skip',
-      reason:     'address',
-      confidence: 100,
-      detail:     `Address already in CRM: "${rec.address}"`,
-      matched_company: existingAtAddr[0].raw ? (existingAtAddr[0].raw.company || '') : ''
-    };
+  // ── Helper: name similarity (Jaccard on tokens) ───────────────────────────
+  function nameSim(a, b) {
+    if (!a || !b || a.length < 4 || b.length < 4) return 0;
+    if (a === b) return 1;
+    const tA  = new Set(a.split(/\s+/).filter(t => t.length > 2));
+    const tB  = new Set(b.split(/\s+/).filter(t => t.length > 2));
+    if (tA.size === 0 || tB.size === 0) return 0;
+    const inter = [...tA].filter(t => tB.has(t)).length;
+    const union = new Set([...tA, ...tB]).size;
+    return union > 0 ? inter / union : 0;
   }
 
-  // ── Rule 2: Same company name + same address (via Place ID lookup) ─────────
+  // ── Street prefix: number + first street-name word only ──────────────────
+  function streetPrefix(addr) {
+    const tokens = (addr || '').split(/\s+/);
+    return tokens.slice(0, 3).join(' ');  // e.g. "225 scotland drive"
+  }
+
+  // ── Rule 1: SAME address prefix AND SAME company name → definite duplicate
+  if (recAddr.length > 6 && index.byAddr.has(recAddr)) {
+    const atAddr = index.byAddr.get(recAddr);
+    for (const ex of atAddr) {
+      const sim = nameSim(recName, ex.nameNorm);
+      if (sim >= 0.75) {
+        // Same building, same company → true duplicate
+        return {
+          dup:             true,
+          action:          'skip',
+          reason:          'address_and_name',
+          confidence:      100,
+          detail:          `Same address + name match (${Math.round(sim*100)}% similar)`,
+          matched_company: ex.raw ? (ex.raw.company || '') : ''
+        };
+      }
+    }
+    // Same address but DIFFERENT company → different tenant, import it
+    // (e.g. strip mall with multiple businesses, or new tenant)
+    return { dup: false, action: 'import', reason: '', confidence: 0 };
+  }
+
+  // ── Rule 2: Place ID match WITH name confirmation → duplicate ────────────
   if (rec.place_id && index.byPlaceId.has(rec.place_id)) {
     const existing = index.byPlaceId.get(rec.place_id);
-    // Confirm address also matches (belt-and-suspenders — Place ID could be reused)
-    const addrMatch = existing.addrNorm && recAddr.length > 8 && existing.addrNorm === recAddr;
-    const nameMatch = existing.nameNorm && recName.length > 3 && existing.nameNorm === recName;
-    if (addrMatch || nameMatch) {
+    const sim = nameSim(recName, existing.nameNorm);
+    if (sim >= 0.75) {
       return {
         dup:        true,
         action:     'skip',
         reason:     'place_id_confirmed',
         confidence: 100,
-        detail:     `Place ID + ${addrMatch ? 'address' : 'name'} confirmed duplicate`
+        detail:     `Place ID + name confirmed (${Math.round(sim*100)}% similar)`
       };
     }
-    // Place ID match but name/address don't confirm → treat as possible duplicate
-    // (business may have moved or Google re-uses the Place ID for a new tenant)
+    // Place ID match but different name → business changed, flag for review but import
     return {
       dup:        false,
       action:     'review',
-      reason:     'place_id_unconfirmed',
-      confidence: 60,
-      detail:     `Same Place ID but address/name differs — may be relocated business`
+      reason:     'place_id_name_mismatch',
+      confidence: 40,
+      detail:     `Same Place ID but different name — possible business change at this location`
     };
   }
 
-  // ── Rule 3: Same company name, different/no address → possible duplicate ───
+  // ── Rule 3: Exact same company name, same city → possible duplicate ──────
   if (recName.length > 5) {
     for (const ex of index.records) {
       if (ex.nameNorm.length < 5) continue;
-
-      // Exact name match
-      if (recName === ex.nameNorm) {
-        // If both have addresses and they differ → possible dup (different location)
-        const hasAddr = recAddr.length > 8 && ex.addrNorm.length > 8;
-        if (hasAddr && recAddr !== ex.addrNorm) {
-          return {
-            dup:        false,
-            action:     'review',
-            reason:     'name_match_different_address',
-            confidence: 55,
-            detail:     `Same name "${rec.company}" but different address — may be separate location`
-          };
-        }
-        // No address on one side → flag as possible
-        if (!hasAddr) {
-          return {
-            dup:        false,
-            action:     'review',
-            reason:     'name_match_no_address',
-            confidence: 45,
-            detail:     `Same name "${rec.company}" — no address to confirm`
-          };
-        }
-      }
-
-      // High-similarity name (Jaccard ≥ 0.85) — only flag, never auto-skip
-      const tA    = new Set(recName.split(/\s+/).filter(t => t.length > 2));
-      const tB    = new Set(ex.nameNorm.split(/\s+/).filter(t => t.length > 2));
-      const inter = [...tA].filter(t => tB.has(t)).length;
-      const union = new Set([...tA, ...tB]).size;
-      if (union > 0 && inter / union >= 0.85) {
+      const sim = nameSim(recName, ex.nameNorm);
+      if (sim >= 0.90) {
+        // Very high name similarity — flag for review but still import
         return {
           dup:        false,
           action:     'review',
-          reason:     'name_similar',
-          confidence: Math.round((inter / union) * 60),
-          detail:     `Similar name to existing record — check manually`
+          reason:     'name_very_similar',
+          confidence: Math.round(sim * 70),
+          detail:     `Very similar name to existing record — verify manually`
         };
       }
     }
   }
 
-  // ── Rule 4: Import as new ──────────────────────────────────────────────────
+  // ── Rule 4: Import as new ─────────────────────────────────────────────────
   return { dup: false, action: 'import', reason: '', confidence: 0 };
 }
 
@@ -1686,9 +1679,9 @@ router.post('/bulk-ingest', async (req, res) => {
     }
 
     // ── Phase 7: Build summary ────────────────────────────────────────────
-    const addrSkipped     = skipped.filter(s => s.reason === 'address').length;
+    const addrSkipped      = skipped.filter(s => s.reason === 'address_and_name').length;
     const confirmedSkipped = skipped.filter(s => s.reason === 'place_id_confirmed').length;
-    const batchSkipped    = skipped.filter(s => s.reason === 'batch_addr_dup').length;
+    const batchSkipped     = skipped.filter(s => s.reason === 'batch_addr_dup').length;
     const reviewCount     = importedRecords.filter(r => r.flagged).length;
 
     const skipBreakdown = {
