@@ -3492,6 +3492,29 @@ async function startBulkIngest() {
       skipDiv.style.display = 'none';
     }
 
+    // ── Filtered sample panel (what got classified-out) ─────────────────
+    var filteredSample = d.filtered_sample || [];
+    if (filteredSample.length > 0) {
+      var existingFiltDiv = document.getElementById('bulk-filtered-panel');
+      var filtDiv = existingFiltDiv || document.createElement('div');
+      filtDiv.id = 'bulk-filtered-panel';
+      filtDiv.style.cssText = 'background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;margin-bottom:14px';
+      filtDiv.innerHTML =
+        '<div style="font-size:11px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Classification Filter — What Was Excluded (debug)</div>' +
+        filteredSample.map(function(fs) {
+          return '<div style="font-size:11px;padding:4px 0;border-bottom:1px solid #e2e8f0;color:#6b7280">' +
+            '<strong style="color:#374151">' + (fs.company||'') + '</strong>' +
+            (fs.types ? ' · <em>types: ' + fs.types + '</em>' : '') +
+            (fs.category ? ' · cat: ' + fs.category : '') +
+          '</div>';
+        }).join('') +
+        '<div style="font-size:10px;color:#9ca3af;margin-top:6px">If these look like valid leads, report them — the category map needs expansion.</div>';
+      if (!existingFiltDiv) {
+        var skipDiv2 = document.getElementById('bulk-skip-reasons');
+        if (skipDiv2 && skipDiv2.parentNode) skipDiv2.parentNode.insertBefore(filtDiv, skipDiv2.nextSibling);
+      }
+    }
+
     // ── Records list ──────────────────────────────────────────────────────
     var recList  = document.getElementById('bulk-record-list');
     var recCount = document.getElementById('bulk-record-count');
