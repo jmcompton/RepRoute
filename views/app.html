@@ -3359,7 +3359,7 @@ async function startBulkIngest() {
       var filtered      = (d.excluded_filtered||0) + (d.excluded_low_conf||0);
       statsRow.innerHTML =
         statCard('Imported',           d.imported,   '#065f46', '#d1fae5') +
-        statCard('Exact Address Dups', addrDups,     '#92400e', '#fef3c7') +
+        statCard('Same Co + Address',  addrDups,     '#92400e', '#fef3c7') +
         (possibleDups > 0 ? statCard('Possible Dups',  possibleDups, '#1e40af', '#dbeafe') : '') +
         (filtered > 0     ? statCard('Filtered Out',   filtered,     '#374151', '#f3f4f6') : '');
     }
@@ -3398,7 +3398,7 @@ async function startBulkIngest() {
         var sb = d.skip_breakdown;
         skipBD.innerHTML = '';
         var reasonPills = [
-          { label: 'Exact address match', val: sb.exact_address,   tip: 'Same physical address already in CRM — definitive duplicate' },
+          { label: 'Same co + address',   val: sb.exact_address,   tip: 'Same company name AND same address already in CRM — definitive duplicate' },
           { label: 'Confirmed duplicate', val: sb.confirmed_place, tip: 'Place ID + address/name both matched existing record' },
           { label: 'Batch duplicate',     val: sb.batch_dup,       tip: 'Same address appeared twice in this search batch' },
           { label: 'Other',               val: sb.other,           tip: 'Other dedup rule matched' }
