@@ -233,11 +233,7 @@ function isBadLead(name, address, category) {
     if (lower.includes(kw)) return true;
   }
 
-  const nameWords = name.split(' ').filter(w => w.length > 1);
-  if (nameWords.length < 2 && !lower.includes('co') && !lower.includes('inc') && !lower.includes('llc')) {
-    const hasSignal = DISTRIBUTION_SIGNALS.some(s => lower.includes(s));
-    if (!hasSignal) return true;
-  }
+  // (name word count filter removed — too aggressive for Growth Mode)
 
   if (/po box|p\.o\. box/i.test((address||'').toLowerCase())) return true;
   // Virtual office / mail-drop addresses
@@ -1550,35 +1546,123 @@ const SOURCE_TIERS = {
 
 // ── Category map ──────────────────────────────────────────────────────────────
 const CATEGORY_MAP = [
-  { slug: 'roofing_contractor',  label: 'Roofing Contractor',        type: 'Contractor',  keys: ['roofing contractor','roofer','roofing company','roofing co','commercial roofing','roof repair','roofing services','roofing & sheet'] },
-  { slug: 'roofing_distributor', label: 'Roofing Distributor',       type: 'Distributor', keys: ['roofing supply','roofing distributor','roofing materials','roofing wholesale','roofing dealer'] },
-  { slug: 'decking_contractor',  label: 'Decking Contractor',        type: 'Contractor',  keys: ['deck builder','decking contractor','deck construction','custom decks','decks and patios','outdoor living','composite decking contractor'] },
-  { slug: 'decking_distributor', label: 'Decking Distributor',       type: 'Distributor', keys: ['deck supply','decking distributor','decking dealer','lumber yard','trex dealer','composite decking dealer','fiberon dealer','decking wholesale'] },
-  { slug: 'siding_contractor',   label: 'Siding Contractor',         type: 'Contractor',  keys: ['siding contractor','siding company','siding installer','siding & windows','cornice contractor','siding services'] },
-  { slug: 'siding_distributor',  label: 'Siding Distributor',        type: 'Distributor', keys: ['siding supply','siding distributor','siding dealer','siding wholesale','siding materials'] },
-  { slug: 'window_contractor',   label: 'Window & Door Installer',   type: 'Contractor',  keys: ['window installer','door installer','window contractor','window & door contractor','fenestration contractor','window replacement'] },
-  { slug: 'window_distributor',  label: 'Window & Door Distributor', type: 'Distributor', keys: ['window distributor','window dealer','door dealer','window supply','window wholesale','window & door supply'] },
-  { slug: 'tool_dealer',         label: 'Fastener & Tool Dealer',    type: 'Distributor', keys: ['scaffolding dealer','tool supply','fastener dealer','pump jack dealer','equipment supply','tool dealer','scaffold supply'] },
-  { slug: 'building_materials',  label: 'Building Materials Dealer', type: 'Distributor', keys: ['building materials','builders supply','building supply','lumber yard','lumber dealer','pro dealer','building center'] },
-  { slug: 'general_contractor',  label: 'General Contractor',        type: 'Contractor',  keys: ['general contractor','construction company','construction co','builder','remodeling','renovation'] }
+  // ── Roofing ────────────────────────────────────────────────────────────────
+  { slug: 'roofing_contractor',  label: 'Roofing Contractor',
+    type: 'Contractor',
+    keys: ['roofing contractor','roofer','roofing company','roofing co','commercial roofing',
+           'roof repair','roofing services','roofing & sheet','roofing systems','roof coating',
+           'roofing specialist','flat roofing','metal roofing','roofing solutions','roofing group',
+           'roofing pros','roofing experts','roof installation','roofing llc','roofing inc'] },
+  { slug: 'roofing_distributor', label: 'Roofing Distributor',
+    type: 'Distributor',
+    keys: ['roofing supply','roofing distributor','roofing materials','roofing wholesale',
+           'roofing dealer','roof supply','roofing products','roofing depot'] },
+  // ── Decking / Outdoor Living ───────────────────────────────────────────────
+  { slug: 'decking_contractor',  label: 'Decking Contractor',
+    type: 'Contractor',
+    keys: ['deck builder','decking contractor','deck construction','custom decks',
+           'decks and patios','outdoor living','composite decking contractor',
+           // Real-world name patterns
+           'deck & porch','deck and porch','decks & porch','porch builder',
+           'deck & fence','deck and fence','decks & fence','decks & fencing',
+           'deck & pergola','pergola builder','pergola contractor','pergola company',
+           'outdoor spaces','outdoor structures','outdoor solutions',
+           'patio builder','patio contractor','patio company','patio covers',
+           'screened porch','screen room','sunroom builder',
+           ' decking','deck company','decks company','decks llc','decks inc',
+           'deck design','custom porch','custom outdoor','backyard living',
+           'timbertech','trex contractor','fiberon contractor','azek contractor',
+           'deck restoration','deck refinishing','deck specialist',
+           'exterior contractor','exterior solutions','exterior services',
+           'siding and decking','decks and siding','decks & exteriors',
+           'decks & more','decks and more','porches and decks','decks porches'] },
+  { slug: 'decking_distributor', label: 'Decking Distributor',
+    type: 'Distributor',
+    keys: ['deck supply','decking distributor','decking dealer','lumber yard',
+           'trex dealer','composite decking dealer','fiberon dealer','decking wholesale',
+           'timbertech dealer','azek dealer','deck material','decking supplier'] },
+  // ── Siding / Exteriors ────────────────────────────────────────────────────
+  { slug: 'siding_contractor',   label: 'Siding Contractor',
+    type: 'Contractor',
+    keys: ['siding contractor','siding company','siding installer','siding & windows',
+           'cornice contractor','siding services','siding specialist','vinyl siding',
+           'fiber cement','hardieplank','james hardie','siding solutions','siding group',
+           'exterior remodeling','home exterior','siding llc','siding inc'] },
+  { slug: 'siding_distributor',  label: 'Siding Distributor',
+    type: 'Distributor',
+    keys: ['siding supply','siding distributor','siding dealer','siding wholesale',
+           'siding materials','siding products','siding depot'] },
+  // ── Windows & Doors ───────────────────────────────────────────────────────
+  { slug: 'window_contractor',   label: 'Window & Door Installer',
+    type: 'Contractor',
+    keys: ['window installer','door installer','window contractor','window & door contractor',
+           'fenestration contractor','window replacement','window company','window solutions',
+           'window & door company','entry door installer','door replacement','window specialist'] },
+  { slug: 'window_distributor',  label: 'Window & Door Distributor',
+    type: 'Distributor',
+    keys: ['window distributor','window dealer','door dealer','window supply','window wholesale',
+           'window & door supply','window products','door products','window manufacturer',
+           'door manufacturer','millwork dealer'] },
+  // ── Fastener & Tool ──────────────────────────────────────────────────────
+  { slug: 'tool_dealer',         label: 'Fastener & Tool Dealer',
+    type: 'Distributor',
+    keys: ['scaffolding dealer','tool supply','fastener dealer','pump jack dealer',
+           'equipment supply','tool dealer','scaffold supply','ladder supply',
+           'construction equipment','tool rental','safety equipment supply'] },
+  // ── Building Materials ───────────────────────────────────────────────────
+  { slug: 'building_materials',  label: 'Building Materials Dealer',
+    type: 'Distributor',
+    keys: ['building materials','builders supply','building supply','lumber yard',
+           'lumber dealer','pro dealer','building center','hardware supply',
+           'construction supply','building products','material supply','supply co',
+           'supply company','supply house','wholesale supply'] },
+  // ── General Contractor (catch-all for GC plates) ─────────────────────────
+  { slug: 'general_contractor',  label: 'General Contractor',
+    type: 'Contractor',
+    keys: ['general contractor','construction company','construction co','general contracting',
+           'home builder','custom builder','residential builder','commercial builder',
+           'remodeling company','renovation company','remodeler','home improvement',
+           'home services','home improvement company','contracting company',
+           'construction group','construction llc','construction inc',
+           'builders llc','builders inc','home renovation'] }
 ];
 
 // ── classifyRecord ────────────────────────────────────────────────────────────
+// Google Place type → category slug mapping
+const GOOGLE_TYPE_TO_CAT = {
+  'roofing_contractor':       { slug: 'roofing_contractor',  label: 'Roofing Contractor',        type: 'Contractor'  },
+  'general_contractor':       { slug: 'general_contractor',  label: 'General Contractor',        type: 'Contractor'  },
+  'home_improvement_store':   { slug: 'building_materials',  label: 'Building Materials Dealer', type: 'Distributor' },
+  'home_goods_store':         { slug: 'general_contractor',  label: 'Home Services Contractor',  type: 'Contractor'  },
+  'hardware_store':           { slug: 'building_materials',  label: 'Building Materials Dealer', type: 'Distributor' },
+  'lumber_yard':              { slug: 'building_materials',  label: 'Lumber & Building Supply',  type: 'Distributor' },
+  'contractor':               { slug: 'general_contractor',  label: 'General Contractor',        type: 'Contractor'  },
+  'construction_company':     { slug: 'general_contractor',  label: 'General Contractor',        type: 'Contractor'  },
+  'interior_designer':        { slug: 'general_contractor',  label: 'Design/Build Contractor',   type: 'Contractor'  },
+  'plumber':                  null,
+  'electrician':              null,
+  'painter':                  null,
+  'locksmith':                null,
+};
+
 function classifyRecord(record) {
   const name    = (record.company  || '').toLowerCase();
   const cats    = (record.category || '').toLowerCase();
-  const types   = (record.types    || []).map(t => t.toLowerCase()).join(' ');
+  const rawTypes = (record.types   || []);
+  const types   = rawTypes.map(t => t.toLowerCase()).join(' ');
   const website = (record.website  || '').toLowerCase();
-  const allText = `${name} ${cats} ${types} ${website}`;
+  const allText = name + ' ' + cats + ' ' + types + ' ' + website;
 
-  // Hard exclusions
+  // Hard exclusions — painting, garage door, retail
   if (RETAIL_EXCLUSIONS.some(ex        => allText.includes(ex))) return null;
   if (MANUFACTURER_EXCLUSIONS.some(ex  => allText.includes(ex))) return null;
   if (RESIDENTIAL_EXCLUSIONS.some(ex   => allText.includes(ex))) return null;
   if (/garage|overhead door/i.test(name))                        return null;
   if (/paint(ing)?\s*(contractor|company|co\b|services)/i.test(name)) return null;
+  // Block pure service trades — not our target
+  if (/\b(plumb|electric|hvac|landscap|lawn|pest|pool|pressure wash|carpet clean|junk remov)/.test(name)) return null;
 
-  // Score each category
+  // ── Step 1: Keyword matching against CATEGORY_MAP (highest specificity) ────
   let bestScore = 0;
   let bestCat   = null;
   for (const cat of CATEGORY_MAP) {
@@ -1589,14 +1673,24 @@ function classifyRecord(record) {
     return { company_type: bestCat.type, category_label: bestCat.label, category_slug: bestCat.slug };
   }
 
-  // Fallback broad signals
+  // ── Step 2: Google Place Type mapping ─────────────────────────────────────
+  for (const gType of rawTypes) {
+    const mapped = GOOGLE_TYPE_TO_CAT[gType];
+    if (mapped === null) return null;  // explicitly excluded type
+    if (mapped)          return { company_type: mapped.type, category_label: mapped.label, category_slug: mapped.slug };
+  }
+
+  // ── Step 3: Broad name signals ─────────────────────────────────────────────
   const isDist = DISTRIBUTOR_SIGNALS.some(s => allText.includes(s));
   const isCont = CONTRACTOR_SIGNALS.some(s  => allText.includes(s));
   if (isDist && !isCont) return { company_type: 'Distributor', category_label: 'Building Materials Dealer',  category_slug: 'building_materials' };
   if (isCont)            return { company_type: 'Contractor',  category_label: 'General Contractor',         category_slug: 'general_contractor' };
   if (isDist)            return { company_type: 'Distributor', category_label: 'Building Materials Dealer',  category_slug: 'building_materials' };
 
-  return { company_type: 'Unknown', category_label: cats || 'Unknown', category_slug: 'unknown' };
+  // ── Step 4: In Growth Mode, accept anything that passes exclusions ─────────
+  // A "deck & porch" company won't have roofing/decking keywords — but it IS our target.
+  // Accept with category "General Contractor" rather than dropping it.
+  return { company_type: 'Unknown', category_label: cats || 'General Contractor', category_slug: 'general_contractor' };
 }
 
 // Backwards-compat alias
@@ -1709,18 +1803,23 @@ router.post('/bulk-ingest', async (req, res) => {
     console.log(`[BulkIngest v6] Geo: ${geoValid.length} valid, ${geoRejected} rejected`);
 
     // ── Phase 4: Classify ─────────────────────────────────────────────────
-    const classified  = [];
-    let   filteredCount = 0;
+    const classified     = [];
+    const filteredSample = [];
+    let   filteredCount  = 0;
 
     for (const rec of geoValid) {
       const cls = classifyRecord(rec);
-      if (!cls) { filteredCount++; continue; }
+      if (!cls) {
+        filteredCount++;
+        if (filteredSample.length < 10) filteredSample.push({ company: rec.company, address: rec.address, category: rec.category, types: (rec.types||[]).join(',') });
+        continue;
+      }
       rec.company_type  = cls.company_type;
       rec.category      = cls.category_label;
       rec.category_slug = cls.category_slug;
       classified.push(rec);
     }
-    console.log(`[BulkIngest v6] Classified: ${classified.length}, Filtered: ${filteredCount}`);
+    console.log(`[BulkIngest v7] Classified: ${classified.length}, Filtered: ${filteredCount}`);
 
     // ── Phase 5: Confidence scoring ───────────────────────────────────────
     const scored     = [];
@@ -1728,7 +1827,10 @@ router.post('/bulk-ingest', async (req, res) => {
 
     for (const rec of classified) {
       const conf = scoreConfidence(rec, rec.source_tier || SOURCE_TIERS.TIER3);
-      if (conf < 35) { lowConfCount++; continue; }
+      // Growth Mode: accept everything ≥15 (just needs place_id + address)
+      // Strict Mode: require ≥35
+      const minConf = ingestMode === 'growth' ? 15 : 35;
+      if (conf < minConf) { lowConfCount++; continue; }
       rec.confidence_score = conf;
       rec.data_status = conf >= 90 ? 'Verified' : conf >= 70 ? 'Likely Valid' : 'Unvetted';
       scored.push(rec);
@@ -1894,6 +1996,7 @@ router.post('/bulk-ingest', async (req, res) => {
       exact_address_dups:  exactSkipped,
       possible_duplicates: reviewCount,
       excluded_filtered:   filteredCount,
+      filtered_sample:     filteredSample.slice(0,5),
       excluded_low_conf:   lowConfCount,
       skipped_total:       skipped.length,
       queries_run:         expandedQueries.length,
