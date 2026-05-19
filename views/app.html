@@ -3331,7 +3331,8 @@ async function startBulkIngest() {
 
     // Status line
     var scopeLabel = scope === 'off' ? 'no dedup' : scope === 'mine' ? 'my contacts' : 'team (' + (d.db_index_size||0) + ' in DB)';
-    if (statusText) statusText.textContent = 'Complete · ' + (d.raw_candidates||0) + ' candidates · ' + scopeLabel;
+    var stateLabel = d.territory_state ? ' · state filter: ' + d.territory_state : '';
+    if (statusText) statusText.textContent = 'Complete · ' + (d.geo_valid || d.raw_candidates||0) + ' in-territory · ' + (d.raw_candidates||0) + ' raw · ' + scopeLabel + stateLabel;
     if (phasePills) {
       phasePills.innerHTML = '<span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:12px;background:#d1fae5;color:#065f46">✓ Done</span>';
     }
@@ -3358,8 +3359,9 @@ async function startBulkIngest() {
       var possibleDups  = d.possible_duplicates      || 0;
       var filtered      = (d.excluded_filtered||0) + (d.excluded_low_conf||0);
       statsRow.innerHTML =
-        statCard('Imported',           d.imported,   '#065f46', '#d1fae5') +
-        statCard('Same Co + Address',  addrDups,     '#92400e', '#fef3c7') +
+        statCard('Imported',           d.imported,     '#065f46', '#d1fae5') +
+        (geoRejected > 0  ? statCard('Wrong State',    geoRejected,  '#7c3aed', '#ede9fe') : '') +
+        statCard('Exact Dups',         addrDups,       '#92400e', '#fef3c7') +
         (possibleDups > 0 ? statCard('Possible Dups',  possibleDups, '#1e40af', '#dbeafe') : '') +
         (filtered > 0     ? statCard('Filtered Out',   filtered,     '#374151', '#f3f4f6') : '');
     }
