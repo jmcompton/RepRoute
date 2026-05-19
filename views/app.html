@@ -1037,36 +1037,34 @@ window.addEventListener('load', function() {
 
   <!-- AI LEAD FINDER -->
   <div class="page" id="page-bulk">
-  <div style="max-width:760px;margin:0 auto;padding:24px 20px">
+  <div style="max-width:840px;margin:0 auto;padding:24px 20px">
 
-    <!-- Header -->
-    <div style="margin-bottom:20px">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px">
-        <div>
-          <h2 style="margin:0 0 4px;color:var(--navy);font-size:20px;font-weight:800;letter-spacing:-.3px">Bulk Ingestion v2</h2>
-          <p style="margin:0;color:var(--text3);font-size:13px">Tiered · Confidence-scored · Deduplicated · Classification-filtered</p>
-        </div>
-        <div style="display:flex;gap:6px">
-          <span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:12px;background:#d1fae5;color:#065f46">45+ score saved</span>
-          <span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:12px;background:#e0f2fe;color:#0369a1">Team dedup</span>
-          <span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:12px;background:#fef3c7;color:#92400e">Auto-classify</span>
-        </div>
+  <!-- Header -->
+  <div style="margin-bottom:20px">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div>
+        <h2 style="margin:0 0 4px;color:var(--navy);font-size:20px;font-weight:800;letter-spacing:-.3px">Territory Data Engine</h2>
+        <p style="margin:0;color:var(--text3);font-size:12px;letter-spacing:.3px;text-transform:uppercase">Supply Chain Intelligence · Manufacturer → Distributor → Contractor</p>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px;background:#d1fae5;color:#065f46">Territory-Locked</span>
+        <span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px;background:#dbeafe;color:#1e40af">Supply-Chain Aware</span>
+        <span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px;background:#f3f4f6;color:#374151">Growth Mode Default</span>
       </div>
     </div>
+  </div>
 
-    <!-- Query builder card -->
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px">
-      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px">Search Query — Engine auto-expands into multiple targeted variations</div>
+  <!-- Search Panel -->
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:16px">
 
-      <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
-        <input id="bulk-query" type="text"
-          placeholder='e.g. "Trex decking dealers" or "roofing distributors" or "siding contractors"'
-          style="flex:1;min-width:240px;padding:10px 14px;border:1px solid var(--border);border-radius:7px;font-size:14px;font-family:inherit;color:var(--navy)"
-          onkeydown="if(event.key==='Enter') startBulkIngest()"
-        />
-        <!-- Search State — EXPLICIT geo lock, highest priority -->
-        <select id="bulk-state" title="Search State (overrides all other geography)" style="padding:10px 12px;border:2px solid #00FF87;border-radius:7px;font-size:13px;font-weight:700;font-family:inherit;color:var(--navy);background:#fff">
-          <option value="">-- State --</option>
+    <!-- Row 1: State + Category -->
+    <div style="display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+      <!-- State Selector — PRIMARY GEO LOCK -->
+      <div style="flex:0 0 auto">
+        <label style="display:block;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Search State *</label>
+        <select id="bulk-state" title="Territory state — strictly enforced"
+          style="padding:10px 12px;border:2px solid #00FF87;border-radius:7px;font-size:13px;font-weight:700;font-family:inherit;color:var(--navy);background:#fff;min-width:160px">
+          <option value="">— Select State —</option>
           <option value="AL">Alabama</option>
           <option value="AR">Arkansas</option>
           <option value="FL">Florida</option>
@@ -1081,88 +1079,130 @@ window.addEventListener('load', function() {
           <option value="VA">Virginia</option>
           <option value="WV">West Virginia</option>
         </select>
-        <select id="bulk-max" style="padding:10px 12px;border:1px solid var(--border);border-radius:7px;font-size:13px;font-family:inherit;color:var(--navy);background:#fff">
+      </div>
+
+      <!-- Category -->
+      <div style="flex:0 0 auto">
+        <label style="display:block;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Category</label>
+        <select id="bulk-category"
+          style="padding:10px 12px;border:1px solid var(--border);border-radius:7px;font-size:13px;font-family:inherit;color:var(--navy);background:#fff;min-width:160px">
+          <option value="">All Categories</option>
+          <option value="decking">Decking &amp; Outdoor Living</option>
+          <option value="roofing">Roofing</option>
+          <option value="siding">Siding &amp; Exteriors</option>
+          <option value="windows">Windows &amp; Doors</option>
+        </select>
+      </div>
+
+      <!-- Volume -->
+      <div style="flex:0 0 auto">
+        <label style="display:block;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Volume</label>
+        <select id="bulk-max"
+          style="padding:10px 12px;border:1px solid var(--border);border-radius:7px;font-size:13px;font-family:inherit;color:var(--navy);background:#fff">
           <option value="20">20 records</option>
           <option value="40" selected>40 records</option>
           <option value="60">60 records</option>
           <option value="80">80 records</option>
+          <option value="100">100 records</option>
         </select>
-        <select id="bulk-mode" title="Ingestion Mode" style="padding:10px 12px;border:1px solid var(--border);border-radius:7px;font-size:13px;font-family:inherit;color:var(--navy);background:#fff">
+      </div>
+
+      <!-- Mode -->
+      <div style="flex:0 0 auto">
+        <label style="display:block;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Mode</label>
+        <select id="bulk-mode"
+          style="padding:10px 12px;border:1px solid var(--border);border-radius:7px;font-size:13px;font-family:inherit;color:var(--navy);background:#fff">
           <option value="growth" selected>Growth Mode</option>
           <option value="strict">Strict Dedup</option>
         </select>
-        <select id="bulk-scope" title="Dedup scope" style="padding:10px 12px;border:1px solid var(--border);border-radius:7px;font-size:13px;font-family:inherit;color:var(--navy);background:#fff">
-          <option value="team">Team dedup</option>
+      </div>
+
+      <!-- Scope -->
+      <div style="flex:0 0 auto">
+        <label style="display:block;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Dedup Scope</label>
+        <select id="bulk-scope"
+          style="padding:10px 12px;border:1px solid var(--border);border-radius:7px;font-size:13px;font-family:inherit;color:var(--navy);background:#fff">
+          <option value="team">Team-wide</option>
           <option value="mine">My contacts only</option>
           <option value="off">No dedup</option>
         </select>
-        <button onclick="startBulkIngest()" id="bulk-btn"
-          style="padding:10px 22px;background:var(--navy);color:#00FF87;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:.3px;white-space:nowrap">
-          Run Ingestion
-        </button>
-      </div>
-
-      <!-- Quick examples -->
-      <div style="font-size:11px;color:var(--text3);margin-bottom:6px;font-weight:600">Quick searches:</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px">
-        <button onclick="document.getElementById('bulk-query').value=this.textContent" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:5px;background:var(--bg);color:var(--text2);cursor:pointer">roofing distributors Atlanta</button>
-        <button onclick="document.getElementById('bulk-query').value=this.textContent" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:5px;background:var(--bg);color:var(--text2);cursor:pointer">Trex decking dealers Southeast GA</button>
-        <button onclick="document.getElementById('bulk-query').value=this.textContent" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:5px;background:var(--bg);color:var(--text2);cursor:pointer">siding distributors Georgia</button>
-        <button onclick="document.getElementById('bulk-query').value=this.textContent" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:5px;background:var(--bg);color:var(--text2);cursor:pointer">window door distributors Jacksonville</button>
-        <button onclick="document.getElementById('bulk-query').value=this.textContent" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:5px;background:var(--bg);color:var(--text2);cursor:pointer">lumber yard building supply Savannah</button>
-        <button onclick="document.getElementById('bulk-query').value=this.textContent" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:5px;background:var(--bg);color:var(--text2);cursor:pointer">commercial roofing contractors Augusta</button>
       </div>
     </div>
 
-    <!-- Status / progress -->
-    <div id="bulk-status" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-        <div id="bulk-spinner" style="width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--navy);border-radius:50%;animation:spin .7s linear infinite"></div>
-        <span id="bulk-status-text" style="font-size:13px;font-weight:600;color:var(--navy)">Initializing...</span>
+    <!-- Row 2: Optional keyword + Run -->
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <label style="display:block;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Optional Keyword (leave blank to use category engine)</label>
+        <input id="bulk-query" type="text"
+          placeholder='e.g. "TimberTech contractor" or "deck builder" or "roofing supply"'
+          style="width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid var(--border);border-radius:7px;font-size:13px;font-family:inherit;color:var(--navy)"
+          onkeydown="if(event.key==='Enter') startBulkIngest()"
+        />
       </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap" id="bulk-phase-pills"></div>
+      <button onclick="startBulkIngest()" id="bulk-btn"
+        style="padding:11px 28px;background:var(--navy);color:#00FF87;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:.3px;white-space:nowrap;flex:0 0 auto">
+        Run Ingestion
+      </button>
     </div>
 
-    <!-- Results summary -->
-    <div id="bulk-results" style="display:none">
+    <!-- Supply chain legend -->
+    <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px">Supply Chain:</span>
+      <span style="font-size:11px;padding:2px 8px;border-radius:8px;background:#fef3c7;color:#92400e;font-weight:600">Layer 1 — Manufacturer (anchor, not imported)</span>
+      <span style="font-size:11px;padding:2px 8px;border-radius:8px;background:#dbeafe;color:#1e40af;font-weight:600">Layer 2 — Distributor / Dealer (imported)</span>
+      <span style="font-size:11px;padding:2px 8px;border-radius:8px;background:#d1fae5;color:#065f46;font-weight:600">Layer 3 — Contractor (primary target)</span>
+    </div>
+  </div>
 
-      <!-- Stats row -->
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px" id="bulk-stats-row"></div>
+  <!-- Status + Spinner -->
+  <div id="bulk-status" style="display:none;margin-bottom:12px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <div id="bulk-spinner" style="width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--navy);border-radius:50%;display:none;animation:spin .8s linear infinite"></div>
+      <span id="bulk-status-text" style="font-size:13px;color:var(--text2);font-weight:600"></span>
+    </div>
+    <div id="bulk-phase-pills" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+  </div>
 
-      <!-- Breakdown row -->
-      <div id="bulk-breakdown" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px;display:none">
-        <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Ingestion Breakdown</div>
-        <div id="bulk-breakdown-inner" style="display:flex;flex-wrap:wrap;gap:8px"></div>
-      </div>
+  <!-- Results -->
+  <div id="bulk-results" style="display:none">
 
-      <!-- Skip Reasons -->
-      <div id="bulk-skip-reasons" style="display:none;background:var(--surface);border:1px solid #fcd34d;border-radius:8px;padding:14px;margin-bottom:14px">
-        <div style="font-size:11px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Why Records Were Skipped</div>
-        <div id="bulk-skip-breakdown" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px"></div>
-        <div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px">Sample</div>
-        <div id="bulk-skip-sample" style="display:flex;flex-direction:column;gap:4px"></div>
-      </div>
+    <!-- Stats grid -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:14px" id="bulk-stats-row"></div>
 
-      <!-- Records list -->
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
-        <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
-          <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px">Imported Records</div>
-          <div id="bulk-record-count" style="font-size:11px;color:var(--text3)"></div>
-        </div>
-        <div id="bulk-record-list" style="max-height:420px;overflow-y:auto"></div>
-      </div>
+    <!-- Subcategory breakdown -->
+    <div id="bulk-breakdown" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px;display:none">
+      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Supply Chain Breakdown</div>
+      <div id="bulk-breakdown-inner" style="display:flex;flex-wrap:wrap;gap:8px"></div>
     </div>
 
-    <!-- Session history -->
-    <div style="margin-top:20px">
-      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">This Session</div>
+    <!-- Debug: Why records were excluded -->
+    <div id="bulk-skip-reasons" style="display:none;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:14px;margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Why Records Were Excluded</div>
+      <div id="bulk-skip-breakdown" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
+      <div id="bulk-skip-sample"></div>
+    </div>
+
+    <!-- Queries used -->
+    <div id="bulk-queries-used" style="display:none;margin-bottom:12px"></div>
+
+    <!-- Record count -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div id="bulk-record-count" style="font-size:12px;font-weight:700;color:var(--text2)"></div>
+    </div>
+
+    <!-- Records list -->
+    <div id="bulk-record-list" style="display:flex;flex-direction:column;gap:8px"></div>
+
+    <!-- History -->
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Run History</div>
       <div id="bulk-history-list" style="display:flex;flex-direction:column;gap:6px"></div>
     </div>
-
   </div>
+
 </div>
 
-<div class="page" id="page-leads" style="overflow-y:auto">
+id="page-leads" style="overflow-y:auto">
     <div style="padding:24px 24px 60px 24px;width:100%;box-sizing:border-box">
 
       <!-- Header -->
@@ -3314,302 +3354,250 @@ function bulkGoFilter(ctype) {
   }, 200);
 }
 
+
 async function startBulkIngest() {
-  var query   = (document.getElementById('bulk-query') || {value:''}).value.trim();
-  if (!query) { showToast('Enter a search query first'); return; }
+  var stateEl    = document.getElementById('bulk-state');
+  var searchState = stateEl ? stateEl.value.trim() : '';
+  if (!searchState) {
+    showToast('Please select a state first — territory is required');
+    if (stateEl) stateEl.style.borderColor = '#ef4444';
+    return;
+  }
+  if (stateEl) stateEl.style.borderColor = '#00FF87';
 
-  var maxRecs = parseInt((document.getElementById('bulk-max')   || {value:'40'}).value)  || 40;
-  var scope   = (document.getElementById('bulk-scope') || {value:'team'}).value;
-  var btn     = document.getElementById('bulk-btn');
-  var status  = document.getElementById('bulk-status');
-  var results = document.getElementById('bulk-results');
+  var query    = (document.getElementById('bulk-query')    || {value:''}).value.trim();
+  var category = (document.getElementById('bulk-category') || {value:''}).value;
+  var maxRecs  = parseInt((document.getElementById('bulk-max')  || {value:'40'}).value) || 40;
+  var scope    = (document.getElementById('bulk-scope')    || {value:'team'}).value;
+  var mode     = (document.getElementById('bulk-mode')     || {value:'growth'}).value;
+  var btn      = document.getElementById('bulk-btn');
+  var status   = document.getElementById('bulk-status');
+  var spinner  = document.getElementById('bulk-spinner');
+  var statusTx = document.getElementById('bulk-status-text');
+  var pills    = document.getElementById('bulk-phase-pills');
+  var results  = document.getElementById('bulk-results');
 
-  btn.textContent = 'Running...'; btn.disabled = true;
+  if (btn) { btn.textContent = 'Running…'; btn.disabled = true; }
   if (status)  status.style.display  = 'block';
+  if (spinner) spinner.style.display = 'block';
   if (results) results.style.display = 'none';
-
-  var statusText = document.getElementById('bulk-status-text');
-  var phasePills = document.getElementById('bulk-phase-pills');
-  if (phasePills) phasePills.innerHTML = '';
-  if (statusText) statusText.textContent = 'Searching Google Places...';
-
-  // Search State: explicit dropdown (highest priority) > parsed from query > profile territory
-  var searchStateEl = document.getElementById('bulk-state');
-  var explicitState = searchStateEl ? searchStateEl.value.trim().toUpperCase() : '';
-  var ingestMode    = (document.getElementById('bulk-mode') || {value:'growth'}).value || 'growth';
-
-  // Parse state from query text as fallback (e.g. "dealers alabama" → "AL")
-  var STATE_NAMES = {
-    'alabama':'AL','alaska':'AK','arizona':'AZ','arkansas':'AR','california':'CA',
-    'colorado':'CO','connecticut':'CT','florida':'FL','georgia':'GA','idaho':'ID',
-    'illinois':'IL','indiana':'IN','iowa':'IA','kansas':'KS','kentucky':'KY',
-    'louisiana':'LA','maine':'ME','maryland':'MD','massachusetts':'MA','michigan':'MI',
-    'minnesota':'MN','mississippi':'MS','missouri':'MO','montana':'MT','nebraska':'NE',
-    'nevada':'NV','new hampshire':'NH','new jersey':'NJ','new mexico':'NM','new york':'NY',
-    'north carolina':'NC','north dakota':'ND','ohio':'OH','oklahoma':'OK','oregon':'OR',
-    'pennsylvania':'PA','rhode island':'RI','south carolina':'SC','south dakota':'SD',
-    'tennessee':'TN','texas':'TX','utah':'UT','vermont':'VT','virginia':'VA',
-    'washington':'WA','west virginia':'WV','wisconsin':'WI','wyoming':'WY'
-  };
-  var queryLow = query.toLowerCase();
-  var parsedState = '';
-  // Check full state name in query
-  for (var sn in STATE_NAMES) {
-    if (queryLow.includes(sn)) { parsedState = STATE_NAMES[sn]; break; }
-  }
-  // Check 2-letter abbrev at end of query (e.g. "dealers GA")
-  if (!parsedState) {
-    var abbrMatch = query.match(/\b([A-Z]{2})\b/);
-    if (abbrMatch) parsedState = abbrMatch[1];
-  }
-
-  // Priority: explicit dropdown > parsed from query > profile territory
-  var searchState = explicitState || parsedState || '';
-  var territory   = searchState || (window.currentTerritory) || '';
+  if (statusTx) statusTx.textContent = 'Building query set for ' + searchState + '…';
+  if (pills) pills.innerHTML = [
+    ['Geo Lock', '#dbeafe', '#1e40af'],
+    ['Fetch',    '#fef3c7', '#92400e'],
+    ['Classify', '#d1fae5', '#065f46'],
+    ['Dedup',    '#f3f4f6', '#374151'],
+    ['Import',   '#ede9fe', '#5b21b6'],
+  ].map(function(p) {
+    return '<span style="font-size:10px;font-weight:600;padding:3px 8px;border-radius:10px;background:' + p[1] + ';color:' + p[2] + '">' + p[0] + '</span>';
+  }).join('');
 
   try {
     var resp = await fetch('/api/places/bulk-ingest', {
-      method: 'POST',
+      method:  'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ query: query, territory: territory, search_state: searchState, ingest_mode: ingestMode, max_records: maxRecs, scope: scope })
+      body: JSON.stringify({
+        query:        query,
+        search_state: searchState,
+        territory:    (window.currentTerritory) || '',
+        category:     category,
+        ingest_mode:  mode,
+        max_records:  maxRecs,
+        scope:        scope,
+      })
     });
     var d = await resp.json();
-    btn.textContent = 'Run Ingestion'; btn.disabled = false;
+
+    if (btn)     { btn.textContent = 'Run Ingestion'; btn.disabled = false; }
+    if (spinner) spinner.style.display = 'none';
 
     if (d.error) {
-      if (statusText) statusText.textContent = 'Error: ' + d.error;
-      showToast('Ingestion error: ' + d.error);
+      if (statusTx) statusTx.textContent = 'Error: ' + d.error;
+      showToast(d.error);
       return;
     }
 
-    // Status line
-    var scopeLabel = scope === 'off' ? 'no dedup' : scope === 'mine' ? 'my contacts' : 'team (' + (d.db_index_size||0) + ' in DB)';
-    var stateLabel = d.territory_state ? ' · state filter: ' + d.territory_state : '';
-    if (statusText) {
-        var activeState = d.search_state_used || d.territory_state || '';
-        var modeBadge   = d.ingest_mode === 'growth' ? ' · GROWTH MODE' : ' · STRICT MODE';
-        statusText.textContent = 'Complete · '
-          + (d.geo_valid || d.raw_candidates || 0) + ' in-state'
-          + (activeState ? ' (' + activeState + ')' : '')
-          + ' · ' + (d.raw_candidates || 0) + ' raw · '
-          + scopeLabel + modeBadge;
-      }
-    if (phasePills) {
-      phasePills.innerHTML = '<span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:12px;background:#d1fae5;color:#065f46">✓ Done</span>';
-    }
-    if (results) results.style.display = 'block';
+    // Status bar
+    var modeLabel  = d.ingest_mode === 'growth' ? 'GROWTH' : 'STRICT';
+    var scopeLabel = scope === 'off' ? 'no dedup' : scope === 'mine' ? 'my contacts' : 'team (' + (d.db_index_size||0) + ' in CRM)';
+    if (statusTx) statusTx.textContent =
+      'Complete · ' + (d.geo_valid||0) + ' in ' + (d.state_used||searchState) +
+      ' · ' + (d.raw_candidates||0) + ' raw · ' + scopeLabel + ' · ' + modeLabel;
 
-    // ── Queries used row ──────────────────────────────────────────────────
-    var qUsedDiv = document.getElementById('bulk-queries-used');
-    if (qUsedDiv && d.queries_used && d.queries_used.length > 0) {
-      qUsedDiv.style.display = 'flex';
-      qUsedDiv.style.flexWrap = 'wrap';
-      qUsedDiv.style.gap = '4px';
-      qUsedDiv.style.marginBottom = '12px';
-      qUsedDiv.innerHTML =
-        '<div style="width:100%;font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px">Queries run</div>' +
-        d.queries_used.map(function(q) {
-          return '<span style="font-size:11px;background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:2px 7px;color:var(--text2)">' + q + '</span>';
-        }).join('');
-    }
+    if (pills) pills.innerHTML =
+      '<span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px;background:#d1fae5;color:#065f46">✓ Done</span>';
+
+    if (results) results.style.display = 'block';
 
     // ── Stats row ─────────────────────────────────────────────────────────
     var statsRow = document.getElementById('bulk-stats-row');
     if (statsRow) {
-      var addrDups      = d.exact_address_dups      || 0;
-      var possibleDups  = d.possible_duplicates      || 0;
-      var geoRejected   = d.geo_rejected             || 0;
-      var filtered      = (d.excluded_filtered||0) + (d.excluded_low_conf||0);
+      var b = d.breakdown || {};
       statsRow.innerHTML =
-        statCard('Imported',           d.imported,     '#065f46', '#d1fae5') +
-        (geoRejected > 0  ? statCard('Wrong State',    geoRejected,  '#7c3aed', '#ede9fe') : '') +
-        statCard('Exact Addr Dups',    addrDups,       '#92400e', '#fef3c7') +
-        (possibleDups > 0 ? statCard('Possible Dups',  possibleDups, '#1e40af', '#dbeafe') : '') +
-        (filtered > 0     ? statCard('Filtered Out',   filtered,     '#374151', '#f3f4f6') : '');
+        statCard('Imported',       d.imported,          '#065f46', '#d1fae5') +
+        statCard('Distributors',   b.distributors||0,   '#1e40af', '#dbeafe') +
+        statCard('Contractors',    b.contractors||0,    '#065f46', '#d1fae5') +
+        (d.geo_rejected > 0     ? statCard('Wrong State',    d.geo_rejected,     '#7c3aed', '#ede9fe') : '') +
+        (d.exact_dups > 0       ? statCard('Exact Dups',     d.exact_dups,       '#92400e', '#fef3c7') : '') +
+        (d.possible_dups > 0    ? statCard('Flagged',        d.possible_dups,    '#1e40af', '#dbeafe') : '') +
+        (d.filtered_count > 0   ? statCard('Filtered',       d.filtered_count,   '#374151', '#f3f4f6') : '') +
+        (d.low_quality_count > 0? statCard('Low Quality',    d.low_quality_count,'#374151', '#f3f4f6') : '');
     }
 
-    // ── Type breakdown pills ──────────────────────────────────────────────
+    // ── Breakdown pills ───────────────────────────────────────────────────
     var bdiv   = document.getElementById('bulk-breakdown');
     var binner = document.getElementById('bulk-breakdown-inner');
     if (bdiv && binner && d.imported > 0) {
       var b = d.breakdown || {};
-      var pills = [
-        { label: 'Distributors',    val: b.distributors,  color: '#1e40af', bg: '#dbeafe' },
-        { label: 'Contractors',     val: b.contractors,   color: '#065f46', bg: '#d1fae5' },
-        { label: 'Unknown Type',    val: b.unknown,       color: '#6b7280', bg: '#f3f4f6' },
-        { label: 'Possible Dups',   val: b.possible_dups, color: '#5b21b6', bg: '#ede9fe' },
-        { label: 'Verified',        val: b.verified,      color: '#065f46', bg: '#d1fae5' },
-        { label: 'Likely Valid',    val: b.likely_valid,  color: '#92400e', bg: '#fef3c7' },
-        { label: 'Unvetted',        val: b.unvetted,      color: '#991b1b', bg: '#fee2e2' }
+      var pills2 = [
+        { label: 'Roofing',          val: b.roofing,    color:'#92400e', bg:'#fef3c7' },
+        { label: 'Decking & Outdoor',val: b.decking,    color:'#065f46', bg:'#d1fae5' },
+        { label: 'Siding',           val: b.siding,     color:'#1e40af', bg:'#dbeafe' },
+        { label: 'Windows & Doors',  val: b.windows,    color:'#5b21b6', bg:'#ede9fe' },
+        { label: 'General',          val: b.general,    color:'#374151', bg:'#f3f4f6' },
+        { label: 'Possible Dups',    val: b.possible_dups,color:'#5b21b6',bg:'#ede9fe' },
       ];
-      binner.innerHTML = '';
-      pills.forEach(function(p) {
-        if (p.val > 0) binner.innerHTML += '<span style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:12px;background:' + p.bg + ';color:' + p.color + '">' + p.val + ' ' + p.label + '</span>';
-      });
+      binner.innerHTML = pills2.filter(function(p){return p.val > 0;}).map(function(p) {
+        return '<span style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:12px;background:' + p.bg + ';color:' + p.color + '">' + p.val + ' ' + p.label + '</span>';
+      }).join('');
       bdiv.style.display = 'block';
     } else if (bdiv) {
       bdiv.style.display = 'none';
     }
 
-    // ── Skip reasons panel ────────────────────────────────────────────────
-    var skipDiv    = document.getElementById('bulk-skip-reasons');
-    var skipBD     = document.getElementById('bulk-skip-breakdown');
-    var skipSample = document.getElementById('bulk-skip-sample');
+    // ── Exclusion debug panel ─────────────────────────────────────────────
+    var skipDiv = document.getElementById('bulk-skip-reasons');
+    var skipBD  = document.getElementById('bulk-skip-breakdown');
+    var skipSmp = document.getElementById('bulk-skip-sample');
+    var hasExclusions = (d.exact_dups > 0 || d.filtered_count > 0 || d.low_quality_count > 0 || d.geo_rejected > 0);
 
-    if (skipDiv && (d.skipped_total > 0 || d.possible_duplicates > 0)) {
+    if (skipDiv && hasExclusions) {
       skipDiv.style.display = 'block';
-      if (skipBD && d.skip_breakdown) {
-        var sb = d.skip_breakdown;
-        skipBD.innerHTML = '';
-        var reasonPills = [
-          { label: 'Same co + address',   val: sb.exact_address,   tip: 'Same company name AND same address already in CRM — definitive duplicate' },
-          { label: 'Confirmed duplicate', val: sb.confirmed_place, tip: 'Place ID + address/name both matched existing record' },
-          { label: 'Batch duplicate',     val: sb.batch_dup,       tip: 'Same address appeared twice in this search batch' },
-          { label: 'Other',               val: sb.other,           tip: 'Other dedup rule matched' }
-        ];
-        reasonPills.forEach(function(p) {
-          if (p.val > 0) skipBD.innerHTML += '<span title="' + p.tip + '" style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:10px;background:#fef3c7;color:#92400e;cursor:help">' + p.val + ' ' + p.label + '</span> ';
-        });
-        if (d.possible_duplicates > 0) {
-          skipBD.innerHTML += '<span style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:10px;background:#ede9fe;color:#5b21b6">' + d.possible_duplicates + ' possible dups — imported &amp; flagged</span>';
-        }
+      if (skipBD) {
+        var reasons = [];
+        if (d.exact_dups > 0)        reasons.push('<span style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:10px;background:#fef3c7;color:#92400e">' + d.exact_dups + ' exact address dups</span>');
+        if (d.geo_rejected > 0)      reasons.push('<span style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:10px;background:#ede9fe;color:#7c3aed">' + d.geo_rejected + ' wrong state</span>');
+        if (d.filtered_count > 0)    reasons.push('<span style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:10px;background:#f3f4f6;color:#374151">' + d.filtered_count + ' exclusion-filtered</span>');
+        if (d.low_quality_count > 0) reasons.push('<span style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:10px;background:#f3f4f6;color:#374151">' + d.low_quality_count + ' low quality score</span>');
+        skipBD.innerHTML = reasons.join(' ');
       }
-      if (skipSample && d.skipped_sample && d.skipped_sample.length > 0) {
-        skipSample.innerHTML = '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Skipped records</div>';
-        d.skipped_sample.forEach(function(s) {
-          skipSample.innerHTML +=
-            '<div style="padding:6px 0;border-bottom:1px solid var(--border);display:grid;grid-template-columns:1fr auto;gap:8px;align-items:start">' +
-              '<div>' +
-                '<div style="font-size:12px;font-weight:600;color:var(--navy)">' + (s.company || '') + '</div>' +
-                (s.address ? '<div style="font-size:11px;color:var(--text3)">' + s.address + '</div>' : '') +
-                (s.matched_company ? '<div style="font-size:11px;color:#92400e">Matched: ' + s.matched_company + '</div>' : '') +
-              '</div>' +
-              '<span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:8px;background:#fef3c7;color:#92400e;white-space:nowrap">' + (s.reason || '') + '</span>' +
-            '</div>';
-        });
+      if (skipSmp) {
+        var smpHtml = '';
+        // Exact dup samples
+        if (d.exact_dup_sample && d.exact_dup_sample.length > 0) {
+          smpHtml += '<div style="font-size:10px;font-weight:700;color:#92400e;margin:8px 0 4px;text-transform:uppercase">Exact Dups</div>';
+          d.exact_dup_sample.forEach(function(s) {
+            smpHtml += '<div style="font-size:11px;padding:4px 0;border-bottom:1px solid #fde68a;color:#6b7280">' +
+              '<strong style="color:#374151">' + (s.company||'') + '</strong>' +
+              (s.address ? ' · ' + s.address : '') +
+              (s.matched ? '<br><span style="color:#92400e">Matched: ' + s.matched + '</span>' : '') +
+              '</div>';
+          });
+        }
+        // Filtered samples
+        if (d.filtered_sample && d.filtered_sample.length > 0) {
+          smpHtml += '<div style="font-size:10px;font-weight:700;color:#374151;margin:8px 0 4px;text-transform:uppercase">Classification Filtered</div>';
+          d.filtered_sample.forEach(function(s) {
+            smpHtml += '<div style="font-size:11px;padding:3px 0;color:#6b7280">' +
+              '<strong style="color:#374151">' + (s.company||'') + '</strong>' +
+              (s.types ? ' · types: ' + s.types : '') +
+              '</div>';
+          });
+        }
+        skipSmp.innerHTML = smpHtml;
       }
     } else if (skipDiv) {
       skipDiv.style.display = 'none';
     }
 
-    // ── Filtered sample panel (what got classified-out) ─────────────────
-    var filteredSample = d.filtered_sample || [];
-    if (filteredSample.length > 0) {
-      var existingFiltDiv = document.getElementById('bulk-filtered-panel');
-      var filtDiv = existingFiltDiv || document.createElement('div');
-      filtDiv.id = 'bulk-filtered-panel';
-      filtDiv.style.cssText = 'background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;margin-bottom:14px';
-      filtDiv.innerHTML =
-        '<div style="font-size:11px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Classification Filter — What Was Excluded (debug)</div>' +
-        filteredSample.map(function(fs) {
-          return '<div style="font-size:11px;padding:4px 0;border-bottom:1px solid #e2e8f0;color:#6b7280">' +
-            '<strong style="color:#374151">' + (fs.company||'') + '</strong>' +
-            (fs.types ? ' · <em>types: ' + fs.types + '</em>' : '') +
-            (fs.category ? ' · cat: ' + fs.category : '') +
-          '</div>';
-        }).join('') +
-        '<div style="font-size:10px;color:#9ca3af;margin-top:6px">If these look like valid leads, report them — the category map needs expansion.</div>';
-      if (!existingFiltDiv) {
-        var skipDiv2 = document.getElementById('bulk-skip-reasons');
-        if (skipDiv2 && skipDiv2.parentNode) skipDiv2.parentNode.insertBefore(filtDiv, skipDiv2.nextSibling);
-      }
+    // ── Queries used ──────────────────────────────────────────────────────
+    var qDiv = document.getElementById('bulk-queries-used');
+    if (qDiv && d.queries_used && d.queries_used.length > 0) {
+      qDiv.style.display = 'block';
+      qDiv.innerHTML =
+        '<div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Search queries run (' + d.queries_used.length + ')</div>' +
+        d.queries_used.map(function(q) {
+          return '<span style="font-size:11px;background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:2px 7px;color:var(--text2);display:inline-block;margin:2px">' + q + '</span>';
+        }).join('');
+    } else if (qDiv) {
+      qDiv.style.display = 'none';
     }
 
+    // ── Record count ──────────────────────────────────────────────────────
+    var rcDiv = document.getElementById('bulk-record-count');
+    if (rcDiv) rcDiv.textContent = d.message || '';
+
     // ── Records list ──────────────────────────────────────────────────────
-    var recList  = document.getElementById('bulk-record-list');
-    var recCount = document.getElementById('bulk-record-count');
+    var recList = document.getElementById('bulk-record-list');
     if (recList) {
       recList.innerHTML = '';
       if (!d.records || d.records.length === 0) {
-        recList.innerHTML =
-          '<div style="padding:24px;text-align:center;color:var(--text3);font-size:13px">' +
-          (d.skipped_total > 0
-            ? 'All ' + d.skipped_total + ' results already exist at those exact addresses in the CRM. Try a different territory or set scope to <strong>No dedup</strong>.'
-            : 'No matching records found for this query.') +
-          '</div>';
+        recList.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text3);font-size:13px">' +
+          (d.message || 'No records imported.') + '</div>';
       } else {
-        if (recCount) recCount.textContent = d.records.length + ' imported';
         d.records.forEach(function(rec) {
-          var conf      = rec.confidence || 0;
-          var confColor = conf >= 90 ? '#065f46'  : conf >= 70 ? '#92400e' : '#991b1b';
-          var confBg    = conf >= 90 ? '#d1fae5'  : conf >= 70 ? '#fef3c7' : '#fee2e2';
-          var typeColor = rec.company_type === 'Distributor' ? '#1e40af' : rec.company_type === 'Contractor' ? '#065f46' : '#6b7280';
-          var typeBg    = rec.company_type === 'Distributor' ? '#dbeafe' : rec.company_type === 'Contractor' ? '#d1fae5' : '#f3f4f6';
-          var reviewBadge = rec.flagged
-            ? '<span title="' + (rec.dup_detail || 'Review manually') + '" style="font-size:9px;font-weight:700;padding:2px 5px;border-radius:8px;background:#ede9fe;color:#5b21b6;margin-left:4px;cursor:help">POSSIBLE DUP</span>'
-            : '';
+          var layerColor = rec.supply_layer === 2 ? '#1e40af' : '#065f46';
+          var layerBg    = rec.supply_layer === 2 ? '#dbeafe'  : '#d1fae5';
+          var layerLabel = rec.supply_layer === 2 ? 'L2 Distributor' : 'L3 Contractor';
+          var qualColor  = rec.field_quality_score >= 80 ? '#065f46' : rec.field_quality_score >= 60 ? '#92400e' : '#374151';
           recList.innerHTML +=
-            '<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px">' +
-              '<div style="min-width:0">' +
-                '<div style="font-size:13px;font-weight:600;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + (rec.company || '') + reviewBadge + '</div>' +
-                '<div style="font-size:11px;color:var(--text3);margin-top:1px">' +
-                  (rec.category || '') +
-                  (rec.city    ? ' · ' + rec.city : '') +
-                  (rec.address ? ' · ' + rec.address : '') +
+            '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:start">' +
+              '<div>' +
+                '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">' +
+                  '<span style="font-size:12px;font-weight:700;color:var(--navy)">' + (rec.company||'') + '</span>' +
+                  '<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;background:' + layerBg + ';color:' + layerColor + '">' + layerLabel + '</span>' +
+                  (rec.data_status === 'Review' ? '<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;background:#fef3c7;color:#92400e">Review</span>' : '') +
                 '</div>' +
+                (rec.address ? '<div style="font-size:11px;color:var(--text3)">' + rec.address + '</div>' : '') +
+                '<div style="display:flex;gap:10px;margin-top:4px;flex-wrap:wrap">' +
+                  (rec.phone   ? '<span style="font-size:11px;color:var(--text2)">' + rec.phone + '</span>' : '') +
+                  (rec.website ? '<a href="' + rec.website + '" target="_blank" style="font-size:11px;color:var(--navy);text-decoration:none">' + rec.website.replace(/^https?:\/\//,'').split('/')[0] + '</a>' : '') +
+                '</div>' +
+                (rec.dup_note ? '<div style="font-size:10px;color:#92400e;margin-top:3px">' + rec.dup_note + '</div>' : '') +
               '</div>' +
-              '<div style="display:flex;gap:5px;flex-shrink:0">' +
-                '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:' + typeBg + ';color:' + typeColor + '">' + (rec.company_type || 'Unknown') + '</span>' +
-                '<span title="Confidence score" style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:' + confBg + ';color:' + confColor + '">' + conf + '</span>' +
+              '<div style="text-align:right">' +
+                '<div style="font-size:10px;font-weight:700;color:' + qualColor + '">' + rec.field_quality_score + '/100</div>' +
+                '<div style="font-size:10px;color:var(--text3)">' + (rec.category||'') + '</div>' +
               '</div>' +
             '</div>';
         });
       }
     }
 
-    addBulkHistoryEntry(query, d.imported, d.exact_address_dups || 0, d.possible_duplicates || 0, scope);
-    showToast(d.message || ('Imported ' + d.imported + ' records'));
+    // ── History entry ─────────────────────────────────────────────────────
+    addBulkHistoryEntry({
+      state:       d.state_used || searchState,
+      category:    category || 'All',
+      imported:    d.imported,
+      raw:         d.raw_candidates,
+      dups:        d.exact_dups,
+      ts:          new Date().toLocaleTimeString(),
+    });
 
-  } catch(e) {
-    btn.textContent = 'Run Ingestion'; btn.disabled = false;
-    if (statusText) statusText.textContent = 'Network error: ' + e.message;
-    showToast('Network error: ' + e.message);
+  } catch(err) {
+    if (btn)     { btn.textContent = 'Run Ingestion'; btn.disabled = false; }
+    if (spinner) spinner.style.display = 'none';
+    if (statusTx) statusTx.textContent = 'Error: ' + err.message;
+    showToast('Ingestion error: ' + err.message);
   }
 }
 
-function statCard(label, val, color, bg) {
-  return '<div style="background:' + bg + ';border-radius:8px;padding:12px 14px;text-align:center">' +
-    '<div style="font-size:22px;font-weight:800;color:' + color + '">' + (val || 0) + '</div>' +
-    '<div style="font-size:11px;font-weight:600;color:' + color + ';margin-top:2px">' + label + '</div>' +
-  '</div>';
-}
-
-function addBulkHistoryEntry(query, imported, addrDups, possibleDups, scope) {
+function addBulkHistoryEntry(entry) {
   var list = document.getElementById('bulk-history-list');
   if (!list) return;
-  var el = document.createElement('div');
-  el.style.cssText = 'background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px';
-  el.innerHTML =
-    '<span style="font-size:12px;color:var(--text2);font-weight:500">' + query + '</span>' +
-    '<span style="font-size:11px;color:var(--text3)">' +
-      imported + ' imported' +
-      (addrDups   > 0 ? ' · ' + addrDups   + ' addr dups'      : '') +
-      (possibleDups > 0 ? ' · ' + possibleDups + ' possible dups' : '') +
-      ' · ' + (scope || 'team') + ' · ' + new Date().toLocaleTimeString() +
-    '</span>';
-  list.prepend(el);
+  var div = document.createElement('div');
+  div.style.cssText = 'padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:6px;display:flex;justify-content:space-between;align-items:center;font-size:12px;gap:8px';
+  div.innerHTML =
+    '<span style="font-weight:600;color:var(--navy)">' + entry.state + ' — ' + (entry.category || 'All') + '</span>' +
+    '<span style="color:var(--text3)">' + entry.raw + ' fetched</span>' +
+    '<span style="font-weight:700;color:#065f46">+' + entry.imported + ' imported</span>' +
+    (entry.dups > 0 ? '<span style="color:#92400e">' + entry.dups + ' dups</span>' : '') +
+    '<span style="color:var(--text3);font-size:10px">' + entry.ts + '</span>';
+  list.insertBefore(div, list.firstChild);
+  if (list.children.length > 8) list.removeChild(list.lastChild);
 }
 
 
-
-function renderBulkHistory() {
-  var hist = document.getElementById('bulk-history');
-  var list = document.getElementById('bulk-history-list');
-  if (!hist || !list || !bulkHistory.length) return;
-  hist.style.display = 'block';
-  list.innerHTML = bulkHistory.slice(0, 8).map(function(h) {
-    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:7px">' +
-      '<div style="flex:1">' +
-        '<span style="font-size:13px;font-weight:600;color:var(--navy)">' + h.query + '</span>' +
-        '<span style="font-size:11px;color:var(--text3);margin-left:8px">' + h.category + ' · ' + h.territory + '</span>' +
-      '</div>' +
-      '<div style="text-align:right">' +
-        '<span style="font-size:14px;font-weight:800;color:' + (h.imported > 0 ? '#059669' : '#d97706') + '">' + h.imported + ' new</span>' +
-        '<span style="font-size:11px;color:var(--text3);display:block">' + h.ts + '</span>' +
-      '</div>' +
-    '</div>';
-  }).join('');
-}
 
 // ═══════════════════════════════════════════════════════════════
 // CRM → ROUTE HELPERS
