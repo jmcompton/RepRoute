@@ -1184,29 +1184,78 @@ const V4_MANUFACTURERS = {
 
 // ── Hard Exclusion List ──────────────────────────────────────────────────────
 const V4_HARD_EXCLUDE = [
+  // Big box / national retail — never walkable sales targets
   'home depot','lowes',"lowe's",'menards','walmart','costco','amazon','wayfair',
-  'ace hardware','true value','big box','84 lumber',
-  'bank','credit union','financial','insurance','mortgage','hospital','clinic',
-  'medical','dental','restaurant','diner','cafe','food','grocery','pharmacy',
+  'ace hardware','true value','big box','84 lumber','do it best',
+  // Non-business categories
+  'bank','credit union','financial','insurance','mortgage','lending','hospital',
+  'clinic','medical','dental','doctor','physician','restaurant','diner','cafe',
+  'coffee','food','grocery','supermarket','pharmacy','optom',
   'government','county','city hall','police','fire station','post office','dmv',
-  'school','university','college','church','temple','mosque','synagogue',
-  'realty','realtor','real estate','property management','apartment','hoa',
-  'auto dealer','car dealer','oil change','auto repair','tire shop',
+  'school district','university','college','church','temple','mosque','synagogue',
+  'realty','realtor','real estate','property management','apartment','condo','hoa',
+  'auto dealer','car dealer','oil change','auto repair','tire shop','dealership',
+  // Paint — always excluded (Alum-A-Pole rule carries globally)
   'painting contractor','paint company','painters','painting services',
-  'garage door','overhead door','garage doors',
+  'paint store','sherwin','benjamin moore','ppg paints','behr',
+  // Garage door — all segments
+  'garage door','overhead door','garage doors','overhead garage',
+  // Trades not relevant to any product line
   'pest control','lawn care','landscaping','pressure washing','carpet cleaning',
-  'plumbing','electrician','hvac','air conditioning','heating',
+  'plumbing','plumber','electrician','electrical contractor','hvac',
+  'air conditioning','heating contractor','insulation contractor',
+  // ── NEW: Outdoor living / patio / pergola / furniture — not walkable B2B ─
+  'outdoor living','outdoor furniture','patio furniture','patio store',
+  'patio world','pergola company','pergola kits','gazebo','hot tub','spa dealer',
+  'pool company','pool builder','swimming pool','deck furniture',
+  'backyard living','backyard store','outdoor store','garden center',
+  'nursery','landscape supply',
+  // ── NEW: Waterproofing / rainscreen / sheet metal / weather barrier ───────
+  'waterproofing contractor','waterproofing installer','waterproofing supply',
+  'waterproofing distributor','rainscreen','weather barrier distributor',
+  'sheet metal distributor','sheet metal supplier','metal panel supplier',
+  'trim distributor','trim supplier',
+  // ── NEW: Industrial / commercial envelope firms ───────────────────────────
+  'industrial roofing','roof restoration','industrial roofing firm',
+  'exterior envelope','exterior renovation',
+  // ── NEW: Virtual / directory / generic junk ───────────────────────────────
+  'virtual office','business center','coworking','regus','wework','executive suite',
+  'directory','angi','homeadvisor','thumbtack','yelp','houzz',
+  // ── NEW: Home-based / generic construction noise ──────────────────────────
+  'general construction','construction management','construction consulting',
+  'home builder association','builders association','trade association',
+  'chamber of commerce',
 ];
 
-function v4IsExcluded(company, types) {
-  const n = (company || '').toLowerCase();
-  const t = (types  || []).join(' ').toLowerCase();
+
+function v4IsExcluded(company, types, phone, address) {
+  const n        = (company || '').toLowerCase();
+  const t        = (types   || []).join(' ').toLowerCase();
   const combined = n + ' ' + t;
-  if (V4_HARD_EXCLUDE.some(ex => combined.includes(ex))) return true;
-  if (/paint(ing)?\s*(contractor|company|co\b|services|pro\b)/i.test(n)) return true;
-  if (/garage|overhead\s*door/i.test(n)) return true;
-  return false;
+
+  // Hard blocklist
+  if (V4_HARD_EXCLUDE.some(ex => combined.includes(ex))) return { excluded: true, reason: 'blocklist' };
+
+  // Regex patterns
+  if (/paint(ing)?\s*(contractor|company|co\b|services|pro\b|shop)/i.test(n))   return { excluded: true, reason: 'paint_contractor' };
+  if (/garage|overhead\s*door/i.test(n))                                          return { excluded: true, reason: 'garage_door' };
+  if (/outdoor\s+living|patio\s+furniture|backyard\s+living/i.test(n))           return { excluded: true, reason: 'outdoor_living' };
+  if (/waterproof(ing)?\s+(install|contract|supply|dist)/i.test(n))              return { excluded: true, reason: 'waterproofing' };
+  if (/rainscreen|weather\s+barrier|metal\s+panel\s+sup/i.test(n))               return { excluded: true, reason: 'metal_panel_supplier' };
+  if (/exterior\s+(envelope|renovation\s+contract)/i.test(n))                    return { excluded: true, reason: 'exterior_envelope' };
+  if (/roof\s+restoration\s+contract/i.test(n))                                  return { excluded: true, reason: 'roof_restoration' };
+  if (/industrial\s+roof/i.test(n))                                               return { excluded: true, reason: 'industrial_roofing' };
+  if (/\b(hoa|homeowners\s+assoc|property\s+mgmt|property\s+management)\b/i.test(n)) return { excluded: true, reason: 'hoa_property_mgmt' };
+
+  // Quality gate — must have address + phone
+  const hasAddr  = (address || '').trim().length > 10;
+  const hasPhone = (phone   || '').replace(/\D/g,'').length >= 10;
+  if (!hasAddr)  return { excluded: true, reason: 'no_address' };
+  if (!hasPhone) return { excluded: true, reason: 'no_phone' };
+
+  return { excluded: false };
 }
+
 
 // ── Address Normalizer ───────────────────────────────────────────────────────
 function v4NormAddr(a) {
@@ -1248,92 +1297,188 @@ function v4Classify(rec, mfrName) {
   const w   = (rec.website || '').toLowerCase();
   const combined = `${n} ${t} ${w}`;
 
-  // ── Distributor keywords ──────────────────────────────────────────────────
-  const DIST_KW = [
-    'roofing supply','roofing materials','roofing wholesale','roofing depot','roof supply',
-    'deck supply','decking supply','decking distributor','decking wholesale',
-    'building materials','builders supply','building supply','lumber yard','lumber dealer',
-    'lumber company','pro dealer','building center','hardware supply','construction supply',
-    'building products','material supply','supply house','supply co','supply company',
-    'wholesale supply','abc supply','beacon roofing','beacon supply','gulfeagle',
-    'srs distribution','bradco','allied building','hepler','famco','srs',
-    'window supply','window distributor','door supply','millwork dealer','millwork supply',
-    'siding supply','siding distributor','siding materials','siding wholesale',
-    'scaffolding supply','tool supply','fastener supply','equipment supply',
-    'dealer','distributor',
+  // ════════════════════════════════════════════════════════════
+  // LAYER 2 — DISTRIBUTORS
+  // ════════════════════════════════════════════════════════════
+
+  // ── Decking distributors ─────────────────────────────────────────────────
+  // KEEP: decking distributors, specialty lumber dealers, wholesale building
+  //       supply, composite decking dealers, manufacturer-authorized dealers
+  // REMOVE: outdoor living suppliers, regional supply houses (generic)
+  const DECK_DIST_KW = [
+    'decking supply','decking distributor','decking wholesale','composite decking dealer',
+    'deck supply','trex dealer','timbertech dealer','azek dealer','fiberon dealer',
+    'deckorators dealer','moistureshield dealer','cali decking dealer','newtechwood dealer',
+    'envision dealer','duralife dealer',
+    'specialty lumber','specialty lumber dealer','hardwood dealer','hardwood distributor',
+    'lumber dealer','lumber distributor','lumber yard',
+    'wholesale building supply','wholesale building material',
+    'pro dealer','authorized dealer','manufacturer dealer',
   ];
 
-  if (DIST_KW.some(k => combined.includes(k))) {
-    const sub = combined.includes('roof') ? 'Roofing Distributor'
-              : (combined.includes('deck') || combined.includes('trex') || combined.includes('azek') ||
-                 combined.includes('timbertech') || combined.includes('fiberon')) ? 'Decking Distributor'
-              : combined.includes('siding') ? 'Siding Distributor'
-              : (combined.includes('window') || combined.includes('door')) ? 'Window/Door Distributor'
-              : combined.includes('scaffold') || combined.includes('fastener') || combined.includes('tool') ? 'Tool/Equipment Dealer'
-              : 'Building Materials Distributor';
-    return { layer: 2, type: 'Distributor', sub, mfr: mfrName || '' };
-  }
-
-  // ── Contractor keywords ───────────────────────────────────────────────────
-  const CONT_KW = [
-    // Roofing
-    'roofing contractor','roofer','roofing company','roofing co','commercial roofing',
-    'roof repair','roofing services','roofing systems','roof installation','metal roofing',
-    'flat roofing','roofing solutions','roofing group','roofing specialist','roofing',
-    // Decking / outdoor
-    'deck builder','decking contractor','deck construction','custom decks','decks and patios',
-    'outdoor living','composite decking','deck & porch','deck and porch','decks & porch',
-    'porch builder','deck & fence','deck & pergola','pergola builder','pergola contractor',
-    'outdoor spaces','outdoor structures','patio builder','patio contractor','patio company',
-    'screened porch','screen room','sunroom','decking','deck company','deck design',
-    'deck restoration','decks & exteriors','porches and decks','custom outdoor',
-    'backyard living','outdoor kitchen','deck',
-    // Siding
-    'siding contractor','siding company','siding installer','siding & windows',
-    'cornice contractor','siding services','siding specialist','vinyl siding',
-    'fiber cement','hardieplank','james hardie',
-    // Windows / Doors
-    'window installer','door installer','window contractor','window & door',
-    'window replacement','window company','entry door','door replacement',
-    'window specialist','fenestration',
-    // General exterior
-    'general contractor','construction company','general contracting',
-    'home builder','remodeling','renovation company','home improvement',
-    'construction group','exterior remodeling','home renovation','exterior',
+  // ── Roofing distributors ──────────────────────────────────────────────────
+  // KEEP: commercial roofing distributors, roofing supply houses, building
+  //       material distributors, specialty roofing suppliers
+  // REMOVE: waterproofing distributors, sheet metal distributors
+  const ROOF_DIST_KW = [
+    'roofing supply','roofing distributor','roofing wholesale','roofing depot',
+    'roof supply house','commercial roofing supply','specialty roofing supply',
+    'abc supply','beacon roofing supply','gulfeagle','srs distribution','bradco',
+    'allied building products','hepler','famco','gaf distributor','owens corning distributor',
+    'carlisle distributor','johns manville distributor',
+    'building material distributor','building materials supply',
   ];
 
-  if (CONT_KW.some(k => combined.includes(k))) {
-    const sub = combined.includes('roof') ? 'Roofing Contractor'
-              : (combined.includes('deck') || combined.includes('patio') ||
-                 combined.includes('porch') || combined.includes('pergola') ||
-                 combined.includes('outdoor') || combined.includes('trex') ||
-                 combined.includes('timbertech') || combined.includes('fiberon')) ? 'Decking Contractor'
-              : (combined.includes('siding') || combined.includes('hardie') ||
-                 combined.includes('cornice')) ? 'Siding Contractor'
-              : (combined.includes('window') || combined.includes('door')) ? 'Window/Door Installer'
-              : 'Exterior Contractor';
-    return { layer: 3, type: 'Contractor', sub, mfr: mfrName || '' };
+  // ── Window / Door distributors ────────────────────────────────────────────
+  // KEEP: window distributors, door distributors, millwork suppliers,
+  //       specialty building suppliers
+  // REMOVE: commercial glass suppliers, outdoor living
+  const WIN_DIST_KW = [
+    'window distributor','window supply','window wholesale','door distributor',
+    'door supply','door wholesale',
+    'millwork dealer','millwork supplier','millwork distributor','millwork supply',
+    'andersen distributor','pella distributor','marvin distributor',
+    'jeld-wen distributor','pgt distributor','ply gem distributor',
+    'specialty building supply','specialty window','specialty door',
+  ];
+  // Explicitly block commercial glass
+  const WIN_DIST_BLOCK = ['commercial glass','glass supplier','glass distributor','glass supply'];
+
+  // ── Siding distributors ────────────────────────────────────────────────────
+  const SIDING_DIST_KW = [
+    'siding supply','siding distributor','siding wholesale','siding materials',
+    'vinyl siding supply','lp smartside dealer','james hardie dealer',
+    'hardieplank dealer','fiber cement dealer','nichiha dealer',
+    'cornice supply','fascia supply',
+  ];
+
+  // ── Generic building material distributors (fallback) ────────────────────
+  const GEN_DIST_KW = [
+    'building supply','builders supply','building center','building products',
+    'material supply','supply house','construction supply','supply co',
+    'wholesale supply','pro dealer',
+  ];
+
+  // Test distributor categories
+  if (DECK_DIST_KW.some(k => combined.includes(k))) {
+    return { layer: 2, type: 'Distributor', sub: 'Decking Distributor', mfr: mfrName || '' };
+  }
+  if (ROOF_DIST_KW.some(k => combined.includes(k))) {
+    return { layer: 2, type: 'Distributor', sub: 'Roofing Distributor', mfr: mfrName || '' };
+  }
+  if (WIN_DIST_KW.some(k => combined.includes(k))) {
+    if (WIN_DIST_BLOCK.some(k => combined.includes(k))) return null; // commercial glass — skip
+    return { layer: 2, type: 'Distributor', sub: 'Window/Door Distributor', mfr: mfrName || '' };
+  }
+  if (SIDING_DIST_KW.some(k => combined.includes(k))) {
+    return { layer: 2, type: 'Distributor', sub: 'Siding Distributor', mfr: mfrName || '' };
+  }
+  if (GEN_DIST_KW.some(k => combined.includes(k))) {
+    // Only accept if it's not a broad generic like "construction company" / "supply chain mgmt"
+    if (/construction\s+management|supply\s+chain|logistics/i.test(n)) return null;
+    return { layer: 2, type: 'Distributor', sub: 'Building Materials Distributor', mfr: mfrName || '' };
   }
 
-  // ── Google Places type fallback ───────────────────────────────────────────
+  // ════════════════════════════════════════════════════════════
+  // LAYER 3 — CONTRACTORS (primary field sales targets)
+  // ════════════════════════════════════════════════════════════
+
+  // ── Roofing contractors ───────────────────────────────────────────────────
+  // KEEP: commercial roofing, low slope, metal roofing
+  // REMOVE: roof restoration, industrial roofing (already in blocklist)
+  const ROOF_CONT_KW = [
+    'commercial roofing contractor','commercial roofing company','commercial roofer',
+    'low slope roofing','low-slope roofing','flat roofing contractor','flat roof contractor',
+    'metal roofing contractor','metal roof company','standing seam',
+    'tpo roofing','epdm roofing','modified bitumen','built-up roofing',
+    'roofing contractor','roofing company','roofing co','roofing group',
+    'roofing specialist','roofing systems','roofing services','roofing solutions',
+    'roofer','re-roofing','reroof','roof installation','roof replacement',
+    'gaf certified','gaf master elite','owens corning preferred','certainteed shingle master',
+  ];
+
+  // ── Decking contractors ───────────────────────────────────────────────────
+  // KEEP: deck builders, composite decking installers, fence+deck companies
+  // REMOVE: outdoor living contractors, pergola-only, patio furniture
+  const DECK_CONT_KW = [
+    'deck builder','deck contractor','decking contractor','deck construction',
+    'deck company','deck design','deck installation','deck installer',
+    'custom deck','composite deck','composite decking installer',
+    'trex installer','timbertech installer','azek installer','fiberon installer',
+    'deck & fence','decks & fences','deck and fence',
+    'deck & porch','deck and porch','porch builder','screen porch contractor',
+    'screened porch','porch contractor','porch company',
+    'deck specialist','decking specialist',
+  ];
+  // Block outdoor living / pergola-only noise for decking
+  const DECK_CONT_BLOCK = [
+    'outdoor living','outdoor furniture','patio furniture','pergola kits',
+    'outdoor kitchen','backyard living','outdoor store','outdoor structures',
+  ];
+
+  // ── Siding contractors ────────────────────────────────────────────────────
+  // KEEP: siding contractors, cladding installers, fiber cement installers
+  // REMOVE: exterior renovation, exterior envelope
+  const SIDING_CONT_KW = [
+    'siding contractor','siding company','siding installer','siding services',
+    'siding specialist','vinyl siding contractor','vinyl siding installer',
+    'fiber cement installer','fiber cement contractor','hardieplank installer',
+    'james hardie installer','lp smartside installer','nichiha installer',
+    'cladding installer','cladding contractor','cladding company',
+    'cornice contractor','fascia contractor',
+    'siding & windows','siding and windows','siding & gutters',
+  ];
+
+  // ── Window / Door contractors ─────────────────────────────────────────────
+  // WINDOWS: KEEP residential window installers; REMOVE replacement contractors
+  // DOORS:   KEEP residential door installers; REMOVE commercial door installers
+  const WIN_CONT_KW = [
+    'residential window installer','residential window company','window installer',
+    'window installation company','window company','window specialist',
+    'andersen installer','pella installer','marvin installer','jeld-wen installer',
+    'window & door installer','window and door contractor','window door company',
+    'residential door installer','door installation company','entry door installer',
+    'door company','door contractor','door replacement company',
+  ];
+  // Block commercial door, generic replacement noise
+  const WIN_CONT_BLOCK = [
+    'commercial door','commercial glass','commercial window',
+    'replacement window contractor','generic installer',
+    'outdoor living','outdoor structures',
+  ];
+
+  // Test contractor categories in priority order
+  if (ROOF_CONT_KW.some(k => combined.includes(k))) {
+    return { layer: 3, type: 'Contractor', sub: 'Roofing Contractor', mfr: mfrName || '' };
+  }
+  if (DECK_CONT_KW.some(k => combined.includes(k))) {
+    if (DECK_CONT_BLOCK.some(k => combined.includes(k))) return null;
+    return { layer: 3, type: 'Contractor', sub: 'Decking Contractor', mfr: mfrName || '' };
+  }
+  if (SIDING_CONT_KW.some(k => combined.includes(k))) {
+    return { layer: 3, type: 'Contractor', sub: 'Siding Contractor', mfr: mfrName || '' };
+  }
+  if (WIN_CONT_KW.some(k => combined.includes(k))) {
+    if (WIN_CONT_BLOCK.some(k => combined.includes(k))) return null;
+    return { layer: 3, type: 'Contractor', sub: 'Window/Door Installer', mfr: mfrName || '' };
+  }
+
+  // ── Google Places type hard fallback (only for known-good types) ──────────
   const TYPE_MAP = {
     'roofing_contractor':     { layer: 3, type: 'Contractor',  sub: 'Roofing Contractor' },
-    'general_contractor':     { layer: 3, type: 'Contractor',  sub: 'Exterior Contractor' },
     'home_improvement_store': { layer: 2, type: 'Distributor', sub: 'Building Materials Distributor' },
     'hardware_store':         { layer: 2, type: 'Distributor', sub: 'Building Materials Distributor' },
     'lumber_yard':            { layer: 2, type: 'Distributor', sub: 'Building Materials Distributor' },
-    'contractor':             { layer: 3, type: 'Contractor',  sub: 'Exterior Contractor' },
-    'construction_company':   { layer: 3, type: 'Contractor',  sub: 'Exterior Contractor' },
-    'establishment':          { layer: 3, type: 'Contractor',  sub: 'Exterior Contractor' },
-    'point_of_interest':      { layer: 3, type: 'Contractor',  sub: 'Exterior Contractor' },
   };
   for (const gType of (rec.types || [])) {
     if (TYPE_MAP[gType]) return { ...TYPE_MAP[gType], mfr: mfrName || '' };
   }
 
-  // ── Growth Mode catch-all — if it passed exclusions, accept it ───────────
-  return { layer: 3, type: 'Contractor', sub: 'Exterior Contractor', mfr: mfrName || '' };
+  // ── STRICT MODE: anything that doesn't hit a named category is rejected ───
+  // (removed the catch-all "Exterior Contractor" — that was the noise generator)
+  return null;
 }
+
 
 // ── Google Places Text Search ────────────────────────────────────────────────
 async function v4PlacesFetch(query, apiKey) {
@@ -1372,69 +1517,88 @@ function v4BuildQueries(category, mfrs, stateCode, customQuery) {
   const queries = [];
 
   if (customQuery && customQuery.trim()) {
-    // Expand custom query across top cities + state
     queries.push(`${customQuery.trim()} ${stateCode}`);
-    cities.slice(0, 4).forEach(c => queries.push(`${customQuery.trim()} ${c} ${stateCode}`));
+    cities.slice(0, 5).forEach(c => queries.push(`${customQuery.trim()} ${c} ${stateCode}`));
     return queries.slice(0, 12);
   }
 
+  // ── DECKING ───────────────────────────────────────────────────────────────
   if (category === 'decking' || category === 'all') {
-    // Manufacturer-specific dealer/contractor searches
-    mfrs.decking.slice(0, 4).forEach(mfr => {
-      cities.slice(0, 3).forEach(city => {
-        queries.push(`${mfr.name} dealer ${city} ${stateCode}`);
-        queries.push(`${mfr.name} contractor ${city} ${stateCode}`);
+    // Distributor signals — manufacturer-authorized + specialty lumber
+    mfrs.decking.slice(0, 5).forEach(mfr => {
+      cities.slice(0, 2).forEach(city => {
+        queries.push(`${mfr.name} authorized dealer ${city} ${stateCode}`);
+        queries.push(`${mfr.name} pro dealer ${city} ${stateCode}`);
       });
-      queries.push(`${mfr.name} authorized dealer ${stateCode}`);
     });
-    // Generic decking ecosystem searches
-    ['deck builder','decking contractor','outdoor living contractor',
-     'composite deck installer','patio contractor','porch builder',
-     'decking supply','building materials decking',
+    // Contractor signals — deck builders (no outdoor living)
+    [
+      'deck builder','deck contractor','decking contractor',
+      'composite deck installer','trex installer','timbertech installer',
+      'deck company','deck and porch contractor','screened porch builder',
+      'specialty lumber dealer decking','composite decking dealer',
+      'decking distributor',
     ].forEach(kw => {
       cities.slice(0, 3).forEach(city => queries.push(`${kw} ${city} ${stateCode}`));
     });
   }
 
+  // ── ROOFING ───────────────────────────────────────────────────────────────
   if (category === 'roofing' || category === 'all') {
+    // Distributor signals
     mfrs.roofing.slice(0, 4).forEach(mfr => {
-      cities.slice(0, 3).forEach(city => {
-        queries.push(`${mfr.name} roofing contractor ${city} ${stateCode}`);
-        queries.push(`${mfr.name} roofing dealer ${city} ${stateCode}`);
+      cities.slice(0, 2).forEach(city => {
+        queries.push(`${mfr.name} roofing supply dealer ${city} ${stateCode}`);
+        queries.push(`${mfr.name} certified contractor ${city} ${stateCode}`);
       });
-      queries.push(`${mfr.name} authorized ${stateCode}`);
     });
-    ['commercial roofing contractor','roofing contractor',
-     'roofing supply','roofing distributor','flat roofing contractor',
+    // Contractor signals — commercial focus, NO restoration / industrial
+    [
+      'commercial roofing contractor','low slope roofing contractor',
+      'flat roofing contractor','metal roofing contractor',
+      'tpo roofing contractor','epdm roofing contractor',
+      'GAF certified roofing contractor','roofing supply house',
+      'commercial roofing supply','roofing distributor',
     ].forEach(kw => {
       cities.slice(0, 4).forEach(city => queries.push(`${kw} ${city} ${stateCode}`));
     });
   }
 
+  // ── SIDING ────────────────────────────────────────────────────────────────
   if (category === 'siding' || category === 'all') {
-    ['james hardie installer','LP smartside installer','siding contractor',
-     'siding company','vinyl siding installer','siding supply',
+    [
+      'james hardie siding installer','LP smartside contractor',
+      'fiber cement siding contractor','vinyl siding contractor',
+      'cladding installer','siding contractor','cornice contractor',
+      'siding company','siding distributor',
     ].forEach(kw => {
       cities.slice(0, 3).forEach(city => queries.push(`${kw} ${city} ${stateCode}`));
     });
   }
 
+  // ── WINDOWS & DOORS ───────────────────────────────────────────────────────
   if (category === 'windows' || category === 'all') {
-    ['andersen windows dealer','pella windows dealer','window replacement contractor',
-     'window door installer','window supply distributor',
+    [
+      'residential window installer','andersen windows dealer',
+      'pella windows dealer','marvin windows dealer',
+      'window distributor','millwork supplier',
+      'residential door installer','entry door installer',
+      'window and door contractor','window company',
     ].forEach(kw => {
       cities.slice(0, 3).forEach(city => queries.push(`${kw} ${city} ${stateCode}`));
     });
   }
 
-  // Always add generic building supply + broad contractor searches
-  cities.slice(0, 5).forEach(city => {
-    queries.push(`building materials supplier ${city} ${stateCode}`);
-    queries.push(`exterior contractor ${city} ${stateCode}`);
+  // ── CROSS-CATEGORY: building supply (no outdoor living) ──────────────────
+  cities.slice(0, 4).forEach(city => {
+    queries.push(`roofing supply house ${city} ${stateCode}`);
+    queries.push(`specialty building supply ${city} ${stateCode}`);
+    queries.push(`specialty lumber dealer ${city} ${stateCode}`);
   });
 
-  return queries.slice(0, 40); // max 40 queries per run
+  return queries.slice(0, 40);
 }
+
 
 // ── CRM Dedup Index ──────────────────────────────────────────────────────────
 function v4BuildDedupIndex(rows) {
@@ -1621,7 +1785,7 @@ router.post('/bulk-ingest', async (req, res) => {
 
     // ── Step 7: Insert into CRM ───────────────────────────────────────────
     for (const rec of toInsert) {
-      const categoryLabel = rec.sub_category || (rec.company_type === 'Distributor' ? 'Building Materials Distributor' : 'Exterior Contractor');
+      const categoryLabel = rec.sub_category || (rec.company_type === 'Distributor' ? 'Building Materials Distributor' : 'Contractor');
       const channelLabel  = rec.company_type || 'Contractor';
       const sourceLabel   = `Bulk v4 — ${stateCode} — ${cat}`;
       const notesLabel    = `Supply Chain: ${channelLabel} · Discovered via bulk import`;
