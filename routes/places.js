@@ -1122,650 +1122,596 @@ function hasAny(name, signals) {
 // SUPPLY CHAIN INTELLIGENCE ENGINE v3
 // 3-Layer: Manufacturer → Distributor → Contractor
 // Territory-locked · Growth Mode default · Exact-address dedup only
-// ════════════════════════════════════════════════════════════════════════════
 
-// ── State lookup tables ──────────────────────────────────────────────────────
-const SC_STATE_NAMES = {
-  'alabama':'AL','alaska':'AK','arizona':'AZ','arkansas':'AR','california':'CA',
-  'colorado':'CO','connecticut':'CT','delaware':'DE','florida':'FL','georgia':'GA',
-  'hawaii':'HI','idaho':'ID','illinois':'IL','indiana':'IN','iowa':'IA','kansas':'KS',
-  'kentucky':'KY','louisiana':'LA','maine':'ME','maryland':'MD','massachusetts':'MA',
-  'michigan':'MI','minnesota':'MN','mississippi':'MS','missouri':'MO','montana':'MT',
-  'nebraska':'NE','nevada':'NV','new hampshire':'NH','new jersey':'NJ',
-  'new mexico':'NM','new york':'NY','north carolina':'NC','north dakota':'ND',
-  'ohio':'OH','oklahoma':'OK','oregon':'OR','pennsylvania':'PA',
-  'rhode island':'RI','south carolina':'SC','south dakota':'SD',
-  'tennessee':'TN','texas':'TX','utah':'UT','vermont':'VT','virginia':'VA',
-  'washington':'WA','west virginia':'WV','wisconsin':'WI','wyoming':'WY'
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SUPPLY CHAIN EXPANSION ENGINE v4
+// Manufacturer → Distributor → Contractor
+// Territory-locked · Exact-address dedup only · Growth Mode default
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── US State Reference ──────────────────────────────────────────────────────
+const V4_STATES = {
+  'AL':'Alabama','AR':'Arkansas','FL':'Florida','GA':'Georgia','KY':'Kentucky',
+  'LA':'Louisiana','MS':'Mississippi','NC':'North Carolina','SC':'South Carolina',
+  'TN':'Tennessee','TX':'Texas','VA':'Virginia','WV':'West Virginia',
+  'OH':'Ohio','IN':'Indiana','MO':'Missouri','OK':'Oklahoma',
 };
 
-const SC_STATE_CITIES = {
-  'AL':['Birmingham','Huntsville','Mobile','Montgomery','Tuscaloosa','Hoover','Decatur','Auburn','Dothan','Gadsden','Pelham','Alabaster','Northport'],
-  'GA':['Atlanta','Marietta','Savannah','Augusta','Columbus','Macon','Alpharetta','Roswell','Athens','Warner Robins','Kennesaw','Valdosta','Brunswick'],
-  'TN':['Nashville','Memphis','Knoxville','Chattanooga','Clarksville','Murfreesboro','Franklin','Brentwood','Jackson','Johnson City','Hendersonville'],
-  'FL':['Jacksonville','Tampa','Orlando','Miami','Fort Lauderdale','Tallahassee','Gainesville','Pensacola','Naples','Sarasota','Fort Myers','Daytona Beach'],
-  'NC':['Charlotte','Raleigh','Greensboro','Durham','Winston-Salem','Fayetteville','Cary','Wilmington','Concord','Asheville','Gastonia','Mooresville'],
-  'SC':['Columbia','Charleston','Greenville','Spartanburg','Rock Hill','Florence','Myrtle Beach','Anderson','Aiken'],
-  'MS':['Jackson','Gulfport','Biloxi','Hattiesburg','Meridian','Tupelo','Southaven','Olive Branch'],
-  'AR':['Little Rock','Fort Smith','Fayetteville','Springdale','Jonesboro','North Little Rock','Conway','Rogers'],
-  'LA':['New Orleans','Baton Rouge','Shreveport','Lafayette','Metairie','Bossier City','Lake Charles','Monroe'],
-  'VA':['Virginia Beach','Norfolk','Chesapeake','Richmond','Newport News','Alexandria','Hampton','Roanoke'],
-  'KY':['Louisville','Lexington','Bowling Green','Owensboro','Covington','Georgetown','Florence','Hopkinsville'],
-  'WV':['Charleston','Huntington','Parkersburg','Morgantown','Wheeling','Martinsburg'],
-  'TX':['Houston','Dallas','San Antonio','Austin','Fort Worth','El Paso','Plano','Lubbock'],
+const V4_CITIES = {
+  'AL':['Birmingham','Huntsville','Mobile','Montgomery','Tuscaloosa','Hoover','Decatur','Auburn','Dothan','Gadsden','Pelham','Alabaster','Northport','Madison'],
+  'GA':['Atlanta','Marietta','Savannah','Augusta','Columbus','Macon','Alpharetta','Roswell','Athens','Warner Robins','Kennesaw','Valdosta','Brunswick','Gainesville'],
+  'TN':['Nashville','Memphis','Knoxville','Chattanooga','Clarksville','Murfreesboro','Franklin','Brentwood','Jackson','Johnson City','Hendersonville','Smyrna'],
+  'FL':['Jacksonville','Tampa','Orlando','Miami','Fort Lauderdale','Tallahassee','Gainesville','Pensacola','Naples','Sarasota','Fort Myers','Daytona Beach','Ocala'],
+  'NC':['Charlotte','Raleigh','Greensboro','Durham','Winston-Salem','Fayetteville','Cary','Wilmington','Concord','Asheville','Gastonia','Mooresville','Hickory'],
+  'SC':['Columbia','Charleston','Greenville','Spartanburg','Rock Hill','Florence','Myrtle Beach','Anderson','Aiken','Sumter'],
+  'MS':['Jackson','Gulfport','Biloxi','Hattiesburg','Meridian','Tupelo','Southaven','Olive Branch','Pascagoula'],
+  'AR':['Little Rock','Fort Smith','Fayetteville','Springdale','Jonesboro','North Little Rock','Conway','Rogers','Bentonville'],
+  'LA':['New Orleans','Baton Rouge','Shreveport','Lafayette','Metairie','Bossier City','Lake Charles','Monroe','Alexandria'],
+  'VA':['Virginia Beach','Norfolk','Chesapeake','Richmond','Newport News','Alexandria','Hampton','Roanoke','Lynchburg'],
+  'KY':['Louisville','Lexington','Bowling Green','Owensboro','Covington','Georgetown','Florence','Hopkinsville','Paducah'],
+  'WV':['Charleston','Huntington','Parkersburg','Morgantown','Wheeling','Martinsburg','Weirton'],
+  'TX':['Houston','Dallas','San Antonio','Austin','Fort Worth','El Paso','Plano','Lubbock','Arlington','Corpus Christi'],
+  'OH':['Columbus','Cleveland','Cincinnati','Toledo','Akron','Dayton','Parma','Canton'],
+  'IN':['Indianapolis','Fort Wayne','Evansville','South Bend','Carmel','Bloomington','Fishers'],
+  'MO':['Kansas City','St. Louis','Springfield','Columbia','Independence','Lee\'s Summit'],
+  'OK':['Oklahoma City','Tulsa','Norman','Broken Arrow','Lawton','Edmond'],
 };
 
-// ── Manufacturer anchor definitions ─────────────────────────────────────────
-const SC_MANUFACTURERS = {
+// ── Manufacturer Seed Definitions ───────────────────────────────────────────
+const V4_MANUFACTURERS = {
   decking: [
-    { name:'Trex',       terms:['trex dealer','trex contractor','trex composite decking','trex pro','authorized trex','trex preferred'] },
-    { name:'TimberTech', terms:['timbertech dealer','timbertech contractor','timbertech azek','azek dealer','azek contractor','timbertech pro'] },
-    { name:'Fiberon',    terms:['fiberon dealer','fiberon contractor','fiberon decking','fiberon pro'] },
-    { name:'Wolf',       terms:['wolf decking dealer','wolf pvc decking','wolf home products'] },
+    { name:'Trex',           terms:['trex dealer','trex authorized contractor','trex pro dealer','trex composite decking dealer'] },
+    { name:'TimberTech',     terms:['timbertech dealer','timbertech contractor','azek dealer','azek contractor','timbertech pro'] },
+    { name:'Fiberon',        terms:['fiberon dealer','fiberon contractor','fiberon decking dealer'] },
+    { name:'Deckorators',    terms:['deckorators dealer','deckorators contractor'] },
+    { name:'MoistureShield', terms:['moistureshield dealer','moistureshield contractor'] },
+    { name:'Envision',       terms:['envision outdoor living dealer','envision decking contractor'] },
+    { name:'NewTechWood',    terms:['newtechwood dealer','newtechwood installer'] },
+    { name:'Cali Decking',   terms:['cali decking dealer','cali bamboo dealer'] },
   ],
   roofing: [
-    { name:'GAF',           terms:['gaf certified contractor','gaf master elite','gaf roofing dealer','gaf shingles dealer','gaf authorized'] },
-    { name:'Owens Corning', terms:['owens corning preferred contractor','owens corning dealer','owens corning roofing'] },
-    { name:'CertainTeed',   terms:['certainteed contractor','certainteed dealer','certainteed shingles'] },
-    { name:'Carlisle',      terms:['carlisle roofing dealer','carlisle syntec','carlisle coatings'] },
-  ],
-  siding: [
-    { name:'James Hardie', terms:['james hardie preferred contractor','hardie preferred','hardi plank installer','hardie pro'] },
-    { name:'LP SmartSide', terms:['lp smartside installer','lp building products dealer','louisiana pacific dealer'] },
-    { name:'Alside',       terms:['alside siding dealer','alside windows dealer'] },
-  ],
-  windows: [
-    { name:'Andersen',  terms:['andersen certified contractor','andersen authorized dealer','andersen windows dealer'] },
-    { name:'Pella',     terms:['pella certified installer','pella dealer','pella authorized'] },
-    { name:'Milgard',   terms:['milgard dealer','milgard certified'] },
+    { name:'GAF',            terms:['gaf master elite contractor','gaf certified contractor','gaf authorized dealer','gaf roofing supply dealer'] },
+    { name:'Carlisle',       terms:['carlisle roofing dealer','carlisle syntec dealer','carlisle coatings dealer'] },
+    { name:'Owens Corning',  terms:['owens corning preferred contractor','owens corning platinum contractor','owens corning roofing dealer'] },
+    { name:'CertainTeed',    terms:['certainteed shingle master','certainteed contractor','certainteed select shinglemaster'] },
+    { name:'Johns Manville', terms:['johns manville roofing dealer','jm roofing distributor'] },
+    { name:'Sika',           terms:['sika roofing dealer','sika authorized contractor'] },
+    { name:'Tremco',         terms:['tremco roofing dealer','tremco authorized contractor'] },
+    { name:'IKO',            terms:['iko roofing dealer','iko shingles contractor'] },
   ],
 };
 
-// ── Field quality score ──────────────────────────────────────────────────────
-function scFieldScore(rec) {
-  let s = 0;
-  if (rec.address && rec.address.length > 10) s += 40;
-  if (rec.phone   && rec.phone.replace(/\D/g,'').length >= 10) s += 20;
-  if (rec.website && rec.website.length > 5) s += 15;
-  if (rec.place_id) s += 15;
-  if (rec.company && rec.company.length > 3) s += 10;
-  return Math.min(s, 100);
+// ── Hard Exclusion List ──────────────────────────────────────────────────────
+const V4_HARD_EXCLUDE = [
+  'home depot','lowes',"lowe's",'menards','walmart','costco','amazon','wayfair',
+  'ace hardware','true value','big box','84 lumber',
+  'bank','credit union','financial','insurance','mortgage','hospital','clinic',
+  'medical','dental','restaurant','diner','cafe','food','grocery','pharmacy',
+  'government','county','city hall','police','fire station','post office','dmv',
+  'school','university','college','church','temple','mosque','synagogue',
+  'realty','realtor','real estate','property management','apartment','hoa',
+  'auto dealer','car dealer','oil change','auto repair','tire shop',
+  'painting contractor','paint company','painters','painting services',
+  'garage door','overhead door','garage doors',
+  'pest control','lawn care','landscaping','pressure washing','carpet cleaning',
+  'plumbing','electrician','hvac','air conditioning','heating',
+];
+
+function v4IsExcluded(company, types) {
+  const n = (company || '').toLowerCase();
+  const t = (types  || []).join(' ').toLowerCase();
+  const combined = n + ' ' + t;
+  if (V4_HARD_EXCLUDE.some(ex => combined.includes(ex))) return true;
+  if (/paint(ing)?\s*(contractor|company|co\b|services|pro\b)/i.test(n)) return true;
+  if (/garage|overhead\s*door/i.test(n)) return true;
+  return false;
 }
 
-// ── Address normalizer ───────────────────────────────────────────────────────
-function scNormAddr(a) {
+// ── Address Normalizer ───────────────────────────────────────────────────────
+function v4NormAddr(a) {
   if (!a) return '';
   return (a || '').toLowerCase()
     .replace(/\bstreet\b/g,'st').replace(/\bavenue\b/g,'ave')
     .replace(/\bboulevard\b/g,'blvd').replace(/\bdrive\b/g,'dr')
     .replace(/\broad\b/g,'rd').replace(/\bcourt\b/g,'ct')
+    .replace(/\blane\b/g,'ln').replace(/\bplace\b/g,'pl')
     .replace(/\bsuite\b/g,'ste').replace(/\bapartment\b/g,'apt')
-    .replace(/[,\.#]/g,' ').replace(/\s+/g,' ').trim();
+    .replace(/[,\.#\-]/g,' ').replace(/\s+/g,' ').trim();
 }
 
-function scNormPhone(p) { return (p||'').replace(/\D/g,'').slice(0,10); }
-function scNormName(n) {
-  return (n||'').toLowerCase()
-    .replace(/\b(llc|inc|corp|co\.|company|the)\b/g,'')
+function v4NormName(n) {
+  return (n || '').toLowerCase()
+    .replace(/\b(llc|inc|corp|co\.|company|the|ltd)\b/g,'')
     .replace(/[^a-z0-9]/g,' ').replace(/\s+/g,' ').trim();
 }
 
-// ── Territory resolver ───────────────────────────────────────────────────────
-function scResolveState(explicitCode, queryText, profileTerr) {
-  // Priority 1: explicit 2-letter dropdown
-  if (explicitCode && /^[A-Z]{2}$/.test(explicitCode)) return explicitCode;
-  // Priority 2: state name in query
-  const ql = (queryText||'').toLowerCase();
-  for (const [name, code] of Object.entries(SC_STATE_NAMES)) {
-    if (ql.includes(name)) return code;
-  }
-  // Priority 3: abbrev in query
-  const abbrM = (queryText||'').match(/\b([A-Z]{2})\b/);
-  if (abbrM && Object.values(SC_STATE_NAMES).includes(abbrM[1])) return abbrM[1];
-  // Priority 4: city keyword → state
-  const pl = (profileTerr||'').toLowerCase();
-  if (pl.includes('atlanta') || pl.includes('savannah') || pl.includes('augusta')) return 'GA';
-  if (pl.includes('birmingham') || pl.includes('huntsville') || pl.includes('mobile')) return 'AL';
-  if (pl.includes('nashville') || pl.includes('memphis') || pl.includes('knoxville')) return 'TN';
-  if (pl.includes('charlotte') || pl.includes('raleigh')) return 'NC';
-  if (pl.includes('jacksonville') || pl.includes('tampa') || pl.includes('orlando')) return 'FL';
-  if (pl.includes('columbia') || pl.includes('charleston') || pl.includes('greenville')) return 'SC';
-  return null;
-}
-
-// ── Google Places fetch (low-level) ─────────────────────────────────────────
-async function scPlacesFetch(query, apiKey) {
-  const url = 'https://places.googleapis.com/v1/places:searchText';
-  const body = JSON.stringify({
-    textQuery:      query,
-    maxResultCount: 20,
-    languageCode:   'en',
-  });
-  const opts = {
-    method:  'POST',
-    headers: {
-      'Content-Type':     'application/json',
-      'X-Goog-Api-Key':   apiKey,
-      'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.types,places.location',
-    },
-    body,
-  };
-  try {
-    const resp  = await fetch(url, opts);
-    const data  = await resp.json();
-    return (data.places || []).map(pl => ({
-      place_id: pl.id,
-      company:  pl.displayName?.text || '',
-      address:  pl.formattedAddress  || '',
-      phone:    pl.nationalPhoneNumber || '',
-      website:  pl.websiteUri         || '',
-      types:    pl.types              || [],
-      lat:      pl.location?.latitude,
-      lng:      pl.location?.longitude,
-    }));
-  } catch(e) {
-    console.error('[scPlacesFetch] error:', e.message);
-    return [];
-  }
-}
-
-// ── Parse state from a formatted address ────────────────────────────────────
-function parseStateFromAddress(addr) {
+// ── State parser from Google address ────────────────────────────────────────
+function v4ParseState(addr) {
   if (!addr) return null;
-  // "123 Main St, Birmingham, AL 35203, USA" → "AL"
-  const m = addr.match(/,\s*([A-Z]{2})\s+\d{5}/);
+  const m = (addr || '').match(/,\s*([A-Z]{2})\s+\d{5}/);
   if (m) return m[1];
-  // Fallback: last 2-letter chunk before ZIP or USA
-  const m2 = addr.match(/\b([A-Z]{2})\b(?=\s+\d{5}|\s*,\s*USA)/);
+  const m2 = (addr || '').match(/\b([A-Z]{2})\b(?=\s+\d{5}|\s*,\s*USA)/);
   return m2 ? m2[1] : null;
 }
 
-// ── Classification engine ────────────────────────────────────────────────────
-function scClassify(rec) {
-  const n = (rec.company  || '').toLowerCase();
-  const a = (rec.address  || '').toLowerCase();
-  const w = (rec.website  || '').toLowerCase();
-  const t = (rec.types    || []).map(x => x.toLowerCase()).join(' ');
-  const all = `${n} ${t} ${w}`;
+function v4ParseCity(addr) {
+  if (!addr) return '';
+  const parts = addr.split(',');
+  return parts.length >= 3 ? parts[parts.length - 3].trim() : '';
+}
 
-  // Hard exclusions
-  const HARD_EXCL = ['home depot','lowes',"lowe's",'menards','walmart','costco',
-    'amazon','wayfair','ace hardware','true value','big box',
-    'plumbing','electrician','hvac','landscaping','lawn care',
-    'pest control','pool service','pressure washing','carpet cleaning',
-    'junk removal','moving company','car dealership','auto repair',
-    'restaurant','food','grocery','pharmacy','hospital','dental',
-    'hotel','motel','real estate','insurance','attorney','law firm',
-    'painting contractor','paint company','painting company','paint contractor',
-    'garage door','overhead door'];
-  for (const ex of HARD_EXCL) {
-    if (all.includes(ex)) return null;
-  }
-  if (/paint(ing)?\s*(contractor|company|co\b|services)/i.test(n)) return null;
-  if (/garage|overhead door/i.test(n)) return null;
+// ── Classify a Google Places result ─────────────────────────────────────────
+function v4Classify(rec, mfrName) {
+  const n   = (rec.company || '').toLowerCase();
+  const t   = (rec.types   || []).join(' ').toLowerCase();
+  const w   = (rec.website || '').toLowerCase();
+  const combined = `${n} ${t} ${w}`;
 
-  // ── Layer 2: Distributor / Dealer / Supply ────────────────────────────────
-  const DIST_KEYWORDS = [
-    // Roofing supply
-    'roofing supply','roofing distributor','roofing materials','roofing wholesale','roofing dealer',
-    'roofing depot','roof supply',
-    // Decking supply
-    'deck supply','decking distributor','decking dealer','decking wholesale',
-    'timbertech dealer','trex dealer','azek dealer','fiberon dealer',
-    'composite decking dealer','composite decking supply',
-    // Siding supply
-    'siding supply','siding distributor','siding dealer','siding wholesale','siding materials',
-    // Window/door supply
-    'window distributor','window dealer','door dealer','window supply','window wholesale',
-    'window & door supply','millwork dealer','millwork supply',
-    // Building materials (general)
+  // ── Distributor keywords ──────────────────────────────────────────────────
+  const DIST_KW = [
+    'roofing supply','roofing materials','roofing wholesale','roofing depot','roof supply',
+    'deck supply','decking supply','decking distributor','decking wholesale',
     'building materials','builders supply','building supply','lumber yard','lumber dealer',
     'lumber company','pro dealer','building center','hardware supply','construction supply',
     'building products','material supply','supply house','supply co','supply company',
     'wholesale supply','abc supply','beacon roofing','beacon supply','gulfeagle',
-    'srs distribution','bradco','allied building','hepler','famco',
-    // Tool / fastener / equipment
-    'scaffolding dealer','tool supply','fastener dealer','pump jack dealer','equipment supply',
-    'tool dealer','scaffold supply','ladder supply','construction equipment','tool rental',
+    'srs distribution','bradco','allied building','hepler','famco','srs',
+    'window supply','window distributor','door supply','millwork dealer','millwork supply',
+    'siding supply','siding distributor','siding materials','siding wholesale',
+    'scaffolding supply','tool supply','fastener supply','equipment supply',
+    'dealer','distributor',
   ];
-  if (DIST_KEYWORDS.some(k => all.includes(k))) {
-    // Determine subcategory
-    const sub = all.includes('roof') ? 'Roofing'
-              : all.includes('deck') || all.includes('trex') || all.includes('azek') || all.includes('fiberon') || all.includes('timbertech') ? 'Decking'
-              : all.includes('siding') ? 'Siding'
-              : all.includes('window') || all.includes('door') ? 'Windows & Doors'
-              : all.includes('scaffold') || all.includes('tool') || all.includes('fastener') ? 'Tools & Equipment'
-              : 'Building Materials';
-    return { layer: 2, type: 'Distributor', sub };
+
+  if (DIST_KW.some(k => combined.includes(k))) {
+    const sub = combined.includes('roof') ? 'Roofing Distributor'
+              : (combined.includes('deck') || combined.includes('trex') || combined.includes('azek') ||
+                 combined.includes('timbertech') || combined.includes('fiberon')) ? 'Decking Distributor'
+              : combined.includes('siding') ? 'Siding Distributor'
+              : (combined.includes('window') || combined.includes('door')) ? 'Window/Door Distributor'
+              : combined.includes('scaffold') || combined.includes('fastener') || combined.includes('tool') ? 'Tool/Equipment Dealer'
+              : 'Building Materials Distributor';
+    return { layer: 2, type: 'Distributor', sub, mfr: mfrName || '' };
   }
 
-  // ── Layer 3: Contractor ───────────────────────────────────────────────────
-  const CONT_KEYWORDS = [
+  // ── Contractor keywords ───────────────────────────────────────────────────
+  const CONT_KW = [
     // Roofing
     'roofing contractor','roofer','roofing company','roofing co','commercial roofing',
     'roof repair','roofing services','roofing systems','roof installation','metal roofing',
-    'flat roofing','roofing solutions','roofing group','roofing specialist',
+    'flat roofing','roofing solutions','roofing group','roofing specialist','roofing',
     // Decking / outdoor
     'deck builder','decking contractor','deck construction','custom decks','decks and patios',
-    'outdoor living','composite decking contractor','deck & porch','deck and porch',
-    'decks & porch','porch builder','deck & fence','decks & fence','deck & pergola',
-    'pergola builder','pergola contractor','outdoor spaces','outdoor structures',
-    'patio builder','patio contractor','patio company','screened porch','screen room',
-    'sunroom builder',' decking','deck company','decks company','deck design',
-    'timbertech contractor','trex contractor','fiberon contractor','azek contractor',
-    'deck restoration','decks & exteriors','decks & more','porches and decks',
-    'custom outdoor','backyard living','exterior contractor','exterior solutions',
+    'outdoor living','composite decking','deck & porch','deck and porch','decks & porch',
+    'porch builder','deck & fence','deck & pergola','pergola builder','pergola contractor',
+    'outdoor spaces','outdoor structures','patio builder','patio contractor','patio company',
+    'screened porch','screen room','sunroom','decking','deck company','deck design',
+    'deck restoration','decks & exteriors','porches and decks','custom outdoor',
+    'backyard living','outdoor kitchen','deck',
     // Siding
     'siding contractor','siding company','siding installer','siding & windows',
-    'cornice contractor','siding services','siding specialist','vinyl siding installer',
-    'fiber cement installer','hardieplank installer','james hardie installer',
+    'cornice contractor','siding services','siding specialist','vinyl siding',
+    'fiber cement','hardieplank','james hardie',
     // Windows / Doors
-    'window installer','door installer','window contractor','window & door contractor',
-    'window replacement','window company','entry door installer','door replacement',
-    'window specialist','fenestration contractor',
-    // General (catch-all)
+    'window installer','door installer','window contractor','window & door',
+    'window replacement','window company','entry door','door replacement',
+    'window specialist','fenestration',
+    // General exterior
     'general contractor','construction company','general contracting',
-    'home builder','remodeling company','renovation company','home improvement company',
-    'construction group','exterior remodeling','home renovation',
+    'home builder','remodeling','renovation company','home improvement',
+    'construction group','exterior remodeling','home renovation','exterior',
   ];
-  if (CONT_KEYWORDS.some(k => all.includes(k))) {
-    const sub = all.includes('roof') ? 'Roofing'
-              : (all.includes('deck') || all.includes('patio') || all.includes('porch') || all.includes('pergola') || all.includes('outdoor') || all.includes('trex') || all.includes('timbertech') || all.includes('fiberon')) ? 'Decking & Outdoor'
-              : all.includes('siding') || all.includes('hardie') || all.includes('cornice') ? 'Siding'
-              : (all.includes('window') || all.includes('door')) ? 'Windows & Doors'
-              : 'General';
-    return { layer: 3, type: 'Contractor', sub };
+
+  if (CONT_KW.some(k => combined.includes(k))) {
+    const sub = combined.includes('roof') ? 'Roofing Contractor'
+              : (combined.includes('deck') || combined.includes('patio') ||
+                 combined.includes('porch') || combined.includes('pergola') ||
+                 combined.includes('outdoor') || combined.includes('trex') ||
+                 combined.includes('timbertech') || combined.includes('fiberon')) ? 'Decking Contractor'
+              : (combined.includes('siding') || combined.includes('hardie') ||
+                 combined.includes('cornice')) ? 'Siding Contractor'
+              : (combined.includes('window') || combined.includes('door')) ? 'Window/Door Installer'
+              : 'Exterior Contractor';
+    return { layer: 3, type: 'Contractor', sub, mfr: mfrName || '' };
   }
 
-  // ── Google Place Types fallback ───────────────────────────────────────────
-  const GTYPE_MAP = {
-    'roofing_contractor':     { layer: 3, type: 'Contractor',  sub: 'Roofing' },
-    'general_contractor':     { layer: 3, type: 'Contractor',  sub: 'General' },
-    'home_improvement_store': { layer: 2, type: 'Distributor', sub: 'Building Materials' },
-    'hardware_store':         { layer: 2, type: 'Distributor', sub: 'Building Materials' },
-    'lumber_yard':            { layer: 2, type: 'Distributor', sub: 'Building Materials' },
-    'contractor':             { layer: 3, type: 'Contractor',  sub: 'General' },
-    'construction_company':   { layer: 3, type: 'Contractor',  sub: 'General' },
+  // ── Google Places type fallback ───────────────────────────────────────────
+  const TYPE_MAP = {
+    'roofing_contractor':     { layer: 3, type: 'Contractor',  sub: 'Roofing Contractor' },
+    'general_contractor':     { layer: 3, type: 'Contractor',  sub: 'Exterior Contractor' },
+    'home_improvement_store': { layer: 2, type: 'Distributor', sub: 'Building Materials Distributor' },
+    'hardware_store':         { layer: 2, type: 'Distributor', sub: 'Building Materials Distributor' },
+    'lumber_yard':            { layer: 2, type: 'Distributor', sub: 'Building Materials Distributor' },
+    'contractor':             { layer: 3, type: 'Contractor',  sub: 'Exterior Contractor' },
+    'construction_company':   { layer: 3, type: 'Contractor',  sub: 'Exterior Contractor' },
+    'establishment':          { layer: 3, type: 'Contractor',  sub: 'Exterior Contractor' },
+    'point_of_interest':      { layer: 3, type: 'Contractor',  sub: 'Exterior Contractor' },
   };
   for (const gType of (rec.types || [])) {
-    if (GTYPE_MAP[gType]) return GTYPE_MAP[gType];
+    if (TYPE_MAP[gType]) return { ...TYPE_MAP[gType], mfr: mfrName || '' };
   }
 
-  // ── Growth Mode catch-all: accept anything that passed exclusions ──────────
-  // A "Deck & Porch" company may have no exact keyword match but IS our target.
-  return { layer: 3, type: 'Contractor', sub: 'General' };
+  // ── Growth Mode catch-all — if it passed exclusions, accept it ───────────
+  return { layer: 3, type: 'Contractor', sub: 'Exterior Contractor', mfr: mfrName || '' };
 }
 
-// ── Deduplication index ──────────────────────────────────────────────────────
-function scBuildIndex(rows) {
-  const byAddr    = new Map();
-  const byPlaceId = new Map();
-  for (const r of rows) {
-    const na = scNormAddr(r.address);
-    const nn = scNormName(r.company);
-    if (na.length > 8) byAddr.set(`${na}|${nn}`, r.company);
-    if (r.google_place_id) byPlaceId.set(r.google_place_id, r.company);
+// ── Google Places Text Search ────────────────────────────────────────────────
+async function v4PlacesFetch(query, apiKey) {
+  const url  = 'https://places.googleapis.com/v1/places:searchText';
+  const body = JSON.stringify({ textQuery: query, maxResultCount: 20, languageCode: 'en' });
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type':     'application/json',
+        'X-Goog-Api-Key':   apiKey,
+        'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.types,places.location',
+      },
+      body,
+    });
+    const data = await resp.json();
+    return (data.places || []).map(pl => ({
+      place_id: pl.id || null,
+      company:  pl.displayName?.text || '',
+      address:  pl.formattedAddress   || '',
+      phone:    pl.nationalPhoneNumber || '',
+      website:  pl.websiteUri          || '',
+      types:    pl.types               || [],
+      lat:      pl.location?.latitude,
+      lng:      pl.location?.longitude,
+    }));
+  } catch(e) {
+    console.error('[v4PlacesFetch]', query, e.message);
+    return [];
   }
-  return { byAddr, byPlaceId };
 }
 
-function scIsDup(rec, idx) {
-  const na = scNormAddr(rec.address);
-  const nn = scNormName(rec.company);
-  // Exact address + exact name = hard duplicate
-  const addrKey = `${na}|${nn}`;
-  if (na.length > 8 && idx.byAddr.has(addrKey)) {
-    return { dup: true, hard: true, reason: 'exact_address_name', matched: idx.byAddr.get(addrKey) };
-  }
-  // Place ID match + same name = hard duplicate
-  if (rec.place_id && idx.byPlaceId.has(rec.place_id)) {
-    const existingName = idx.byPlaceId.get(rec.place_id);
-    if (scNormName(existingName) === nn) {
-      return { dup: true, hard: true, reason: 'place_id_name', matched: existingName };
-    }
-    // Place ID match but different name = possible duplicate, still import
-    return { dup: false, possible: true, reason: 'same_location', matched: existingName };
-  }
-  return { dup: false };
-}
+// ── Query Builder ────────────────────────────────────────────────────────────
+function v4BuildQueries(category, mfrs, stateCode, customQuery) {
+  const cities = (V4_CITIES[stateCode] || []).slice(0, 8);
+  const queries = [];
 
-// ── Query expansion for territory ────────────────────────────────────────────
-function scBuildQueries(category, subcategory, stateCode) {
-  const cities  = (SC_STATE_CITIES[stateCode] || []).slice(0, 6);
-  const stateFull = Object.keys(SC_STATE_NAMES).find(k => SC_STATE_NAMES[k] === stateCode) || stateCode;
-
-  let base = [];
-
-  if (category === 'decking') {
-    base = [
-      `decking contractor ${stateCode}`,
-      `deck builder ${stateCode}`,
-      `composite deck contractor ${stateCode}`,
-      `TimberTech contractor ${stateCode}`,
-      `Trex contractor ${stateCode}`,
-      `Fiberon contractor ${stateCode}`,
-      `outdoor living contractor ${stateCode}`,
-      `patio porch contractor ${stateCode}`,
-      `decking supply distributor ${stateCode}`,
-      `building materials supplier decking ${stateCode}`,
-    ];
-  } else if (category === 'roofing') {
-    base = [
-      `roofing contractor ${stateCode}`,
-      `commercial roofing contractor ${stateCode}`,
-      `GAF certified roofing contractor ${stateCode}`,
-      `Owens Corning roofing contractor ${stateCode}`,
-      `roofing supply distributor ${stateCode}`,
-      `roofing materials supplier ${stateCode}`,
-      `roofing wholesale dealer ${stateCode}`,
-    ];
-  } else if (category === 'siding') {
-    base = [
-      `siding contractor ${stateCode}`,
-      `James Hardie installer ${stateCode}`,
-      `vinyl siding contractor ${stateCode}`,
-      `siding supply distributor ${stateCode}`,
-      `building supply siding ${stateCode}`,
-    ];
-  } else if (category === 'windows') {
-    base = [
-      `window door installer ${stateCode}`,
-      `window replacement contractor ${stateCode}`,
-      `window door distributor ${stateCode}`,
-      `millwork supplier ${stateCode}`,
-    ];
-  } else {
-    // Generic: use city names for broader coverage
-    base = cities.slice(0, 4).flatMap(city => [
-      `building contractor ${city} ${stateCode}`,
-      `exterior contractor ${city} ${stateCode}`,
-    ]);
+  if (customQuery && customQuery.trim()) {
+    // Expand custom query across top cities + state
+    queries.push(`${customQuery.trim()} ${stateCode}`);
+    cities.slice(0, 4).forEach(c => queries.push(`${customQuery.trim()} ${c} ${stateCode}`));
+    return queries.slice(0, 12);
   }
 
-  // Add city-specific variants for top 3 metros
-  const cityQueries = cities.slice(0, 3).map(city =>
-    `${category === 'decking' ? 'deck builder' : category + ' contractor'} ${city} ${stateCode}`
-  );
-
-  return [...base, ...cityQueries].slice(0, 12);
-}
-
-// ── Main bulk-ingest route (v3) ──────────────────────────────────────────────
-router.post('/bulk-ingest', async (req, res) => {
-  const uid = req.session.user.id;
-  const {
-    query, search_state, territory, ingest_mode, max_records, scope,
-    category, subcategory
-  } = req.body;
-
-  const ingestMode = ingest_mode || 'growth';
-  const dedupScope = scope || 'team';
-  const maxRecs    = Math.min(parseInt(max_records) || 40, 100);
-  const apiKey     = process.env.GOOGLE_PLACES_API_KEY;
-
-  // ── Step 1: Resolve territory state ───────────────────────────────────────
-  const explicitState = (search_state || '').trim().toUpperCase();
-  const stateCode     = scResolveState(explicitState, query || '', territory || '');
-
-  if (!stateCode) {
-    return res.status(400).json({
-      error: 'Territory required — please select a state from the dropdown.',
-      ok: false
+  if (category === 'decking' || category === 'all') {
+    // Manufacturer-specific dealer/contractor searches
+    mfrs.decking.slice(0, 4).forEach(mfr => {
+      cities.slice(0, 3).forEach(city => {
+        queries.push(`${mfr.name} dealer ${city} ${stateCode}`);
+        queries.push(`${mfr.name} contractor ${city} ${stateCode}`);
+      });
+      queries.push(`${mfr.name} authorized dealer ${stateCode}`);
+    });
+    // Generic decking ecosystem searches
+    ['deck builder','decking contractor','outdoor living contractor',
+     'composite deck installer','patio contractor','porch builder',
+     'decking supply','building materials decking',
+    ].forEach(kw => {
+      cities.slice(0, 3).forEach(city => queries.push(`${kw} ${city} ${stateCode}`));
     });
   }
 
-  const cat = (category || '').toLowerCase() || 'general';
-  console.log(`[BulkIngest v3] state=${stateCode} cat=${cat} mode=${ingestMode} scope=${dedupScope} max=${maxRecs}`);
+  if (category === 'roofing' || category === 'all') {
+    mfrs.roofing.slice(0, 4).forEach(mfr => {
+      cities.slice(0, 3).forEach(city => {
+        queries.push(`${mfr.name} roofing contractor ${city} ${stateCode}`);
+        queries.push(`${mfr.name} roofing dealer ${city} ${stateCode}`);
+      });
+      queries.push(`${mfr.name} authorized ${stateCode}`);
+    });
+    ['commercial roofing contractor','roofing contractor',
+     'roofing supply','roofing distributor','flat roofing contractor',
+    ].forEach(kw => {
+      cities.slice(0, 4).forEach(city => queries.push(`${kw} ${city} ${stateCode}`));
+    });
+  }
+
+  if (category === 'siding' || category === 'all') {
+    ['james hardie installer','LP smartside installer','siding contractor',
+     'siding company','vinyl siding installer','siding supply',
+    ].forEach(kw => {
+      cities.slice(0, 3).forEach(city => queries.push(`${kw} ${city} ${stateCode}`));
+    });
+  }
+
+  if (category === 'windows' || category === 'all') {
+    ['andersen windows dealer','pella windows dealer','window replacement contractor',
+     'window door installer','window supply distributor',
+    ].forEach(kw => {
+      cities.slice(0, 3).forEach(city => queries.push(`${kw} ${city} ${stateCode}`));
+    });
+  }
+
+  // Always add generic building supply + broad contractor searches
+  cities.slice(0, 5).forEach(city => {
+    queries.push(`building materials supplier ${city} ${stateCode}`);
+    queries.push(`exterior contractor ${city} ${stateCode}`);
+  });
+
+  return queries.slice(0, 40); // max 40 queries per run
+}
+
+// ── CRM Dedup Index ──────────────────────────────────────────────────────────
+function v4BuildDedupIndex(rows) {
+  const byAddr = new Set();
+  for (const r of rows) {
+    const na = v4NormAddr(r.address);
+    if (na.length > 10) byAddr.add(na);
+  }
+  return byAddr;
+}
+
+function v4CheckDup(rec, dedupIndex, batchAddrs, scope) {
+  if (scope === 'off') return { result: 'import' };
+
+  const na = v4NormAddr(rec.address);
+  if (!na || na.length < 10) return { result: 'import' }; // no address = can't dedup, import it
+
+  // Already in this batch
+  if (batchAddrs.has(na)) return { result: 'skip', reason: 'batch_duplicate' };
+
+  // Exact address match in CRM
+  if (dedupIndex.has(na)) return { result: 'exact_dup', reason: 'exact_address_match' };
+
+  return { result: 'import' };
+}
+
+// ── Main Bulk Ingest Route v4 ────────────────────────────────────────────────
+router.post('/bulk-ingest', async (req, res) => {
+  const uid = req.session?.user?.id;
+  if (!uid) return res.status(401).json({ ok: false, error: 'Not authenticated' });
+
+  const {
+    query: customQuery,
+    search_state,
+    category = 'decking',
+    max_records = 60,
+    scope = 'team',
+  } = req.body;
+
+  const stateCode = (search_state || '').trim().toUpperCase();
+  if (!stateCode || !V4_STATES[stateCode]) {
+    return res.status(400).json({ ok: false, error: 'Valid state required. Select a state from the dropdown.' });
+  }
+
+  const maxRecs  = Math.min(parseInt(max_records) || 60, 200);
+  const apiKey   = process.env.GOOGLE_PLACES_API_KEY;
+  const cat      = (category || 'decking').toLowerCase();
+
+  console.log(`[BulkIngest v4] state=${stateCode} cat=${cat} max=${maxRecs} scope=${scope}`);
+
+  const runLog = {
+    state: stateCode,
+    category: cat,
+    manufacturers_seeded: 0,
+    queries_run: 0,
+    raw_fetched: 0,
+    geo_rejected: 0,
+    geo_rejected_sample: [],
+    excluded: 0,
+    excluded_sample: [],
+    exact_dups: 0,
+    exact_dup_sample: [],
+    possible_dups: 0,
+    batch_dups: 0,
+    imported: 0,
+    import_errors: [],
+    breakdown: { distributors: 0, contractors: 0, roofing: 0, decking: 0, siding: 0, windows: 0, general: 0 },
+    records: [],
+    queries_used: [],
+  };
 
   try {
-    // ── Step 2: Build search queries ─────────────────────────────────────────
-    let queries;
-    if (query && query.trim()) {
-      // User provided explicit query — expand it with state-city variants
-      const cities = (SC_STATE_CITIES[stateCode] || []).slice(0, 4);
-      queries = [
-        `${query.trim()} ${stateCode}`,
-        ...cities.slice(0, 3).map(c => `${query.trim()} ${c} ${stateCode}`)
-      ];
-    } else {
-      queries = scBuildQueries(cat, subcategory || '', stateCode);
+    // ── Step 1: Build query set ────────────────────────────────────────────
+    const queries = v4BuildQueries(cat, V4_MANUFACTURERS, stateCode, customQuery);
+    runLog.queries_used  = queries;
+    runLog.queries_run   = queries.length;
+
+    // Count manufacturer seeds
+    if (!customQuery) {
+      runLog.manufacturers_seeded = cat === 'all'
+        ? V4_MANUFACTURERS.decking.length + V4_MANUFACTURERS.roofing.length
+        : (V4_MANUFACTURERS[cat] || []).length;
     }
 
-    console.log(`[BulkIngest v3] Queries (${queries.length}):`, queries);
+    console.log(`[BulkIngest v4] ${queries.length} queries built`);
 
-    // ── Step 3: Fetch from Google Places ─────────────────────────────────────
+    // ── Step 2: Fetch from Google Places ─────────────────────────────────
     const seenPlaceIds = new Set();
     const rawResults   = [];
 
     for (const q of queries) {
-      if (rawResults.length >= maxRecs * 3) break;
-      const batch = await scPlacesFetch(q, apiKey);
+      if (rawResults.length >= maxRecs * 4) break; // generous fetch buffer
+      const batch = await v4PlacesFetch(q, apiKey);
       for (const r of batch) {
         if (r.place_id && seenPlaceIds.has(r.place_id)) continue;
         if (r.place_id) seenPlaceIds.add(r.place_id);
         rawResults.push(r);
       }
     }
+    runLog.raw_fetched = rawResults.length;
+    console.log(`[BulkIngest v4] Raw: ${rawResults.length}`);
 
-    console.log(`[BulkIngest v3] Raw fetched: ${rawResults.length}`);
-
-    // ── Step 4: Hard geo filter — state must match ────────────────────────────
-    const geoValid      = [];
-    const geoRejected   = [];
+    // ── Step 3: Hard geo filter — state must match ────────────────────────
+    const geoValid = [];
     for (const rec of rawResults) {
-      const recState = parseStateFromAddress(rec.address);
+      const recState = v4ParseState(rec.address);
       if (!recState || recState !== stateCode) {
-        geoRejected.push({ company: rec.company, address: rec.address, state: recState });
+        runLog.geo_rejected++;
+        if (runLog.geo_rejected_sample.length < 8) {
+          runLog.geo_rejected_sample.push({ company: rec.company, address: rec.address, parsed_state: recState });
+        }
       } else {
         rec.state = recState;
+        rec.city  = v4ParseCity(rec.address);
         geoValid.push(rec);
       }
     }
-    console.log(`[BulkIngest v3] Geo: ${geoValid.length} valid, ${geoRejected.length} rejected`);
+    console.log(`[BulkIngest v4] Geo valid: ${geoValid.length} / Rejected: ${runLog.geo_rejected}`);
 
-    // ── Step 5: Classify (before dedup) ──────────────────────────────────────
-    const classified    = [];
-    const filteredOut   = [];
+    // ── Step 4: Classify + exclude ────────────────────────────────────────
+    const classified = [];
     for (const rec of geoValid) {
-      const cls = scClassify(rec);
-      if (!cls) {
-        filteredOut.push({ company: rec.company, address: rec.address, types: (rec.types||[]).join(',') });
+      if (v4IsExcluded(rec.company, rec.types)) {
+        runLog.excluded++;
+        if (runLog.excluded_sample.length < 8) {
+          runLog.excluded_sample.push({ company: rec.company, reason: 'exclusion_list' });
+        }
         continue;
       }
-      rec.supply_layer     = cls.layer;
-      rec.company_type     = cls.type;
-      rec.subcategory      = cls.sub;
-      rec.territory        = stateCode;
+      // Determine which manufacturer term triggered this result (best guess from query context)
+      const cls = v4Classify(rec, '');
+      rec.supply_layer  = cls.layer;
+      rec.company_type  = cls.type;
+      rec.sub_category  = cls.sub;
+      rec.mfr_assoc     = cls.mfr;
       classified.push(rec);
     }
-    console.log(`[BulkIngest v3] Classified: ${classified.length}, Filtered: ${filteredOut.length}`);
+    console.log(`[BulkIngest v4] Classified: ${classified.length} / Excluded: ${runLog.excluded}`);
 
-    // ── Step 6: Field quality score ───────────────────────────────────────────
-    const minScore       = ingestMode === 'growth' ? 40 : 60;
-    const scored         = [];
-    const lowQuality     = [];
+    // ── Step 5: Load CRM dedup index ──────────────────────────────────────
+    let existingRows = [];
+    if (scope !== 'off') {
+      const dbQ = scope === 'mine'
+        ? `SELECT address FROM prospects WHERE user_id = $1 AND address IS NOT NULL`
+        : `SELECT address FROM prospects WHERE address IS NOT NULL`;
+      const dbP = scope === 'mine' ? [uid] : [];
+      const result = await pool.query(dbQ, dbP);
+      existingRows = result.rows;
+    }
+    const dedupIndex = v4BuildDedupIndex(existingRows);
+    console.log(`[BulkIngest v4] CRM index: ${dedupIndex.size} addresses`);
+
+    // ── Step 6: Apply dedup + collect records ─────────────────────────────
+    const batchAddrs = new Set();
+    const toInsert   = [];
+    const possibles  = [];
+
     for (const rec of classified) {
-      const score = scFieldScore(rec);
-      rec.field_quality_score = score;
-      if (score >= minScore) {
-        scored.push(rec);
-      } else {
-        lowQuality.push({ company: rec.company, address: rec.address, score });
-      }
-    }
-    scored.sort((a, b) => b.field_quality_score - a.field_quality_score);
-    console.log(`[BulkIngest v3] Scored ≥${minScore}: ${scored.length}, Low quality: ${lowQuality.length}`);
+      if (toInsert.length >= maxRecs) break;
 
-    // ── Step 7: Load dedup index from CRM ────────────────────────────────────
-    let existingRows = { rows: [] };
-    if (dedupScope !== 'off') {
-      const dbQ = dedupScope === 'mine'
-        ? `SELECT google_place_id, company, address, phone FROM prospects WHERE user_id = $1`
-        : `SELECT google_place_id, company, address, phone FROM prospects`;
-      const dbP = dedupScope === 'mine' ? [uid] : [];
-      existingRows = await pool.query(dbQ, dbP);
-      console.log(`[BulkIngest v3] CRM index: ${existingRows.rows.length} records`);
-    }
+      const check = v4CheckDup(rec, dedupIndex, batchAddrs, scope);
 
-    const dupIndex      = scBuildIndex(existingRows.rows);
-    const batchAddrSet  = new Set();
-    const toInsert      = [];
-    const possibleDups  = [];
-    const hardDups      = [];
-    const hardDupSample = [];
-
-    // ── Step 8: Dedup + insert ────────────────────────────────────────────────
-    for (const rec of scored) {
-      if (toInsert.length + possibleDups.length >= maxRecs) break;
-
-      // Batch-level dedup: same address twice in this run
-      const batchKey = scNormAddr(rec.address);
-      if (batchKey.length > 8 && batchAddrSet.has(batchKey)) {
-        hardDups.push(rec);
-        if (hardDupSample.length < 10) hardDupSample.push({ company: rec.company, address: rec.address, reason: 'batch_duplicate' });
+      if (check.result === 'skip') {
+        runLog.batch_dups++;
         continue;
       }
-      if (batchKey.length > 8) batchAddrSet.add(batchKey);
-
-      // CRM dedup check
-      if (dedupScope !== 'off') {
-        const dupCheck = scIsDup(rec, dupIndex);
-        if (dupCheck.dup && dupCheck.hard) {
-          hardDups.push(rec);
-          if (hardDupSample.length < 10) hardDupSample.push({
-            company: rec.company, address: rec.address,
-            reason: dupCheck.reason, matched: dupCheck.matched
-          });
-          // In strict mode: skip. In growth mode: still skip hard dups (true duplicates)
-          continue;
+      if (check.result === 'exact_dup') {
+        runLog.exact_dups++;
+        if (runLog.exact_dup_sample.length < 10) {
+          runLog.exact_dup_sample.push({ company: rec.company, address: rec.address, reason: check.reason });
         }
-        if (dupCheck.possible) {
-          rec.data_status = 'Review';
-          rec.dup_note    = `Possible dup: same location as "${dupCheck.matched}"`;
-          possibleDups.push(rec);
-          // Still insert in growth mode
-        }
+        continue;
       }
 
+      // Mark address as seen in this batch
+      const na = v4NormAddr(rec.address);
+      if (na.length > 10) batchAddrs.add(na);
+
+      rec.data_status = 'Unvetted';
       toInsert.push(rec);
     }
 
-    console.log(`[BulkIngest v3] To insert: ${toInsert.length}, Possible dups: ${possibleDups.length}, Hard dups: ${hardDups.length}`);
+    console.log(`[BulkIngest v4] To insert: ${toInsert.length} / Exact dups: ${runLog.exact_dups}`);
 
-    // ── Step 9: Write to CRM (prospects table) ────────────────────────────────
-    let imported = 0;
-    const insertErrors = [];
-
-    // Combine toInsert + possibleDups (both go in, possibleDups flagged)
-    const allToWrite = [...toInsert, ...possibleDups];
-
-    for (const rec of allToWrite) {
-      // Map supply chain layer to company_type field
-      const companyTypeLabel = rec.supply_layer === 2
-        ? `Distributor — ${rec.subcategory}`
-        : `Contractor — ${rec.subcategory}`;
-
-      const cityParts = (rec.address || '').split(',');
-      const city      = cityParts.length >= 2 ? cityParts[cityParts.length - 3]?.trim() || '' : '';
-
-      const insertSQL = `
-        INSERT INTO prospects
-          (user_id, company, address, city, state, phone, website,
-           google_place_id, category, data_status, source,
-           territory, created_at, last_activity_at)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW(),NOW())
-        ON CONFLICT DO NOTHING
-        RETURNING id`;
-
-      const vals = [
-        uid,
-        rec.company,
-        rec.address || '',
-        city,
-        rec.state   || stateCode,
-        rec.phone   || '',
-        rec.website || '',
-        rec.place_id || null,
-        companyTypeLabel,
-        rec.data_status || 'Unvetted',
-        `Bulk Import v3 — ${stateCode}`,
-        stateCode,
-      ];
+    // ── Step 7: Insert into CRM ───────────────────────────────────────────
+    for (const rec of toInsert) {
+      const categoryLabel = rec.sub_category || (rec.company_type === 'Distributor' ? 'Building Materials Distributor' : 'Exterior Contractor');
+      const channelLabel  = rec.company_type || 'Contractor';
+      const sourceLabel   = `Bulk v4 — ${stateCode} — ${cat}`;
+      const notesLabel    = `Supply Chain: ${channelLabel} · Discovered via bulk import`;
 
       try {
-        const result = await pool.query(insertSQL, vals);
-        if (result.rows.length > 0) imported++;
-      } catch (e) {
-        insertErrors.push({ company: rec.company, error: e.message });
-        console.error('[BulkIngest v3] Insert error:', e.message);
+        const result = await pool.query(`
+          INSERT INTO prospects
+            (user_id, company, category, city, state, phone, website,
+             address, google_place_id, source, data_status, company_type,
+             manufacturer_assoc, notes, channel, last_activity_at)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW())
+          RETURNING id`,
+          [
+            uid,
+            rec.company,
+            categoryLabel,
+            rec.city  || '',
+            rec.state || stateCode,
+            rec.phone || '',
+            rec.website || '',
+            rec.address || '',
+            rec.place_id || null,
+            sourceLabel,
+            'Unvetted',
+            channelLabel,
+            rec.mfr_assoc || '',
+            notesLabel,
+            channelLabel,
+          ]
+        );
+
+        if (result.rows.length > 0) {
+          runLog.imported++;
+          // Breakdown
+          if (rec.company_type === 'Distributor') runLog.breakdown.distributors++;
+          else runLog.breakdown.contractors++;
+
+          const sub = (rec.sub_category || '').toLowerCase();
+          if (sub.includes('roof'))    runLog.breakdown.roofing++;
+          else if (sub.includes('deck') || sub.includes('outdoor')) runLog.breakdown.decking++;
+          else if (sub.includes('siding')) runLog.breakdown.siding++;
+          else if (sub.includes('window') || sub.includes('door')) runLog.breakdown.windows++;
+          else runLog.breakdown.general++;
+
+          if (runLog.records.length < 30) {
+            runLog.records.push({
+              company:      rec.company,
+              address:      rec.address,
+              phone:        rec.phone    || '',
+              website:      rec.website  || '',
+              category:     categoryLabel,
+              type:         channelLabel,
+              supply_layer: rec.supply_layer,
+              sub_category: rec.sub_category,
+            });
+          }
+        }
+      } catch(e) {
+        runLog.import_errors.push({ company: rec.company, error: e.message });
+        console.error('[BulkIngest v4] Insert error:', rec.company, e.message);
       }
     }
 
-    console.log(`[BulkIngest v3] Imported: ${imported}`);
+    console.log(`[BulkIngest v4] Imported: ${runLog.imported} / Errors: ${runLog.import_errors.length}`);
 
-    // ── Step 10: Build breakdown stats ────────────────────────────────────────
-    const breakdown = {
-      distributors:   allToWrite.filter(r => r.supply_layer === 2).length,
-      contractors:    allToWrite.filter(r => r.supply_layer === 3).length,
-      possible_dups:  possibleDups.length,
-      roofing:        allToWrite.filter(r => r.subcategory?.includes('Roof')).length,
-      decking:        allToWrite.filter(r => r.subcategory?.includes('Deck') || r.subcategory?.includes('Outdoor')).length,
-      siding:         allToWrite.filter(r => r.subcategory?.includes('Siding')).length,
-      windows:        allToWrite.filter(r => r.subcategory?.includes('Window')).length,
-      general:        allToWrite.filter(r => r.subcategory === 'General').length,
-    };
-
-    // ── Step 11: Sample records for UI display ────────────────────────────────
-    const records = allToWrite.slice(0, 25).map(rec => ({
-      company:             rec.company,
-      address:             rec.address,
-      phone:               rec.phone   || '',
-      website:             rec.website || '',
-      category:            rec.company_type === 'Distributor'
-                             ? `Distributor — ${rec.subcategory}`
-                             : `Contractor — ${rec.subcategory}`,
-      supply_layer:        rec.supply_layer,
-      field_quality_score: rec.field_quality_score,
-      data_status:         rec.data_status || 'Unvetted',
-      dup_note:            rec.dup_note || '',
-    }));
+    // ── Step 8: Build message ─────────────────────────────────────────────
+    let message;
+    if (runLog.imported > 0) {
+      message = `${runLog.imported} new ${stateCode} records added — ${runLog.breakdown.distributors} distributors, ${runLog.breakdown.contractors} contractors`;
+    } else if (runLog.import_errors.length > 0) {
+      message = `DB error: ${runLog.import_errors[0]?.error}`;
+    } else if (runLog.exact_dups >= toInsert.length && toInsert.length > 0) {
+      message = `All ${runLog.exact_dups} records already in CRM (exact address match). Try "No Dedup" scope or different category.`;
+    } else if (runLog.geo_rejected > runLog.raw_fetched * 0.8) {
+      message = `${runLog.geo_rejected} records rejected for wrong state. Verify state selection.`;
+    } else {
+      message = `0 imported — ${runLog.excluded} filtered · ${runLog.geo_rejected} wrong state · ${runLog.exact_dups} exact dups · ${runLog.import_errors.length} DB errors`;
+    }
 
     return res.json({
-      ok:                  true,
-      imported,
-      state_used:          stateCode,
-      ingest_mode:         ingestMode,
-      raw_candidates:      rawResults.length,
-      geo_valid:           geoValid.length,
-      geo_rejected:        geoRejected.length,
-      geo_rejected_sample: geoRejected.slice(0, 5),
-      classified_count:    classified.length,
-      filtered_count:      filteredOut.length,
-      filtered_sample:     filteredOut.slice(0, 5),
-      low_quality_count:   lowQuality.length,
-      low_quality_sample:  lowQuality.slice(0, 5),
-      exact_dups:          hardDups.length,
-      exact_dup_sample:    hardDupSample,
-      possible_dups:       possibleDups.length,
-      db_index_size:       existingRows.rows.length,
-      queries_used:        queries,
-      breakdown,
-      records,
-      insert_errors:       insertErrors.slice(0, 3),
-      message: imported > 0
-        ? `${imported} new CRM records added in ${stateCode} — ${breakdown.distributors} distributors, ${breakdown.contractors} contractors`
-        : insertErrors.length > 0
-          ? `DB error: ${insertErrors[0]?.error} — check server logs`
-          : hardDups.length > 0
-          ? `${hardDups.length} exact duplicates found at same address — already in CRM. Try "No Dedup" scope to force import.`
-          : `0 imported — ${filteredOut.length} filtered · ${lowQuality.length} low quality · ${geoRejected.length} wrong state`,
+      ok: true,
+      ...runLog,
+      crm_index_size: dedupIndex.size,
+      message,
     });
 
-  } catch (err) {
-    console.error('[BulkIngest v3] Fatal:', err.message, err.stack);
-    return res.status(500).json({ ok: false, error: err.message });
+  } catch(err) {
+    console.error('[BulkIngest v4] Fatal:', err.message, err.stack);
+    return res.status(500).json({ ok: false, error: err.message, stack: err.stack?.slice(0,300) });
   }
 });
-
 
 module.exports = router;
