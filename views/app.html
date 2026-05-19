@@ -3294,10 +3294,10 @@ function bulkGoFilter(ctype) {
 }
 
 async function startBulkIngest() {
-  var query = (document.getElementById('bulk-query') || {value:''}).value.trim();
+  var query   = (document.getElementById('bulk-query') || {value:''}).value.trim();
   if (!query) { showToast('Enter a search query first'); return; }
 
-  var maxRecs = parseInt((document.getElementById('bulk-max')   || {value:'40'}).value) || 40;
+  var maxRecs = parseInt((document.getElementById('bulk-max')   || {value:'40'}).value)  || 40;
   var scope   = (document.getElementById('bulk-scope') || {value:'team'}).value;
   var btn     = document.getElementById('bulk-btn');
   var status  = document.getElementById('bulk-status');
@@ -3310,7 +3310,7 @@ async function startBulkIngest() {
   var statusText = document.getElementById('bulk-status-text');
   var phasePills = document.getElementById('bulk-phase-pills');
   if (phasePills) phasePills.innerHTML = '';
-  if (statusText) statusText.textContent = 'Expanding query · Searching Google Places...';
+  if (statusText) statusText.textContent = 'Searching Google Places...';
 
   var territory = (window.currentTerritory) || '';
 
@@ -3329,130 +3329,148 @@ async function startBulkIngest() {
       return;
     }
 
-    // Status pill
+    // Status line
     var scopeLabel = scope === 'off' ? 'no dedup' : scope === 'mine' ? 'my contacts' : 'team (' + (d.db_index_size||0) + ' in DB)';
-    if (statusText) statusText.textContent = 'Complete · ' + scopeLabel;
+    if (statusText) statusText.textContent = 'Complete · ' + (d.raw_candidates||0) + ' candidates · ' + scopeLabel;
     if (phasePills) {
-      var pill = document.createElement('span');
-      pill.textContent = '✓ Done';
-      pill.style.cssText = 'font-size:10px;font-weight:700;padding:3px 8px;border-radius:12px;background:#d1fae5;color:#065f46';
-      phasePills.appendChild(pill);
+      phasePills.innerHTML = '<span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:12px;background:#d1fae5;color:#065f46">✓ Done</span>';
     }
     if (results) results.style.display = 'block';
 
-    // Queries used
+    // ── Queries used row ──────────────────────────────────────────────────
     var qUsedDiv = document.getElementById('bulk-queries-used');
     if (qUsedDiv && d.queries_used && d.queries_used.length > 0) {
-      qUsedDiv.innerHTML = '<div style="font-size:10px;color:var(--text3);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.4px">Queries Run</div>' +
-        d.queries_used.map(function(q) {
-          return '<span style="font-size:11px;background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:2px 7px;color:var(--text2)">' + q + '</span>';
-        }).join(' ');
       qUsedDiv.style.display = 'flex';
       qUsedDiv.style.flexWrap = 'wrap';
       qUsedDiv.style.gap = '4px';
       qUsedDiv.style.marginBottom = '12px';
+      qUsedDiv.innerHTML =
+        '<div style="width:100%;font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px">Queries run</div>' +
+        d.queries_used.map(function(q) {
+          return '<span style="font-size:11px;background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:2px 7px;color:var(--text2)">' + q + '</span>';
+        }).join('');
     }
 
-    // Stats row
+    // ── Stats row ─────────────────────────────────────────────────────────
     var statsRow = document.getElementById('bulk-stats-row');
     if (statsRow) {
+      var addrDups      = d.exact_address_dups      || 0;
+      var possibleDups  = d.possible_duplicates      || 0;
+      var filtered      = (d.excluded_filtered||0) + (d.excluded_low_conf||0);
       statsRow.innerHTML =
-        statCard('Imported',      d.imported,               '#065f46', '#d1fae5') +
-        statCard('Skipped Dups',  d.skipped_duplicates,     '#92400e', '#fef3c7') +
-        statCard('Filtered Out',  (d.excluded_filtered||0)+(d.excluded_low_conf||0), '#374151', '#f3f4f6') +
-        (d.review_flagged > 0 ? statCard('For Review', d.review_flagged, '#1e40af', '#dbeafe') : '');
+        statCard('Imported',           d.imported,   '#065f46', '#d1fae5') +
+        statCard('Exact Address Dups', addrDups,     '#92400e', '#fef3c7') +
+        (possibleDups > 0 ? statCard('Possible Dups',  possibleDups, '#1e40af', '#dbeafe') : '') +
+        (filtered > 0     ? statCard('Filtered Out',   filtered,     '#374151', '#f3f4f6') : '');
     }
 
-    // Breakdown pills
+    // ── Type breakdown pills ──────────────────────────────────────────────
     var bdiv   = document.getElementById('bulk-breakdown');
     var binner = document.getElementById('bulk-breakdown-inner');
     if (bdiv && binner && d.imported > 0) {
       var b = d.breakdown || {};
       var pills = [
-        { label: 'Distributors',  val: b.distributors,  color: '#1e40af', bg: '#dbeafe' },
-        { label: 'Contractors',   val: b.contractors,   color: '#065f46', bg: '#d1fae5' },
-        { label: 'For Review',    val: b.review,        color: '#1e40af', bg: '#ede9fe' },
-        { label: 'Verified',      val: b.verified,      color: '#065f46', bg: '#d1fae5' },
-        { label: 'Likely Valid',  val: b.likely_valid,  color: '#92400e', bg: '#fef3c7' },
-        { label: 'Unvetted',      val: b.unvetted,      color: '#991b1b', bg: '#fee2e2' }
+        { label: 'Distributors',    val: b.distributors,  color: '#1e40af', bg: '#dbeafe' },
+        { label: 'Contractors',     val: b.contractors,   color: '#065f46', bg: '#d1fae5' },
+        { label: 'Unknown Type',    val: b.unknown,       color: '#6b7280', bg: '#f3f4f6' },
+        { label: 'Possible Dups',   val: b.possible_dups, color: '#5b21b6', bg: '#ede9fe' },
+        { label: 'Verified',        val: b.verified,      color: '#065f46', bg: '#d1fae5' },
+        { label: 'Likely Valid',    val: b.likely_valid,  color: '#92400e', bg: '#fef3c7' },
+        { label: 'Unvetted',        val: b.unvetted,      color: '#991b1b', bg: '#fee2e2' }
       ];
       binner.innerHTML = '';
       pills.forEach(function(p) {
-        if (p.val > 0) binner.innerHTML += '<span style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:12px;background:'+p.bg+';color:'+p.color+'">' + p.val + ' ' + p.label + '</span>';
+        if (p.val > 0) binner.innerHTML += '<span style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:12px;background:' + p.bg + ';color:' + p.color + '">' + p.val + ' ' + p.label + '</span>';
       });
       bdiv.style.display = 'block';
-    } else if (bdiv) bdiv.style.display = 'none';
+    } else if (bdiv) {
+      bdiv.style.display = 'none';
+    }
 
-    // Skip reasons panel
+    // ── Skip reasons panel ────────────────────────────────────────────────
     var skipDiv    = document.getElementById('bulk-skip-reasons');
     var skipBD     = document.getElementById('bulk-skip-breakdown');
     var skipSample = document.getElementById('bulk-skip-sample');
-    if (skipDiv && d.skipped_duplicates > 0 && d.skip_breakdown) {
+
+    if (skipDiv && (d.skipped_total > 0 || d.possible_duplicates > 0)) {
       skipDiv.style.display = 'block';
-      var sb = d.skip_breakdown;
-      if (skipBD) {
-        var skipPills = [
-          { label: 'Place ID match', val: sb.place_id, tip: 'Same Google listing already in CRM' },
-          { label: 'Phone match',    val: sb.phone,    tip: 'Same phone number already in CRM' },
-          { label: 'Domain match',   val: sb.domain,   tip: 'Same website already in CRM' },
-          { label: 'Name match',     val: sb.fuzzy,    tip: 'Similar company name + address in CRM' },
-          { label: 'Batch dup',      val: sb.batch,    tip: 'Same company appeared twice in results' }
-        ];
+      if (skipBD && d.skip_breakdown) {
+        var sb = d.skip_breakdown;
         skipBD.innerHTML = '';
-        skipPills.forEach(function(p) {
-          if (p.val > 0) skipBD.innerHTML += '<span title="'+p.tip+'" style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:10px;background:#fef3c7;color:#92400e;cursor:help">'+p.val+' '+p.label+'</span>';
+        var reasonPills = [
+          { label: 'Exact address match', val: sb.exact_address,   tip: 'Same physical address already in CRM — definitive duplicate' },
+          { label: 'Confirmed duplicate', val: sb.confirmed_place, tip: 'Place ID + address/name both matched existing record' },
+          { label: 'Batch duplicate',     val: sb.batch_dup,       tip: 'Same address appeared twice in this search batch' },
+          { label: 'Other',               val: sb.other,           tip: 'Other dedup rule matched' }
+        ];
+        reasonPills.forEach(function(p) {
+          if (p.val > 0) skipBD.innerHTML += '<span title="' + p.tip + '" style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:10px;background:#fef3c7;color:#92400e;cursor:help">' + p.val + ' ' + p.label + '</span> ';
         });
-        if (sb.place_id === d.skipped_duplicates) {
-          skipBD.innerHTML += '<div style="font-size:11px;color:#0369a1;margin-top:6px;padding:6px 8px;background:#e0f2fe;border-radius:5px">All skipped records are already in your CRM from previous searches. Switch to <strong>No dedup</strong> or try a new territory.</div>';
+        if (d.possible_duplicates > 0) {
+          skipBD.innerHTML += '<span style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:10px;background:#ede9fe;color:#5b21b6">' + d.possible_duplicates + ' possible dups — imported &amp; flagged</span>';
         }
       }
-      if (skipSample && d.skipped_sample) {
-        skipSample.innerHTML = '';
-        d.skipped_sample.slice(0, 8).forEach(function(s) {
-          var confLabel = s.confidence ? ' (conf: ' + s.confidence + ')' : '';
-          skipSample.innerHTML += '<div style="font-size:11px;color:var(--text2);display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border)">' +
-            '<span>' + (s.company||'') + '</span>' +
-            '<span style="color:#92400e;font-weight:600">' + (s.reason||'') + confLabel + '</span>' +
-          '</div>';
+      if (skipSample && d.skipped_sample && d.skipped_sample.length > 0) {
+        skipSample.innerHTML = '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Skipped records</div>';
+        d.skipped_sample.forEach(function(s) {
+          skipSample.innerHTML +=
+            '<div style="padding:6px 0;border-bottom:1px solid var(--border);display:grid;grid-template-columns:1fr auto;gap:8px;align-items:start">' +
+              '<div>' +
+                '<div style="font-size:12px;font-weight:600;color:var(--navy)">' + (s.company || '') + '</div>' +
+                (s.address ? '<div style="font-size:11px;color:var(--text3)">' + s.address + '</div>' : '') +
+                (s.matched_company ? '<div style="font-size:11px;color:#92400e">Matched: ' + s.matched_company + '</div>' : '') +
+              '</div>' +
+              '<span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:8px;background:#fef3c7;color:#92400e;white-space:nowrap">' + (s.reason || '') + '</span>' +
+            '</div>';
         });
       }
-    } else if (skipDiv) skipDiv.style.display = 'none';
+    } else if (skipDiv) {
+      skipDiv.style.display = 'none';
+    }
 
-    // Records list
+    // ── Records list ──────────────────────────────────────────────────────
     var recList  = document.getElementById('bulk-record-list');
     var recCount = document.getElementById('bulk-record-count');
     if (recList) {
       recList.innerHTML = '';
       if (!d.records || d.records.length === 0) {
-        recList.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text3);font-size:13px">' +
-          (d.skipped_duplicates > 0
-            ? 'All results already exist in the CRM. Try <strong>No dedup</strong> scope to re-import, or search a different territory.'
+        recList.innerHTML =
+          '<div style="padding:24px;text-align:center;color:var(--text3);font-size:13px">' +
+          (d.skipped_total > 0
+            ? 'All ' + d.skipped_total + ' results already exist at those exact addresses in the CRM. Try a different territory or set scope to <strong>No dedup</strong>.'
             : 'No matching records found for this query.') +
           '</div>';
       } else {
-        if (recCount) recCount.textContent = d.records.length + ' records';
+        if (recCount) recCount.textContent = d.records.length + ' imported';
         d.records.forEach(function(rec) {
-          var conf = rec.confidence || 0;
-          var confColor = conf >= 90 ? '#065f46' : conf >= 70 ? '#92400e' : '#991b1b';
-          var confBg    = conf >= 90 ? '#d1fae5' : conf >= 70 ? '#fef3c7' : '#fee2e2';
+          var conf      = rec.confidence || 0;
+          var confColor = conf >= 90 ? '#065f46'  : conf >= 70 ? '#92400e' : '#991b1b';
+          var confBg    = conf >= 90 ? '#d1fae5'  : conf >= 70 ? '#fef3c7' : '#fee2e2';
           var typeColor = rec.company_type === 'Distributor' ? '#1e40af' : rec.company_type === 'Contractor' ? '#065f46' : '#6b7280';
           var typeBg    = rec.company_type === 'Distributor' ? '#dbeafe' : rec.company_type === 'Contractor' ? '#d1fae5' : '#f3f4f6';
-          var reviewBadge = rec.flagged ? '<span style="font-size:9px;font-weight:700;padding:2px 5px;border-radius:8px;background:#ede9fe;color:#5b21b6;margin-left:4px">REVIEW</span>' : '';
-          recList.innerHTML += '<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px">' +
-            '<div style="min-width:0">' +
-              '<div style="font-size:13px;font-weight:600;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + (rec.company||'') + reviewBadge + '</div>' +
-              '<div style="font-size:11px;color:var(--text3);margin-top:1px">' + (rec.category||'') + (rec.city ? ' · ' + rec.city : '') + '</div>' +
-            '</div>' +
-            '<div style="display:flex;gap:5px;flex-shrink:0">' +
-              '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:'+typeBg+';color:'+typeColor+'">' + (rec.company_type||'Unknown') + '</span>' +
-              '<span title="Confidence score" style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:'+confBg+';color:'+confColor+'">' + conf + '</span>' +
-            '</div>' +
-          '</div>';
+          var reviewBadge = rec.flagged
+            ? '<span title="' + (rec.dup_detail || 'Review manually') + '" style="font-size:9px;font-weight:700;padding:2px 5px;border-radius:8px;background:#ede9fe;color:#5b21b6;margin-left:4px;cursor:help">POSSIBLE DUP</span>'
+            : '';
+          recList.innerHTML +=
+            '<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px">' +
+              '<div style="min-width:0">' +
+                '<div style="font-size:13px;font-weight:600;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + (rec.company || '') + reviewBadge + '</div>' +
+                '<div style="font-size:11px;color:var(--text3);margin-top:1px">' +
+                  (rec.category || '') +
+                  (rec.city    ? ' · ' + rec.city : '') +
+                  (rec.address ? ' · ' + rec.address : '') +
+                '</div>' +
+              '</div>' +
+              '<div style="display:flex;gap:5px;flex-shrink:0">' +
+                '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:' + typeBg + ';color:' + typeColor + '">' + (rec.company_type || 'Unknown') + '</span>' +
+                '<span title="Confidence score" style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:' + confBg + ';color:' + confColor + '">' + conf + '</span>' +
+              '</div>' +
+            '</div>';
         });
       }
     }
 
-    addBulkHistoryEntry(query, d.imported, d.skipped_duplicates, scope);
+    addBulkHistoryEntry(query, d.imported, d.exact_address_dups || 0, d.possible_duplicates || 0, scope);
     showToast(d.message || ('Imported ' + d.imported + ' records'));
 
   } catch(e) {
@@ -3463,21 +3481,28 @@ async function startBulkIngest() {
 }
 
 function statCard(label, val, color, bg) {
-  return '<div style="background:'+bg+';border-radius:8px;padding:12px 14px;text-align:center">' +
-    '<div style="font-size:22px;font-weight:800;color:'+color+'">' + (val||0) + '</div>' +
-    '<div style="font-size:11px;font-weight:600;color:'+color+';margin-top:2px">' + label + '</div>' +
+  return '<div style="background:' + bg + ';border-radius:8px;padding:12px 14px;text-align:center">' +
+    '<div style="font-size:22px;font-weight:800;color:' + color + '">' + (val || 0) + '</div>' +
+    '<div style="font-size:11px;font-weight:600;color:' + color + ';margin-top:2px">' + label + '</div>' +
   '</div>';
 }
 
-function addBulkHistoryEntry(query, imported, skipped, scope) {
+function addBulkHistoryEntry(query, imported, addrDups, possibleDups, scope) {
   var list = document.getElementById('bulk-history-list');
   if (!list) return;
   var el = document.createElement('div');
   el.style.cssText = 'background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px';
-  el.innerHTML = '<span style="font-size:12px;color:var(--text2);font-weight:500">' + query + '</span>' +
-    '<span style="font-size:11px;color:var(--text3)">' + imported + ' imported · ' + skipped + ' skipped · ' + (scope||'team') + ' · ' + new Date().toLocaleTimeString() + '</span>';
+  el.innerHTML =
+    '<span style="font-size:12px;color:var(--text2);font-weight:500">' + query + '</span>' +
+    '<span style="font-size:11px;color:var(--text3)">' +
+      imported + ' imported' +
+      (addrDups   > 0 ? ' · ' + addrDups   + ' addr dups'      : '') +
+      (possibleDups > 0 ? ' · ' + possibleDups + ' possible dups' : '') +
+      ' · ' + (scope || 'team') + ' · ' + new Date().toLocaleTimeString() +
+    '</span>';
   list.prepend(el);
 }
+
 
 
 function renderBulkHistory() {
