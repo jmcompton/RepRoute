@@ -512,6 +512,19 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 .pipe-card { cursor: grab; touch-action: none; }
 .pipe-card:active { cursor: grabbing; }
 
+
+/* ── Bulk Import mobile ───────────────────────────────────────── */
+@media(max-width:768px){
+  #page-bulk .bi-controls { flex-direction:column !important; }
+  #bv4-state, #bv4-category, #bv4-max, #bv4-scope {
+    min-width:0 !important; width:100% !important; box-sizing:border-box;
+  }
+  #bv4-query { width:100% !important; box-sizing:border-box; }
+  #bv4-btn { width:100% !important; min-height:44px; }
+  #bv4-stats { grid-template-columns:repeat(3,1fr) !important; }
+  #bv4-records > div { grid-template-columns:1fr !important; }
+  #page-bulk > div > div:first-child { flex-wrap:wrap !important; gap:6px !important; }
+}
 </style>
 <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
@@ -1036,7 +1049,7 @@ window.addEventListener('load', function() {
   </div>
 
   <!-- AI LEAD FINDER -->
-  <div id="page-bulk" class="page" style="overflow-y:auto">
+  <div id="page-bulk" class="page" style="overflow-y:auto;padding-bottom:72px">
   <div style="max-width:900px;margin:0 auto;padding:24px 20px 60px">
 
     <!-- Header -->
@@ -1153,7 +1166,7 @@ window.addEventListener('load', function() {
             onkeydown="if(event.key==='Enter') bv4Run()" />
         </div>
         <button onclick="bv4Run()" id="bv4-btn"
-          style="padding:11px 30px;background:var(--navy);color:#00FF87;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;flex:0 0 auto;letter-spacing:.3px">
+          style="padding:11px 24px;background:var(--navy);color:#00FF87;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;flex:1 1 auto;letter-spacing:.3px;min-height:44px">
           Run Expansion
         </button>
       </div>
@@ -7404,6 +7417,12 @@ fetch('/api/notifications/evaluate', { method: 'POST' }).then(function(r){ retur
     <button onclick="goAndCloseMenu('command')" class="mm-item">
       <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#1d6aff" stroke-width="1.6" stroke-linecap="round"><path d="M12 2L10 20M3 7l-2 4 2 4M19 7l2 4-2 4"/></svg>
       <span>AI Command</span>
+      <svg class="mm-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg>
+    </button>
+
+    <button onclick="goAndCloseMenu('bulk')" class="mm-item">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#1d6aff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="16" height="16" rx="2"/><path d="M8 12h6M11 9v6"/></svg>
+      <span>Bulk Import</span>
       <svg class="mm-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg>
     </button>
 
