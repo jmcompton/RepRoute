@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Compton Group LLC — Georgia · Software · Sales</title>
+<meta name="description" content="Compton Group LLC is an independent software company headquartered in Georgia. We build AI-powered platforms for professional markets.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ── Reset & Base ────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;font-size:16px}
+body{
+  font-family:'Inter',sans-serif;
+  background:#0a0a0f;
+  color:#f0f0f5;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+a{text-decoration:none;color:inherit}
+img{max-width:100%;display:block}
+button,input,select,textarea{font-family:inherit}
+
+/* ── CSS Variables ───────────────────────────────────────────── */
+:root{
+  --bg:#0a0a0f;
+  --bg-2:#0d0d15;
+  --bg-footer:#080810;
+  --navy:#1a2744;
+  --gold:#c9a84c;
+  --gold-light:#e2c97e;
+  --gold-dim:rgba(201,168,76,0.15);
+  --white:#ffffff;
+  --gray:#a0a0b0;
+  --gray-dim:#666680;
+  --border:rgba(255,255,255,0.07);
+  --card-bg:#111118;
+  --card-border:#222230;
+  --radius:12px;
+  --transition:0.25s ease;
+}
+
+/* ── CG Logo Mark ────────────────────────────────────────────── */
+.cg-mark{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  background:#1a2744;
+  border-radius:10px;
+  flex-shrink:0;
+  position:relative;
+}
+.cg-mark svg{display:block}
+
+/* ── Navbar ──────────────────────────────────────────────────── */
+.nav{
+  position:fixed;
+  top:0;left:0;right:0;
+  z-index:100;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 40px;
+  height:70px;
+  transition:background var(--transition),border-color var(--transition),backdrop-filter var(--transition);
+  border-bottom:1px solid transparent;
+}
+.nav.scrolled{
+  background:rgba(10,10,15,0.92);
+  backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);
+  border-bottom-color:var(--border);
+}
+.nav-brand{
+  display:flex;
+  align-items:center;
+  gap:14px;
+}
+.nav-brand .cg-mark{
+  width:38px;height:38px;
+  border-radius:8px;
+}
+.nav-wordmark{
+  display:flex;
+  flex-direction:column;
+  line-height:1.1;
+}
+.nav-name{
+  font-family:'Cormorant Garamond',serif;
+  font-size:14px;
+  font-weight:600;
+  letter-spacing:0.22em;
+  text-transform:uppercase;
+  color:#fff;
+}
+.nav-llc{
+  font-size:9px;
+  font-weight:500;
+  letter-spacing:0.25em;
+  text-transform:uppercase;
+  color:var(--gold);
+  margin-top:1px;
+}
+.nav-links{
+  display:flex;
+  align-items:center;
+  gap:36px;
+  list-style:none;
+}
+.nav-links a{
+  font-size:12px;
+  font-weight:500;
+  letter-spacing:0.12em;
+  text-transform:uppercase;
+  color:var(--gray);
+  transition:color var(--transition);
+}
+.nav-links a:hover{color:#fff}
+
+/* Hamburger */
+.nav-hamburger{
+  display:none;
+  flex-direction:column;
+  gap:5px;
+  cursor:pointer;
+  padding:6px;
+  background:none;
+  border:none;
+}
+.nav-hamburger span{
+  display:block;
+  width:22px;height:1.5px;
+  background:#fff;
+  transition:all 0.3s;
+  transform-origin:center;
+}
+.nav-hamburger.open span:nth-child(1){transform:translateY(6.5px) rotate(45deg)}
+.nav-hamburger.open span:nth-child(2){opacity:0}
+.nav-hamburger.open span:nth-child(3){transform:translateY(-6.5px) rotate(-45deg)}
+
+.nav-mobile{
+  display:none;
+  position:fixed;
+  top:70px;left:0;right:0;
+  background:rgba(10,10,15,0.97);
+  border-bottom:1px solid var(--border);
+  padding:24px 40px 32px;
+  z-index:99;
+}
+.nav-mobile.open{display:block}
+.nav-mobile a{
+  display:block;
+  font-size:14px;
+  font-weight:500;
+  letter-spacing:0.1em;
+  text-transform:uppercase;
+  color:var(--gray);
+  padding:12px 0;
+  border-bottom:1px solid var(--border);
+  transition:color var(--transition);
+}
+.nav-mobile a:hover{color:#fff}
+.nav-mobile a:last-child{border-bottom:none}
+
+/* ── Hero ────────────────────────────────────────────────────── */
+.hero{
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  padding:120px 24px 80px;
+  position:relative;
+  background:radial-gradient(ellipse 80% 60% at 50% 20%, rgba(26,39,68,0.35) 0%, transparent 70%),
+             linear-gradient(180deg, #0a0a0f 0%, #0d0e18 50%, #0a0a0f 100%);
+  overflow:hidden;
+}
+.hero::before{
+  content:'';
+  position:absolute;
+  inset:0;
+  background:
+    radial-gradient(circle at 20% 80%, rgba(201,168,76,0.04) 0%, transparent 40%),
+    radial-gradient(circle at 80% 20%, rgba(26,39,68,0.3) 0%, transparent 40%);
+  pointer-events:none;
+}
+.hero-logo{
+  margin-bottom:36px;
+  animation:fadeDown 0.8s ease both;
+}
+.hero-logo .cg-mark{
+  width:100px;height:100px;
+  border-radius:20px;
+  box-shadow:0 0 60px rgba(201,168,76,0.12), 0 0 120px rgba(26,39,68,0.4);
+}
+.hero-company{
+  font-family:'Cormorant Garamond',serif;
+  font-size:clamp(42px,8vw,80px);
+  font-weight:300;
+  letter-spacing:0.28em;
+  text-transform:uppercase;
+  color:#fff;
+  line-height:1;
+  animation:fadeDown 0.8s 0.1s ease both;
+}
+.hero-llc{
+  font-size:clamp(11px,1.5vw,14px);
+  font-weight:500;
+  letter-spacing:0.4em;
+  text-transform:uppercase;
+  color:var(--gold);
+  margin-top:10px;
+  animation:fadeDown 0.8s 0.15s ease both;
+}
+.hero-divider{
+  width:60px;
+  height:1px;
+  background:var(--gold);
+  margin:28px auto;
+  animation:fadeDown 0.8s 0.2s ease both;
+}
+.hero-tagline{
+  font-size:clamp(11px,1.4vw,13px);
+  font-weight:400;
+  letter-spacing:0.3em;
+  text-transform:uppercase;
+  color:var(--gray);
+  animation:fadeDown 0.8s 0.25s ease both;
+}
+.scroll-hint{
+  position:absolute;
+  bottom:40px;
+  left:50%;
+  transform:translateX(-50%);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:8px;
+  animation:fadeDown 1s 0.5s ease both;
+}
+.scroll-hint span{
+  font-size:10px;
+  letter-spacing:0.2em;
+  text-transform:uppercase;
+  color:var(--gray-dim);
+}
+.scroll-chevron{
+  width:18px;height:18px;
+  border-right:1px solid var(--gray-dim);
+  border-bottom:1px solid var(--gray-dim);
+  transform:rotate(45deg);
+  animation:bounce 2s 1s ease-in-out infinite;
+}
+
+/* ── About ───────────────────────────────────────────────────── */
+.about{
+  padding:120px 24px;
+  max-width:880px;
+  margin:0 auto;
+  text-align:center;
+}
+.section-label{
+  font-size:10px;
+  font-weight:600;
+  letter-spacing:0.3em;
+  text-transform:uppercase;
+  color:var(--gold);
+  margin-bottom:20px;
+  display:block;
+}
+.section-heading{
+  font-family:'Cormorant Garamond',serif;
+  font-size:clamp(28px,4vw,46px);
+  font-weight:400;
+  color:#fff;
+  line-height:1.2;
+  margin-bottom:28px;
+  letter-spacing:0.02em;
+}
+.about-body{
+  font-size:16px;
+  font-weight:300;
+  color:var(--gray);
+  line-height:1.85;
+  max-width:700px;
+  margin:0 auto 64px;
+}
+.stats-row{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:2px;
+  max-width:640px;
+  margin:0 auto;
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  overflow:hidden;
+}
+.stat-block{
+  padding:32px 24px;
+  background:var(--card-bg);
+  text-align:center;
+}
+.stat-block:not(:last-child){
+  border-right:1px solid var(--border);
+}
+.stat-num{
+  font-family:'Cormorant Garamond',serif;
+  font-size:40px;
+  font-weight:400;
+  color:var(--gold);
+  line-height:1;
+  margin-bottom:8px;
+  letter-spacing:0.02em;
+}
+.stat-lbl{
+  font-size:11px;
+  font-weight:500;
+  letter-spacing:0.15em;
+  text-transform:uppercase;
+  color:var(--gray-dim);
+}
+
+/* ── Products ────────────────────────────────────────────────── */
+.products{
+  padding:120px 24px;
+  max-width:1200px;
+  margin:0 auto;
+}
+.products-header{
+  text-align:center;
+  margin-bottom:60px;
+}
+.products-sub{
+  font-size:15px;
+  font-weight:300;
+  color:var(--gray);
+  max-width:500px;
+  margin:16px auto 0;
+}
+.products-grid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:20px;
+}
+.product-card{
+  background:var(--card-bg);
+  border:1px solid var(--card-border);
+  border-radius:var(--radius);
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  transition:border-color var(--transition),transform var(--transition),box-shadow var(--transition);
+}
+.product-card:hover{
+  transform:translateY(-4px);
+}
+.product-card[data-accent="green"]:hover{
+  border-color:rgba(22,163,74,0.5);
+  box-shadow:0 20px 60px rgba(22,163,74,0.08);
+}
+.product-card[data-accent="blue"]:hover{
+  border-color:rgba(0,102,255,0.5);
+  box-shadow:0 20px 60px rgba(0,102,255,0.08);
+}
+.product-card[data-accent="gold"]:hover{
+  border-color:rgba(201,168,76,0.5);
+  box-shadow:0 20px 60px rgba(201,168,76,0.08);
+}
+.product-accent{
+  height:3px;
+  flex-shrink:0;
+}
+.product-card[data-accent="green"] .product-accent{background:#16a34a}
+.product-card[data-accent="blue"]  .product-accent{background:#0066ff}
+.product-card[data-accent="gold"]  .product-accent{background:var(--gold)}
+.product-body{
+  padding:28px 28px 32px;
+  flex:1;
+  display:flex;
+  flex-direction:column;
+}
+.product-name{
+  font-family:'Cormorant Garamond',serif;
+  font-size:26px;
+  font-weight:600;
+  color:#fff;
+  letter-spacing:0.02em;
+  margin-bottom:6px;
+}
+.product-cat{
+  font-size:10px;
+  font-weight:500;
+  letter-spacing:0.18em;
+  text-transform:uppercase;
+  color:var(--gray-dim);
+  margin-bottom:20px;
+}
+.product-desc{
+  font-size:14px;
+  font-weight:300;
+  color:var(--gray);
+  line-height:1.75;
+  flex:1;
+  margin-bottom:24px;
+}
+.product-footer{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding-top:20px;
+  border-top:1px solid var(--border);
+}
+.product-pill{
+  font-size:10px;
+  font-weight:500;
+  letter-spacing:0.1em;
+  text-transform:uppercase;
+  padding:4px 10px;
+  border-radius:20px;
+  border:1px solid var(--border);
+  color:var(--gray-dim);
+}
+.product-link{
+  font-size:12px;
+  font-weight:500;
+  letter-spacing:0.08em;
+  transition:color var(--transition);
+  display:flex;
+  align-items:center;
+  gap:5px;
+}
+.product-card[data-accent="green"] .product-link{color:#16a34a}
+.product-card[data-accent="blue"]  .product-link{color:#0066ff}
+.product-card[data-accent="gold"]  .product-link{color:var(--gold)}
+.product-link:hover{opacity:0.75}
+.product-link-arrow{
+  transition:transform var(--transition);
+}
+.product-link:hover .product-link-arrow{transform:translateX(3px)}
+
+/* ── Contact ─────────────────────────────────────────────────── */
+.contact{
+  padding:120px 24px;
+  max-width:640px;
+  margin:0 auto;
+  text-align:center;
+}
+.contact-email{
+  display:inline-block;
+  font-size:18px;
+  font-weight:300;
+  color:var(--gold);
+  letter-spacing:0.04em;
+  margin:28px 0 48px;
+  transition:color var(--transition);
+}
+.contact-email:hover{color:var(--gold-light)}
+.contact-form{
+  text-align:left;
+}
+.form-row{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:16px;
+  margin-bottom:16px;
+}
+.form-group{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  margin-bottom:16px;
+}
+.form-group.inline{margin-bottom:0}
+.form-label{
+  font-size:10px;
+  font-weight:600;
+  letter-spacing:0.18em;
+  text-transform:uppercase;
+  color:var(--gray-dim);
+}
+.form-input,
+.form-select,
+.form-textarea{
+  background:rgba(255,255,255,0.03);
+  border:1px solid var(--border);
+  border-radius:8px;
+  color:#fff;
+  font-size:14px;
+  font-weight:300;
+  padding:13px 16px;
+  outline:none;
+  transition:border-color var(--transition),background var(--transition);
+  width:100%;
+  -webkit-appearance:none;
+  appearance:none;
+}
+.form-select{
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23666680' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:right 14px center;
+  background-color:rgba(255,255,255,0.03);
+  padding-right:36px;
+}
+.form-select option{background:#111118;color:#fff}
+.form-textarea{resize:vertical;min-height:130px;line-height:1.6}
+.form-input:focus,.form-select:focus,.form-textarea:focus{
+  border-color:rgba(201,168,76,0.4);
+  background:rgba(255,255,255,0.05);
+}
+.form-input.error,.form-select.error,.form-textarea.error{border-color:rgba(239,68,68,0.5)}
+.field-error{
+  font-size:11px;
+  color:#f87171;
+  margin-top:-4px;
+  display:none;
+}
+.field-error.show{display:block}
+.submit-btn{
+  width:100%;
+  padding:16px;
+  background:var(--gold);
+  color:#0a0a0f;
+  border:none;
+  border-radius:8px;
+  font-size:12px;
+  font-weight:600;
+  letter-spacing:0.2em;
+  text-transform:uppercase;
+  cursor:pointer;
+  margin-top:8px;
+  transition:background var(--transition),opacity var(--transition),transform var(--transition);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+}
+.submit-btn:hover{background:var(--gold-light)}
+.submit-btn:active{transform:scale(0.99)}
+.submit-btn:disabled{opacity:0.5;cursor:not-allowed}
+.btn-spinner{
+  width:16px;height:16px;
+  border:2px solid rgba(10,10,15,0.3);
+  border-top-color:#0a0a0f;
+  border-radius:50%;
+  animation:spin 0.7s linear infinite;
+  display:none;
+  flex-shrink:0;
+}
+.submit-btn.loading .btn-spinner{display:block}
+.submit-btn.loading .btn-label{display:none}
+.form-success{
+  display:none;
+  text-align:center;
+  padding:48px 32px;
+  background:rgba(201,168,76,0.06);
+  border:1px solid rgba(201,168,76,0.2);
+  border-radius:var(--radius);
+  margin-top:24px;
+}
+.form-success.show{display:block}
+.success-icon{
+  font-size:32px;
+  margin-bottom:16px;
+}
+.success-title{
+  font-family:'Cormorant Garamond',serif;
+  font-size:24px;
+  font-weight:500;
+  color:#fff;
+  margin-bottom:8px;
+}
+.success-text{
+  font-size:14px;
+  font-weight:300;
+  color:var(--gray);
+}
+
+/* ── Section divider ─────────────────────────────────────────── */
+.section-divider{
+  width:1px;
+  height:80px;
+  background:linear-gradient(to bottom, transparent, var(--border), transparent);
+  margin:0 auto;
+}
+
+/* ── Footer ──────────────────────────────────────────────────── */
+.footer{
+  background:var(--bg-footer);
+  border-top:1px solid rgba(201,168,76,0.12);
+  padding:48px 40px 0;
+}
+.footer-main{
+  display:grid;
+  grid-template-columns:1fr auto 1fr;
+  align-items:center;
+  gap:32px;
+  padding-bottom:40px;
+}
+.footer-brand{
+  display:flex;
+  align-items:center;
+  gap:14px;
+}
+.footer-brand .cg-mark{
+  width:32px;height:32px;
+  border-radius:7px;
+}
+.footer-brand-name{
+  font-family:'Cormorant Garamond',serif;
+  font-size:13px;
+  font-weight:600;
+  letter-spacing:0.2em;
+  text-transform:uppercase;
+  color:var(--gray);
+}
+.footer-tagline{
+  font-size:11px;
+  font-weight:400;
+  letter-spacing:0.25em;
+  text-transform:uppercase;
+  color:var(--gray-dim);
+  text-align:center;
+}
+.footer-links{
+  display:flex;
+  gap:28px;
+  justify-content:flex-end;
+  list-style:none;
+}
+.footer-links a{
+  font-size:12px;
+  font-weight:400;
+  color:var(--gray-dim);
+  transition:color var(--transition);
+}
+.footer-links a:hover{color:var(--gold)}
+.footer-bottom{
+  border-top:1px solid var(--border);
+  padding:20px 0;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+}
+.footer-copy{
+  font-size:11px;
+  color:var(--gray-dim);
+}
+.footer-email a{
+  font-size:11px;
+  color:var(--gray-dim);
+  transition:color var(--transition);
+}
+.footer-email a:hover{color:var(--gold)}
+
+/* ── Keyframes ───────────────────────────────────────────────── */
+@keyframes fadeDown{
+  from{opacity:0;transform:translateY(-14px)}
+  to{opacity:1;transform:translateY(0)}
+}
+@keyframes bounce{
+  0%,100%{transform:rotate(45deg) translateY(0)}
+  50%{transform:rotate(45deg) translateY(6px)}
+}
+@keyframes spin{
+  to{transform:rotate(360deg)}
+}
+
+/* ── Scroll reveal ───────────────────────────────────────────── */
+.reveal{
+  opacity:0;
+  transform:translateY(24px);
+  transition:opacity 0.6s ease,transform 0.6s ease;
+}
+.reveal.visible{
+  opacity:1;
+  transform:translateY(0);
+}
+.reveal-delay-1{transition-delay:0.1s}
+.reveal-delay-2{transition-delay:0.2s}
+.reveal-delay-3{transition-delay:0.3s}
+
+/* ── Mobile ──────────────────────────────────────────────────── */
+@media(max-width:768px){
+  .nav{padding:0 20px}
+  .nav-links{display:none}
+  .nav-hamburger{display:flex}
+
+  .hero{padding:100px 24px 80px}
+
+  .about{padding:80px 24px}
+  .stats-row{grid-template-columns:1fr}
+  .stat-block:not(:last-child){border-right:none;border-bottom:1px solid var(--border)}
+
+  .products{padding:80px 24px}
+  .products-grid{grid-template-columns:1fr}
+
+  .contact{padding:80px 24px}
+  .form-row{grid-template-columns:1fr}
+
+  .footer{padding:40px 24px 0}
+  .footer-main{grid-template-columns:1fr;text-align:center;gap:20px}
+  .footer-brand{justify-content:center}
+  .footer-links{justify-content:center}
+  .footer-bottom{flex-direction:column;text-align:center;gap:8px}
+}
+@media(max-width:480px){
+  .hero-company{letter-spacing:0.18em}
+  .product-footer{flex-direction:column;align-items:flex-start;gap:12px}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════
+     NAVBAR
+═══════════════════════════════════════════════ -->
+<nav class="nav" id="nav">
+  <a href="#" class="nav-brand" aria-label="Compton Group LLC">
+    <div class="cg-mark" style="width:38px;height:38px;border-radius:8px">
+      <svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="38" height="38" rx="8" fill="#1a2744"/>
+        <text x="19" y="25" text-anchor="middle" font-family="Cormorant Garamond, Georgia, serif" font-size="16" font-weight="600" fill="#c9a84c" letter-spacing="0">CG</text>
+      </svg>
+    </div>
+    <div class="nav-wordmark">
+      <span class="nav-name">Compton Group</span>
+      <span class="nav-llc">LLC</span>
+    </div>
+  </a>
+  <ul class="nav-links">
+    <li><a href="#products">Our Products</a></li>
+    <li><a href="#contact">Contact</a></li>
+  </ul>
+  <button class="nav-hamburger" id="hamburger" aria-label="Menu" aria-expanded="false">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+
+<div class="nav-mobile" id="nav-mobile" aria-hidden="true">
+  <a href="#products" class="mobile-link">Our Products</a>
+  <a href="#contact" class="mobile-link">Contact</a>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════
+     HERO
+═══════════════════════════════════════════════ -->
+<section class="hero" aria-label="Hero">
+  <div class="hero-logo">
+    <div class="cg-mark" style="width:100px;height:100px;border-radius:20px;box-shadow:0 0 60px rgba(201,168,76,0.12),0 0 120px rgba(26,39,68,0.4)">
+      <svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="100" height="100" rx="20" fill="#1a2744"/>
+        <text x="50" y="64" text-anchor="middle" font-family="Cormorant Garamond, Georgia, serif" font-size="42" font-weight="500" fill="#c9a84c" letter-spacing="1">CG</text>
+      </svg>
+    </div>
+  </div>
+  <h1 class="hero-company">Compton Group</h1>
+  <p class="hero-llc">LLC</p>
+  <div class="hero-divider"></div>
+  <p class="hero-tagline">Georgia &nbsp;·&nbsp; Software &nbsp;·&nbsp; Sales</p>
+  <div class="scroll-hint" aria-hidden="true">
+    <span>Scroll</span>
+    <div class="scroll-chevron"></div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════
+     ABOUT
+═══════════════════════════════════════════════ -->
+<section class="about" aria-labelledby="about-heading">
+  <span class="section-label reveal">About</span>
+  <h2 class="section-heading reveal reveal-delay-1" id="about-heading">Building Vertical Software<br>for Niche Professionals</h2>
+  <p class="about-body reveal reveal-delay-2">
+    Compton Group LLC is an independent software company headquartered in Georgia. We design, build, and operate AI-powered platforms for professional markets where the right tool doesn't yet exist — combining deep industry knowledge with modern technology to create products that actually fit how people work.
+  </p>
+  <div class="stats-row reveal reveal-delay-3">
+    <div class="stat-block">
+      <div class="stat-num">3</div>
+      <div class="stat-lbl">Active Products</div>
+    </div>
+    <div class="stat-block">
+      <div class="stat-num">2026</div>
+      <div class="stat-lbl">Founded</div>
+    </div>
+    <div class="stat-block">
+      <div class="stat-num" style="font-size:22px;padding-top:6px">AI-Powered</div>
+      <div class="stat-lbl">Core Technology</div>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider"></div>
+
+
+<!-- ═══════════════════════════════════════════════
+     PRODUCTS
+═══════════════════════════════════════════════ -->
+<section class="products" id="products" aria-labelledby="products-heading">
+  <div class="products-header">
+    <span class="section-label reveal">Our Products</span>
+    <h2 class="section-heading reveal reveal-delay-1" id="products-heading">Three Platforms. Three Markets.</h2>
+    <p class="products-sub reveal reveal-delay-2">Each product is purpose-built for a specific professional audience.</p>
+  </div>
+
+  <div class="products-grid">
+
+    <!-- NILDash -->
+    <article class="product-card reveal" data-accent="green">
+      <div class="product-accent"></div>
+      <div class="product-body">
+        <h3 class="product-name">NILDash</h3>
+        <p class="product-cat">Sports · NIL Management</p>
+        <p class="product-desc">The AI-powered operating system for sports agents and athletes. Manage NIL deals, valuations, contracts, outreach, compliance, and client pipelines — all in one place.</p>
+        <div class="product-footer">
+          <span class="product-pill">For Agents &amp; Athletes</span>
+          <a href="https://mynildash.com" target="_blank" rel="noopener" class="product-link">
+            Visit NILDash
+            <svg class="product-link-arrow" width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M2.5 9.5L9.5 2.5M9.5 2.5H4M9.5 2.5V8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </a>
+        </div>
+      </div>
+    </article>
+
+    <!-- RepMatchPro -->
+    <article class="product-card reveal reveal-delay-1" data-accent="blue">
+      <div class="product-accent"></div>
+      <div class="product-body">
+        <h3 class="product-name">RepMatchPro</h3>
+        <p class="product-cat">Sports · Agent Marketplace</p>
+        <p class="product-desc">The marketplace where student athletes and families find verified sports agents. AI-powered matching connects the right agent to the right athlete — free for families, always.</p>
+        <div class="product-footer">
+          <span class="product-pill">For Athletes &amp; Families</span>
+          <a href="https://repmatchpro.com" target="_blank" rel="noopener" class="product-link">
+            Visit RepMatchPro
+            <svg class="product-link-arrow" width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M2.5 9.5L9.5 2.5M9.5 2.5H4M9.5 2.5V8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </a>
+        </div>
+      </div>
+    </article>
+
+    <!-- RepRoute -->
+    <article class="product-card reveal reveal-delay-2" data-accent="gold">
+      <div class="product-accent"></div>
+      <div class="product-body">
+        <h3 class="product-name">RepRoute</h3>
+        <p class="product-cat">Sales · Field CRM</p>
+        <p class="product-desc">The AI-powered CRM built for manufacturer's rep field sales teams. Lead finder, deal pipeline, morning briefing, and follow-up reminders — designed for reps who work in the field.</p>
+        <div class="product-footer">
+          <span class="product-pill">For Sales Professionals</span>
+          <a href="https://app.comptongroupllc.com" target="_blank" rel="noopener" class="product-link">
+            Visit RepRoute
+            <svg class="product-link-arrow" width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M2.5 9.5L9.5 2.5M9.5 2.5H4M9.5 2.5V8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </a>
+        </div>
+      </div>
+    </article>
+
+  </div>
+</section>
+
+<div class="section-divider"></div>
+
+
+<!-- ═══════════════════════════════════════════════
+     CONTACT
+═══════════════════════════════════════════════ -->
+<section class="contact" id="contact" aria-labelledby="contact-heading">
+  <span class="section-label reveal">Contact</span>
+  <h2 class="section-heading reveal reveal-delay-1" id="contact-heading">Work With Us</h2>
+  <p class="about-body reveal reveal-delay-2" style="margin-bottom:0">Partnerships, press inquiries, and general questions.</p>
+  <a href="mailto:hello@comptongroupllc.com" class="contact-email reveal reveal-delay-2">hello@comptongroupllc.com</a>
+
+  <form class="contact-form reveal reveal-delay-3" id="contact-form" novalidate>
+    <div class="form-row">
+      <div class="form-group inline">
+        <label class="form-label" for="f-name">Name <span style="color:var(--gold)">*</span></label>
+        <input class="form-input" type="text" id="f-name" name="name" autocomplete="name" placeholder="Your name">
+        <span class="field-error" id="err-name">Please enter your name.</span>
+      </div>
+      <div class="form-group inline">
+        <label class="form-label" for="f-email">Email <span style="color:var(--gold)">*</span></label>
+        <input class="form-input" type="email" id="f-email" name="email" autocomplete="email" placeholder="you@example.com">
+        <span class="field-error" id="err-email">Please enter a valid email.</span>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="f-subject">Subject</label>
+      <select class="form-select" id="f-subject" name="subject">
+        <option value="Partnership Inquiry">Partnership Inquiry</option>
+        <option value="Press">Press</option>
+        <option value="General Question">General Question</option>
+        <option value="Other">Other</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="f-message">Message <span style="color:var(--gold)">*</span></label>
+      <textarea class="form-textarea" id="f-message" name="message" placeholder="How can we help?"></textarea>
+      <span class="field-error" id="err-message">Please enter your message.</span>
+    </div>
+    <button type="submit" class="submit-btn" id="submit-btn">
+      <div class="btn-spinner" id="btn-spinner"></div>
+      <span class="btn-label">Send Message</span>
+    </button>
+  </form>
+
+  <div class="form-success" id="form-success" role="alert" aria-live="polite">
+    <div class="success-icon">&#10003;</div>
+    <div class="success-title">Message Received</div>
+    <p class="success-text">Thank you. We'll be in touch shortly.</p>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════
+     FOOTER
+═══════════════════════════════════════════════ -->
+<footer class="footer" role="contentinfo">
+  <div class="footer-main">
+    <div class="footer-brand">
+      <div class="cg-mark" style="width:32px;height:32px;border-radius:7px;flex-shrink:0">
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="32" height="32" rx="7" fill="#1a2744"/>
+          <text x="16" y="22" text-anchor="middle" font-family="Cormorant Garamond, Georgia, serif" font-size="14" font-weight="600" fill="#c9a84c">CG</text>
+        </svg>
+      </div>
+      <span class="footer-brand-name">Compton Group LLC</span>
+    </div>
+
+    <p class="footer-tagline">Georgia &nbsp;·&nbsp; Software &nbsp;·&nbsp; Sales</p>
+
+    <ul class="footer-links">
+      <li><a href="https://mynildash.com" target="_blank" rel="noopener">NILDash</a></li>
+      <li><a href="https://repmatchpro.com" target="_blank" rel="noopener">RepMatchPro</a></li>
+      <li><a href="https://app.comptongroupllc.com" target="_blank" rel="noopener">RepRoute</a></li>
+    </ul>
+  </div>
+  <div class="footer-bottom">
+    <p class="footer-copy">© 2026 Compton Group LLC. All rights reserved.</p>
+    <div class="footer-email"><a href="mailto:hello@comptongroupllc.com">hello@comptongroupllc.com</a></div>
+  </div>
+</footer>
+
+
+<!-- ═══════════════════════════════════════════════
+     JAVASCRIPT
+═══════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+// ── Navbar scroll behavior ───────────────────────────────────────
+const nav = document.getElementById('nav');
+let ticking = false;
+window.addEventListener('scroll', () => {
+  if (!ticking) {
+    requestAnimationFrame(() => {
+      nav.classList.toggle('scrolled', window.scrollY > 20);
+      ticking = false;
+    });
+    ticking = true;
+  }
+}, { passive: true });
+
+// ── Hamburger menu ───────────────────────────────────────────────
+const hamburger = document.getElementById('hamburger');
+const mobileNav = document.getElementById('nav-mobile');
+hamburger.addEventListener('click', () => {
+  const isOpen = hamburger.classList.toggle('open');
+  mobileNav.classList.toggle('open', isOpen);
+  hamburger.setAttribute('aria-expanded', isOpen);
+  mobileNav.setAttribute('aria-hidden', !isOpen);
+});
+
+// Close mobile nav when a link is clicked
+document.querySelectorAll('.mobile-link').forEach(link => {
+  link.addEventListener('click', () => {
+    hamburger.classList.remove('open');
+    mobileNav.classList.remove('open');
+    hamburger.setAttribute('aria-expanded', 'false');
+    mobileNav.setAttribute('aria-hidden', 'true');
+  });
+});
+
+// ── Scroll reveal ────────────────────────────────────────────────
+const revealEls = document.querySelectorAll('.reveal');
+const revealObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+      revealObserver.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+
+revealEls.forEach(el => revealObserver.observe(el));
+
+// ── Contact form ─────────────────────────────────────────────────
+const form = document.getElementById('contact-form');
+const submitBtn = document.getElementById('submit-btn');
+const formSuccess = document.getElementById('form-success');
+
+function validateEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function setFieldError(inputId, errorId, show) {
+  const input = document.getElementById(inputId);
+  const error = document.getElementById(errorId);
+  if (!input || !error) return;
+  input.classList.toggle('error', show);
+  error.classList.toggle('show', show);
+}
+
+function clearErrors() {
+  ['f-name','f-email','f-message'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('error');
+  });
+  ['err-name','err-email','err-message'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('show');
+  });
+}
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  clearErrors();
+
+  const name    = document.getElementById('f-name').value.trim();
+  const email   = document.getElementById('f-email').value.trim();
+  const subject = document.getElementById('f-subject').value;
+  const message = document.getElementById('f-message').value.trim();
+
+  // Validate
+  let hasError = false;
+  if (!name)              { setFieldError('f-name',    'err-name',    true); hasError = true; }
+  if (!validateEmail(email)) { setFieldError('f-email', 'err-email',   true); hasError = true; }
+  if (!message)           { setFieldError('f-message', 'err-message', true); hasError = true; }
+  if (hasError) return;
+
+  // Loading state
+  submitBtn.disabled = true;
+  submitBtn.classList.add('loading');
+
+  try {
+    const res = await fetch('/api/contact', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, subject, message })
+    });
+    const data = await res.json();
+
+    if (res.ok && data.success) {
+      form.style.display = 'none';
+      formSuccess.classList.add('show');
+    } else {
+      // Show generic error inline
+      const errEl = document.getElementById('err-message');
+      if (errEl) {
+        errEl.textContent = data.error || 'Something went wrong. Please try again.';
+        errEl.classList.add('show');
+      }
+      submitBtn.disabled = false;
+      submitBtn.classList.remove('loading');
+    }
+  } catch (err) {
+    const errEl = document.getElementById('err-message');
+    if (errEl) {
+      errEl.textContent = 'Network error. Please check your connection and try again.';
+      errEl.classList.add('show');
+    }
+    submitBtn.disabled = false;
+    submitBtn.classList.remove('loading');
+  }
+});
+
+// Clear error on input
+['f-name','f-email','f-message'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) {
+    el.addEventListener('input', () => {
+      el.classList.remove('error');
+      const errId = 'err-' + id.replace('f-','');
+      const errEl = document.getElementById(errId);
+      if (errEl) {
+        errEl.classList.remove('show');
+        // Reset text in case it was overridden
+        if (errId === 'err-name')    errEl.textContent = 'Please enter your name.';
+        if (errId === 'err-email')   errEl.textContent = 'Please enter a valid email.';
+        if (errId === 'err-message') errEl.textContent = 'Please enter your message.';
+      }
+    });
+  }
+});
+
+// ── Smooth scroll for anchor links ──────────────────────────────
+document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+  anchor.addEventListener('click', (e) => {
+    const target = document.querySelector(anchor.getAttribute('href'));
+    if (!target) return;
+    e.preventDefault();
+    const offset = 80; // nav height
+    const top = target.getBoundingClientRect().top + window.scrollY - offset;
+    window.scrollTo({ top, behavior: 'smooth' });
+  });
+});
+</script>
+
+</body>
+</html>
