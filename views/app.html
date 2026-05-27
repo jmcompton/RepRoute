@@ -76,6 +76,14 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 .b-new{background:var(--purple-lt);color:var(--purple)}
 .b-ai{background:#e8f0fe;color:var(--blue)}
 .b-manual{background:#f1f5f9;color:var(--text3)}
+/* Lead type badges */
+.b-installer{background:#dcfce7;color:#15803d}
+.b-contractor{background:#dbeafe;color:#1d4ed8}
+.b-builder{background:#ede9fe;color:#7c3aed}
+.b-distributor-warn{background:#fef9c3;color:#a16207}
+.b-dealer-warn{background:#f1f5f9;color:#64748b}
+/* Work type tag */
+.lc-work-tag{display:inline-block;font-size:10px;font-weight:500;padding:1px 6px;border-radius:3px;background:#e0eaff;color:#3b5bdb;white-space:nowrap}
 .b-high{background:var(--red-lt);color:var(--red)}
 .b-medium{background:var(--amber-lt);color:var(--amber)}
 .b-low{background:#f1f5f9;color:var(--text3)}
@@ -2307,6 +2315,7 @@ var categoryFilter = 'All';
 var currentRecord = null;
 var foundLeads = [];
 var selectedLeads = new Set();
+var currentContactType = 'installers';
 
 var pageTitles = {
     reports: 'Reports', analytics: 'Analytics', accounts: 'Accounts',
@@ -3101,31 +3110,68 @@ async function aiLookupContact() {
 function findLeads() {
   var product = document.getElementById('lead-cat').value;
   var territory = document.getElementById('lead-territory').value || 'Atlanta Metro, Georgia';
+  var contactType = (document.getElementById('lead-contact-type') || {}).value || 'installers';
+  var workType = (document.getElementById('lead-work-type') || {}).value || 'new_construction';
+  currentContactType = contactType;
 
-  // Map each product to its best target customer types
+  // Refined category map — installer-first language to guide AI correctly
   var categoryMap = {
-    'Soudal Sealants and Adhesives': 'Roofing Contractor, Window and Door Installer, General Contractor using sealants and adhesives',
-    'ShurTape Flashing and Deck Tape': 'Deck Contractor, Roofing Contractor, Window and Door Installer using flashing tape',
-    'Alum-A-Pole Scaffolding and Equipment': 'Siding Contractor, Cornice Contractor, Scaffolding Equipment Dealer, Fastener Supply Store',
-    'Fortress Evolution Steel Framing': 'Deck Contractor, Outdoor Living Contractor building decks',
-    'Fortress Railing Systems': 'Deck Contractor, Outdoor Living Contractor, Stair and Rail Installer',
+    'Soudal Sealants and Adhesives': 'Roofing Contractor, Window and Door Installation Contractor, General Contractor using sealants and adhesives on jobsites',
+    'ShurTape Flashing and Deck Tape': 'Window Installation Contractor, Door Installation Contractor, Residential Framing Contractor, New Construction General Contractor, Homebuilder using flashing tape',
+    'Alum-A-Pole Scaffolding and Equipment': 'Painting Contractor, Stucco Contractor, Masonry Contractor, Exterior Renovation Contractor needing scaffolding',
+    'Fortress Evolution Steel Framing': 'Deck Contractor, Outdoor Living Contractor, Homebuilder building decks with steel framing',
+    'Fortress Railing Systems': 'Deck Contractor, Stair and Rail Installation Contractor, Outdoor Living Contractor',
     'Insulation Contractor and After-Paint Installer': 'Insulation Contractor, Spray Foam Contractor, After-Paint Installer, General Contractor doing insulation and finishing work'
   };
 
   var category = categoryMap[product] || product;
+
+  // Auto-enhance query for installer mode: append qualifier to make intent clear
+  if (contactType === 'installers' || contactType === 'builders') {
+    category += ' installer OR installation OR contractor OR new construction';
+  }
+  if (workType === 'new_construction') {
+    category += ' new construction';
+  }
+
+  // Kody test case: ShurTape + window search with installer filter
+  if (product.includes('ShurTape') && contactType === 'installers') {
+    console.log('[RepRoute Lead Finder] KODY TEST CASE');
+    console.log('[RepRoute Lead Finder] Product:', product);
+    console.log('[RepRoute Lead Finder] Contact Type:', contactType, '— targeting INSTALLATION CONTRACTORS, not distributors');
+    console.log('[RepRoute Lead Finder] Work Type:', workType);
+    console.log('[RepRoute Lead Finder] Category query:', category);
+    console.log('[RepRoute Lead Finder] Expected: window/door INSTALLATION contractors focused on new construction');
+    console.log('[RepRoute Lead Finder] Should NOT return: window distributors, dealers, showrooms');
+  }
 
   document.getElementById('lead-searching').style.display = 'block';
   document.getElementById('lead-results').style.display = 'none';
   foundLeads = []; selectedLeads = new Set();
   fetch('/api/morning/daily-leads', {
     method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({category: category, territory: territory, product: product, count: document.getElementById('lead-count-select').value, customer_type: document.getElementById('lead-customer-type').value})
+    body: JSON.stringify({category: category, territory: territory, product: product, contactType: contactType, workType: workType, count: (document.getElementById('lead-count-select')||{}).value, customer_type: (document.getElementById('lead-customer-type')||{}).value})
   })
     .then(function(r) { return r.json(); })
     .then(function(d) {
       document.getElementById('lead-searching').style.display = 'none';
       if (d.error) { showToast('AI search error — try again'); return; }
       foundLeads = d.leads || [];
+      // Safety filter: when installer mode, push distributors/dealers to bottom
+      if (contactType === 'installers' || contactType === 'builders') {
+        var nonDist = foundLeads.filter(function(l) {
+          var lt = (l.lead_type || '').toLowerCase();
+          return lt !== 'distributor' && lt !== 'dealer';
+        });
+        var dist = foundLeads.filter(function(l) {
+          var lt = (l.lead_type || '').toLowerCase();
+          return lt === 'distributor' || lt === 'dealer';
+        });
+        if (dist.length && product.includes('ShurTape')) {
+          console.log('[RepRoute Lead Finder] Warning: AI still returned', dist.length, 'distributor/dealer results despite installer filter. Pushing to bottom.');
+        }
+        foundLeads = nonDist.concat(dist);
+      }
       renderLeads();
     })
     .catch(function() { document.getElementById('lead-searching').style.display = 'none'; showToast('Search failed'); });
@@ -3135,6 +3181,22 @@ function renderLeads() {
   document.getElementById('lead-results').style.display = 'block';
   document.getElementById('lead-count').textContent = foundLeads.length + ' leads found — select to add to CRM';
   document.getElementById('lead-grid').innerHTML = foundLeads.map(function(l, i) {
+    // Lead type badge
+    var lt = (l.lead_type || '').toLowerCase();
+    var typeBadge = '';
+    if (lt === 'installer') typeBadge = '<span class="badge b-installer">Installer</span>';
+    else if (lt === 'contractor') typeBadge = '<span class="badge b-contractor">Contractor</span>';
+    else if (lt === 'builder') typeBadge = '<span class="badge b-builder">Builder/GC</span>';
+    else if (lt === 'distributor') typeBadge = '<span class="badge b-distributor-warn" title="Distributor — lower priority for flashing tape">Distributor ⚠</span>';
+    else if (lt === 'dealer') typeBadge = '<span class="badge b-dealer-warn">Dealer</span>';
+    // Work type tag
+    var wt = (l.work_type || '').toLowerCase();
+    var workTag = '';
+    if (wt === 'new_construction') workTag = '<span class="lc-work-tag">New Construction</span>';
+    else if (wt === 'remodel') workTag = '<span class="lc-work-tag" style="background:#f0fdf4;color:#16a34a">Remodel</span>';
+    else if (wt === 'both') workTag = '<span class="lc-work-tag" style="background:#fef9c3;color:#a16207">New + Remodel</span>';
+    // Relevance score
+    var scoreHtml = l.relevance_score ? '<span style="font-size:10px;color:var(--text3);margin-left:4px">▪ ' + l.relevance_score + '/10</span>' : '';
     return '<div class="lead-card ' + (selectedLeads.has(i)?'sel':'') + '" onclick="toggleLead(' + i + ')">' +
       '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px">' +
       '<div class="lc-name">' + l.company + '</div>' +
@@ -3146,9 +3208,11 @@ function renderLeads() {
       (l.phone ? '<div class="lc-meta">' + l.phone + '</div>' : '') +
       (l.contact ? '<div class="lc-meta">' + l.contact + '</div>' : '') +
       (l.email ? '<div class="lc-meta"> ' + l.email + '</div>' : '') +
-      (l.website ? '<div class="lc-meta">' + l.website + '</div>' : '') +
-      '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">' +
-      catBadge(l.category) +
+      (l.website ? '<div class="lc-meta">🌐 ' + l.website + '</div>' : '') +
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;flex-wrap:wrap;gap:4px">' +
+      '<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">' +
+      (typeBadge || catBadge(l.category)) + workTag + scoreHtml +
+      '</div>' +
       '<div class="lc-check ' + (selectedLeads.has(i)?'on':'') + '">' + (selectedLeads.has(i)?'✓':'') + '</div></div>' +
       '</div>';
   }).join('');

@@ -186,32 +186,99 @@ function getTerritoryContext(territory) {
   return { state: "", cities: territory };
 }
 
+// Brand intelligence — primary targets, secondary targets, and what to avoid per product line
+const BRAND_INTEL = {
+  'ShurTape Flashing and Deck Tape': {
+    primary: 'window installation contractors, door installation contractors, residential framing contractors, new construction general contractors, homebuilders with in-house installation crews, window replacement companies that do new construction',
+    secondary: 'roofing contractors, weatherproofing contractors, deck contractors using flashing tape',
+    avoid: 'window distributors, window dealers, window showrooms, door showrooms, building supply houses, window product suppliers, door product suppliers',
+    notes: 'Flashing tape is consumed on every window and door install job. Target companies doing the physical installation work in the field, NOT companies that sell or distribute window/door products.'
+  },
+  'Alum-A-Pole Scaffolding and Equipment': {
+    primary: 'painting contractors, stucco contractors, masonry contractors, exterior renovation contractors',
+    secondary: 'window and siding installers who need elevated access, restoration contractors, exterior waterproofing contractors',
+    avoid: 'equipment rental companies, tool rental shops',
+    notes: 'Scaffolding is used by contractors working at height on building exteriors. Target the contractors, not equipment rental shops.'
+  },
+  'Soudal Sealants and Adhesives': {
+    primary: 'window installation contractors, door installers, roofing contractors, general contractors using sealants on every job',
+    secondary: 'weatherproofing contractors, waterproofing contractors, commercial glaziers',
+    avoid: 'adhesive distributors, sealant supply houses, chemical distributors',
+    notes: 'Sealants are consumed on every project. Target companies actively doing installation and construction work.'
+  },
+  'Fortress Evolution Steel Framing': {
+    primary: 'deck contractors, outdoor living contractors, structural steel framing contractors',
+    secondary: 'general contractors doing deck additions, home builders adding outdoor structures',
+    avoid: 'steel distributors, lumber yards, building material dealers, framing product suppliers',
+    notes: 'Target contractors who physically build decks and outdoor structures using steel framing.'
+  },
+  'Fortress Railing Systems': {
+    primary: 'deck contractors, stair and rail installation contractors, outdoor living contractors',
+    secondary: 'general contractors, residential home builders',
+    avoid: 'railing distributors, material suppliers, hardware dealers',
+    notes: 'Target installers who physically install railing systems on decks and stairs.'
+  }
+};
+
 // AI Lead Finder
 router.post('/leads', async (req, res) => {
-  const { category, territory, count, customer_type } = req.body;
+  const { category, territory, count, customer_type, contactType, workType } = req.body;
   const user = req.session.user;
   const loc = territory || user.territory || 'Atlanta Metro, Georgia';
   const { state, cities } = getTerritoryContext(loc);
   const product = req.body.product || category;
   const numLeads = parseInt(count) || 20;
   const custType = customer_type || 'any building products buyer';
+  const intel = BRAND_INTEL[product] || {};
+
+  // Contact type — default to installers (high-value end users who consume product)
+  const ct = contactType || 'installers';
+  const wt = workType || (product.includes('ShurTape') ? 'new_construction' : 'all');
+
+  // Installer-vs-distributor guidance for the prompt
+  let contactQualifier = '';
+  let avoidQualifier = intel.avoid ? `NEVER include: ${intel.avoid}.` : '';
+  if (ct === 'installers') {
+    contactQualifier = 'CRITICAL: Return ONLY installation contractors and companies that physically install or apply the products on jobsites. Do NOT return distributors, dealers, showrooms, or supply companies.';
+  } else if (ct === 'distributors') {
+    contactQualifier = 'Return distributors, dealers, and supply houses that sell products to contractors.';
+    avoidQualifier = '';
+  } else if (ct === 'builders') {
+    contactQualifier = 'Return homebuilders, general contractors, and construction companies.';
+  }
+  const workQualifier = wt === 'new_construction' ? 'Prioritize companies doing NEW CONSTRUCTION work.'
+    : wt === 'remodel' ? 'Prioritize companies doing REMODEL and renovation work.' : '';
+
+  // Kody test case: ShurTape + window/door search with installer filter
+  const isKodyTest = (product || '').includes('ShurTape') &&
+    (category || '').toLowerCase().includes('window');
+  if (isKodyTest) {
+    console.log('[LEAD FINDER — KODY TEST] ShurTape + window/door search triggered');
+    console.log('[LEAD FINDER — KODY TEST] Contact type:', ct, '| Work type:', wt);
+    console.log('[LEAD FINDER — KODY TEST] Targeting INSTALLERS, not distributors/dealers');
+  }
 
   function getProductContext(prod) {
     const p = (prod || '').toLowerCase();
     if (p.includes('soudal') || p.includes('boss') || p.includes('sealant') || p.includes('adhesive')) return {
-      who: 'window and door installers, insulation contractors, commercial contractors, after-paint installers, glazing contractors, waterproofing contractors',
+      who: 'window and door installation contractors, insulation contractors, commercial contractors, after-paint installers, glazing contractors, waterproofing contractors',
       why: 'Soudal BOSS sealants and adhesives are used for window and door installation, weatherproofing, firestopping, bonding, and gap sealing on commercial and residential jobs.',
-      signals: 'Companies that install windows, doors, siding, roofing, or do commercial construction. They buy sealants in bulk.'
+      signals: 'Companies that INSTALL windows, doors, siding, roofing, or do commercial construction. NOT distributors or dealers — the installers who buy sealants in bulk.'
     };
     if (p.includes('shurtape') || p.includes('flashing') || p.includes('deck tape')) return {
-      who: 'window and door installers, roofing contractors, deck contractors, home builders, remodelers',
-      why: 'ShurTape flashing and deck tape is used for window rough openings, door flashing, deck waterproofing, and moisture barriers.',
-      signals: 'Target companies installing windows, doors, or decks. They use flashing tape on every job.'
+      who: ct === 'installers'
+        ? 'window installation contractors, door installation contractors, residential framing contractors, new construction general contractors, homebuilders'
+        : ct === 'distributors' ? 'building material distributors, window and door dealers, supply houses'
+        : 'deck contractors, roofing contractors, home builders, remodelers',
+      why: 'ShurTape flashing tape is consumed on every window and door rough opening installation. Companies that physically install windows and doors use it on every job.',
+      signals: ct === 'installers'
+        ? 'INSTALLATION companies only: window installers, door installers, framing contractors, new construction GCs who install windows. NOT window distributors, dealers, or showrooms.'
+        : 'Companies in the window, door, and roofing space.'
     };
     if (p.includes('alum') || p.includes('scaffolding') || p.includes('scaffold')) return {
-      who: 'siding contractors, James Hardie installers, fiber cement siding contractors, exterior painters, stucco contractors, soffit and fascia contractors',
-      why: 'Alum-A-Pole pump jack scaffolding is used by siding pros working at heights up to 50 feet. OSHA-compliant, lightweight aluminum, made in USA.',
-      signals: 'Siding companies, exterior renovation contractors, James Hardie preferred installers, painting contractors on multi-story homes.'
+      who: 'painting contractors, stucco contractors, masonry contractors, siding contractors, James Hardie installers, fiber cement siding contractors, exterior renovation contractors',
+      why: 'Alum-A-Pole pump jack scaffolding is used by exterior contractors working at heights up to 50 feet. OSHA-compliant, lightweight aluminum.',
+      signals: 'Exterior contractors who work on multi-story buildings: siding companies, painters, stucco crews. NOT equipment rental companies.'
     };
     if (p.includes('fortress') && (p.includes('framing') || p.includes('steel frame') || p.includes('evolution'))) return {
       who: 'deck builders, deck contractors, remodelers, general contractors, custom home builders',
@@ -219,17 +286,17 @@ router.post('/leads', async (req, res) => {
       signals: 'Dedicated deck builders and remodelers who build multiple decks per year.'
     };
     if (p.includes('fortress') && p.includes('railing')) return {
-      who: 'deck contractors, fence contractors, builders, remodelers, commercial contractors',
+      who: 'deck contractors, stair and rail installation contractors, builders, remodelers, commercial contractors',
       why: 'Fortress Railing aluminum and steel systems are low maintenance, code-compliant, and aesthetically superior to wood.',
-      signals: 'Any company building decks, porches, balconies, or commercial walkways.'
+      signals: 'Companies that physically install railing systems on decks and stairs. NOT railing distributors or dealers.'
     };
-    return { who: custType, why: 'They regularly purchase building products.', signals: 'Active construction company.' };
+    return { who: custType, why: 'They regularly purchase building products.', signals: 'Active construction or installation company.' };
   }
 
   const ctx = getProductContext(product);
   const targetType = custType !== 'any building products buyer' ? custType : ctx.who;
 
-  // Split cities into chunks of ~4 cities each for reliable 10-lead batches
+  // Split cities into chunks for reliable batches
   const cityArr = cities.split(',').map(c => c.trim()).filter(Boolean);
   const CHUNK = 4;
   const BATCH_SIZE = 10;
@@ -244,7 +311,12 @@ router.post('/leads', async (req, res) => {
 
   function makePrompt(citySet, n, exclude = []) {
     const excludeStr = exclude.length > 0 ? `\nDo NOT include these companies: ${exclude.slice(0,20).join(', ')}` : '';
+    const installerContext = (ct === 'installers' || ct === 'builders')
+      ? `\nINSTALLER INTELLIGENCE:\n- ${contactQualifier}\n- ${avoidQualifier}\n- ${workQualifier}\n- ${intel.notes || ''}` : '';
     return `You are a B2B sales researcher for Compton Group LLC, a building products manufacturer's rep in the Southeast US.
+
+IMPORTANT DISTINCTION: A "distributor" or "dealer" SELLS products to others. A "contractor" or "installer" INSTALLS products on jobsites. Always tag each lead correctly.
+${installerContext}
 
 Find exactly ${n} REAL ${targetType} businesses currently operating in: ${citySet}
 
@@ -257,18 +329,21 @@ Search Google Maps, Houzz, Angi, BuildZoom, and company websites. For each retur
 - Specific business type
 - City, state
 - Phone from Google listing
-- Email from their website contact page  
+- Email from their website contact page
 - Owner or decision maker name
 - Website URL
-- Why this specific company needs ${product} (1 sentence based on their actual work)
-- Priority: High / Medium / Low${excludeStr}
+- Why this specific company needs ${product} (1 sentence)
+- Priority: High / Medium / Low
+- lead_type: installer | contractor | builder | distributor | dealer
+- work_type: new_construction | remodel | both | unknown
+- relevance_score: 1-10${excludeStr}
 
 Return ONLY a JSON array starting with [ with exactly ${n} entries:
-[{"company":"Name","category":"Type","city":"City","state":"${state}","phone":"number or null","email":"email or null","website":"url or null","contact":"name or null","products":"${product}","why":"specific reason","priority":"High or Medium or Low"}]`;
+[{"company":"Name","category":"Type","city":"City","state":"${state}","phone":"number or null","email":"email or null","website":"url or null","contact":"name or null","products":"${product}","why":"specific reason","priority":"High or Medium or Low","lead_type":"installer","work_type":"new_construction","relevance_score":8}]`;
   }
 
   try {
-    // Run all batches in parallel
+    // Run all batches in parallel using web search
     const results = await Promise.all(
       batches.map((citySet, i) => {
         const n = Math.min(BATCH_SIZE, numLeads - i * BATCH_SIZE);
@@ -309,6 +384,7 @@ Return ONLY a JSON array starting with [ with exactly ${n} entries:
       } catch(e) { break; }
     }
 
+    if (isKodyTest) console.log('[LEAD FINDER — KODY TEST] Results:', leads.map(l => `${l.company} [${l.lead_type||'?'}/${l.work_type||'?'} score:${l.relevance_score||'?'}]`).join(', '));
     if (leads.length === 0) return res.json({ error: 'Could not find leads. Try a different category or territory.' });
     res.json({ leads });
   } catch (e) {
