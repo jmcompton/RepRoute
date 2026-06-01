@@ -533,6 +533,307 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
   #bv4-records > div { grid-template-columns:1fr !important; }
   #page-bulk > div > div:first-child { flex-wrap:wrap !important; gap:6px !important; }
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   MOBILE V4 — RECORD DETAIL + TEAM CONTACTS (≤640px)
+   All changes scoped here. Desktop (>640px) completely unchanged.
+   Test targets: iPhone 14 (390px), iPhone SE (375px)
+   ═══════════════════════════════════════════════════════════════════ */
+@media(max-width:640px) {
+
+  /* ── Record page layout ──────────────────────────────────────── */
+  /* Hide left sidebar — 200px wastes >50% of screen */
+  #page-record .rec-left { display:none !important; }
+  #page-record .rec-layout { flex-direction:column; }
+  #page-record .rec-main { overflow-y:auto; -webkit-overflow-scrolling:touch; width:100%; }
+
+  /* Header — dark, sticky, 52px */
+  #page-record .rec-hdr {
+    background:#0f1117 !important;
+    border-bottom:1px solid #1e2028 !important;
+    padding:0 12px !important;
+    min-height:52px !important;
+    position:sticky !important;
+    top:0 !important;
+    z-index:10 !important;
+    align-items:center !important;
+    gap:10px !important;
+    flex-wrap:nowrap !important;
+  }
+
+  /* Back arrow — 44×44 tap target */
+  #page-record .rec-hdr > div:first-child > div:first-child {
+    width:44px !important;
+    height:44px !important;
+    min-width:44px !important;
+    border:none !important;
+    background:rgba(255,255,255,.10) !important;
+    border-radius:8px !important;
+    color:#fff !important;
+    font-size:18px !important;
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+  }
+
+  /* Avatar — hide on mobile (saves space) */
+  #page-record .rec-av { display:none !important; }
+
+  /* Company name — white on dark header */
+  #page-record .rec-name { color:#fff !important; font-size:14px !important; line-height:1.3 !important; }
+  #page-record .rec-cat  { color:rgba(255,255,255,.6) !important; font-size:11px !important; }
+
+  /* Action buttons — hide, back arrow handles navigation */
+  #page-record .rec-btns { display:none !important; }
+
+  /* ── Tabs row — dark, sticky below header ─────────────────── */
+  #page-record .rec-tabs {
+    background:#13141c !important;
+    border-bottom:1px solid #1e2028 !important;
+    padding:0 !important;
+    position:sticky !important;
+    top:52px !important;
+    z-index:9 !important;
+    display:flex !important;
+    align-items:stretch !important;
+    gap:0 !important;
+  }
+
+  /* Each tab — equal thirds, min 44px tall */
+  #page-record .rec-tabs .rt {
+    flex:1 !important;
+    text-align:center !important;
+    padding:13px 6px !important;
+    min-height:44px !important;
+    font-size:12px !important;
+    color:rgba(255,255,255,.45) !important;
+    border-bottom:2px solid transparent !important;
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    white-space:nowrap !important;
+  }
+  #page-record .rec-tabs .rt.active {
+    color:#60a5fa !important;
+    border-bottom-color:#60a5fa !important;
+  }
+
+  /* Hide last-update timestamp — no room */
+  #page-record #rec-last-update { display:none !important; }
+
+  /* ── Quick bar — horizontal scroll strip ──────────────────── */
+  #page-record .rec-quick {
+    display:flex !important;
+    flex-direction:row !important;
+    overflow-x:auto !important;
+    -webkit-overflow-scrolling:touch !important;
+    gap:0 !important;
+    grid-template-columns:none !important;
+    background:#13141c !important;
+    border-bottom:1px solid #1e2028 !important;
+    padding:0 !important;
+    scrollbar-width:none !important;
+  }
+  #page-record .rec-quick::-webkit-scrollbar { display:none; }
+  #page-record .rec-quick > div {
+    flex-shrink:0 !important;
+    padding:10px 14px !important;
+    border-right:1px solid #1e2028 !important;
+    min-width:84px !important;
+  }
+  #page-record .rq-label { color:rgba(255,255,255,.4) !important; font-size:9px !important; text-transform:uppercase !important; letter-spacing:.04em !important; }
+  #page-record .rq-val   { color:#fff !important; font-size:12px !important; }
+
+  /* ── Body — dark background ───────────────────────────────── */
+  #page-record .rec-body {
+    background:#0f1117 !important;
+    padding:10px 12px !important;
+  }
+
+  /* Section cards — dark */
+  #page-record .rec-sec {
+    background:#13141c !important;
+    border:1px solid #1e2028 !important;
+    border-radius:10px !important;
+    margin-bottom:10px !important;
+    overflow:hidden !important;
+  }
+  #page-record .rec-sec-hdr {
+    background:#13141c !important;
+    border-bottom:1px solid #1e2028 !important;
+    padding:11px 14px !important;
+  }
+  #page-record .rec-sec-title { color:#e2e8f0 !important; font-size:12px !important; }
+  #page-record .rec-sec-hdr span[style*="cursor:pointer"],
+  #page-record .rec-sec-hdr a { color:#60a5fa !important; font-size:11px !important; }
+  #page-record .rec-sec-body { padding:0 14px !important; }
+
+  /* ── Field rows — stacked (block) instead of 160px+1fr ───── */
+  #page-record .frow {
+    display:block !important;
+    padding:10px 0 !important;
+    border-bottom:1px solid #1e2028 !important;
+  }
+  #page-record .frow:last-child { border-bottom:none !important; }
+  #page-record .flabel {
+    text-align:left !important;
+    font-size:9px !important;
+    text-transform:uppercase !important;
+    letter-spacing:.07em !important;
+    color:rgba(255,255,255,.38) !important;
+    padding-right:0 !important;
+    margin-bottom:3px !important;
+    display:block !important;
+  }
+  #page-record .fval       { font-size:13px !important; color:#e2e8f0 !important; }
+  #page-record .fval a     { color:#60a5fa !important; }
+  #page-record .fval.empty { color:rgba(255,255,255,.3) !important; }
+
+  /* The 2-col grid inside rec-fields/rec-prod-fields → 1-col */
+  #rec-fields > div,
+  #rec-prod-fields > div { grid-template-columns:1fr !important; }
+
+  /* ── Timeline items — dark card style ────────────────────── */
+  #page-record .tl-item {
+    background:#1a1b23 !important;
+    border:1px solid #2a2b35 !important;
+    border-bottom:1px solid #2a2b35 !important;
+    border-radius:10px !important;
+    padding:14px !important;
+    margin-bottom:8px !important;
+    gap:0 !important;
+  }
+  #page-record .tl-item:last-child { border-bottom:1px solid #2a2b35 !important; }
+
+  /* Hide timeline dot icon — not needed on mobile */
+  #page-record .tl-ico { display:none !important; }
+
+  #page-record .tl-title { color:#e2e8f0 !important; font-size:13px !important; }
+  #page-record .tl-meta  { color:rgba(255,255,255,.45) !important; font-size:11px !important; }
+  #page-record .tl-note  {
+    background:#1e2028 !important;
+    border-left-color:#3b82f6 !important;
+    color:#e2e8f0 !important;
+    font-size:12px !important;
+  }
+  #rec-timeline { background:#0f1117 !important; padding:12px !important; }
+
+  /* ── Manager note input — 16px CRITICAL to prevent iOS Safari zoom ── */
+  #rec-manager-note-input {
+    font-size:16px !important;
+    background:#1a1b23 !important;
+    border:1px solid #2a2b35 !important;
+    color:#e2e8f0 !important;
+    border-radius:8px !important;
+    padding:12px !important;
+  }
+  #rec-manager-note-input::placeholder { color:rgba(255,255,255,.3) !important; }
+
+  /* Manager notes save button — full width, 48px tap target */
+  #rec-manager-notes-section button[onclick="saveManagerNote()"] {
+    display:block !important;
+    width:100% !important;
+    height:48px !important;
+    font-size:14px !important;
+    border-radius:8px !important;
+    margin-bottom:0 !important;
+  }
+
+  /* Existing note display — dark */
+  #rec-existing-manager-note {
+    background:#1a2236 !important;
+    border-left-color:#3b82f6 !important;
+    color:#e2e8f0 !important;
+    font-size:12px !important;
+  }
+
+  /* Notes tab textarea — iOS anti-zoom */
+  #note-input {
+    font-size:16px !important;
+    background:#1a1b23 !important;
+    border-color:#2a2b35 !important;
+    color:#e2e8f0 !important;
+  }
+
+  /* rec-tab-notes dark */
+  #rec-tab-notes > div { background:#0f1117 !important; }
+  #rec-tab-notes > div > div:first-child > div { color:#e2e8f0 !important; }
+
+  /* ── TEAM CONTACTS TABLE ─────────────────────────────────── */
+
+  /* Activity strip — 2-column grid (compact on mobile) */
+  #team-activity-strip {
+    display:grid !important;
+    grid-template-columns:1fr 1fr !important;
+    gap:6px !important;
+    padding:10px 12px !important;
+    background:#f0f7ff !important;
+  }
+  #team-activity-strip > span {
+    justify-content:center !important;
+    text-align:center !important;
+  }
+
+  /* Type filter dropdown row — hidden on mobile (mobile sort bar replaces it) */
+  #team-type-filter-row { display:none !important; }
+
+  /* Mobile sort/filter bar — shown on mobile only */
+  #team-mobile-sort-bar {
+    display:flex !important;
+    gap:8px !important;
+    padding:8px 12px !important;
+    background:#fff !important;
+    border-bottom:1px solid var(--border) !important;
+    align-items:center !important;
+  }
+  #team-mobile-sort-bar > button {
+    flex:1 !important;
+    padding:0 10px !important;
+    height:44px !important;
+    min-height:44px !important;
+    border:1px solid var(--border) !important;
+    border-radius:8px !important;
+    background:#fff !important;
+    color:var(--navy) !important;
+    font-size:12px !important;
+    font-weight:600 !important;
+    font-family:inherit !important;
+    cursor:pointer !important;
+    white-space:nowrap !important;
+    overflow:hidden !important;
+    text-overflow:ellipsis !important;
+  }
+
+  /* Team contacts table — hide non-essential columns on mobile
+     Columns: 1=∅, 2=Company, 3=Rep, 4=Category, 5=City, 6=Phone, 7=Contacted, 8=Status, 9=Route
+     Keep: 2(Company), 4(Category), 7(Contacted) — hide rest */
+  #contact-tab-team table.ltable thead tr th:nth-child(1),
+  #contact-tab-team table.ltable tbody tr td:nth-child(1) { display:none !important; }
+
+  #contact-tab-team table.ltable thead tr th:nth-child(3),
+  #contact-tab-team table.ltable tbody tr td:nth-child(3) { display:none !important; }
+
+  #contact-tab-team table.ltable thead tr th:nth-child(5),
+  #contact-tab-team table.ltable tbody tr td:nth-child(5) { display:none !important; }
+
+  #contact-tab-team table.ltable thead tr th:nth-child(6),
+  #contact-tab-team table.ltable tbody tr td:nth-child(6) { display:none !important; }
+
+  #contact-tab-team table.ltable thead tr th:nth-child(8),
+  #contact-tab-team table.ltable tbody tr td:nth-child(8) { display:none !important; }
+
+  #contact-tab-team table.ltable thead tr th:nth-child(9),
+  #contact-tab-team table.ltable tbody tr td:nth-child(9) { display:none !important; }
+
+  /* Hide city group header rows on mobile */
+  #contact-tab-team table.ltable tbody tr.city-group-row { display:none !important; }
+
+  /* Tighten the table itself */
+  #contact-tab-team table.ltable td,
+  #contact-tab-team table.ltable th { padding:8px 6px !important; font-size:12px !important; }
+  #contact-tab-team table.ltable td:nth-child(2) { max-width:140px; word-break:break-word; }
+}
 </style>
 <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
@@ -990,6 +1291,35 @@ window.addEventListener('load', function() {
           <option value="Fastener/Tool Dealer">Fastener/Tool Dealer</option>
         </select>
         <span id="team-showing-count" style="font-size:11px;color:var(--text3)"></span>
+      </div>
+      <!-- Mobile sort/filter bar — hidden on desktop, shown via CSS on ≤640px -->
+      <div id="team-mobile-sort-bar" style="display:none">
+        <button id="team-mobile-sort-btn" onclick="cycleContactedSort()">Sort: Default ⇅</button>
+        <button id="team-mobile-filter-btn" onclick="openTeamFilterSheet()">Filter: All Types</button>
+      </div>
+      <!-- Filter bottom sheet — mobile only -->
+      <div id="team-filter-sheet" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.5)" onclick="closeTeamFilterSheet()">
+        <div style="position:absolute;bottom:0;left:0;right:0;background:#fff;border-radius:16px 16px 0 0;padding:0 0 env(safe-area-inset-bottom) 0;max-height:70vh;overflow-y:auto;-webkit-overflow-scrolling:touch" onclick="event.stopPropagation()">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #f0f0f0">
+            <span style="font-size:14px;font-weight:700;color:#0f1a2e">Filter by Type</span>
+            <button onclick="closeTeamFilterSheet()" style="border:none;background:none;font-size:20px;color:#94a3b8;padding:4px 8px;cursor:pointer;line-height:1">×</button>
+          </div>
+          <div id="team-filter-sheet-options" style="padding:8px 0">
+            <div onclick="selectTeamFilterSheet('all')"                      class="tfs-opt" style="padding:14px 20px;font-size:14px;cursor:pointer;color:#0f1a2e;border-bottom:1px solid #f9fafb;display:flex;align-items:center;justify-content:space-between">All Types</div>
+            <div onclick="selectTeamFilterSheet('Distributor')"              class="tfs-opt" style="padding:14px 20px;font-size:14px;cursor:pointer;color:#0f1a2e;border-bottom:1px solid #f9fafb;display:flex;align-items:center;justify-content:space-between">Distributor</div>
+            <div onclick="selectTeamFilterSheet('Contractor')"               class="tfs-opt" style="padding:14px 20px;font-size:14px;cursor:pointer;color:#0f1a2e;border-bottom:1px solid #f9fafb;display:flex;align-items:center;justify-content:space-between">Contractor</div>
+            <div onclick="selectTeamFilterSheet('Roofing Contractor')"       class="tfs-opt" style="padding:14px 20px;font-size:14px;cursor:pointer;color:#0f1a2e;border-bottom:1px solid #f9fafb;display:flex;align-items:center;justify-content:space-between">Roofing Contractor</div>
+            <div onclick="selectTeamFilterSheet('Decking Contractor')"       class="tfs-opt" style="padding:14px 20px;font-size:14px;cursor:pointer;color:#0f1a2e;border-bottom:1px solid #f9fafb;display:flex;align-items:center;justify-content:space-between">Decking Contractor</div>
+            <div onclick="selectTeamFilterSheet('Siding Contractor')"        class="tfs-opt" style="padding:14px 20px;font-size:14px;cursor:pointer;color:#0f1a2e;border-bottom:1px solid #f9fafb;display:flex;align-items:center;justify-content:space-between">Siding Contractor</div>
+            <div onclick="selectTeamFilterSheet('Window &amp; Door Installer')" class="tfs-opt" style="padding:14px 20px;font-size:14px;cursor:pointer;color:#0f1a2e;border-bottom:1px solid #f9fafb;display:flex;align-items:center;justify-content:space-between">Window &amp; Door Installer</div>
+            <div onclick="selectTeamFilterSheet('Roofing Distributor')"      class="tfs-opt" style="padding:14px 20px;font-size:14px;cursor:pointer;color:#0f1a2e;border-bottom:1px solid #f9fafb;display:flex;align-items:center;justify-content:space-between">Roofing Distributor</div>
+            <div onclick="selectTeamFilterSheet('Decking Distributor')"      class="tfs-opt" style="padding:14px 20px;font-size:14px;cursor:pointer;color:#0f1a2e;border-bottom:1px solid #f9fafb;display:flex;align-items:center;justify-content:space-between">Decking Distributor</div>
+            <div onclick="selectTeamFilterSheet('Siding Distributor')"       class="tfs-opt" style="padding:14px 20px;font-size:14px;cursor:pointer;color:#0f1a2e;border-bottom:1px solid #f9fafb;display:flex;align-items:center;justify-content:space-between">Siding Distributor</div>
+            <div onclick="selectTeamFilterSheet('Window &amp; Door Distributor')" class="tfs-opt" style="padding:14px 20px;font-size:14px;cursor:pointer;color:#0f1a2e;border-bottom:1px solid #f9fafb;display:flex;align-items:center;justify-content:space-between">Window &amp; Door Distributor</div>
+            <div onclick="selectTeamFilterSheet('Cornice Contractor')"       class="tfs-opt" style="padding:14px 20px;font-size:14px;cursor:pointer;color:#0f1a2e;border-bottom:1px solid #f9fafb;display:flex;align-items:center;justify-content:space-between">Cornice Contractor</div>
+            <div onclick="selectTeamFilterSheet('Fastener/Tool Dealer')"     class="tfs-opt" style="padding:14px 20px;font-size:14px;cursor:pointer;color:#0f1a2e;display:flex;align-items:center;justify-content:space-between">Fastener/Tool Dealer</div>
+          </div>
+        </div>
       </div>
       <table class="ltable">
         <thead><tr><th></th><th>Company Name</th><th>Rep</th><th onclick="cycleTeamCategorySort()" style="cursor:pointer;user-select:none" title="Click to sort by category">Category <span id="team-category-sort-indicator" style="font-size:10px;color:var(--accent)"></span></th><th onclick="cycleCitySort()" style="cursor:pointer;user-select:none" title="Click to sort by city">City <span id="team-city-sort-indicator" style="font-size:10px;color:var(--accent)"></span></th><th>Phone</th><th onclick="cycleContactedSort()" style="cursor:pointer;user-select:none" title="Click to sort by contacted status">Contacted <span id="team-contacted-sort-indicator" style="font-size:10px;color:var(--text3)">⇅</span></th><th>Status</th><th>Route</th></tr></thead>
@@ -7099,6 +7429,7 @@ function cycleContactedSort() {
     else if (window._teamContactSort === 'uncontacted_asc') { ind.textContent = '↑'; ind.style.color = '#f59e0b'; }
     else                                                     { ind.textContent = '⇅'; ind.style.color = 'var(--text3)'; }
   }
+  if (typeof window.updateMobileSortBtn === 'function') window.updateMobileSortBtn();
   console.log('[TeamContacts] contacted sort →', window._teamContactSort);
   renderTeamContacts(window._teamContactsCache || [], document.getElementById('p-search')?.value || '');
 }
@@ -7897,6 +8228,122 @@ window.saveManagerNote = function() {
     if (statusEl) { statusEl.textContent = 'Connection error'; statusEl.style.color = '#ef4444'; }
   });
 };
+
+// ═══════════════════════════════════════════════════════════════════
+// MOBILE TEAM CONTACTS — filter sheet + sort bar helpers
+// ═══════════════════════════════════════════════════════════════════
+
+// Update the mobile sort button text to reflect current sort state
+window.updateMobileSortBtn = function() {
+  var btn = document.getElementById('team-mobile-sort-btn');
+  if (!btn) return;
+  var s = window._teamContactSort;
+  if      (s === 'contacted_desc')  { btn.textContent = 'Sort: Contacted ↓'; btn.style.color = '#3b82f6'; btn.style.borderColor = '#3b82f6'; }
+  else if (s === 'uncontacted_asc') { btn.textContent = 'Sort: Not Yet ↑'; btn.style.color = '#f59e0b'; btn.style.borderColor = '#f59e0b'; }
+  else                              { btn.textContent = 'Sort: Default ⇅'; btn.style.color = ''; btn.style.borderColor = ''; }
+};
+
+// Open the filter bottom sheet
+window.openTeamFilterSheet = function() {
+  var sheet = document.getElementById('team-filter-sheet');
+  if (!sheet) return;
+  // Mark active option with a checkmark
+  var cur = window._activeTypeFilter || 'all';
+  document.querySelectorAll('#team-filter-sheet-options .tfs-opt').forEach(function(el) {
+    var v = el.getAttribute('onclick').match(/selectTeamFilterSheet\('([^']+)'\)/);
+    var val = v ? v[1] : 'all';
+    // remove any existing checkmark spans
+    var existing = el.querySelector('.tfs-check');
+    if (existing) existing.remove();
+    if (val === cur) {
+      el.style.fontWeight = '700';
+      var check = document.createElement('span');
+      check.className = 'tfs-check';
+      check.textContent = '✓';
+      check.style.cssText = 'color:#3b82f6;font-weight:700;font-size:14px';
+      el.appendChild(check);
+    } else {
+      el.style.fontWeight = '';
+    }
+  });
+  sheet.style.display = 'block';
+  document.body.style.overflow = 'hidden';
+};
+
+// Close the filter bottom sheet
+window.closeTeamFilterSheet = function() {
+  var sheet = document.getElementById('team-filter-sheet');
+  if (sheet) sheet.style.display = 'none';
+  document.body.style.overflow = '';
+};
+
+// Select a filter option from the sheet, update button text, close sheet
+window.selectTeamFilterSheet = function(val) {
+  window._activeTypeFilter = val || 'all';
+  // Sync desktop dropdown
+  var sel = document.getElementById('team-type-filter');
+  if (sel) sel.value = val || 'all';
+  // Update mobile filter button label
+  var filterBtn = document.getElementById('team-mobile-filter-btn');
+  if (filterBtn) {
+    filterBtn.textContent = (val && val !== 'all') ? 'Filter: ' + val : 'Filter: All Types';
+  }
+  closeTeamFilterSheet();
+  renderTeamContacts(window._teamContactsCache || [], document.getElementById('p-search')?.value || '');
+  console.log('[TeamContacts] mobile filter →', val);
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// MOBILE RECORD PAGE — tab swipe gesture
+// Left swipe → next tab, right swipe → previous tab
+// ═══════════════════════════════════════════════════════════════════
+(function() {
+  var tabOrder   = ['overview', 'calls', 'ai'];
+  var startX     = 0;
+  var startY     = 0;
+  var tracking   = false;
+
+  function onTouchStart(e) {
+    var recPage = document.getElementById('page-record');
+    if (!recPage || !recPage.classList.contains('active')) return;
+    // Only track touches that start on the record main area (not header/tabs)
+    var tgt = e.target;
+    if (tgt.closest && tgt.closest('.rec-hdr, .rec-tabs')) return;
+    startX   = e.touches[0].clientX;
+    startY   = e.touches[0].clientY;
+    tracking = true;
+  }
+
+  function onTouchEnd(e) {
+    if (!tracking) return;
+    tracking = false;
+    var recPage = document.getElementById('page-record');
+    if (!recPage || !recPage.classList.contains('active')) return;
+    var dx = e.changedTouches[0].clientX - startX;
+    var dy = e.changedTouches[0].clientY - startY;
+    // Require: horizontal > 55px, horizontal dominates vertical
+    if (Math.abs(dx) < 55 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    // Find current active tab
+    var cur = 'overview';
+    var allTabs = document.querySelectorAll('#page-record .rec-tabs .rt');
+    allTabs.forEach(function(el) {
+      if (el.classList.contains('active')) {
+        var m = (el.getAttribute('onclick') || '').match(/setRecTab\('(\w+)'/);
+        if (m) cur = m[1];
+      }
+    });
+    var idx = tabOrder.indexOf(cur);
+    if (idx === -1) return;
+    var newIdx = dx < 0 ? idx + 1 : idx - 1; // left = next, right = prev
+    if (newIdx < 0 || newIdx >= tabOrder.length) return;
+    if (typeof setRecTab === 'function') {
+      setRecTab(tabOrder[newIdx], allTabs[newIdx] || null);
+    }
+  }
+
+  document.addEventListener('touchstart', onTouchStart, { passive: true });
+  document.addEventListener('touchend',   onTouchEnd,   { passive: true });
+})();
 
 // ═══════════════════════════════════════════════════════════════════
 // QUICK CALL LOG — search-first call logging widget
