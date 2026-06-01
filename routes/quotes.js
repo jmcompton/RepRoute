@@ -5,9 +5,11 @@ const { pool } = require('../db');
 // GET all quotes — team-wide (all users share the same quote board)
 router.get('/', async (req, res) => {
   try {
-    // Show all quotes across the whole team so every rep sees the full pipeline
+    // Show all quotes across the whole team so every rep sees the full pipeline.
+    // rep_name priority: q.rep_name (explicitly stored on the quote) > u.name (creator).
+    // This prevents the creator's login name from overwriting the chosen rep.
     const result = await pool.query(
-      `SELECT q.*, u.name as rep_name
+      `SELECT q.*, COALESCE(q.rep_name, u.name) as rep_name
        FROM quotes q
        LEFT JOIN users u ON q.user_id = u.id
        ORDER BY q.created_at DESC`
@@ -83,7 +85,7 @@ router.get('/:id/pdf', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT q.*, u.name as rep_name
+      `SELECT q.*, COALESCE(q.rep_name, u.name) as rep_name
        FROM quotes q
        LEFT JOIN users u ON q.user_id = u.id
        WHERE q.id = $1`,
@@ -102,14 +104,13 @@ router.get('/:id', async (req, res) => {
 // GET /api/quotes/debug-reps — show all distinct rep_name values in DB
 router.get('/debug-reps', async (req, res) => {
   try {
-    // Show actual user names via join (rep_name is derived from users table, not a direct column)
+    // Show actual rep names — using COALESCE(q.rep_name, u.name) to match the display logic
     const result = await pool.query(
-      `SELECT COALESCE(u.name, 'Unknown (user_id=' || q.user_id::text || ')') as rep_name,
-              COUNT(*) as count,
-              q.user_id
+      `SELECT COALESCE(q.rep_name, u.name, 'Unknown') as rep_name,
+              COUNT(*) as count
        FROM quotes q
        LEFT JOIN users u ON q.user_id = u.id
-       GROUP BY u.name, q.user_id
+       GROUP BY COALESCE(q.rep_name, u.name)
        ORDER BY count DESC`
     );
     // Also list all users for reference

@@ -253,6 +253,22 @@ async function initDB() {
       imported_at TIMESTAMPTZ DEFAULT NOW()
     );
 
+    -- ════════════════════════════════════════════════════════════
+    -- FIX 1 ROOT CAUSE: Sean Connery/Conroy → correct names
+    -- Root cause: users.name was "Sean Connery"/"Sean Conroy" so the
+    --   quotes GET query (SELECT q.*, u.name as rep_name) displayed it
+    --   on every quote created by that user, overwriting rep_name.
+    -- Fix: rename the user + scrub any quotes with that rep_name.
+    -- These are safe idempotent UPDATEs — run on every deploy.
+    -- ════════════════════════════════════════════════════════════
+    UPDATE users
+    SET name = 'Sean Compton'
+    WHERE LOWER(TRIM(name)) IN ('sean connery', 'sean conroy', 'sean conro');
+
+    UPDATE quotes
+    SET rep_name = 'Ray Breedlove', updated_at = NOW()
+    WHERE LOWER(TRIM(COALESCE(rep_name, ''))) IN ('sean connery', 'sean conroy', 'sean conro');
+
   `);
   console.log('Database initialized');
 }
