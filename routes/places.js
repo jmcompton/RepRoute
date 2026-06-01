@@ -1205,7 +1205,7 @@ const V4_HARD_EXCLUDE = [
   'plumbing','plumber','electrician','electrical contractor','hvac',
   'air conditioning','heating contractor','insulation contractor',
   // ── NEW: Outdoor living / patio / pergola / furniture — not walkable B2B ─
-  'outdoor living','outdoor furniture','patio furniture','patio store',
+  'outdoor furniture','patio furniture','patio store',
   'patio world','pergola company','pergola kits','gazebo','hot tub','spa dealer',
   'pool company','pool builder','swimming pool','deck furniture',
   'backyard living','backyard store','outdoor store','garden center',
@@ -1239,7 +1239,7 @@ function v4IsExcluded(company, types, phone, address) {
   // Regex patterns
   if (/paint(ing)?\s*(contractor|company|co\b|services|pro\b|shop)/i.test(n))   return { excluded: true, reason: 'paint_contractor' };
   if (/garage|overhead\s*door/i.test(n))                                          return { excluded: true, reason: 'garage_door' };
-  if (/outdoor\s+living|patio\s+furniture|backyard\s+living/i.test(n))           return { excluded: true, reason: 'outdoor_living' };
+  if (/patio\s+furniture|backyard\s+living/i.test(n))                            return { excluded: true, reason: 'outdoor_living' };
   if (/waterproof(ing)?\s+(install|contract|supply|dist)/i.test(n))              return { excluded: true, reason: 'waterproofing' };
   if (/rainscreen|weather\s+barrier|metal\s+panel\s+sup/i.test(n))               return { excluded: true, reason: 'metal_panel_supplier' };
   if (/exterior\s+(envelope|renovation\s+contract)/i.test(n))                    return { excluded: true, reason: 'exterior_envelope' };
