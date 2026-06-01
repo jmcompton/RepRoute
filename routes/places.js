@@ -1412,7 +1412,7 @@ function v4Classify(rec, mfrName) {
   ];
   // Block outdoor living / pergola-only noise for decking
   const DECK_CONT_BLOCK = [
-    'outdoor living','outdoor furniture','patio furniture','pergola kits',
+    'outdoor furniture','patio furniture','pergola kits',
     'outdoor kitchen','backyard living','outdoor store','outdoor structures',
   ];
 
@@ -1701,6 +1701,33 @@ router.post('/bulk-ingest', async (req, res) => {
     runLog.raw_fetched = rawResults.length;
     console.log(`[BulkIngest v4] Raw: ${rawResults.length}`);
 
+    // ── Step 2b: Fallback queries if primary set returned nothing ─────────
+    if (rawResults.length === 0 && !customQuery) {
+      console.log(`[BulkIngest v4] No primary results — running fallback queries`);
+      const fallbackKwMap = {
+        decking:  ['deck builder','deck contractor','decking company','composite deck installer'],
+        roofing:  ['roofing contractor','commercial roofing contractor','roofing company'],
+        siding:   ['siding contractor','siding company','siding installer'],
+        windows:  ['window installer','window company','door installer'],
+        all:      ['deck contractor','roofing contractor','siding contractor','window installer'],
+      };
+      const fallbackKws = fallbackKwMap[cat] || fallbackKwMap.all;
+      const fallbackCities = (V4_CITIES[stateCode] || []).slice(0, 3);
+      const fallbackQueries = [];
+      fallbackKws.forEach(kw => fallbackCities.forEach(c => fallbackQueries.push(`${kw} ${c} ${stateCode}`)));
+      for (const q of fallbackQueries.slice(0, 12)) {
+        if (rawResults.length >= maxRecs * 4) break;
+        const batch = await v4PlacesFetch(q, apiKey);
+        for (const r of batch) {
+          if (r.place_id && seenPlaceIds.has(r.place_id)) continue;
+          if (r.place_id) seenPlaceIds.add(r.place_id);
+          rawResults.push(r);
+        }
+      }
+      runLog.raw_fetched = rawResults.length;
+      console.log(`[BulkIngest v4] Fallback raw: ${rawResults.length}`);
+    }
+
     // ── Step 3: Hard geo filter — state must match ────────────────────────
     const geoValid = [];
     for (const rec of rawResults) {
@@ -1721,15 +1748,17 @@ router.post('/bulk-ingest', async (req, res) => {
     // ── Step 4: Classify + exclude ────────────────────────────────────────
     const classified = [];
     for (const rec of geoValid) {
-      if (v4IsExcluded(rec.company, rec.types)) {
+      const excl = v4IsExcluded(rec.company, rec.types, rec.phone, rec.address);
+      if (excl.excluded) {
         runLog.excluded++;
         if (runLog.excluded_sample.length < 8) {
-          runLog.excluded_sample.push({ company: rec.company, reason: 'exclusion_list' });
+          runLog.excluded_sample.push({ company: rec.company, reason: excl.reason });
         }
         continue;
       }
       // Determine which manufacturer term triggered this result (best guess from query context)
       const cls = v4Classify(rec, '');
+      if (!cls) continue; // unrecognized business type — skip
       rec.supply_layer  = cls.layer;
       rec.company_type  = cls.type;
       rec.sub_category  = cls.sub;
@@ -1862,7 +1891,20 @@ router.post('/bulk-ingest', async (req, res) => {
     } else if (runLog.geo_rejected > runLog.raw_fetched * 0.8) {
       message = `${runLog.geo_rejected} records rejected for wrong state. Verify state selection.`;
     } else {
-      message = `0 imported — ${runLog.excluded} filtered · ${runLog.geo_rejected} wrong state · ${runLog.exact_dups} exact dups · ${runLog.import_errors.length} DB errors`;
+      const parts = [];
+      if (runLog.raw_fetched === 0) {
+        parts.push('Google Places returned 0 results — check API key or try a different state/category');
+      } else {
+        if (runLog.excluded > 0) {
+          const topReason = runLog.excluded_sample[0]?.reason || 'filtered';
+          parts.push(`${runLog.excluded} excluded (top reason: ${topReason})`);
+        }
+        if (runLog.geo_rejected > 0) parts.push(`${runLog.geo_rejected} wrong state`);
+        if (runLog.exact_dups > 0)   parts.push(`${runLog.exact_dups} already in CRM`);
+        if (runLog.batch_dups > 0)   parts.push(`${runLog.batch_dups} batch duplicates`);
+        if (!parts.length)           parts.push('no matching businesses found for this search');
+      }
+      message = `0 imported — ${parts.join(' · ')}`;
     }
 
     return res.json({
