@@ -969,8 +969,30 @@ window.addEventListener('load', function() {
     <!-- TEAM CONTACTS tab -->
     <div id="contact-tab-team" class="list-wrap" style="display:none">
       <div style="padding:10px 16px 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap" id="team-rep-filters"></div>
+      <!-- Activity summary strip — visible when a specific rep is selected -->
+      <div id="team-activity-strip" style="display:none;padding:8px 16px;background:#f0f7ff;border-bottom:1px solid var(--border);gap:10px;align-items:center;flex-wrap:wrap"></div>
+      <!-- Type filter row -->
+      <div id="team-type-filter-row" style="display:none;padding:6px 16px;align-items:center;gap:8px;border-bottom:1px solid var(--border);flex-wrap:wrap">
+        <span style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em">Type:</span>
+        <select id="team-type-filter" onchange="window.setTeamTypeFilter(this.value)" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:#fff;color:var(--navy)">
+          <option value="all">All Types</option>
+          <option value="Distributor">Distributor</option>
+          <option value="Contractor">Contractor</option>
+          <option value="Roofing Contractor">Roofing Contractor</option>
+          <option value="Decking Contractor">Decking Contractor</option>
+          <option value="Siding Contractor">Siding Contractor</option>
+          <option value="Window &amp; Door Installer">Window &amp; Door Installer</option>
+          <option value="Roofing Distributor">Roofing Distributor</option>
+          <option value="Decking Distributor">Decking Distributor</option>
+          <option value="Siding Distributor">Siding Distributor</option>
+          <option value="Window &amp; Door Distributor">Window &amp; Door Distributor</option>
+          <option value="Cornice Contractor">Cornice Contractor</option>
+          <option value="Fastener/Tool Dealer">Fastener/Tool Dealer</option>
+        </select>
+        <span id="team-showing-count" style="font-size:11px;color:var(--text3)"></span>
+      </div>
       <table class="ltable">
-        <thead><tr><th></th><th>Company Name</th><th>Rep</th><th>Category</th><th onclick="cycleCitySort()" style="cursor:pointer;user-select:none" title="Click to sort by city">City <span id="team-city-sort-indicator" style="font-size:10px;color:var(--accent)"></span></th><th>Phone</th><th>Products</th><th>Status</th><th>Route</th></tr></thead>
+        <thead><tr><th></th><th>Company Name</th><th>Rep</th><th onclick="cycleTeamCategorySort()" style="cursor:pointer;user-select:none" title="Click to sort by category">Category <span id="team-category-sort-indicator" style="font-size:10px;color:var(--accent)"></span></th><th onclick="cycleCitySort()" style="cursor:pointer;user-select:none" title="Click to sort by city">City <span id="team-city-sort-indicator" style="font-size:10px;color:var(--accent)"></span></th><th>Phone</th><th onclick="cycleContactedSort()" style="cursor:pointer;user-select:none" title="Click to sort by contacted status">Contacted <span id="team-contacted-sort-indicator" style="font-size:10px;color:var(--text3)">⇅</span></th><th>Status</th><th>Route</th></tr></thead>
         <tbody id="team-prospects-tbody"></tbody>
       </table>
       <div class="empty-state" id="team-p-empty" style="display:none">
@@ -1034,10 +1056,24 @@ window.addEventListener('load', function() {
               <div class="rec-sec-hdr"><span class="rec-sec-title">Products & Territory</span><span style="font-size:11.5px;color:var(--blue);cursor:pointer">Edit</span></div>
               <div class="rec-sec-body" id="rec-prod-fields"></div>
             </div>
+            <!-- Manager Notes — shown only when viewing a team contact -->
+            <div id="rec-manager-notes-section" style="display:none">
+              <div class="rec-sec">
+                <div class="rec-sec-hdr"><span class="rec-sec-title" id="rec-manager-notes-label">Manager Notes</span></div>
+                <div class="rec-sec-body" style="padding:12px 16px">
+                  <div id="rec-existing-manager-note" style="display:none;background:#f0f7ff;border-left:3px solid var(--blue);border-radius:0 6px 6px 0;padding:10px 12px;font-size:12px;color:var(--navy);margin-bottom:10px;white-space:pre-wrap;line-height:1.5"></div>
+                  <textarea id="rec-manager-note-input" placeholder="Add a note for this contact..." style="width:100%;height:72px;padding:10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;resize:vertical;margin-bottom:8px;box-sizing:border-box"></textarea>
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <button onclick="saveManagerNote()" style="padding:6px 18px;background:var(--blue);color:#fff;border:none;border-radius:40px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">Save Note</button>
+                    <span id="rec-manager-note-status" style="font-size:11px;color:var(--text3)"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
           <div id="rec-tab-calls" style="display:none">
             <div class="rec-sec">
-              <div class="rec-sec-hdr"><span class="rec-sec-title">Activity Timeline</span><button class="btn btn-primary btn-sm" onclick="logCallForRecord()">+ Log Activity</button></div>
+              <div class="rec-sec-hdr"><span class="rec-sec-title" id="rec-timeline-title">Activity Timeline</span><button class="btn btn-primary btn-sm" onclick="logCallForRecord()">+ Log Activity</button></div>
               <div class="rec-sec-body" id="rec-timeline"></div>
             </div>
           </div>
@@ -2382,6 +2418,12 @@ function go(id) {
     if (_lb) _lb.style.display = '';
     if (_ob) _ob.style.display = '';
     window._teamViewActive = false;
+    // Clean up team-only UI injections
+    var mgSec = document.getElementById('rec-manager-notes-section');
+    if (mgSec) mgSec.style.display = 'none';
+    var tlTitle = document.getElementById('rec-timeline-title');
+    if (tlTitle) tlTitle.textContent = 'Activity Timeline';
+    window._teamViewProspectId = null;
   }
   document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
   document.querySelectorAll('.sb-item').forEach(function(n) { n.classList.remove('active'); });
@@ -6956,6 +6998,10 @@ window.handleContactSearch = function() {
 };
 
 window._teamContactsCache = [];
+window._teamContactSort  = null;   // null | 'contacted_desc' | 'uncontacted_asc'
+window._teamCategorySort = null;   // null | 'asc' | 'desc'
+window._activeTypeFilter = 'all';
+window._teamViewProspectId = null; // prospect id of currently open team record
 
 window.loadTeamContacts = function() {
   var tbody = document.getElementById('team-prospects-tbody');
@@ -7015,10 +7061,17 @@ function buildRepFilters(rows) {
   repNames.forEach(function(name) {
     makeRepBtn(name, name, reps[name], false);
   });
+  // Show type-filter row now that we have real data
+  var typeRow = document.getElementById('team-type-filter-row');
+  if (typeRow) typeRow.style.display = 'flex';
 }
 
 window.setRepFilter = function(rep) {
   window._activeRepFilter = rep;
+  // Reset type filter when switching reps
+  window._activeTypeFilter = 'all';
+  var tf = document.getElementById('team-type-filter');
+  if (tf) tf.value = 'all';
   // Update button styles
   document.querySelectorAll('#team-rep-filters button').forEach(function(b) {
     b.style.background = 'transparent'; b.style.color = 'var(--text2)'; b.style.borderColor = 'var(--border)';
@@ -7029,58 +7082,219 @@ window.setRepFilter = function(rep) {
   renderTeamContacts(window._teamContactsCache || [], document.getElementById('p-search')?.value || '');
 };
 
-function renderTeamContacts(rows, search) {
-  var tbody = document.getElementById('team-prospects-tbody');
-  var empty = document.getElementById('team-p-empty');
-  var count = document.getElementById('list-count');
-  var s = (search || '').toLowerCase();
-  var rep = window._activeRepFilter || 'all';
+// ── 3-state Contacted sort: default → contacted_desc → uncontacted_asc ──
+function cycleContactedSort() {
+  var states = [null, 'contacted_desc', 'uncontacted_asc'];
+  var idx = states.indexOf(window._teamContactSort);
+  window._teamContactSort = states[(idx + 1) % 3];
+  // Contacted sort takes precedence — reset category sort
+  if (window._teamContactSort !== null) {
+    window._teamCategorySort = null;
+    var catInd = document.getElementById('team-category-sort-indicator');
+    if (catInd) catInd.textContent = '';
+  }
+  var ind = document.getElementById('team-contacted-sort-indicator');
+  if (ind) {
+    if      (window._teamContactSort === 'contacted_desc')  { ind.textContent = '↓'; ind.style.color = '#3b82f6'; }
+    else if (window._teamContactSort === 'uncontacted_asc') { ind.textContent = '↑'; ind.style.color = '#f59e0b'; }
+    else                                                     { ind.textContent = '⇅'; ind.style.color = 'var(--text3)'; }
+  }
+  console.log('[TeamContacts] contacted sort →', window._teamContactSort);
+  renderTeamContacts(window._teamContactsCache || [], document.getElementById('p-search')?.value || '');
+}
 
-  var filtered = rows.filter(function(r) {
-    if (rep !== 'all' && r.rep_name !== rep) return false;
-    if (s && !( (r.company||'').toLowerCase().includes(s) ||
-                (r.contact||'').toLowerCase().includes(s) ||
-                (r.city||'').toLowerCase().includes(s) ||
-                (r.rep_name||'').toLowerCase().includes(s) ||
-                (r.phone||'').replace(/[^0-9]/g,'').includes(s.replace(/[^0-9]/g,'')) ||
-                (r.phone||'').includes(s) ||
-                (r.email||'').toLowerCase().includes(s) )) return false;
-    return true;
+// ── Category column sort ─────────────────────────────────────────
+function cycleTeamCategorySort() {
+  var states = [null, 'asc', 'desc'];
+  var idx = states.indexOf(window._teamCategorySort);
+  window._teamCategorySort = states[(idx + 1) % 3];
+  // Category sort takes precedence — reset contacted sort
+  window._teamContactSort = null;
+  var contInd = document.getElementById('team-contacted-sort-indicator');
+  if (contInd) { contInd.textContent = '⇅'; contInd.style.color = 'var(--text3)'; }
+  var ind = document.getElementById('team-category-sort-indicator');
+  if (ind) {
+    if      (window._teamCategorySort === 'asc')  ind.textContent = '▲';
+    else if (window._teamCategorySort === 'desc') ind.textContent = '▼';
+    else                                           ind.textContent = '';
+  }
+  console.log('[TeamContacts] category sort →', window._teamCategorySort);
+  renderTeamContacts(window._teamContactsCache || [], document.getElementById('p-search')?.value || '');
+}
+
+// ── Type filter dropdown ─────────────────────────────────────────
+window.setTeamTypeFilter = function(val) {
+  window._activeTypeFilter = val || 'all';
+  console.log('[TeamContacts] type filter →', window._activeTypeFilter);
+  renderTeamContacts(window._teamContactsCache || [], document.getElementById('p-search')?.value || '');
+};
+
+function renderTeamContacts(rows, search) {
+  var tbody  = document.getElementById('team-prospects-tbody');
+  var empty  = document.getElementById('team-p-empty');
+  var count  = document.getElementById('list-count');
+  var s      = (search || '').toLowerCase();
+  var rep    = window._activeRepFilter || 'all';
+  var typeF  = window._activeTypeFilter || 'all';
+
+  // Helper: is a contact "contacted"?
+  function isContacted(r) {
+    return !!(r.last_call_date ||
+              r.data_status === 'Contacted' ||
+              r.data_status === 'Verified CRM Data');
+  }
+
+  // Helper: format a DATE string (e.g. "2025-06-01" or ISO) → "Jun 1"
+  function fmtDate(d) {
+    if (!d) return '';
+    var s = String(d).substring(0, 10);
+    var p = s.split('-');
+    if (p.length !== 3) return s;
+    var mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return mo[parseInt(p[1]) - 1] + ' ' + parseInt(p[2]);
+  }
+
+  // ── Filter by rep ────────────────────────────────────────────────
+  var repFiltered = rows.filter(function(r) {
+    return rep === 'all' || r.rep_name === rep;
   });
 
+  // ── Activity summary strip (shown only when a specific rep is selected) ──
+  var strip = document.getElementById('team-activity-strip');
+  if (strip) {
+    if (rep !== 'all') {
+      var contactedCnt   = repFiltered.filter(isContacted).length;
+      var notContactedCnt = repFiltered.length - contactedCnt;
+      var oneWeekAgo = new Date(); oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      var thisWeekCnt = repFiltered.filter(function(r) {
+        return r.last_call_date && new Date(r.last_call_date) >= oneWeekAgo;
+      }).length;
+      var lastCallDates = repFiltered
+        .filter(function(r) { return r.last_call_date; })
+        .map(function(r)    { return new Date(r.last_call_date); })
+        .sort(function(a,b) { return b - a; });
+      var lastAct = lastCallDates.length
+        ? (lastCallDates[0].toDateString() === new Date().toDateString()
+            ? 'Today' : fmtDate(repFiltered.filter(function(r){ return r.last_call_date; })
+                                  .sort(function(a,b){ return new Date(b.last_call_date)-new Date(a.last_call_date); })[0].last_call_date))
+        : 'None';
+      function statChip(lbl, val, color) {
+        return '<span style="display:inline-flex;align-items:center;gap:5px;background:#fff;border:1px solid var(--border);border-radius:6px;padding:5px 11px;font-size:11.5px;white-space:nowrap">' +
+          '<span style="font-weight:700;color:' + color + '">' + val + '</span>' +
+          '<span style="color:var(--text3)">' + lbl + '</span></span>';
+      }
+      strip.innerHTML =
+        statChip('Total', repFiltered.length, 'var(--navy)') +
+        statChip('Contacted', contactedCnt, '#16a34a') +
+        statChip('Not Contacted', notContactedCnt, '#d97706') +
+        statChip('This Week', thisWeekCnt, '#2563eb') +
+        '<span style="display:inline-flex;align-items:center;gap:5px;background:#fff;border:1px solid var(--border);border-radius:6px;padding:5px 11px;font-size:11.5px;white-space:nowrap">' +
+          '<span style="color:var(--text3)">Last Activity:</span>' +
+          '<span style="font-weight:600;color:var(--navy)">' + lastAct + '</span></span>';
+      strip.style.display = 'flex';
+    } else {
+      strip.style.display = 'none';
+    }
+  }
+
+  // ── Type filter ──────────────────────────────────────────────────
+  var filtered = repFiltered.filter(function(r) {
+    if (typeF === 'all') return true;
+    var tfl = typeF.toLowerCase();
+    // Broad types map to company_type; specific types map to category
+    if (tfl === 'distributor' || tfl === 'contractor') {
+      return (r.company_type||'').toLowerCase() === tfl;
+    }
+    return (r.category||'').toLowerCase() === tfl;
+  });
+
+  // ── Text search ──────────────────────────────────────────────────
+  if (s) {
+    filtered = filtered.filter(function(r) {
+      return (r.company||'').toLowerCase().includes(s) ||
+             (r.contact||'').toLowerCase().includes(s) ||
+             (r.city||'').toLowerCase().includes(s) ||
+             (r.rep_name||'').toLowerCase().includes(s) ||
+             (r.phone||'').replace(/[^0-9]/g,'').includes(s.replace(/[^0-9]/g,'')) ||
+             (r.phone||'').includes(s) ||
+             (r.email||'').toLowerCase().includes(s);
+    });
+  }
+
+  // ── Update counters ──────────────────────────────────────────────
   if (count) count.textContent = filtered.length + ' records';
-  if (!filtered.length) { if (tbody) tbody.innerHTML = ''; if (empty) empty.style.display = 'block'; return; }
+  var showEl = document.getElementById('team-showing-count');
+  if (showEl) showEl.textContent = 'Showing ' + filtered.length + ' of ' + repFiltered.length;
+
+  if (!filtered.length) {
+    if (tbody) tbody.innerHTML = '';
+    if (empty) empty.style.display = 'block';
+    return;
+  }
   if (empty) empty.style.display = 'none';
 
-  // Rep color palette
+  // ── Rep color palette ────────────────────────────────────────────
   var repColors = {};
   var palette = ['#3b82f6','#8b5cf6','#f59e0b','#10b981','#ef4444','#06b6d4'];
   var ci = 0;
-  rows.forEach(function(r) { if (r.rep_name && !repColors[r.rep_name]) { repColors[r.rep_name] = palette[ci++ % palette.length]; } });
+  rows.forEach(function(r) {
+    if (r.rep_name && !repColors[r.rep_name]) repColors[r.rep_name] = palette[ci++ % palette.length];
+  });
 
-  // Apply team sort (matches My Contacts options)
-  var sortVal = (document.getElementById('sort-contacts') || {value:'default'}).value;
-  function tsAsc(k){ return function(a,b){ return (a[k]||'').localeCompare(b[k]||''); }; }
-  function tsDesc(k){ return function(a,b){ return (b[k]||'').localeCompare(a[k]||''); }; }
-  if      (sortVal === 'city_asc')        filtered.sort(tsAsc('city'));
-  else if (sortVal === 'city_desc')       filtered.sort(tsDesc('city'));
-  else if (sortVal === 'company_asc')     filtered.sort(tsAsc('company'));
-  else if (sortVal === 'company_desc')    filtered.sort(tsDesc('company'));
-  else if (sortVal === 'category_asc')    filtered.sort(tsAsc('category'));
-  else if (sortVal === 'category_desc')   filtered.sort(tsDesc('category'));
-  else if (sortVal === 'contact_asc')     filtered.sort(tsAsc('contact'));
-  else if (sortVal === 'status_asc')      filtered.sort(tsAsc('status'));
-  else if (sortVal === 'data_status_asc') filtered.sort(tsAsc('data_status'));
-  else if (sortVal === 'newest')  filtered.sort(function(a,b){ return new Date(b.created_at||0) - new Date(a.created_at||0); });
-  else if (sortVal === 'oldest')  filtered.sort(function(a,b){ return new Date(a.created_at||0) - new Date(b.created_at||0); });
+  // ── Sort ─────────────────────────────────────────────────────────
+  var sortVal       = (document.getElementById('sort-contacts') || {value:'default'}).value;
+  var contactedSort = window._teamContactSort;
+  var categorySort  = window._teamCategorySort;
 
-  var isCitySort = sortVal === 'city_asc' || sortVal === 'city_desc';
-  var teamRows = [];
+  if (contactedSort === 'contacted_desc') {
+    // Contacted first (most recent call date), then not contacted
+    filtered.sort(function(a, b) {
+      var ac = isContacted(a), bc = isContacted(b);
+      if (ac && !bc) return -1;
+      if (!ac && bc) return  1;
+      if (ac && bc) {
+        var da = a.last_call_date ? new Date(a.last_call_date) : new Date(0);
+        var db = b.last_call_date ? new Date(b.last_call_date) : new Date(0);
+        return db - da;
+      }
+      return (a.company||'').toLowerCase().localeCompare((b.company||'').toLowerCase());
+    });
+  } else if (contactedSort === 'uncontacted_asc') {
+    // Not contacted first, then contacted (alphabetical within each group)
+    filtered.sort(function(a, b) {
+      var ac = isContacted(a), bc = isContacted(b);
+      if (!ac && bc) return -1;
+      if (ac && !bc) return  1;
+      return (a.company||'').toLowerCase().localeCompare((b.company||'').toLowerCase());
+    });
+  } else if (categorySort === 'asc') {
+    filtered.sort(function(a,b){ return (a.category||'').localeCompare(b.category||''); });
+  } else if (categorySort === 'desc') {
+    filtered.sort(function(a,b){ return (b.category||'').localeCompare(a.category||''); });
+  } else {
+    // Honour the shared sort-contacts dropdown
+    function tsAsc(k) { return function(a,b){ return (a[k]||'').localeCompare(b[k]||''); }; }
+    function tsDesc(k){ return function(a,b){ return (b[k]||'').localeCompare(a[k]||''); }; }
+    if      (sortVal === 'city_asc')        filtered.sort(tsAsc('city'));
+    else if (sortVal === 'city_desc')       filtered.sort(tsDesc('city'));
+    else if (sortVal === 'company_asc')     filtered.sort(tsAsc('company'));
+    else if (sortVal === 'company_desc')    filtered.sort(tsDesc('company'));
+    else if (sortVal === 'category_asc')    filtered.sort(tsAsc('category'));
+    else if (sortVal === 'category_desc')   filtered.sort(tsDesc('category'));
+    else if (sortVal === 'contact_asc')     filtered.sort(tsAsc('contact'));
+    else if (sortVal === 'status_asc')      filtered.sort(tsAsc('status'));
+    else if (sortVal === 'data_status_asc') filtered.sort(tsAsc('data_status'));
+    else if (sortVal === 'newest')  filtered.sort(function(a,b){ return new Date(b.created_at||0) - new Date(a.created_at||0); });
+    else if (sortVal === 'oldest')  filtered.sort(function(a,b){ return new Date(a.created_at||0) - new Date(b.created_at||0); });
+  }
+
+  var isCitySort  = sortVal === 'city_asc' || sortVal === 'city_desc';
+  var teamRows    = [];
   var lastTeamCity = null;
 
   filtered.forEach(function(r) {
     // City group header when sorted by city
-    if (isCitySort) {
+    if (isCitySort && contactedSort === null && categorySort === null) {
       var thisCity = r.city || 'Unknown City';
       if (thisCity !== lastTeamCity) {
         var cityCount = filtered.filter(function(x){ return (x.city||'Unknown City') === thisCity; }).length;
@@ -7088,12 +7302,11 @@ function renderTeamContacts(rows, search) {
           '<tr class="city-group-row" style="background:#f0f4f8;border-top:2px solid var(--border)">' +
           '<td colspan="9" style="padding:6px 12px">' +
             '<div style="display:flex;align-items:center;justify-content:space-between">' +
-              '<span style="font-size:12px;font-weight:800;color:var(--navy);text-transform:uppercase;letter-spacing:.5px">' + thisCity + ' <span style="font-weight:500;color:var(--text3);font-size:11px;text-transform:none">(' + cityCount + ')</span></span>' +
+              '<span style="font-size:12px;font-weight:800;color:var(--navy);text-transform:uppercase;letter-spacing:.5px">' + thisCity +
+                ' <span style="font-weight:500;color:var(--text3);font-size:11px;text-transform:none">(' + cityCount + ')</span></span>' +
               '<button onclick="addCityToRoute(this.getAttribute(\x27data-city\x27))" data-city="' + thisCity.replace(/"/g,'&quot;') + '" ' +
                 'style="padding:3px 10px;background:var(--navy);color:#00FF87;border:none;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit">+ All to Route</button>' +
-            '</div>' +
-          '</td>' +
-          '</tr>'
+            '</div></td></tr>'
         );
         lastTeamCity = thisCity;
       }
@@ -7101,12 +7314,20 @@ function renderTeamContacts(rows, search) {
 
     var color = repColors[r.rep_name] || '#64748b';
     var repBadge = '<span style="background:' + color + '22;color:' + color + ';font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;white-space:nowrap">' + (r.rep_name||'') + '</span>';
+
     var statusColors = { Hot:'#ef4444', Warm:'#f59e0b', Cold:'#94a3b8', Active:'#10b981', New:'#3b82f6' };
     var sc = statusColors[r.status] || '#94a3b8';
     var statusBadge = '<span style="background:' + sc + '22;color:' + sc + ';font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px">' + (r.status||'New') + '</span>';
+
+    // Contacted badge
+    var contacted = isContacted(r);
+    var dateLabel = r.last_call_date ? fmtDate(r.last_call_date) : '';
+    var contactedBadge = contacted
+      ? '<span style="background:#dcfce7;color:#16a34a;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;white-space:nowrap">✓' + (dateLabel ? ' ' + dateLabel : ' Contacted') + '</span>'
+      : '<span style="background:#f1f5f9;color:#94a3b8;font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;white-space:nowrap">Not yet</span>';
+
     var safeId = parseInt(r.id) || 0;
-    // Route button
-    var stops = window._routeStops || [];
+    var stops  = window._routeStops || [];
     var inRoute = stops.some(function(s){ return s.id === r.id || s.company === r.company; });
     var routeBtn = r.address
       ? '<button id="team-route-btn-' + safeId + '" onclick="event.stopPropagation();addTeamContactToRoute(this)" ' +
@@ -7127,15 +7348,16 @@ function renderTeamContacts(rows, search) {
       '<td>' + repBadge + '</td>' +
       '<td><span class="pill-cat">' + (r.category||'—') + '</span></td>' +
       '<td>' + (r.city||'—') + '</td>' +
-      '<td>' + (r.phone ? '<a href="tel:' + r.phone + '" style="color:var(--accent);font-size:12px;font-weight:600;text-decoration:none">' + r.phone + '</a>' : '—') + '</td>' +
-      '<td style="font-size:11.5px">' + (r.products||'—') + '</td>' +
+      '<td>' + (r.phone ? '<a href="tel:' + r.phone + '" onclick="event.stopPropagation()" style="color:var(--accent);font-size:12px;font-weight:600;text-decoration:none">' + r.phone + '</a>' : '—') + '</td>' +
+      '<td style="text-align:center">' + contactedBadge + '</td>' +
       '<td>' + statusBadge + '</td>' +
       '<td>' + routeBtn + '</td>' +
-    '</tr>'
+      '</tr>'
     );
   });
 
   tbody.innerHTML = teamRows.join('');
+  console.log('[TeamContacts] rendered', filtered.length, 'rows | rep:', rep, '| type:', typeF, '| sort:', contactedSort || categorySort || sortVal);
 }
 
 
@@ -7526,7 +7748,50 @@ window.viewTeamRecord = function(prospectId) {
   var outreachBtn = document.querySelector('[onclick="writeOutreachForRecord()"]');
   if (logCallBtn) logCallBtn.style.display = 'none';
   if (outreachBtn) outreachBtn.style.display = 'none';
-  window._teamViewActive = true;
+  window._teamViewActive    = true;
+  window._teamViewProspectId = prospectId;
+
+  // ── Contacted status in quick-bar ────────────────────────────────
+  var isContactedRec = !!(p.last_call_date ||
+                          p.data_status === 'Contacted' ||
+                          p.data_status === 'Verified CRM Data');
+  var rqStatus = document.getElementById('rq-status');
+  if (rqStatus) {
+    if (isContactedRec) {
+      var dateLabel = p.last_call_date
+        ? (function(d){ var pts=d.substring(0,10).split('-'); var mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; return mo[parseInt(pts[1])-1]+' '+parseInt(pts[2]); })(String(p.last_call_date))
+        : '';
+      rqStatus.innerHTML = '<span style="background:#dcfce7;color:#16a34a;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px">✓ Contacted' + (dateLabel ? ' · ' + dateLabel : '') + '</span>';
+    } else {
+      rqStatus.innerHTML = '<span style="background:#f1f5f9;color:#94a3b8;font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px">Not Yet Contacted</span>';
+    }
+  }
+
+  // ── Manager notes section ────────────────────────────────────────
+  var mgSection  = document.getElementById('rec-manager-notes-section');
+  var mgLabel    = document.getElementById('rec-manager-notes-label');
+  var mgInput    = document.getElementById('rec-manager-note-input');
+  var mgExisting = document.getElementById('rec-existing-manager-note');
+  var mgStatus   = document.getElementById('rec-manager-note-status');
+  if (mgSection) {
+    mgSection.style.display = '';
+    var mgrName = (window.__userData && window.__userData.name) ? window.__userData.name : 'Manager';
+    if (mgLabel)  mgLabel.textContent = 'Manager Notes — ' + mgrName;
+    if (mgStatus) mgStatus.textContent = '';
+    if (p.manager_notes) {
+      if (mgExisting) { mgExisting.textContent = p.manager_notes; mgExisting.style.display = ''; }
+      if (mgInput)    mgInput.value = p.manager_notes;
+    } else {
+      if (mgExisting) mgExisting.style.display = 'none';
+      if (mgInput)    mgInput.value = '';
+    }
+  }
+
+  // ── Timeline title shows rep name ────────────────────────────────
+  var tlTitle = document.getElementById('rec-timeline-title');
+  if (tlTitle) tlTitle.textContent = 'Call History — ' + (p.rep_name || 'Rep');
+
+  console.log('[TeamContacts] viewing record', prospectId, p.company, '| contacted:', isContactedRec);
 
   var fieldsEl = document.getElementById('rec-fields');
   if (fieldsEl) {
@@ -7559,22 +7824,78 @@ window.viewTeamRecord = function(prospectId) {
     .then(function(calls){
       if (callCntEl) callCntEl.textContent = calls.length;
       if (!timelineEl) return;
+      var outcomeColors = {
+        'Interested':'#16a34a', 'Spoke - Interested':'#16a34a', 'Ready to Buy':'#059669',
+        'Not Interested':'#dc2626', 'Spoke - Not Interested':'#dc2626',
+        'Callback':'#2563eb', 'No Answer':'#94a3b8',
+        'Left Voicemail':'#7c3aed', 'Wrong Number':'#f59e0b', 'Order Placed':'#059669'
+      };
       timelineEl.innerHTML = calls.length
         ? calls.map(function(c){
+            var oc = outcomeColors[c.outcome] || 'var(--text2)';
+            var repLine = c.rep_name
+              ? '<span style="font-size:10px;color:var(--text3);margin-left:8px">by ' + c.rep_name + '</span>'
+              : '';
             return '<div class="tl-item"><div class="tl-ico"></div><div class="tl-body">' +
-              '<div class="tl-title">' + (c.call_type||'Call') + ' - ' + (c.outcome||'-') + '</div>' +
-              '<div class="tl-meta">' + (c.call_date||'-') + (c.products_discussed ? ' - ' + c.products_discussed : '') + '</div>' +
-              (c.notes ? '<div style="margin-top:4px;font-size:11.5px;color:var(--text2);font-style:italic">' + c.notes + '</div>' : '') +
-              (c.next_step ? '<div style="margin-top:5px;font-size:11px;color:var(--blue);font-weight:600">Next: ' + c.next_step + '</div>' : '') +
+              '<div class="tl-title" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px">' +
+                '<span>' + (c.call_type||'Call') + '</span>' +
+                (c.outcome ? '<span style="background:' + oc + '22;color:' + oc + ';font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px">' + c.outcome + '</span>' : '') +
+                repLine +
+              '</div>' +
+              '<div class="tl-meta">' + (c.call_date ? c.call_date.substring(0,10) : '-') +
+                (c.products_discussed ? ' · ' + c.products_discussed : '') + '</div>' +
+              (c.notes ? '<div style="margin-top:5px;font-size:11.5px;color:var(--text2);font-style:italic;line-height:1.4">' + c.notes.replace(/</g,'&lt;') + '</div>' : '') +
+              (c.next_step ? '<div style="margin-top:5px;font-size:11px;color:var(--blue);font-weight:600">Next step: ' + c.next_step + '</div>' : '') +
               '</div></div>';
           }).join('')
-        : '<div style="text-align:center;padding:24px;color:var(--text3)">No calls logged for this contact.</div>';
+        : '<div style="text-align:center;padding:28px;color:var(--text3);font-size:12px">No calls logged yet for this contact.</div>';
+      console.log('[TeamContacts] loaded', calls.length, 'calls for prospect', prospectId);
     })
-    .catch(function(){
-      if (timelineEl) timelineEl.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text3)">Could not load history.</div>';
+    .catch(function(e){
+      console.error('[TeamContacts] call history fetch failed', e);
+      if (timelineEl) timelineEl.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text3)">Could not load call history.</div>';
     });
 
   if (typeof setRecTab === 'function') setRecTab('overview', null);
+};
+
+// ── Save manager note ────────────────────────────────────────────
+window.saveManagerNote = function() {
+  var pid    = window._teamViewProspectId;
+  if (!pid) { console.warn('[saveManagerNote] no active team prospect'); return; }
+  var input    = document.getElementById('rec-manager-note-input');
+  var statusEl = document.getElementById('rec-manager-note-status');
+  var existing = document.getElementById('rec-existing-manager-note');
+  if (!input) return;
+  var note = input.value.trim();
+  if (statusEl) { statusEl.textContent = 'Saving…'; statusEl.style.color = 'var(--text3)'; }
+  fetch('/api/prospects/' + pid + '/manager-note', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ note: note })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    if (d.ok) {
+      if (statusEl) { statusEl.textContent = 'Saved ✓'; statusEl.style.color = '#16a34a'; setTimeout(function(){ statusEl.textContent = ''; }, 2500); }
+      // Update the live cache so the note persists without a page reload
+      if (window._teamContactsCache) {
+        var rec = window._teamContactsCache.find(function(x){ return String(x.id) === String(pid); });
+        if (rec) rec.manager_notes = note;
+      }
+      if (existing) {
+        if (note) { existing.textContent = note; existing.style.display = ''; }
+        else       { existing.style.display = 'none'; }
+      }
+      console.log('[saveManagerNote] saved for prospect', pid);
+    } else {
+      if (statusEl) { statusEl.textContent = 'Error: ' + (d.error||'unknown'); statusEl.style.color = '#ef4444'; }
+    }
+  })
+  .catch(function(e){
+    console.error('[saveManagerNote] fetch error', e);
+    if (statusEl) { statusEl.textContent = 'Connection error'; statusEl.style.color = '#ef4444'; }
+  });
 };
 
 // ═══════════════════════════════════════════════════════════════════

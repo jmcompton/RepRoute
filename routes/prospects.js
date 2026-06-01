@@ -264,9 +264,10 @@ router.post('/:id/mark-contacted', async (req, res) => {
 router.get('/team-calls/:id', async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT c.*
+      `SELECT c.*, u.name as rep_name
        FROM calls c
        JOIN prospects p ON c.prospect_id = p.id
+       JOIN users u ON c.user_id = u.id
        WHERE p.id = $1 AND p.user_id != $2
        ORDER BY c.call_date DESC, c.created_at DESC`,
       [req.params.id, req.session.user.id]
@@ -276,6 +277,19 @@ router.get('/team-calls/:id', async (req, res) => {
     console.error('team-calls error:', e.message);
     res.status(500).json({ error: e.message });
   }
+});
+
+// ── POST /api/prospects/:id/manager-note ─────────────────────────
+router.post('/:id/manager-note', async (req, res) => {
+  const { note } = req.body;
+  try {
+    const result = await pool.query(
+      'UPDATE prospects SET manager_notes=$1 WHERE id=$2 RETURNING id, manager_notes',
+      [note || null, req.params.id]
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json({ ok: true, record: result.rows[0] });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── GET /api/prospects/stats ─────────────────────────────────────

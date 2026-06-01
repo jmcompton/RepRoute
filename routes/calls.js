@@ -40,6 +40,14 @@ router.post('/', async (req, res) => {
       [noteEntry, prospect_id, uid]
     );
   }
+  // Auto-mark prospect as Contacted and update last_activity_at whenever a call is logged
+  await pool.query(
+    `UPDATE prospects
+     SET data_status    = CASE WHEN data_status = 'Unvetted' THEN 'Contacted' ELSE data_status END,
+         last_activity_at = NOW()
+     WHERE id = $1`,
+    [prospect_id]
+  );
   res.json(result.rows[0]);
 });
 

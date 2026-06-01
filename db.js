@@ -215,6 +215,7 @@ async function initDB() {
     ALTER TABLE prospects ADD COLUMN IF NOT EXISTS manufacturer_assoc TEXT;
     ALTER TABLE prospects ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ;
     ALTER TABLE prospects ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMPTZ;
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS manager_notes TEXT;
 
     CREATE INDEX IF NOT EXISTS idx_prospects_data_status ON prospects(user_id, data_status);
     CREATE INDEX IF NOT EXISTS idx_prospects_company_type ON prospects(user_id, company_type);
