@@ -235,6 +235,24 @@ async function initDB() {
     WHERE (data_status IS NULL OR data_status = 'Unvetted')
       AND EXISTS (SELECT 1 FROM calls c WHERE c.prospect_id = p.id);
 
+    -- ════════════════════════════════════════════════════════════
+    -- Zoho CRM Import: zoho_id dedup key + import_history table
+    -- ════════════════════════════════════════════════════════════
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS zoho_id TEXT;
+    CREATE INDEX IF NOT EXISTS idx_prospects_zoho_id ON prospects(zoho_id) WHERE zoho_id IS NOT NULL;
+
+    CREATE TABLE IF NOT EXISTS import_history (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      source TEXT NOT NULL DEFAULT 'zoho',
+      contacts_imported INTEGER DEFAULT 0,
+      contacts_skipped INTEGER DEFAULT 0,
+      accounts_imported INTEGER DEFAULT 0,
+      accounts_skipped INTEGER DEFAULT 0,
+      total_imported INTEGER GENERATED ALWAYS AS (contacts_imported + accounts_imported) STORED,
+      imported_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
   `);
   console.log('Database initialized');
 }

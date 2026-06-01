@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Import from Zoho CRM — RepRoute</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0e1a;color:#e2e8f0;min-height:100vh}
+
+/* ── Layout ── */
+.page-wrap{max-width:960px;margin:0 auto;padding:32px 20px 80px}
+.back-link{display:inline-flex;align-items:center;gap:6px;color:#94a3b8;font-size:13px;text-decoration:none;margin-bottom:28px;transition:color .15s}
+.back-link:hover{color:#60a5fa}
+.back-link svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* ── Header ── */
+.page-hdr{margin-bottom:32px}
+.page-hdr h1{font-size:24px;font-weight:800;color:#fff;margin-bottom:6px;display:flex;align-items:center;gap:10px}
+.page-hdr p{font-size:14px;color:#94a3b8;max-width:580px;line-height:1.6}
+.zoho-badge{background:linear-gradient(135deg,#e44235,#f2a60d);color:#fff;font-size:10px;font-weight:800;padding:3px 9px;border-radius:20px;letter-spacing:.04em;white-space:nowrap}
+
+/* ── Step progress ── */
+.steps{display:flex;align-items:center;gap:0;margin-bottom:32px;background:#0f1623;border:1px solid #1e2a3a;border-radius:10px;padding:16px 24px}
+.step{display:flex;align-items:center;gap:10px;flex:1}
+.step-num{width:28px;height:28px;border-radius:50%;background:#1e2a3a;color:#94a3b8;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s}
+.step-num.active{background:#1d6aff;color:#fff}
+.step-num.done{background:#16a34a;color:#fff}
+.step-label{font-size:12px;color:#94a3b8;font-weight:500}
+.step-label.active{color:#fff;font-weight:700}
+.step-sep{width:24px;height:1px;background:#1e2a3a;flex-shrink:0}
+
+/* ── Cards ── */
+.card{background:#0f1623;border:1px solid #1e2a3a;border-radius:12px;padding:24px;margin-bottom:20px}
+.card-title{font-size:14px;font-weight:700;color:#fff;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.card-title svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;color:#60a5fa}
+
+/* ── Upload zones ── */
+.upload-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:600px){.upload-grid{grid-template-columns:1fr}}
+.upload-zone{border:2px dashed #1e2a3a;border-radius:10px;padding:32px 20px;text-align:center;cursor:pointer;transition:all .2s;position:relative}
+.upload-zone:hover,.upload-zone.drag-over{border-color:#1d6aff;background:rgba(29,106,255,.05)}
+.upload-zone.has-file{border-color:#16a34a;border-style:solid;background:rgba(22,163,74,.05)}
+.upload-zone input[type="file"]{position:absolute;inset:0;opacity:0;cursor:pointer}
+.upload-icon{font-size:28px;margin-bottom:10px}
+.upload-label{font-size:13px;font-weight:700;color:#fff;margin-bottom:4px}
+.upload-hint{font-size:11px;color:#64748b}
+.upload-filename{font-size:12px;color:#16a34a;font-weight:600;margin-top:8px;word-break:break-all}
+.upload-error{font-size:12px;color:#ef4444;margin-top:6px}
+.upload-row-count{font-size:11px;color:#94a3b8;margin-top:4px}
+
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 22px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;border:none;font-family:inherit;transition:all .15s;white-space:nowrap}
+.btn-primary{background:#1d6aff;color:#fff}
+.btn-primary:hover:not(:disabled){background:#1558e0}
+.btn-primary:disabled{background:#1e2a3a;color:#64748b;cursor:not-allowed}
+.btn-outline{background:transparent;color:#94a3b8;border:1px solid #1e2a3a}
+.btn-outline:hover{border-color:#3b82f6;color:#60a5fa}
+.btn-danger{background:#dc2626;color:#fff}
+.btn-danger:hover{background:#b91c1c}
+.btn-lg{padding:14px 32px;font-size:15px;border-radius:10px}
+.btn-full{width:100%}
+.btn-green{background:#16a34a;color:#fff}
+.btn-green:hover{background:#15803d}
+
+/* ── Summary cards ── */
+.summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px}
+.summary-card{background:#0a0e1a;border:1px solid #1e2a3a;border-radius:10px;padding:16px;text-align:center}
+.summary-num{font-size:26px;font-weight:800;color:#fff;line-height:1;margin-bottom:4px}
+.summary-lbl{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.05em}
+.summary-num.blue{color:#60a5fa}
+.summary-num.green{color:#4ade80}
+.summary-num.amber{color:#fbbf24}
+.summary-num.red{color:#f87171}
+
+/* ── Tabs ── */
+.tab-bar{display:flex;gap:2px;background:#0a0e1a;border:1px solid #1e2a3a;border-radius:8px;padding:4px;margin-bottom:16px;overflow-x:auto}
+.tab{padding:8px 16px;border-radius:6px;font-size:12.5px;font-weight:600;cursor:pointer;color:#64748b;white-space:nowrap;transition:all .15s}
+.tab.active{background:#1d6aff;color:#fff}
+
+/* ── Tables ── */
+.data-table{width:100%;border-collapse:collapse;font-size:12px}
+.data-table th{padding:8px 10px;text-align:left;color:#64748b;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid #1e2a3a;white-space:nowrap}
+.data-table td{padding:9px 10px;border-bottom:1px solid #111827;color:#e2e8f0;vertical-align:top}
+.data-table tr:last-child td{border-bottom:none}
+.data-table tr:hover td{background:#111827}
+.dupe-row{opacity:.5}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap}
+.badge-dupe{background:#7f1d1d;color:#fca5a5}
+.badge-new{background:#14532d;color:#86efac}
+.badge-no-phone{background:#292524;color:#a8a29e}
+.more-hint{font-size:12px;color:#64748b;padding:12px;text-align:center;font-style:italic}
+
+/* ── Rep mapping ── */
+.rep-map-grid{display:grid;gap:12px}
+.rep-map-row{display:flex;align-items:center;gap:12px;background:#0a0e1a;border:1px solid #1e2a3a;border-radius:8px;padding:12px 16px}
+.rep-map-zoho{flex:1;font-size:13px;font-weight:600;color:#e2e8f0}
+.rep-map-arrow{color:#64748b;font-size:14px;flex-shrink:0}
+.rep-map-select{flex:1;padding:8px 10px;background:#0f1623;border:1px solid #1e2a3a;border-radius:6px;color:#e2e8f0;font-size:12.5px;font-family:inherit;outline:none;cursor:pointer}
+.rep-map-select:focus{border-color:#3b82f6}
+.rep-map-count{font-size:11px;color:#64748b;flex-shrink:0;min-width:60px;text-align:right}
+
+/* ── Options ── */
+.options-grid{display:grid;gap:10px}
+.option-row{display:flex;align-items:flex-start;gap:12px;padding:12px 16px;background:#0a0e1a;border:1px solid #1e2a3a;border-radius:8px;cursor:pointer}
+.option-row input[type="checkbox"]{width:16px;height:16px;accent-color:#1d6aff;cursor:pointer;margin-top:1px;flex-shrink:0}
+.option-label{font-size:13px;font-weight:600;color:#e2e8f0}
+.option-hint{font-size:11px;color:#64748b;margin-top:2px}
+
+/* ── Progress spinner ── */
+.progress-wrap{text-align:center;padding:60px 20px}
+.spinner{width:48px;height:48px;border:3px solid #1e2a3a;border-top-color:#1d6aff;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 20px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.progress-msg{font-size:15px;color:#94a3b8;margin-bottom:8px}
+.progress-sub{font-size:12px;color:#475569}
+
+/* ── Complete screen ── */
+.complete-wrap{text-align:center;padding:40px 20px}
+.complete-icon{font-size:56px;margin-bottom:16px}
+.complete-title{font-size:22px;font-weight:800;color:#fff;margin-bottom:8px}
+.complete-sub{font-size:14px;color:#94a3b8;max-width:420px;margin:0 auto 28px}
+.complete-stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:420px;margin:0 auto 28px}
+.complete-stat{background:#0a0e1a;border:1px solid #1e2a3a;border-radius:8px;padding:16px;text-align:center}
+.complete-stat-num{font-size:22px;font-weight:800;color:#4ade80;line-height:1;margin-bottom:4px}
+.complete-stat-lbl{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.04em}
+.complete-actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+
+/* ── History ── */
+.history-table{width:100%;border-collapse:collapse}
+.history-table th,.history-table td{padding:8px 12px;font-size:12px;text-align:left;border-bottom:1px solid #1e2a3a}
+.history-table th{color:#64748b;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.05em}
+.history-table td{color:#e2e8f0}
+.history-empty{text-align:center;padding:32px;color:#475569;font-size:13px}
+
+/* ── Alert ── */
+.alert{padding:12px 16px;border-radius:8px;font-size:13px;margin-bottom:16px;display:flex;align-items:flex-start;gap:10px}
+.alert-info{background:rgba(29,106,255,.12);border:1px solid rgba(29,106,255,.3);color:#93c5fd}
+.alert-warn{background:rgba(234,179,8,.1);border:1px solid rgba(234,179,8,.3);color:#fde68a}
+.alert-err{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#fca5a5}
+
+/* ── Section ── */
+.section-hdr{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px}
+.divider{border:none;border-top:1px solid #1e2a3a;margin:20px 0}
+
+/* ── Misc ── */
+.hidden{display:none!important}
+.fg{margin-bottom:14px}
+.fg label{display:block;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+.fg select{width:100%;padding:9px 12px;background:#0a0e1a;border:1px solid #1e2a3a;border-radius:6px;color:#e2e8f0;font-size:13px;font-family:inherit;outline:none}
+.fg select:focus{border-color:#3b82f6}
+</style>
+</head>
+<body>
+<div class="page-wrap">
+
+  <!-- Back link -->
+  <a href="/app" class="back-link">
+    <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+    Back to RepRoute
+  </a>
+
+  <!-- Header -->
+  <div class="page-hdr">
+    <h1>
+      <span>Import from Zoho CRM</span>
+      <span class="zoho-badge">ZOHO</span>
+    </h1>
+    <p>Upload your Zoho Contacts and Accounts exports to bring your full contact database into RepRoute. Review and confirm before anything saves.</p>
+  </div>
+
+  <!-- Step progress -->
+  <div class="steps" id="step-bar">
+    <div class="step">
+      <div class="step-num active" id="step-num-1">1</div>
+      <div class="step-label active" id="step-lbl-1">Upload Files</div>
+    </div>
+    <div class="step-sep"></div>
+    <div class="step">
+      <div class="step-num" id="step-num-2">2</div>
+      <div class="step-label" id="step-lbl-2">Preview & Map</div>
+    </div>
+    <div class="step-sep"></div>
+    <div class="step">
+      <div class="step-num" id="step-num-3">3</div>
+      <div class="step-label" id="step-lbl-3">Confirm</div>
+    </div>
+    <div class="step-sep"></div>
+    <div class="step">
+      <div class="step-num" id="step-num-4">4</div>
+      <div class="step-label" id="step-lbl-4">Complete</div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════
+       STEP 1 — Upload
+  ════════════════════════════════════════════ -->
+  <div id="step-upload">
+    <div class="card">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Upload Your Zoho Exports
+      </div>
+      <div class="upload-grid">
+        <!-- Contacts file -->
+        <div>
+          <div class="section-hdr">Contacts Export</div>
+          <div class="upload-zone" id="contacts-zone" ondragover="handleDrag(event,'contacts')" ondragleave="handleDragLeave(event,'contacts')" ondrop="handleDrop(event,'contacts')">
+            <input type="file" id="contacts-file" accept=".xlsx,.xls,.csv" onchange="handleFile(event,'contacts')">
+            <div id="contacts-upload-content">
+              <div class="upload-icon">📇</div>
+              <div class="upload-label">Contacts Export</div>
+              <div class="upload-hint">Drop .xlsx or .csv here, or click to browse</div>
+              <div class="upload-hint" style="margin-top:4px">Expects: Contact Name, Account Name, Email, Mobile, Contact Owner</div>
+            </div>
+            <div id="contacts-upload-result" class="hidden">
+              <div class="upload-icon">✅</div>
+              <div class="upload-filename" id="contacts-filename"></div>
+              <div class="upload-row-count" id="contacts-row-count"></div>
+              <div class="upload-error" id="contacts-error" style="display:none"></div>
+            </div>
+          </div>
+        </div>
+        <!-- Accounts file -->
+        <div>
+          <div class="section-hdr">Accounts Export</div>
+          <div class="upload-zone" id="accounts-zone" ondragover="handleDrag(event,'accounts')" ondragleave="handleDragLeave(event,'accounts')" ondrop="handleDrop(event,'accounts')">
+            <input type="file" id="accounts-file" accept=".xlsx,.xls,.csv" onchange="handleFile(event,'accounts')">
+            <div id="accounts-upload-content">
+              <div class="upload-icon">🏢</div>
+              <div class="upload-label">Accounts Export</div>
+              <div class="upload-hint">Drop .xlsx or .csv here, or click to browse</div>
+              <div class="upload-hint" style="margin-top:4px">Expects: Account Name, Phone, Website, Account Owner</div>
+            </div>
+            <div id="accounts-upload-result" class="hidden">
+              <div class="upload-icon">✅</div>
+              <div class="upload-filename" id="accounts-filename"></div>
+              <div class="upload-row-count" id="accounts-row-count"></div>
+              <div class="upload-error" id="accounts-error" style="display:none"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <button class="btn btn-primary" id="parse-btn" onclick="startParse()" disabled>
+          Preview Import →
+        </button>
+        <span id="upload-hint-msg" style="font-size:12px;color:#64748b">Upload both files to continue</span>
+      </div>
+    </div>
+
+    <!-- Import history -->
+    <div class="card" id="history-card">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Import History
+      </div>
+      <div id="history-body">
+        <div class="history-empty">No imports yet</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════
+       STEP 2 — Processing spinner
+  ════════════════════════════════════════════ -->
+  <div id="step-processing" class="hidden">
+    <div class="card">
+      <div class="progress-wrap">
+        <div class="spinner"></div>
+        <div class="progress-msg" id="processing-msg">Parsing your Zoho exports…</div>
+        <div class="progress-sub">Reading file structure, detecting duplicates, matching contacts to accounts</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════
+       STEP 3 — Preview & Map Reps
+  ════════════════════════════════════════════ -->
+  <div id="step-preview" class="hidden">
+
+    <!-- Summary cards -->
+    <div class="summary-grid" id="summary-cards">
+      <!-- filled by JS -->
+    </div>
+
+    <!-- Alert if dupes found -->
+    <div class="alert alert-warn hidden" id="dupe-alert">
+      ⚠️ <span id="dupe-alert-msg"></span>
+    </div>
+
+    <!-- Data tables with tabs -->
+    <div class="card">
+      <div class="tab-bar">
+        <div class="tab active" onclick="showTab('contacts')">Contacts Preview</div>
+        <div class="tab" onclick="showTab('accounts')">Orphaned Accounts</div>
+        <div class="tab" onclick="showTab('dupes')">Duplicates</div>
+      </div>
+      <div id="tab-contacts">
+        <div style="overflow-x:auto">
+          <table class="data-table" id="contacts-preview-table">
+            <thead><tr><th>Name</th><th>Company</th><th>Email</th><th>Phone</th><th>Zoho Owner</th><th>Status</th></tr></thead>
+            <tbody id="contacts-preview-tbody"></tbody>
+          </table>
+        </div>
+        <div class="more-hint" id="contacts-more-hint"></div>
+      </div>
+      <div id="tab-accounts" class="hidden">
+        <div class="alert alert-info" style="margin-bottom:12px">
+          ℹ️ These accounts had no matching contacts in your Contacts export. They'll be imported as company-only records.
+        </div>
+        <div style="overflow-x:auto">
+          <table class="data-table" id="accounts-preview-table">
+            <thead><tr><th>Company</th><th>Phone</th><th>Website</th><th>Owner</th><th>Status</th></tr></thead>
+            <tbody id="accounts-preview-tbody"></tbody>
+          </table>
+        </div>
+        <div class="more-hint" id="accounts-more-hint"></div>
+      </div>
+      <div id="tab-dupes" class="hidden">
+        <div id="dupes-content"></div>
+      </div>
+    </div>
+
+    <!-- Rep mapping -->
+    <div class="card" id="rep-mapping-card">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+        Map Rep Ownership
+      </div>
+      <p style="font-size:12px;color:#94a3b8;margin-bottom:16px">
+        Match each Zoho "Contact Owner" or "Account Owner" name to a RepRoute user. Contacts will be assigned to the matched rep.
+      </p>
+      <div class="rep-map-grid" id="rep-map-grid">
+        <!-- filled by JS -->
+      </div>
+    </div>
+
+    <!-- Options -->
+    <div class="card">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/></svg>
+        Import Options
+      </div>
+      <div class="options-grid">
+        <label class="option-row">
+          <input type="checkbox" id="skip-dup-contacts" checked>
+          <div>
+            <div class="option-label">Skip duplicate contacts <span style="font-size:10px;background:#1e3a5f;color:#60a5fa;padding:1px 7px;border-radius:10px;margin-left:4px">Recommended</span></div>
+            <div class="option-hint">If a contact with the same email (or same name+company) already exists in RepRoute, skip it</div>
+          </div>
+        </label>
+        <label class="option-row">
+          <input type="checkbox" id="skip-dup-accounts" checked>
+          <div>
+            <div class="option-label">Skip duplicate companies <span style="font-size:10px;background:#1e3a5f;color:#60a5fa;padding:1px 7px;border-radius:10px;margin-left:4px">Recommended</span></div>
+            <div class="option-hint">If an account/company with the same name already exists in RepRoute, skip it</div>
+          </div>
+        </label>
+      </div>
+      <hr class="divider">
+      <div class="fg" style="max-width:320px">
+        <label>Default Category for Imported Contacts</label>
+        <select id="default-category">
+          <option value="Roofing Contractor">Roofing Contractor</option>
+          <option value="Decking Contractor">Decking Contractor</option>
+          <option value="Siding Contractor">Siding Contractor</option>
+          <option value="Window &amp; Door Installer">Window &amp; Door Installer</option>
+          <option value="Cornice Contractor">Cornice Contractor</option>
+          <option value="Roofing Distributor">Roofing Distributor</option>
+          <option value="Decking Distributor">Decking Distributor</option>
+          <option value="Siding Distributor">Siding Distributor</option>
+          <option value="Window &amp; Door Distributor">Window &amp; Door Distributor</option>
+          <option value="Fastener/Tool Dealer">Fastener/Tool Dealer</option>
+        </select>
+      </div>
+      <div class="fg" style="max-width:320px">
+        <label>Assign Unmatched Owners To</label>
+        <select id="default-user">
+          <!-- filled by JS -->
+        </select>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:4px">
+      <button class="btn btn-primary btn-lg" onclick="startImport()">
+        ✓ Confirm Import
+      </button>
+      <button class="btn btn-outline" onclick="resetToUpload()">← Cancel, Start Over</button>
+      <span id="confirm-msg" style="font-size:12px;color:#64748b"></span>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════
+       STEP 4 — Importing spinner
+  ════════════════════════════════════════════ -->
+  <div id="step-importing" class="hidden">
+    <div class="card">
+      <div class="progress-wrap">
+        <div class="spinner"></div>
+        <div class="progress-msg">Importing your data…</div>
+        <div class="progress-sub">Writing contacts and accounts to RepRoute — this may take 10–20 seconds for large datasets</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════
+       STEP 5 — Complete
+  ════════════════════════════════════════════ -->
+  <div id="step-complete" class="hidden">
+    <div class="card">
+      <div class="complete-wrap">
+        <div class="complete-icon">🎉</div>
+        <div class="complete-title">Import Complete!</div>
+        <div class="complete-sub" id="complete-sub">Your Zoho data is now in RepRoute and ready to use.</div>
+        <div class="complete-stats">
+          <div class="complete-stat">
+            <div class="complete-stat-num" id="r-contacts-imported">—</div>
+            <div class="complete-stat-lbl">Contacts imported</div>
+          </div>
+          <div class="complete-stat">
+            <div class="complete-stat-num" id="r-contacts-skipped" style="color:#fbbf24">—</div>
+            <div class="complete-stat-lbl">Contacts skipped</div>
+          </div>
+          <div class="complete-stat">
+            <div class="complete-stat-num" id="r-accounts-imported">—</div>
+            <div class="complete-stat-lbl">Companies imported</div>
+          </div>
+          <div class="complete-stat">
+            <div class="complete-stat-num" id="r-accounts-skipped" style="color:#fbbf24">—</div>
+            <div class="complete-stat-lbl">Companies skipped</div>
+          </div>
+        </div>
+        <div class="complete-actions">
+          <a href="/app#contacts" class="btn btn-primary btn-lg">View My Contacts →</a>
+          <button class="btn btn-outline" onclick="resetToUpload()">Import Another File</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /page-wrap -->
+
+<script>
+// ── State ────────────────────────────────────────────────────────────
+var contactsB64   = null;
+var accountsB64   = null;
+var parseResult   = null;
+var repRouteUsers = [];
+
+// ── On load: fetch users + history ──────────────────────────────────
+window.addEventListener('DOMContentLoaded', function() {
+  fetchUsers();
+  fetchHistory();
+  setStep(1);
+});
+
+function fetchUsers() {
+  fetch('/api/zoho/users').then(r=>r.json()).then(function(users) {
+    repRouteUsers = users;
+    var sel = document.getElementById('default-user');
+    if (sel) {
+      sel.innerHTML = users.map(function(u){
+        return '<option value="'+u.id+'">'+escHtml(u.name)+' ('+escHtml(u.email)+')</option>';
+      }).join('');
+    }
+  }).catch(function(){});
+}
+
+function fetchHistory() {
+  fetch('/api/zoho/history').then(r=>r.json()).then(function(rows) {
+    var el = document.getElementById('history-body');
+    if (!el) return;
+    if (!rows || !rows.length) {
+      el.innerHTML = '<div class="history-empty">No imports yet</div>';
+      return;
+    }
+    el.innerHTML = '<table class="history-table"><thead><tr>' +
+      '<th>Date</th><th>Contacts</th><th>Companies</th><th>Skipped</th><th>By</th>' +
+      '</tr></thead><tbody>' +
+      rows.map(function(r){
+        var d = new Date(r.imported_at);
+        var fmt = d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) +
+                  ' ' + d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+        return '<tr>'+
+          '<td>'+fmt+'</td>'+
+          '<td><span style="color:#4ade80;font-weight:700">+'+r.contacts_imported+'</span></td>'+
+          '<td><span style="color:#60a5fa;font-weight:700">+'+r.accounts_imported+'</span></td>'+
+          '<td style="color:#94a3b8">'+(parseInt(r.contacts_skipped)+parseInt(r.accounts_skipped))+' skipped</td>'+
+          '<td style="color:#94a3b8">'+(r.imported_by||'—')+'</td>'+
+          '</tr>';
+      }).join('') +
+      '</tbody></table>';
+  }).catch(function(){});
+}
+
+// ── Step management ──────────────────────────────────────────────────
+function setStep(n) {
+  document.getElementById('step-upload').classList.toggle('hidden', n !== 1);
+  document.getElementById('step-processing').classList.toggle('hidden', n !== 1.5);
+  document.getElementById('step-preview').classList.toggle('hidden', n !== 2);
+  document.getElementById('step-importing').classList.toggle('hidden', n !== 3.5);
+  document.getElementById('step-complete').classList.toggle('hidden', n !== 4);
+
+  [1,2,3,4].forEach(function(s) {
+    var num = document.getElementById('step-num-'+s);
+    var lbl = document.getElementById('step-lbl-'+s);
+    if (!num || !lbl) return;
+    num.classList.remove('active','done');
+    lbl.classList.remove('active');
+    if (Math.floor(n) > s) { num.classList.add('done'); num.textContent = '✓'; }
+    else if (Math.floor(n) === s) { num.classList.add('active'); num.textContent = s; lbl.classList.add('active'); }
+    else { num.textContent = s; }
+  });
+
+  // Show processing between steps
+  if (n === 1.5) {
+    document.getElementById('step-upload').classList.add('hidden');
+    document.getElementById('step-processing').classList.remove('hidden');
+  }
+  if (n === 3.5) {
+    document.getElementById('step-preview').classList.add('hidden');
+    document.getElementById('step-importing').classList.remove('hidden');
+  }
+}
+
+// ── File handling ────────────────────────────────────────────────────
+function handleDrag(e, type) {
+  e.preventDefault();
+  document.getElementById(type+'-zone').classList.add('drag-over');
+}
+function handleDragLeave(e, type) {
+  document.getElementById(type+'-zone').classList.remove('drag-over');
+}
+function handleDrop(e, type) {
+  e.preventDefault();
+  document.getElementById(type+'-zone').classList.remove('drag-over');
+  var file = e.dataTransfer.files[0];
+  if (file) processFile(file, type);
+}
+function handleFile(e, type) {
+  var file = e.target.files[0];
+  if (file) processFile(file, type);
+}
+
+function processFile(file, type) {
+  var zone    = document.getElementById(type+'-zone');
+  var content = document.getElementById(type+'-upload-content');
+  var result  = document.getElementById(type+'-upload-result');
+  var fname   = document.getElementById(type+'-filename');
+  var rowCnt  = document.getElementById(type+'-row-count');
+  var errEl   = document.getElementById(type+'-error');
+
+  var ext = file.name.split('.').pop().toLowerCase();
+  if (!['xlsx','xls','csv'].includes(ext)) {
+    errEl.textContent = 'Please upload a .xlsx, .xls, or .csv file.';
+    errEl.style.display = 'block';
+    return;
+  }
+  if (file.size > 20 * 1024 * 1024) {
+    errEl.textContent = 'File is too large. Maximum 20 MB.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  errEl.style.display = 'none';
+  fname.textContent   = file.name;
+  rowCnt.textContent  = 'Reading file…';
+
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var b64 = e.target.result.split(',')[1];
+    if (type === 'contacts') contactsB64 = b64;
+    else                     accountsB64 = b64;
+
+    // Count rows (rough estimate from base64 length)
+    var approx = Math.round(b64.length * 0.75 / 80);
+    rowCnt.textContent = '~' + approx + ' rows detected';
+
+    zone.classList.add('has-file');
+    zone.classList.remove('drag-over');
+    content.classList.add('hidden');
+    result.classList.remove('hidden');
+
+    checkBothUploaded();
+  };
+  reader.onerror = function() {
+    errEl.textContent = 'Failed to read file. Please try again.';
+    errEl.style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+}
+
+function checkBothUploaded() {
+  var btn  = document.getElementById('parse-btn');
+  var hint = document.getElementById('upload-hint-msg');
+  if (contactsB64 && accountsB64) {
+    btn.disabled = false;
+    hint.textContent = 'Both files loaded — ready to preview!';
+    hint.style.color = '#4ade80';
+  } else {
+    btn.disabled = true;
+    var missing = [];
+    if (!contactsB64) missing.push('contacts');
+    if (!accountsB64) missing.push('accounts');
+    hint.textContent = 'Still need: ' + missing.join(' and ');
+    hint.style.color = '#94a3b8';
+  }
+}
+
+// ── Parse ────────────────────────────────────────────────────────────
+function startParse() {
+  document.getElementById('parse-btn').disabled = true;
+  document.getElementById('upload-hint-msg').textContent = 'Processing…';
+  setStep(1.5);
+
+  fetch('/api/zoho/parse', {
+    method : 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body   : JSON.stringify({ contacts_b64: contactsB64, accounts_b64: accountsB64 }),
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data) {
+    if (data.error) { showParseError(data.error); return; }
+    parseResult = data;
+    buildPreview(data);
+    setStep(2);
+  })
+  .catch(function(e) { showParseError(e.message); });
+}
+
+function showParseError(msg) {
+  setStep(1);
+  document.getElementById('parse-btn').disabled = false;
+  document.getElementById('upload-hint-msg').textContent = 'Error: ' + msg;
+  document.getElementById('upload-hint-msg').style.color = '#ef4444';
+}
+
+// ── Build preview screen ─────────────────────────────────────────────
+function buildPreview(data) {
+  // Summary cards
+  var ownerEntries = Object.entries(data.contacts.by_owner || {});
+  var summaryHtml  = [
+    summaryCard(data.contacts.total, 'Contacts', 'blue'),
+    summaryCard(data.orphaned_accounts.total, 'Orphaned Accounts', 'blue'),
+    summaryCard(data.contacts.with_phone, 'With Phone', 'green'),
+    summaryCard(data.total_dupes, 'Duplicates', data.total_dupes > 0 ? 'amber' : 'green'),
+  ];
+  ownerEntries.forEach(function(e) {
+    summaryHtml.push(summaryCard(e[1], escHtml(e[0]), 'blue'));
+  });
+  document.getElementById('summary-cards').innerHTML = summaryHtml.join('');
+
+  // Dupe alert
+  if (data.total_dupes > 0) {
+    document.getElementById('dupe-alert').classList.remove('hidden');
+    document.getElementById('dupe-alert-msg').textContent =
+      data.total_dupes + ' duplicate record(s) found — they will be skipped by default. Review in the Duplicates tab.';
+  }
+
+  // Contacts preview table
+  var tbody = document.getElementById('contacts-preview-tbody');
+  tbody.innerHTML = data.contacts.preview.map(function(c) {
+    var dupe = c.is_duplicate
+      ? '<span class="badge badge-dupe">duplicate</span>'
+      : '<span class="badge badge-new">new</span>';
+    var phoneVal = c.phone || '<span style="color:#64748b">—</span>';
+    return '<tr class="'+(c.is_duplicate?'dupe-row':'')+'">'+
+      '<td style="font-weight:600;color:#fff">'+escHtml(c.full_name || '—')+'</td>'+
+      '<td>'+escHtml(c.company_name || '—')+'</td>'+
+      '<td>'+escHtml(c.email || '—')+'</td>'+
+      '<td>'+phoneVal+'</td>'+
+      '<td><span style="background:#1e2a3a;color:#94a3b8;padding:2px 7px;border-radius:10px;font-size:10px">'+escHtml(c.owner||'—')+'</span></td>'+
+      '<td>'+dupe+'</td>'+
+      '</tr>';
+  }).join('');
+  var more = data.contacts.total - data.contacts.preview.length;
+  document.getElementById('contacts-more-hint').textContent =
+    more > 0 ? '…and ' + more.toLocaleString() + ' more contacts' : '';
+
+  // Orphaned accounts preview
+  var atbody = document.getElementById('accounts-preview-tbody');
+  atbody.innerHTML = (data.orphaned_accounts.preview || []).map(function(a) {
+    var dupe = a.is_duplicate
+      ? '<span class="badge badge-dupe">duplicate</span>'
+      : '<span class="badge badge-new">new</span>';
+    return '<tr class="'+(a.is_duplicate?'dupe-row':'')+'">'+
+      '<td style="font-weight:600;color:#fff">'+escHtml(a.company_name||'—')+'</td>'+
+      '<td>'+escHtml(a.phone||'—')+'</td>'+
+      '<td>'+(a.website?'<a href="'+escHtml(a.website)+'" target="_blank" style="color:#60a5fa">'+escHtml(a.website)+'</a>':'—')+'</td>'+
+      '<td><span style="background:#1e2a3a;color:#94a3b8;padding:2px 7px;border-radius:10px;font-size:10px">'+escHtml(a.owner||'—')+'</span></td>'+
+      '<td>'+dupe+'</td>'+
+      '</tr>';
+  }).join('');
+  var aMore = data.orphaned_accounts.total - (data.orphaned_accounts.preview||[]).length;
+  document.getElementById('accounts-more-hint').textContent =
+    aMore > 0 ? '…and ' + aMore.toLocaleString() + ' more companies' : '';
+  if (!data.orphaned_accounts.total) {
+    atbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px">All accounts in the Accounts export matched at least one contact.</td></tr>';
+  }
+
+  // Duplicates tab
+  buildDupesTab(data);
+
+  // Rep mapping
+  buildRepMapping(data.zoho_owners || [], repRouteUsers, data.contacts.by_owner || {});
+
+  // Default user selector
+  var defSel = document.getElementById('default-user');
+  if (defSel && repRouteUsers.length) {
+    defSel.innerHTML = repRouteUsers.map(function(u){
+      return '<option value="'+u.id+'">'+escHtml(u.name)+' ('+escHtml(u.email)+')</option>';
+    }).join('');
+  }
+}
+
+function summaryCard(num, label, color) {
+  return '<div class="summary-card"><div class="summary-num '+color+'">'+num.toLocaleString()+'</div><div class="summary-lbl">'+label+'</div></div>';
+}
+
+function buildDupesTab(data) {
+  var html = '';
+  if (data.total_dupes === 0) {
+    html = '<div style="text-align:center;padding:32px;color:#4ade80;font-size:14px;font-weight:600">✓ No duplicate records found — safe to import</div>';
+  } else {
+    if (data.dup_contacts && data.dup_contacts.length) {
+      html += '<div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">'+data.dup_contacts.length+' Duplicate Contacts (showing up to 20)</div>';
+      html += '<div style="overflow-x:auto"><table class="data-table"><thead><tr><th>Name</th><th>Company</th><th>Email</th></tr></thead><tbody>';
+      html += data.dup_contacts.map(function(c){
+        return '<tr><td>'+escHtml(c.name||'—')+'</td><td>'+escHtml(c.company_name||'—')+'</td><td>'+escHtml(c.email||'—')+'</td></tr>';
+      }).join('');
+      html += '</tbody></table></div>';
+    }
+    if (data.dup_accounts && data.dup_accounts.length) {
+      html += '<div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin:16px 0 10px">'+data.dup_accounts.length+' Duplicate Companies</div>';
+      html += '<div style="overflow-x:auto"><table class="data-table"><thead><tr><th>Company</th><th>Phone</th></tr></thead><tbody>';
+      html += data.dup_accounts.map(function(a){
+        return '<tr><td>'+escHtml(a.company_name||'—')+'</td><td>'+escHtml(a.phone||'—')+'</td></tr>';
+      }).join('');
+      html += '</tbody></table></div>';
+    }
+  }
+  document.getElementById('dupes-content').innerHTML = html;
+}
+
+function buildRepMapping(zohoOwners, users, byOwner) {
+  var grid = document.getElementById('rep-map-grid');
+  if (!zohoOwners.length) {
+    grid.innerHTML = '<div style="color:#64748b;font-size:13px">No rep owner data found in files.</div>';
+    return;
+  }
+  grid.innerHTML = zohoOwners.map(function(ownerName) {
+    // Try to auto-match: find user whose name contains or matches the Zoho owner name
+    var autoId = '';
+    var ownerLower = ownerName.toLowerCase().trim();
+    for (var i = 0; i < users.length; i++) {
+      var uName = users[i].name.toLowerCase().trim();
+      if (uName === ownerLower || uName.startsWith(ownerLower) || ownerLower.startsWith(uName.split(' ')[0])) {
+        autoId = users[i].id;
+        break;
+      }
+    }
+    var count = byOwner[ownerName] || 0;
+    var options = '<option value="">— Not mapped (use default) —</option>' +
+      users.map(function(u){
+        return '<option value="'+u.id+'"'+(u.id == autoId?' selected':'')+'>'+escHtml(u.name)+'</option>';
+      }).join('');
+    return '<div class="rep-map-row" data-zoho-owner="'+escAttr(ownerName)+'">' +
+      '<div class="rep-map-zoho">'+escHtml(ownerName)+'</div>' +
+      '<div class="rep-map-arrow">→</div>' +
+      '<select class="rep-map-select" data-owner="'+escAttr(ownerName)+'">'+options+'</select>' +
+      '<div class="rep-map-count">'+count+' contacts</div>' +
+      '</div>';
+  }).join('');
+}
+
+// ── Tab switching ────────────────────────────────────────────────────
+function showTab(tab) {
+  ['contacts','accounts','dupes'].forEach(function(t) {
+    document.getElementById('tab-'+t).classList.toggle('hidden', t !== tab);
+  });
+  document.querySelectorAll('.tab-bar .tab').forEach(function(el, i) {
+    el.classList.toggle('active', ['contacts','accounts','dupes'][i] === tab);
+  });
+}
+
+// ── Import ───────────────────────────────────────────────────────────
+function startImport() {
+  if (!parseResult) return;
+
+  // Collect rep mapping
+  var repMapping = {};
+  document.querySelectorAll('.rep-map-select').forEach(function(sel) {
+    var owner = sel.getAttribute('data-owner');
+    var uid   = sel.value;
+    if (owner && uid) repMapping[owner] = uid;
+  });
+
+  var payload = {
+    rep_mapping           : repMapping,
+    skip_dup_contacts     : document.getElementById('skip-dup-contacts').checked,
+    skip_dup_accounts     : document.getElementById('skip-dup-accounts').checked,
+    default_user_id       : document.getElementById('default-user').value,
+    default_category      : document.getElementById('default-category').value,
+  };
+
+  var confirmMsg = document.getElementById('confirm-msg');
+  confirmMsg.textContent = 'Starting import…';
+
+  setStep(3.5);
+
+  fetch('/api/zoho/import', {
+    method : 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body   : JSON.stringify(payload),
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data) {
+    if (data.error) { showImportError(data.error); return; }
+    showComplete(data);
+  })
+  .catch(function(e) { showImportError(e.message); });
+}
+
+function showImportError(msg) {
+  setStep(2);
+  var confirmMsg = document.getElementById('confirm-msg');
+  confirmMsg.textContent = 'Import failed: ' + msg;
+  confirmMsg.style.color = '#ef4444';
+}
+
+function showComplete(data) {
+  document.getElementById('r-contacts-imported').textContent  = data.contacts_imported.toLocaleString();
+  document.getElementById('r-contacts-skipped').textContent   = data.contacts_skipped.toLocaleString();
+  document.getElementById('r-accounts-imported').textContent  = data.accounts_imported.toLocaleString();
+  document.getElementById('r-accounts-skipped').textContent   = data.accounts_skipped.toLocaleString();
+  document.getElementById('complete-sub').textContent =
+    data.contacts_imported + ' contacts and ' + data.accounts_imported +
+    ' company records are now in RepRoute, tagged "Zoho Import". ' +
+    (data.contacts_skipped + data.accounts_skipped) + ' skipped as duplicates.';
+  fetchHistory();
+  setStep(4);
+}
+
+function resetToUpload() {
+  contactsB64 = null;
+  accountsB64 = null;
+  parseResult = null;
+
+  // Reset file inputs
+  ['contacts','accounts'].forEach(function(t) {
+    var fileEl = document.getElementById(t+'-file');
+    if (fileEl) fileEl.value = '';
+    document.getElementById(t+'-zone').classList.remove('has-file','drag-over');
+    document.getElementById(t+'-upload-content').classList.remove('hidden');
+    document.getElementById(t+'-upload-result').classList.add('hidden');
+    var errEl = document.getElementById(t+'-error');
+    if (errEl) errEl.style.display = 'none';
+  });
+
+  document.getElementById('parse-btn').disabled = true;
+  document.getElementById('upload-hint-msg').textContent = 'Upload both files to continue';
+  document.getElementById('upload-hint-msg').style.color = '#64748b';
+  setStep(1);
+}
+
+// ── Utilities ────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(s) {
+  return String(s||'').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

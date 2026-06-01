@@ -22,6 +22,7 @@ const morningRoutes = require('./routes/morning');
 const { router: notificationsRoutes, evaluateForUser } = require('./routes/notifications');
 const { router: brandMappingsRoutes } = require('./routes/brand_mappings');
 const quotesRoutes = require('./routes/quotes');
+const zohoRoutes   = require('./routes/zoho');
 
 const app = express();
 app.use(express.json({ limit: '25mb' }));
@@ -122,6 +123,10 @@ app.use('/api/morning', requireAuth, morningRoutes);
 app.use('/api/notifications', requireAuth, notificationsRoutes);
 app.use('/api/brand-mappings', requireAuth, brandMappingsRoutes);
 app.use('/api/quotes', requireAuth, quotesRoutes);
+app.use('/api/zoho',  requireAuth, zohoRoutes);
+app.get('/zoho-import', requireAuth, (req, res) =>
+  res.sendFile(path.join(__dirname, 'views', 'zoho-import.html'))
+);
 app.use('/auth', emailRoutes);
 
 app.get('/api/me', requireAuth, (req, res) => {
