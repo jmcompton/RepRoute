@@ -5868,14 +5868,15 @@ function openNewQuoteModal() {
   document.getElementById('qd-status-badge').style.cssText = 'background:#f1f5f9;color:#475569;font-size:11px;padding:3px 10px;border-radius:12px;font-weight:600';
   document.getElementById('qd-account').textContent = '—';
   document.getElementById('qd-contact').textContent = '—';
-  var defaultRep = (window.__userData && window.__userData.name) ? window.__userData.name : '';
-  qSetRepValue(defaultRep);
   ['qd-quote-num','qd-acct','qd-cont','qd-amount','qd-products','qd-comments'].forEach(function(id){ document.getElementById(id).value=''; });
-  // Reset rep select
+  // Reset rep select first, then auto-populate with logged-in user's name
   var repSel = document.getElementById('qd-rep-select');
   if (repSel) repSel.value = '';
   var repInp = document.getElementById('qd-rep-input');
   if (repInp) { repInp.value = ''; repInp.style.display = 'none'; }
+  // qSetRepValue must run AFTER the reset above — the reset otherwise clears it
+  var defaultRep = (window.__userData && window.__userData.name) ? window.__userData.name : '';
+  if (defaultRep) qSetRepValue(defaultRep);
   document.getElementById('qd-status').value = 'Draft';
   document.getElementById('qd-date').value = new Date().toISOString().split('T')[0];
   document.getElementById('qd-followup').value = '';
@@ -6006,12 +6007,14 @@ function loadContactsForAccount(account) {
       if (list) {
         list.innerHTML = contacts.map(function(c, i) {
           var isPrimary = i === 0;
-          return '<div onclick="selectQuoteContact(' + JSON.stringify(c) + ')" style="'
+          // Escape for use as an HTML data attribute (handles apostrophes, quotes, etc.)
+          var safeAttr = (c || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+          return '<div class="qd-contact-opt" data-name="' + safeAttr + '" style="'
             + 'padding:9px 14px;cursor:pointer;font-size:13px;'
             + 'border-bottom:1px solid #f1f5f9;'
             + 'display:flex;align-items:center;justify-content:space-between;gap:8px;">'
             + '<span>' + c + '</span>'
-            + (isPrimary ? '<span style="font-size:10px;font-weight:700;color:#059669;background:#d1fae5;padding:1px 7px;border-radius:10px">Primary</span>' : '')
+            + (isPrimary ? '<span style="font-size:10px;font-weight:700;color:#059669;background:#d1fae5;padding:1px 7px;border-radius:10px;pointer-events:none">Primary</span>' : '')
             + '</div>';
         }).join('');
       }
@@ -6036,6 +6039,9 @@ function selectQuoteContact(name) {
   var dd = document.getElementById('qd-cont-dropdown');
   if (dd) dd.style.display = 'none';
   _quotContactDropdownOpen = false;
+  // Re-trigger rep auto-assign in case the account maps to a specific rep
+  var acctInput = document.getElementById('qd-acct');
+  if (acctInput && acctInput.value) checkAccountAutoAssignRep(acctInput.value);
 }
 
 function toggleContactDropdown() {
@@ -6045,8 +6051,14 @@ function toggleContactDropdown() {
   dd.style.display = _quotContactDropdownOpen ? 'block' : 'none';
 }
 
-// Close dropdown when clicking outside
+// Delegate clicks on contact list items (data-name attribute avoids inline onclick encoding issues)
 document.addEventListener('click', function(e) {
+  var item = e.target.closest ? e.target.closest('.qd-contact-opt') : null;
+  if (item && item.dataset && item.dataset.name !== undefined) {
+    selectQuoteContact(item.dataset.name);
+    return;
+  }
+  // Close dropdown when clicking outside
   if (!_quotContactDropdownOpen) return;
   var wrapper = document.getElementById('qd-cont-btn');
   var dd = document.getElementById('qd-cont-dropdown');
