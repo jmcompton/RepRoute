@@ -818,8 +818,8 @@ function expandBulkQuery(rawQuery) {
     'lp smartside': { cat: 'Siding Contractor', mfr: 'LP SmartSide' },
     smartside:  { cat: 'Siding Contractor', mfr: 'LP SmartSide' },
     shurtape:   { cat: 'Roofing Distributor', mfr: 'ShurTape' },
-    'alum-a-pole': { cat: 'Fastener/Tool Dealer', mfr: 'Alum-A-Pole' },
-    'alum a pole': { cat: 'Fastener/Tool Dealer', mfr: 'Alum-A-Pole' },
+    'alum-a-pole': { cat: 'Construction Fasteners', mfr: 'Alum-A-Pole' },
+    'alum a pole': { cat: 'Construction Fasteners', mfr: 'Alum-A-Pole' },
     'boss':     { cat: 'Roofing Distributor', mfr: 'Boss Products' },
     fortress:   { cat: 'Decking Distributor', mfr: 'Fortress Building Products' },
   };
@@ -844,9 +844,9 @@ function expandBulkQuery(rawQuery) {
     'window installer':    'Window & Door Installer',
     'door installer':      'Window & Door Installer',
     'cornice':             'Cornice Contractor',
-    'fastener':            'Fastener/Tool Dealer',
-    'scaffold':            'Fastener/Tool Dealer',
-    'tool dealer':         'Fastener/Tool Dealer',
+    'fastener':            'Construction Fasteners',
+    'scaffold':            'Construction Fasteners',
+    'tool dealer':         'Construction Fasteners',
     'lumber dealer':       'Decking Distributor',
     'lumber yard':         'Decking Distributor',
     'building supply':     'Siding Distributor',
@@ -1225,6 +1225,13 @@ const V4_HARD_EXCLUDE = [
   'general construction','construction management','construction consulting',
   'home builder association','builders association','trade association',
   'chamber of commerce',
+  // ── NEW: Heavy equipment / construction machinery — never relevant ─────────
+  'excavating contractor','excavation contractor',
+  'heavy equipment dealer','heavy equipment rental','heavy machinery',
+  'agricultural equipment','farm equipment dealer',
+  'tractor dealer','forklift dealer','crane service','crane rental',
+  'mining equipment','bulldozer dealer','backhoe dealer','earthmoving contractor',
+  'skid steer dealer','hydraulic equipment',
 ];
 
 
@@ -1246,6 +1253,8 @@ function v4IsExcluded(company, types, phone, address) {
   if (/roof\s+restoration\s+contract/i.test(n))                                  return { excluded: true, reason: 'roof_restoration' };
   if (/industrial\s+roof/i.test(n))                                               return { excluded: true, reason: 'industrial_roofing' };
   if (/\b(hoa|homeowners\s+assoc|property\s+mgmt|property\s+management)\b/i.test(n)) return { excluded: true, reason: 'hoa_property_mgmt' };
+  if (/\b(excavat(ing|ion)|heavy\s+equipment|heavy\s+machinery|farm\s+equipment|agricultural\s+equipment)\b/i.test(n)) return { excluded: true, reason: 'heavy_equipment' };
+  if (/\b(forklift|crane\s+service|crane\s+rental|bulldozer|backhoe|earthmov|skid\s+steer)\b/i.test(n)) return { excluded: true, reason: 'heavy_equipment' };
 
   // Quality gate — must have address + phone
   const hasAddr  = (address || '').trim().length > 10;

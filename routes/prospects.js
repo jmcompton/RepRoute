@@ -19,7 +19,7 @@ const CONTRACTOR_CATEGORIES = new Set([
   'Siding Contractor',
   'Window & Door Installer',
   'Cornice Contractor',
-  'Fastener/Tool Dealer'
+  'Construction Fasteners'
 ]);
 
 function resolveCompanyType(category) {

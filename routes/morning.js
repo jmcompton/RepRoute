@@ -60,12 +60,12 @@ const SEGMENT_SEARCH_CONFIG = {
     { query: 'fascia board replacement contractor', score: 9, category: 'Cornice Contractor' },
     { query: 'aluminum soffit fascia contractor', score: 8, category: 'Cornice Contractor' },
   ],
-  'Fastener/Tool Dealer': [
-    { query: 'fastener supply store construction', score: 10, category: 'Fastener/Tool Dealer' },
-    { query: 'construction tool equipment dealer', score: 10, category: 'Fastener/Tool Dealer' },
-    { query: 'scaffolding rental supply construction', score: 10, category: 'Fastener/Tool Dealer' },
-    { query: 'ladder supply company extension ladders', score: 9, category: 'Fastener/Tool Dealer' },
-    { query: 'building supply tool dealer hardware', score: 8, category: 'Fastener/Tool Dealer' },
+  'Construction Fasteners': [
+    { query: 'roofing contractor fasteners supplier', score: 10, category: 'Construction Fasteners' },
+    { query: 'construction fastener supplier dealer', score: 10, category: 'Construction Fasteners' },
+    { query: 'framing contractor supplies hardware store', score: 10, category: 'Construction Fasteners' },
+    { query: 'roofing nail supplier contractor supply', score: 9, category: 'Construction Fasteners' },
+    { query: 'deck screw supplier contractor hardware', score: 9, category: 'Construction Fasteners' },
   ],
 };
 
@@ -73,7 +73,7 @@ const SEGMENT_SEARCH_CONFIG = {
 const PRODUCT_SEARCH_CONFIG = {
   'BOSS Products': { Contractor: SEGMENT_SEARCH_CONFIG['Roofing Contractor'], Dealer: SEGMENT_SEARCH_CONFIG['Roofing Distributor'] },
   'ShurTape':      { Contractor: SEGMENT_SEARCH_CONFIG['Roofing Contractor'], Dealer: SEGMENT_SEARCH_CONFIG['Siding Distributor'] },
-  'Alum-A-Pole':   { Contractor: SEGMENT_SEARCH_CONFIG['Siding Contractor'],  Dealer: SEGMENT_SEARCH_CONFIG['Fastener/Tool Dealer'] },
+  'Alum-A-Pole':   { Contractor: SEGMENT_SEARCH_CONFIG['Siding Contractor'],  Dealer: SEGMENT_SEARCH_CONFIG['Construction Fasteners'] },
 };
 
 // Google place types that confirm a business is relevant (vs. just having the right name)
@@ -141,6 +141,41 @@ function isResidentialRooferBlocked(name, types, segment) {
   if (Array.isArray(types) && types.includes('roofing_contractor') &&
       !types.includes('general_contractor') && lower.match(/residential|home|house/)) return true;
   return false;
+}
+
+// Hard block — never return heavy equipment / construction machinery companies (all segments)
+const HEAVY_EQUIPMENT_KEYWORDS = [
+  'excavating contractor', 'excavation contractor', 'heavy equipment', 'heavy machinery',
+  'farm equipment', 'agricultural equipment',
+  'tractor dealer', 'forklift', 'crane service', 'crane rental',
+  'mining equipment', 'bulldozer', 'backhoe', 'earthmoving', 'earthwork contractor',
+  'equipment dealer heavy', 'skid steer', 'hydraulic equipment'
+];
+function isHeavyEquipmentBlocked(name, types) {
+  const lower = (name || '').toLowerCase();
+  const typesStr = (types || []).join(' ').toLowerCase();
+  const combined = lower + ' ' + typesStr;
+  return HEAVY_EQUIPMENT_KEYWORDS.some(kw => combined.includes(kw));
+}
+
+// ── Home-Based Business Detection ────────────────────────────────────────────
+// Primary signal: residential street suffix + no suite/unit + no corporate entity in name
+// Secondary signal: no website + no specific Google type (only generic establishment types)
+// Returns { primary: bool, secondary: bool }
+const HOME_BASED_SUFFIX_RX = /\b(dr|drive|ln|lane|ct|court|way|cir|circle|pl|place|blvd|boulevard|rd|road)\b\.?(?:\s|,|$)/i;
+const HOME_BASED_UNIT_RX   = /\b(ste|suite|unit|fl|floor|bldg|building)\b\.?\s*\d*|\s#\s*\d+/i;
+const HOME_BASED_CORP_RX   = /\b(llc|inc\.?|corp\.?|co\.|company|group|associates)\b/i;
+function isHomeBased(address, company, website, types) {
+  const hasResidentialSuffix = HOME_BASED_SUFFIX_RX.test(address || '');
+  const hasCommercialUnit    = HOME_BASED_UNIT_RX.test(address || '');
+  const hasCorporateName     = HOME_BASED_CORP_RX.test(company || '');
+  const primary = hasResidentialSuffix && !hasCommercialUnit && !hasCorporateName;
+  const hasWebsite      = !!(website && website.trim());
+  const typesArr        = types || [];
+  const hasSpecificType = typesArr.some(t =>
+    CONTRACTOR_PLACE_TYPES.has(t) || DEALER_PLACE_TYPES.has(t));
+  const secondary = !hasWebsite && !hasSpecificType;
+  return { primary, secondary };
 }
 
 // Haversine distance in miles
@@ -285,7 +320,7 @@ router.post('/daily-leads', async (req, res) => {
     'Cornice Contractor':    'Contractor',
     'Window/Door Installer': 'Contractor',
     'Deck Contractor':       'Contractor',
-    'Fastener/Tool Dealer':  'Dealer',
+    'Construction Fasteners': 'Dealer',
     'Contractor':            'Contractor',
     'Dealer':                'Dealer',
   };
@@ -407,6 +442,8 @@ router.post('/daily-leads', async (req, res) => {
           // Hard block — never serve garage/overhead door companies for Window/Door segment
           if (isGarageDoorBlocked(company, rawChannel)) continue;
           if (isResidentialRooferBlocked(company, rawChannel)) continue;
+          // Hard block — never return heavy equipment / construction machinery companies
+          if (isHeavyEquipmentBlocked(company, place.types || [])) continue;
           sessionSeen.add(placeId || companyLower);
 
           // Distance filter — use the rep's actual radius
@@ -439,7 +476,7 @@ router.post('/daily-leads', async (req, res) => {
             return bc?.some(sc => sc.category === config.category || sc.query.split(' ')[0] === config.query.split(' ')[0]);
           });
 
-          const opportunityScore = calcOpportunityScore(
+          let opportunityScore = calcOpportunityScore(
             config.score,
             distMi || 25,
             place.userRatingCount || 0,
@@ -447,6 +484,26 @@ router.post('/daily-leads', async (req, res) => {
             matchingBrands.length,
             channel
           );
+
+          // Home-based business detection — badge + optional score penalty
+          const homeBasedResult = isHomeBased(
+            place.formattedAddress || '',
+            company,
+            place.websiteUri || '',
+            place.types || []
+          );
+          let homeBasedBadge = false;
+          if (homeBasedResult.primary && homeBasedResult.secondary) {
+            // Both signals: badge + strong score penalty (pushes to bottom)
+            homeBasedBadge = true;
+            opportunityScore = Math.max(1, opportunityScore - 15);
+          } else if (homeBasedResult.primary) {
+            // Primary only: badge, no score change
+            homeBasedBadge = true;
+          } else if (homeBasedResult.secondary) {
+            // Secondary only: mild score penalty, no badge
+            opportunityScore = Math.max(1, opportunityScore - 5);
+          }
 
           // Parse city/state from formatted address
           const addrParts = (place.formattedAddress || '').split(',').map(s => s.trim());
@@ -472,7 +529,8 @@ router.post('/daily-leads', async (req, res) => {
             rating: place.rating || null,
             reviews: place.userRatingCount || 0,
             primary_type: primaryType,
-            matched_query: config.query
+            matched_query: config.query,
+            homeBased: homeBasedBadge
           });
         }
       } catch(e) {
