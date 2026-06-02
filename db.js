@@ -254,20 +254,17 @@ async function initDB() {
     );
 
     -- ════════════════════════════════════════════════════════════
-    -- FIX 1 ROOT CAUSE: Sean Connery/Conroy → correct names
-    -- Root cause: users.name was "Sean Connery"/"Sean Conroy" so the
-    --   quotes GET query (SELECT q.*, u.name as rep_name) displayed it
-    --   on every quote created by that user, overwriting rep_name.
-    -- Fix: rename the user + scrub any quotes with that rep_name.
+    -- FIX: correct salesperson name — Sean Conroy (not Sean Compton)
+    -- The prior migration had the rename direction backwards.
     -- These are safe idempotent UPDATEs — run on every deploy.
     -- ════════════════════════════════════════════════════════════
     UPDATE users
-    SET name = 'Sean Compton'
-    WHERE LOWER(TRIM(name)) IN ('sean connery', 'sean conroy', 'sean conro');
+    SET name = 'Sean Conroy'
+    WHERE LOWER(TRIM(name)) = 'sean compton';
 
     UPDATE quotes
-    SET rep_name = 'Ray Breedlove', updated_at = NOW()
-    WHERE LOWER(TRIM(COALESCE(rep_name, ''))) IN ('sean connery', 'sean conroy', 'sean conro');
+    SET rep_name = 'Sean Conroy', updated_at = NOW()
+    WHERE LOWER(TRIM(COALESCE(rep_name, ''))) IN ('sean compton', 'sean connery', 'sean conro');
 
   `);
   console.log('Database initialized');

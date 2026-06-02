@@ -99,7 +99,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST create quote — with duplicate prevention (team-wide)
-// POST /api/quotes/fix-rep — hardcoded migration: Sean Conroy → Ray Breedlove
+// POST /api/quotes/fix-rep — bulk rename any rep (requires explicit find + replace params)
 // Placed FIRST so /:id route never intercepts it
 // GET /api/quotes/debug-reps — show all distinct rep_name values in DB
 router.get('/debug-reps', async (req, res) => {
@@ -127,12 +127,15 @@ router.get('/debug-reps', async (req, res) => {
 });
 
 // POST /api/quotes/fix-rep — bulk rename any rep to another rep
-// Hardcoded fallback: Sean Conroy → Ray Breedlove
+// Both `find` and `replace` body params are required — no hardcoded defaults
 // Matches on TRIM + case-insensitive to catch any whitespace variants
 router.post('/fix-rep', async (req, res) => {
   try {
-    const findName    = ((req.body && req.body.find)    || 'Sean Conroy').trim();
-    const replaceName = ((req.body && req.body.replace) || 'Ray Breedlove').trim();
+    const findName    = ((req.body && req.body.find)    || '').trim();
+    const replaceName = ((req.body && req.body.replace) || '').trim();
+    if (!findName || !replaceName) {
+      return res.status(400).json({ error: 'Both find and replace parameters are required' });
+    }
 
     // First: check how many rows match
     const checkResult = await pool.query(
@@ -168,10 +171,14 @@ router.post('/fix-rep', async (req, res) => {
 
 // POST /api/quotes/force-rep-update — reassign all quotes from one rep to another
 // Looks up user IDs by name and updates user_id on all matching quotes
+// Both `from` and `rep` body params are required — no hardcoded defaults
 router.post('/force-rep-update', async (req, res) => {
   try {
-    const fromName = ((req.body && req.body.from) || 'Sean Conroy').trim();
-    const toName   = ((req.body && req.body.rep)  || 'Ray Breedlove').trim();
+    const fromName = ((req.body && req.body.from) || '').trim();
+    const toName   = ((req.body && req.body.rep)  || '').trim();
+    if (!fromName || !toName) {
+      return res.status(400).json({ error: 'Both from and rep parameters are required' });
+    }
 
     // Look up the target user ID by name
     const toUserResult = await pool.query(
