@@ -1145,6 +1145,13 @@ window.addEventListener('load', function() {
               <span style="background:var(--border);color:var(--text3);font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px" id="list-count-badge">—</span>
             </div>
           </div>
+          <!-- Restore banner — shown when leads are recovered from localStorage after app-switching -->
+          <div id="lead-restore-banner" style="display:none;background:#fff7ed;border:1px solid #fed7aa;border-radius:7px;padding:10px 14px;margin-bottom:10px">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+              <span id="lead-restore-text" style="font-size:12px;font-weight:600;color:#92400e"></span>
+              <button onclick="window.clearLeadCache && window.clearLeadCache()" style="padding:4px 12px;background:transparent;border:1px solid #fed7aa;border-radius:5px;font-size:11px;font-weight:600;color:#92400e;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0">Search Again ↻</button>
+            </div>
+          </div>
           <div id="morning-call-list" style="display:flex;flex-direction:column;gap:8px"><div style="text-align:center;padding:32px 24px;background:var(--surface);border:1px dashed var(--border);border-radius:8px;color:var(--text3);font-size:13px">Enter a city above and select segments. Distributors and dealers are checked by default.</div></div>
         </div>
 
@@ -7276,6 +7283,8 @@ window.runDailyLeads = function() {
       showToast(leads.length + ' leads loaded into call list');
       setTimeout(function() { callList.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 200);
       buildRoutePanel(leads);
+      // Persist to localStorage so leads survive app-switching on mobile
+      if (typeof window.saveLeadCache === 'function') window.saveLeadCache();
     }
   }
 
@@ -8821,6 +8830,244 @@ document.addEventListener('click', function(e) {
   }
 });
 
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     PERSISTENCE LAYER — state recovery for field reps switching apps
+     Leads survive app-switching for up to 2 hours.
+     Route stops survive for the full work day (8 hours).
+     Sessions stay alive with rolling expiry (reset on every API call).
+     ═══════════════════════════════════════════════════════════════════════ -->
+<script>
+(function() {
+  'use strict';
+
+  var LEAD_KEY    = 'repRoute_lastLeadResults';
+  var LEAD_HTML   = 'repRoute_lastLeadHTML';
+  var PARAM_KEY   = 'repRoute_lastSearchParams';
+  var TIME_KEY    = 'repRoute_lastSearchTime';
+  var ROUTE_KEY   = 'repRoute_routeStops';
+  var ROUTE_TIME  = 'repRoute_routeTime';
+  var TWO_HOURS   = 2 * 60 * 60 * 1000;
+  var EIGHT_HOURS = 8 * 60 * 60 * 1000;
+
+  function safeGet(k)   { try { return localStorage.getItem(k);    } catch(e) { return null; } }
+  function safeSet(k,v) { try { localStorage.setItem(k, v);        } catch(e) {} }
+  function safeDel(k)   { try { localStorage.removeItem(k);        } catch(e) {} }
+
+  function minsAgoStr(ts) {
+    var m = Math.round((Date.now() - parseInt(ts || 0)) / 60000);
+    return m < 2 ? 'just now' : m + ' min' + (m === 1 ? '' : 's') + ' ago';
+  }
+
+  // ── Lead cache ─────────────────────────────────────────────────────────────
+  // Called from runDailyLeads finalize() after leads are rendered into DOM
+
+  window.saveLeadCache = function() {
+    var leads = window._dailyLeads || [];
+    if (!leads.length) return;
+    var callList = document.getElementById('morning-call-list');
+    var html = callList ? callList.innerHTML : '';
+    var city = '';
+    try { city = (document.getElementById('lead-city-input') || {}).value || ''; } catch(e) {}
+    var params = {};
+    try {
+      params = {
+        city: city.trim(),
+        brands:   (typeof getSelectedBrands   === 'function') ? getSelectedBrands()   : [],
+        segments: (typeof getSelectedSegments === 'function') ? getSelectedSegments() : []
+      };
+    } catch(e) {}
+    safeSet(LEAD_KEY,  JSON.stringify(leads));
+    safeSet(LEAD_HTML, html);
+    safeSet(PARAM_KEY, JSON.stringify(params));
+    safeSet(TIME_KEY,  Date.now().toString());
+  };
+
+  window.clearLeadCache = function() {
+    safeDel(LEAD_KEY); safeDel(LEAD_HTML); safeDel(PARAM_KEY); safeDel(TIME_KEY);
+    var banner = document.getElementById('lead-restore-banner');
+    if (banner) banner.style.display = 'none';
+    window._dailyLeads    = [];
+    window._shownPlaceIds = window._shownPlaceIds ? [] : [];
+    window._shownNames    = window._shownNames    ? [] : [];
+    var callList = document.getElementById('morning-call-list');
+    if (callList) callList.innerHTML = '<div style="text-align:center;padding:32px 24px;background:var(--surface);border:1px dashed var(--border);border-radius:8px;color:var(--text3);font-size:13px">Enter a city above and select segments. Distributors and dealers are checked by default.</div>';
+    var badge = document.getElementById('list-count-badge');
+    if (badge) badge.textContent = '—';
+    var refreshBtn = document.getElementById('lead-refresh-btn');
+    if (refreshBtn) refreshBtn.style.display = 'none';
+  };
+
+  window.restoreLeadCache = function() {
+    var ts = safeGet(TIME_KEY);
+    if (!ts || (Date.now() - parseInt(ts)) > TWO_HOURS) {
+      if (ts) { safeDel(LEAD_KEY); safeDel(LEAD_HTML); safeDel(PARAM_KEY); safeDel(TIME_KEY); }
+      return false;
+    }
+
+    var leadsRaw = safeGet(LEAD_KEY);
+    var html     = safeGet(LEAD_HTML);
+    if (!leadsRaw || !html) return false;
+
+    var leads;
+    try { leads = JSON.parse(leadsRaw); } catch(e) { return false; }
+    if (!leads || !leads.length) return false;
+
+    // Already showing — don't double-render
+    if (window._dailyLeads && window._dailyLeads.length > 0) return false;
+
+    // Restore JS state
+    window._dailyLeads    = leads;
+    window._shownPlaceIds = leads.map(function(l) { return l.place_id; }).filter(Boolean);
+    window._shownNames    = leads.map(function(l) { return (l.company||'').toLowerCase(); });
+
+    // Rebuild the route panel's available-leads list
+    if (typeof window.buildRoutePanel === 'function') window.buildRoutePanel(leads);
+
+    // Restore search form
+    try {
+      var paramsRaw = safeGet(PARAM_KEY);
+      if (paramsRaw) {
+        var p = JSON.parse(paramsRaw);
+        var cityEl = document.getElementById('lead-city-input');
+        if (cityEl && p.city && !cityEl.value) cityEl.value = p.city;
+        if (p.brands && p.brands.length) {
+          document.querySelectorAll('#lead-brand-row input[type="checkbox"]').forEach(function(cb) {
+            cb.checked = p.brands.indexOf(cb.value) !== -1;
+          });
+        }
+        if (p.segments && p.segments.length) {
+          document.querySelectorAll('#segment-pill-row input[type="checkbox"]').forEach(function(cb) {
+            cb.checked = p.segments.indexOf(cb.value) !== -1;
+          });
+        }
+      }
+    } catch(e) {}
+
+    // Re-inject the saved lead card HTML (onclick handlers use window._dailyLeads[i] which is restored)
+    var callList = document.getElementById('morning-call-list');
+    if (callList) callList.innerHTML = html;
+
+    // Update UI chrome
+    var badge = document.getElementById('list-count-badge');
+    if (badge) badge.textContent = leads.length;
+    var refreshBtn = document.getElementById('lead-refresh-btn');
+    if (refreshBtn) { refreshBtn.style.display = 'block'; refreshBtn.textContent = '↻ Refresh'; refreshBtn.disabled = false; }
+
+    // Show the restore banner
+    var banner     = document.getElementById('lead-restore-banner');
+    var bannerText = document.getElementById('lead-restore-text');
+    if (banner)     banner.style.display = 'flex';
+    if (bannerText) bannerText.textContent = '📍 ' + leads.length + ' leads from ' + minsAgoStr(ts) + ' — tap "Search Again" to refresh';
+
+    return true;
+  };
+
+  // ── Route stops cache ──────────────────────────────────────────────────────
+
+  window.saveRouteCache = function() {
+    var stops = window._routeStops || [];
+    if (!stops.length) { safeDel(ROUTE_KEY); safeDel(ROUTE_TIME); return; }
+    safeSet(ROUTE_KEY,  JSON.stringify(stops));
+    safeSet(ROUTE_TIME, Date.now().toString());
+  };
+
+  window.restoreRouteCache = function() {
+    var ts = safeGet(ROUTE_TIME);
+    if (!ts || (Date.now() - parseInt(ts)) > EIGHT_HOURS) {
+      if (ts) { safeDel(ROUTE_KEY); safeDel(ROUTE_TIME); }
+      return false;
+    }
+    if (window._routeStops && window._routeStops.length > 0) return false;
+    var raw = safeGet(ROUTE_KEY);
+    if (!raw) return false;
+    try {
+      var stops = JSON.parse(raw);
+      if (!stops || !stops.length) return false;
+      window._routeStops = stops;
+      if (typeof window._renderRoutePanel === 'function') window._renderRoutePanel();
+      return true;
+    } catch(e) { return false; }
+  };
+
+  // Patch _renderRoutePanel to auto-save whenever route changes
+  // Runs after all other load handlers have had time to define _renderRoutePanel
+  window.addEventListener('load', function() {
+    setTimeout(function() {
+      var origRender = window._renderRoutePanel;
+      if (typeof origRender === 'function') {
+        window._renderRoutePanel = function() {
+          origRender.apply(this, arguments);
+          window.saveRouteCache();
+        };
+      }
+    }, 700);
+  });
+
+  // ── Session check + expired toast ─────────────────────────────────────────
+
+  function showSessionExpiredToast() {
+    if (document.getElementById('rr-session-toast')) return;
+    var toast = document.createElement('div');
+    toast.id = 'rr-session-toast';
+    toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);' +
+      'background:#1e293b;color:#fff;padding:12px 18px;border-radius:10px;font-size:13px;' +
+      'font-weight:600;z-index:9999;display:flex;align-items:center;gap:12px;' +
+      'box-shadow:0 4px 20px rgba(0,0,0,.35);max-width:340px;width:calc(100% - 48px)';
+    toast.innerHTML =
+      '<span style="flex:1">⏱ Session expired — tap to log back in</span>' +
+      '<button onclick="window.location.href=\'/\'" style="background:#3b82f6;color:#fff;border:none;' +
+        'border-radius:6px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;' +
+        'font-family:inherit;white-space:nowrap">Log in</button>';
+    document.body.appendChild(toast);
+    setTimeout(function() { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 20000);
+  }
+
+  function checkSession(onExpired) {
+    fetch('/app/data', { credentials: 'same-origin', cache: 'no-store' })
+      .then(function(r) {
+        // Redirect to login = session expired
+        if (r.redirected || r.status === 401 || r.url.indexOf('/login') !== -1) {
+          onExpired();
+        }
+      })
+      .catch(function() {
+        // Network error — rep is offline; don't show expired message
+      });
+  }
+
+  // ── Page Visibility API ───────────────────────────────────────────────────
+  // Fires when the rep switches back to the app from their phone
+
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState !== 'visible') return;
+
+    // Check if session is still alive
+    checkSession(showSessionExpiredToast);
+
+    // If leads are gone (page was evicted by mobile OS), restore from cache
+    if (!window._dailyLeads || window._dailyLeads.length === 0) {
+      setTimeout(function() { window.restoreLeadCache(); }, 150);
+    }
+
+    // If route was cleared, restore it
+    if (!window._routeStops || window._routeStops.length === 0) {
+      setTimeout(function() { window.restoreRouteCache(); }, 150);
+    }
+  });
+
+  // ── Initial restore on page load ──────────────────────────────────────────
+  // Wait for the main load handlers (which set up widgets, user data, etc.)
+
+  window.addEventListener('load', function() {
+    setTimeout(function() {
+      window.restoreLeadCache();
+      window.restoreRouteCache();
+    }, 900);
+  });
+
+})();
 </script>
 </body>
 </html>

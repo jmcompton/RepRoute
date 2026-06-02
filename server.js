@@ -33,7 +33,8 @@ app.use(session({
   store: new pgSession({ pool, tableName: 'sessions' }),
   secret: process.env.SESSION_SECRET || 'reproute-secret-2025',
   resave: false, saveUninitialized: false,
-  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }
+  rolling: true,  // reset expiry on every response — session stays alive as long as rep is active
+  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }  // 7 days; resets on every request with rolling:true
 }));
 
 app.use((req, res, next) => { res.locals.user = req.session.user || null; next(); });
