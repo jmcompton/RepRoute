@@ -1355,8 +1355,12 @@ function v4Classify(rec, mfrName) {
   // ── Generic building material distributors (fallback) ────────────────────
   const GEN_DIST_KW = [
     'building supply','builders supply','building center','building products',
-    'material supply','supply house','construction supply','supply co',
-    'wholesale supply','pro dealer',
+    'building materials',
+    'material supply','materials supply','supply house','construction supply',
+    'supply co','supply company','supply inc','supply llc','supply corp',
+    'wholesale supply','wholesale building','wholesale materials','pro dealer',
+    'lumber supply','lumber dealer','lumber co','lumber company','lumber inc',
+    'lumber llc','lumber yard',
   ];
 
   // Test distributor categories
@@ -1376,6 +1380,13 @@ function v4Classify(rec, mfrName) {
   if (GEN_DIST_KW.some(k => combined.includes(k))) {
     // Only accept if it's not a broad generic like "construction company" / "supply chain mgmt"
     if (/construction\s+management|supply\s+chain|logistics/i.test(n)) return null;
+    return { layer: 2, type: 'Distributor', sub: 'Building Materials Distributor', mfr: mfrName || '' };
+  }
+
+  // ── Company name structure safety net: catches names not matched above ────
+  // e.g. "Southeast Lumber Co", "Atlanta Building Products Inc", "XYZ Supply Corp"
+  // Only fires if the name has a distributor structural signal AND no contractor signal
+  if (hasAny(n, DISTRIBUTOR_STRONG) && !hasAny(n, CONTRACTOR_STRONG)) {
     return { layer: 2, type: 'Distributor', sub: 'Building Materials Distributor', mfr: mfrName || '' };
   }
 
@@ -1524,43 +1535,48 @@ function v4BuildQueries(category, mfrs, stateCode, customQuery) {
 
   // ── DECKING ───────────────────────────────────────────────────────────────
   if (category === 'decking' || category === 'all') {
-    // Distributor signals — manufacturer-authorized + specialty lumber
-    mfrs.decking.slice(0, 5).forEach(mfr => {
-      cities.slice(0, 2).forEach(city => {
-        queries.push(`${mfr.name} authorized dealer ${city} ${stateCode}`);
-        queries.push(`${mfr.name} pro dealer ${city} ${stateCode}`);
-      });
-    });
-    // Contractor signals — deck builders (no outdoor living)
+    // Contractor queries FIRST — deck builders, installers, companies (no outdoor living)
     [
       'deck builder','deck contractor','decking contractor',
-      'composite deck installer','trex installer','timbertech installer',
-      'deck company','deck and porch contractor','screened porch builder',
-      'specialty lumber dealer decking','composite decking dealer',
-      'decking distributor',
+      'composite deck installer','deck installation company',
+      'trex installer','timbertech installer','azek installer','fiberon installer',
+      'deck construction','custom deck builder',
+      'deck and porch contractor','screened porch builder',
     ].forEach(kw => {
-      cities.slice(0, 3).forEach(city => queries.push(`${kw} ${city} ${stateCode}`));
+      cities.slice(0, 5).forEach(city => queries.push(`${kw} ${city} ${stateCode}`));
+    });
+    // Manufacturer installer/contractor terms — these target certified installers, not dealers
+    mfrs.decking.slice(0, 4).forEach(mfr => {
+      cities.slice(0, 2).forEach(city => {
+        queries.push(`${mfr.name} installer ${city} ${stateCode}`);
+        queries.push(`${mfr.name} certified contractor ${city} ${stateCode}`);
+      });
     });
   }
 
   // ── ROOFING ───────────────────────────────────────────────────────────────
   if (category === 'roofing' || category === 'all') {
-    // Distributor signals
-    mfrs.roofing.slice(0, 4).forEach(mfr => {
-      cities.slice(0, 2).forEach(city => {
-        queries.push(`${mfr.name} roofing supply dealer ${city} ${stateCode}`);
-        queries.push(`${mfr.name} certified contractor ${city} ${stateCode}`);
-      });
-    });
-    // Contractor signals — commercial focus, NO restoration / industrial
+    // Contractor queries FIRST — commercial roofers (NO restoration / industrial)
     [
       'commercial roofing contractor','low slope roofing contractor',
       'flat roofing contractor','metal roofing contractor',
       'tpo roofing contractor','epdm roofing contractor',
-      'GAF certified roofing contractor','roofing supply house',
-      'commercial roofing supply','roofing distributor',
+      'roofing contractor','roofing company','commercial roofer',
     ].forEach(kw => {
-      cities.slice(0, 4).forEach(city => queries.push(`${kw} ${city} ${stateCode}`));
+      cities.slice(0, 5).forEach(city => queries.push(`${kw} ${city} ${stateCode}`));
+    });
+    // Manufacturer certified contractor terms (target contractors, not supply dealers)
+    mfrs.roofing.slice(0, 4).forEach(mfr => {
+      cities.slice(0, 2).forEach(city => {
+        queries.push(`${mfr.name} certified contractor ${city} ${stateCode}`);
+        queries.push(`${mfr.name} authorized contractor ${city} ${stateCode}`);
+      });
+    });
+    // Roofing supply/distributor queries — secondary, runs after contractors
+    [
+      'roofing supply house','commercial roofing supply','roofing distributor',
+    ].forEach(kw => {
+      cities.slice(0, 3).forEach(city => queries.push(`${kw} ${city} ${stateCode}`));
     });
   }
 
@@ -1589,12 +1605,13 @@ function v4BuildQueries(category, mfrs, stateCode, customQuery) {
     });
   }
 
-  // ── CROSS-CATEGORY: building supply (no outdoor living) ──────────────────
-  cities.slice(0, 4).forEach(city => {
-    queries.push(`roofing supply house ${city} ${stateCode}`);
-    queries.push(`specialty building supply ${city} ${stateCode}`);
-    queries.push(`specialty lumber dealer ${city} ${stateCode}`);
-  });
+  // ── CROSS-CATEGORY: building supply — only when searching all categories ──
+  if (category === 'all') {
+    cities.slice(0, 3).forEach(city => {
+      queries.push(`roofing supply house ${city} ${stateCode}`);
+      queries.push(`specialty building supply ${city} ${stateCode}`);
+    });
+  }
 
   return queries.slice(0, 40);
 }
