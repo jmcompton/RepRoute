@@ -911,7 +911,7 @@ window.addEventListener('load', function() {
   </button>
   <button class="bn-item" id="bn-contacts" onclick="go('contacts');setActiveNav('bn-contacts')">
     <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-    <span>Contacts</span>
+    <span>Accounts</span>
   </button>
   <button class="bn-item" id="bn-calls" onclick="go('calls');setActiveNav('bn-calls')">
     <svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.58 3.38 2 2 0 0 1 3.55 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.5a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
@@ -931,13 +931,13 @@ window.addEventListener('load', function() {
     <div class="sb-logo"><svg viewBox="0 0 17 17" fill="none"><circle cx="8.5" cy="8.5" r="3" fill="white"/><path d="M8.5 1v3M8.5 13v3M1 8.5h3M13 8.5h3" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg></div>
     <div><div class="sb-name">RepRoute</div><div class="sb-sub">Compton Group LLC</div></div>
   </div>
-  <div class="sb-search-wrap"><div class="sb-search"><svg viewBox="0 0 16 16" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" style="width:13px;height:13px;flex-shrink:0;opacity:.3"><circle cx="7" cy="7" r="4"/><path d="M10.5 10.5l2.5 2.5"/></svg><input id="sb-search-input" placeholder="Search contacts..." oninput="globalSearch(this.value)" onkeydown="if(event.key==='Escape')this.value=''" /></div></div>
+  <div class="sb-search-wrap"><div class="sb-search"><svg viewBox="0 0 16 16" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" style="width:13px;height:13px;flex-shrink:0;opacity:.3"><circle cx="7" cy="7" r="4"/><path d="M10.5 10.5l2.5 2.5"/></svg><input id="sb-search-input" placeholder="Search accounts..." oninput="globalSearch(this.value)" onkeydown="if(event.key==='Escape')this.value=''" /></div></div>
   <div class="sb-section">
     <button class="sb-item active" onclick="go('dashboard')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 6l6-4 6 4v8H2V6z"/><path d="M6 14v-4h4v4"/></svg>Home</button>
   </div>
   <div class="sb-section">
     <div class="sb-sec-label">Sales</div>
-    <button class="sb-item" onclick="go('contacts')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg>Contacts</button>
+    <button class="sb-item" onclick="go('contacts')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg>Accounts</button>
 
     <button class="sb-item" onclick="go('deals')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 4h12M2 8h9M2 12h6"/></svg>Deal Pipeline</button>
     <button class="sb-item" onclick="go('quotes')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><path d="M3 2h10a1 1 0 011 1v11a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1zM5 7h6M5 9.5h4"/></svg>Quotes</button>
@@ -985,13 +985,13 @@ window.addEventListener('load', function() {
         <div id="notif-list" style="max-height:420px;overflow-y:auto"></div>
       </div>
     </div>
-    <button class="btn btn-secondary btn-sm" onclick="openModal('add-prospect')">+ New Contact</button>
+    <button class="btn btn-secondary btn-sm" onclick="openModal('add-prospect')">+ New Account</button>
     <button class="btn btn-primary btn-sm" onclick="go('leads')">AI Find Leads</button>
     <span style="font-size:11px;color:var(--text3);background:var(--bg);border:1px solid var(--border);padding:4px 10px;border-radius:12px">📍 Atlanta Metro</span>
   </div>
 
   <div class="mod-tabs" id="mod-tabs" style="display:none">
-    <div class="mod-tab active" onclick="setModTab('All',this)">All Contacts</div>
+    <div class="mod-tab active" onclick="setModTab('All',this)">All Accounts</div>
     <div class="mod-tab" onclick="setModTab('Deck Contractor',this)">Deck</div>
     <div class="mod-tab" onclick="setModTab('Window & Door Installer',this)">Window/Door</div>
     <div class="mod-tab" onclick="setModTab('Commercial Roofing Contractor',this)">Roofing</div>
@@ -1217,15 +1217,15 @@ window.addEventListener('load', function() {
   <div class="page" id="page-contacts">
     <!-- Tab switcher — outside list-bar to avoid mobile CSS override -->
     <div style="display:flex;align-items:center;gap:0;padding:10px 16px 0;border-bottom:1px solid var(--border);background:var(--surface)">
-      <button id="tab-my-contacts" onclick="switchContactTab('mine')" style="padding:8px 20px;border:none;border-bottom:2px solid var(--accent);background:transparent;color:var(--navy);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">My Contacts</button>
-      <button id="tab-team-contacts" onclick="switchContactTab('team')" style="padding:8px 20px;border:none;border-bottom:2px solid transparent;background:transparent;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Team Contacts</button>
+      <button id="tab-my-contacts" onclick="switchContactTab('mine')" style="padding:8px 20px;border:none;border-bottom:2px solid var(--accent);background:transparent;color:var(--navy);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">My Accounts</button>
+      <button id="tab-team-contacts" onclick="switchContactTab('team')" style="padding:8px 20px;border:none;border-bottom:2px solid transparent;background:transparent;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Team Accounts</button>
       <div id="crm-stats-bar" style="display:flex;gap:12px;align-items:center;margin-left:auto;padding-right:16px;font-size:11px">
         <!-- populated by loadCrmStats() -->
       </div>
     </div>
     <div class="list-bar" style="flex-wrap:wrap;gap:6px">
       <span class="list-count" id="list-count">0 records</span>
-      <div class="sb-in"><span style="font-size:12px;color:var(--text3)">&#128269;</span><input id="p-search" placeholder="Search contacts..." oninput="handleContactSearch()" /></div>
+      <div class="sb-in"><span style="font-size:12px;color:var(--text3)">&#128269;</span><input id="p-search" placeholder="Search accounts..." oninput="handleContactSearch()" onkeydown="if(event.key==='Enter'){event.preventDefault();handleContactSearch();}" /></div>
       <select id="filter-company-type" onchange="handleContactSearch()" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:#fff;color:var(--navy)">
         <option value="All">All Types</option>
         <option value="Distributor">Distributor</option>
@@ -1267,7 +1267,7 @@ window.addEventListener('load', function() {
       </table>
       <div class="empty-state" id="p-empty" style="display:none">
         <div class="empty-icon">👤</div>
-        <div class="empty-msg">No contacts yet.</div>
+        <div class="empty-msg">No accounts yet.</div>
         <div style="margin-top:12px;display:flex;gap:8px;justify-content:center">
           <button class="btn btn-primary btn-sm" onclick="go('leads')">Find leads with AI</button>
           <button class="btn btn-secondary btn-sm" onclick="openModal('add-prospect')">Add manually</button>
@@ -1335,9 +1335,9 @@ window.addEventListener('load', function() {
       </table>
       <div class="empty-state" id="team-p-empty" style="display:none">
         <div class="empty-icon">👥</div>
-        <div class="empty-msg">No team contacts found.</div>
+        <div class="empty-msg">No team accounts found.</div>
       </div>
-      <div id="team-loading" style="display:none;text-align:center;padding:40px;color:var(--text3);font-size:13px">Loading team contacts...</div>
+      <div id="team-loading" style="display:none;text-align:center;padding:40px;color:var(--text3);font-size:13px">Loading team accounts...</div>
     </div>
   </div>
 
@@ -1350,6 +1350,7 @@ window.addEventListener('load', function() {
         <div class="rl-item" onclick="setRecTab('overview',this)">Connected Records</div>
         <div class="rl-item" onclick="setRecTab('overview',this)">Attachments</div>
         <div class="rl-item" onclick="setRecTab('deals',this)">Deals</div>
+        <div class="rl-item" onclick="setRecTab('quotes',this)">Quotes <span class="rl-cnt" id="rec-quote-count">0</span></div>
         <div class="rl-item" onclick="setRecTab('calls',this)">Open Activities <span class="rl-cnt" id="rec-call-count">0</span></div>
         <div class="rl-item" onclick="setRecTab('calls',this)">Closed Activities</div>
         <div class="rl-item" onclick="setRecTab('outreach',this)">Emails</div>
@@ -1418,6 +1419,7 @@ window.addEventListener('load', function() {
           <div id="rec-tab-outreach" style="display:none"><div id="rec-outreach-body"></div></div>
 <div id="rec-tab-notes" style="display:none"><div style="padding:16px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-size:12px;font-weight:700;color:var(--navy)">Notes</div><button onclick="saveNote()" style="padding:6px 14px;background:var(--blue);color:#fff;border:none;border-radius:40px;font-size:11px;font-weight:700;cursor:pointer">+ Add Note</button></div><textarea id="note-input" placeholder="Write a note..." style="width:100%;height:80px;padding:10px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:12px;font-family:inherit;resize:vertical;margin-bottom:12px;box-sizing:border-box"></textarea><div id="notes-list"></div></div></div>
 <div id="rec-tab-deals" style="display:none"><div style="padding:16px"><div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:12px">Deals</div><div id="rec-deals-list"><div style="font-size:12px;color:var(--text3);text-align:center;padding:20px">No deals linked yet</div></div></div></div>
+<div id="rec-tab-quotes" style="display:none"><div style="padding:16px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="font-size:12px;font-weight:700;color:var(--navy)">Quotes</div><div style="font-size:11px;color:var(--text3)" id="rec-quotes-summary"></div></div><div id="rec-quotes-list"><div style="font-size:12px;color:var(--text3);text-align:center;padding:20px">Loading quotes...</div></div></div></div>
           <div id="rec-tab-ai" style="display:none">
             <div class="ai-panel">
               <div class="ai-phdr"><span class="ai-badge">AI</span><span class="ai-ptitle">Contact Intelligence</span></div>
@@ -1849,6 +1851,24 @@ window.addEventListener('load', function() {
         <label style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap">Account</label>
         <input id="quote-acct-filter" placeholder="Filter by account..." oninput="setQuoteAccount(this.value)" style="padding:5px 10px;font-size:12px;border:1px solid var(--border);border-radius:5px;background:var(--white);color:var(--text);font-family:inherit;width:160px">
       </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <label style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap">Date Range</label>
+        <select id="quote-date-filter" onchange="setQuoteDateFilter(this.value)" style="padding:5px 10px;font-size:12px;border:1px solid var(--border);border-radius:5px;background:var(--white);color:var(--text);font-family:inherit">
+          <option value="all">All Time</option>
+          <option value="this_month">This Month</option>
+          <option value="last_month">Last Month</option>
+          <option value="last_30">Last 30 Days</option>
+          <option value="last_90">Last 90 Days</option>
+          <option value="last_6m">Last 6 Months</option>
+          <option value="last_year">Last Year</option>
+          <option value="custom">Custom Range</option>
+        </select>
+      </div>
+      <div id="quote-date-custom-range" style="display:none;align-items:center;gap:6px">
+        <input type="date" id="quote-date-from" onchange="setQuoteDateCustom()" style="padding:4px 8px;font-size:12px;border:1px solid var(--border);border-radius:5px;background:var(--white);font-family:inherit">
+        <span style="font-size:11px;color:var(--text3)">to</span>
+        <input type="date" id="quote-date-to" onchange="setQuoteDateCustom()" style="padding:4px 8px;font-size:12px;border:1px solid var(--border);border-radius:5px;background:var(--white);font-family:inherit">
+      </div>
       <button onclick="resetQuoteFilters()" style="padding:5px 12px;font-size:11px;font-weight:600;background:transparent;border:1px solid var(--border);border-radius:5px;cursor:pointer;color:var(--text3);font-family:inherit">Reset Filters</button>
       <button onclick="toggleQuoteAnalytics()" style="padding:5px 12px;font-size:11px;font-weight:600;background:var(--navy);color:#fff;border:none;border-radius:5px;cursor:pointer;font-family:inherit;margin-left:auto">Analytics</button>
     </div>
@@ -1981,7 +2001,7 @@ window.addEventListener('load', function() {
     <div style="position:relative;flex-shrink:0">
       <button id="qd-cont-btn" onclick="toggleContactDropdown()" title="Pick a contact"
         style="display:none;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:13px;color:var(--navy);white-space:nowrap">
-        &#9662; Contacts
+        &#9662; Accounts
       </button>
       <div id="qd-cont-dropdown"
         style="display:none;position:absolute;right:0;top:calc(100% + 4px);z-index:2000;
@@ -2700,7 +2720,7 @@ var currentContactType = 'installers';
 var pageTitles = {
     reports: 'Reports', analytics: 'Analytics', accounts: 'Accounts',
     forecasts: 'Forecasts', campaigns: 'Campaigns', tasks: 'Tasks',
-  dashboard: 'Home', contacts: 'Contacts', record: 'Contact Detail',
+  dashboard: 'Home', contacts: 'Accounts', record: 'Account Detail',
    bulk: 'Bulk Ingestion Mode', calls: 'Calls', weekly: 'Weekly Plan',
   command: 'AI Command Center', outreach: 'Outreach Writer',
   onboarding: 'Onboarding', manager: 'Team Dashboard', deals: 'Deal Pipeline', quotes: 'Quotes',
@@ -3342,12 +3362,66 @@ function viewRecord(id) {
                 '</div></div>';
             }).join('') : '<div style="text-align:center;padding:24px;color:var(--text3)">No activities logged yet.</div>';
         });
+      // Load quotes for this account
+      fetch('/api/quotes')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          var quotes = data.quotes || [];
+          var acctName = (p.company || '').toLowerCase().trim();
+          var acctQuotes = quotes.filter(function(q) {
+            return (q.account_name || '').toLowerCase().trim() === acctName;
+          });
+          var countEl = document.getElementById('rec-quote-count');
+          if (countEl) countEl.textContent = acctQuotes.length;
+          var totalVal = acctQuotes.reduce(function(s,q){ return s + (parseFloat(q.amount)||0); }, 0);
+          var summaryEl = document.getElementById('rec-quotes-summary');
+          if (summaryEl) summaryEl.textContent = acctQuotes.length + ' quote' + (acctQuotes.length !== 1 ? 's' : '') + ' · $' + totalVal.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+          var listEl = document.getElementById('rec-quotes-list');
+          if (!listEl) return;
+          if (!acctQuotes.length) {
+            listEl.innerHTML = '<div style="text-align:center;padding:20px;font-size:12px;color:var(--text3)">No quotes yet for this account.</div>';
+            return;
+          }
+          var sc = {'Draft':{bg:'#f1f5f9',col:'#475569'},'Sent':{bg:'#e8f0fe',col:'#1558b0'},'Follow-Up':{bg:'#fef3c7',col:'#b45309'},'Won':{bg:'#e6f4ec',col:'#1a7f4b'},'Lost':{bg:'#fdecea',col:'#c0392b'}};
+          var fmtD = function(d){ return d ? new Date(d.split('T')[0]+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'}) : '—'; };
+          var fmtA = function(a){ return a ? '$'+parseFloat(a).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—'; };
+          // Sort by date desc
+          acctQuotes.sort(function(a,b){ return (b.quote_date||'') > (a.quote_date||'') ? 1 : -1; });
+          listEl.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:12px">' +
+            '<thead><tr style="border-bottom:2px solid var(--border)">' +
+            '<th style="padding:6px 8px;text-align:left;font-weight:600;color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:.04em">Quote #</th>' +
+            '<th style="padding:6px 8px;text-align:left;font-weight:600;color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:.04em">Amount</th>' +
+            '<th style="padding:6px 8px;text-align:left;font-weight:600;color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:.04em">Status</th>' +
+            '<th style="padding:6px 8px;text-align:left;font-weight:600;color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:.04em">Date</th>' +
+            '<th style="padding:6px 8px;text-align:left;font-weight:600;color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:.04em">Rep</th>' +
+            '<th style="padding:6px 8px;text-align:left;font-weight:600;color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:.04em">Contact</th>' +
+            '</tr></thead><tbody>' +
+            acctQuotes.map(function(q) {
+              var s = sc[q.status] || sc['Draft'];
+              var qnum = q.quote_number || ('QT-'+String(q.id).padStart(3,'0'));
+              return '<tr onclick="go(\'quotes\');setTimeout(function(){openQuoteDetail('+q.id+')},400)" style="cursor:pointer;border-bottom:1px solid var(--border)" onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'\'">' +
+                '<td style="padding:8px;font-weight:600;color:var(--blue)">' + qnum + '</td>' +
+                '<td style="padding:8px;font-weight:600;color:var(--navy)">' + fmtA(q.amount) + '</td>' +
+                '<td style="padding:8px"><span style="background:'+s.bg+';color:'+s.col+';padding:2px 8px;border-radius:10px;font-weight:600;font-size:10px">' + (q.status||'Draft') + '</span></td>' +
+                '<td style="padding:8px;color:var(--text2)">' + fmtD(q.quote_date) + '</td>' +
+                '<td style="padding:8px;color:var(--text2)">' + (q.rep_name||'—') + '</td>' +
+                '<td style="padding:8px;color:var(--text2)">' + (q.contact_name||'—') + '</td>' +
+                '</tr>';
+            }).join('') +
+            '</tbody></table>' +
+            '<div style="margin-top:10px;padding:8px 10px;background:var(--bg);border-radius:6px;font-size:12px;font-weight:600;color:var(--navy);display:flex;gap:12px">' +
+            '<span>' + acctQuotes.length + ' quote' + (acctQuotes.length !== 1 ? 's' : '') + '</span>' +
+            '<span style="color:var(--text3)">|</span>' +
+            '<span>Total: $' + totalVal.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) + '</span>' +
+            '</div>';
+        })
+        .catch(function(){}); // silent
       setRecTab('overview', null);
     });
 }
 
 function setRecTab(tab, el) {
-  ['overview','calls','outreach','ai','notes','deals'].forEach(function(t) {
+  ['overview','calls','outreach','ai','notes','deals','quotes'].forEach(function(t) {
     var e = document.getElementById('rec-tab-' + t);
     if (e) e.style.display = t === tab ? 'block' : 'none';
   });
@@ -5611,6 +5685,9 @@ var currentQuoteId = null;
 var quoteSearchTerm = '';
 var quoteManufacturerFilter = 'all';
 var quoteAccountFilter = '';
+var quoteDateFilter = (function(){ try { return localStorage.getItem('quoteDateFilter') || 'all'; } catch(e){ return 'all'; } })();
+var quoteDateFrom = (function(){ try { return localStorage.getItem('quoteDateFrom') || null; } catch(e){ return null; } })();
+var quoteDateTo = (function(){ try { return localStorage.getItem('quoteDateTo') || null; } catch(e){ return null; } })();
 var quotePdfData = null;
 var quotePdfName = null;
 var quoteSortField = null;
@@ -5670,14 +5747,53 @@ function renderQuotesTable(quotes) {
     }
     if (quoteSearchTerm) {
       var s = quoteSearchTerm.toLowerCase();
-      return (q.account_name||'').toLowerCase().includes(s) ||
+      var matchSearch = (q.account_name||'').toLowerCase().includes(s) ||
              (q.contact_name||'').toLowerCase().includes(s) ||
              (q.products||'').toLowerCase().includes(s) ||
              (q.quote_number||'').toLowerCase().includes(s) ||
              (q.rep_name||'').toLowerCase().includes(s);
+      if (!matchSearch) return false;
     }
     return true;
   });
+
+  // Date range filter
+  if (quoteDateFilter && quoteDateFilter !== 'all') {
+    var now = new Date();
+    var dateFrom = null, dateTo = null;
+    if (quoteDateFilter === 'this_month') {
+      dateFrom = new Date(now.getFullYear(), now.getMonth(), 1);
+      dateTo = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    } else if (quoteDateFilter === 'last_month') {
+      dateFrom = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      dateTo = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+    } else if (quoteDateFilter === 'last_30') {
+      dateFrom = new Date(now - 30 * 86400000);
+      dateTo = now;
+    } else if (quoteDateFilter === 'last_90') {
+      dateFrom = new Date(now - 90 * 86400000);
+      dateTo = now;
+    } else if (quoteDateFilter === 'last_6m') {
+      dateFrom = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+      dateTo = now;
+    } else if (quoteDateFilter === 'last_year') {
+      dateFrom = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+      dateTo = now;
+    } else if (quoteDateFilter === 'custom') {
+      dateFrom = quoteDateFrom ? new Date(quoteDateFrom + 'T00:00:00') : null;
+      dateTo = quoteDateTo ? new Date(quoteDateTo + 'T23:59:59') : null;
+    }
+    filtered = filtered.filter(function(q) {
+      if (!q.quote_date) return false;
+      var qd = new Date(q.quote_date.split('T')[0] + 'T12:00:00');
+      if (dateFrom && qd < dateFrom) return false;
+      if (dateTo && qd > dateTo) return false;
+      return true;
+    });
+  }
+
+  // Update stats to reflect filtered set
+  renderQuotesStats(filtered);
 
   // Sort
   if (quoteSortField) {
@@ -5778,17 +5894,67 @@ function resetQuoteFilters() {
   quoteManufacturerFilter = 'all';
   quoteAccountFilter = '';
   quoteSearchTerm = '';
+  quoteDateFilter = 'all';
+  quoteDateFrom = null;
+  quoteDateTo = null;
   var search = document.getElementById('quote-search');
   if (search) search.value = '';
   var mfr = document.getElementById('quote-mfr-filter');
   if (mfr) mfr.value = 'all';
   var acct = document.getElementById('quote-acct-filter');
   if (acct) acct.value = '';
+  var dateF = document.getElementById('quote-date-filter');
+  if (dateF) dateF.value = 'all';
+  var custRange = document.getElementById('quote-date-custom-range');
+  if (custRange) custRange.style.display = 'none';
+  var dateFrom = document.getElementById('quote-date-from');
+  if (dateFrom) dateFrom.value = '';
+  var dateTo = document.getElementById('quote-date-to');
+  if (dateTo) dateTo.value = '';
+  try { localStorage.removeItem('quoteDateFilter'); localStorage.removeItem('quoteDateFrom'); localStorage.removeItem('quoteDateTo'); } catch(e){}
   document.querySelectorAll('#quote-status-tabs .mod-tab').forEach(function(t) { t.classList.remove('active'); });
   var allTab = document.querySelector('#quote-status-tabs .mod-tab');
   if (allTab) allTab.classList.add('active');
   renderQuotesTable(allQuotes);
 }
+
+function setQuoteDateFilter(val) {
+  quoteDateFilter = val;
+  try { localStorage.setItem('quoteDateFilter', val); } catch(e){}
+  var custRange = document.getElementById('quote-date-custom-range');
+  if (custRange) custRange.style.display = val === 'custom' ? 'flex' : 'none';
+  renderQuotesTable(allQuotes);
+}
+
+function setQuoteDateCustom() {
+  var fromEl = document.getElementById('quote-date-from');
+  var toEl = document.getElementById('quote-date-to');
+  quoteDateFrom = fromEl ? (fromEl.value || null) : null;
+  quoteDateTo = toEl ? (toEl.value || null) : null;
+  try {
+    if (quoteDateFrom) localStorage.setItem('quoteDateFrom', quoteDateFrom); else localStorage.removeItem('quoteDateFrom');
+    if (quoteDateTo) localStorage.setItem('quoteDateTo', quoteDateTo); else localStorage.removeItem('quoteDateTo');
+  } catch(e){}
+  renderQuotesTable(allQuotes);
+}
+
+// Restore date filter UI from localStorage on page load
+(function restoreDateFilterUI() {
+  window.addEventListener('load', function() {
+    var dateF = document.getElementById('quote-date-filter');
+    if (dateF && quoteDateFilter) {
+      dateF.value = quoteDateFilter;
+      if (quoteDateFilter === 'custom') {
+        var custRange = document.getElementById('quote-date-custom-range');
+        if (custRange) custRange.style.display = 'flex';
+        var fromEl = document.getElementById('quote-date-from');
+        var toEl = document.getElementById('quote-date-to');
+        if (fromEl && quoteDateFrom) fromEl.value = quoteDateFrom;
+        if (toEl && quoteDateTo) toEl.value = quoteDateTo;
+      }
+    }
+  });
+})();
 
 function toggleQuoteAnalytics() {
   var panel = document.getElementById('quote-analytics-panel');
@@ -5875,7 +6041,7 @@ function openNewQuoteModal() {
   var repInp = document.getElementById('qd-rep-input');
   if (repInp) { repInp.value = ''; repInp.style.display = 'none'; }
   // qSetRepValue must run AFTER the reset above — the reset otherwise clears it
-  var defaultRep = (window.__userData && window.__userData.name) ? window.__userData.name : '';
+  var defaultRep = (window.__userData && window.__userData.name) ? getDefaultRepForUser(window.__userData.name) : '';
   if (defaultRep) qSetRepValue(defaultRep);
   document.getElementById('qd-status').value = 'Draft';
   document.getElementById('qd-date').value = new Date().toISOString().split('T')[0];
@@ -8399,6 +8565,20 @@ window.qclRepSelectChange = function(val) {
     document.getElementById('qd-rep').textContent = val || '—';
   }
 };
+
+// Map logged-in user name → default rep name for new quotes
+function getDefaultRepForUser(userName) {
+  if (!userName) return '';
+  var n = userName.toLowerCase().trim();
+  // Sean Conroy → Ray Breedlove
+  if (n.includes('sean') && n.includes('conroy')) return 'Ray Breedlove';
+  // JohnMark Compton (various forms) → Ray Breedlove
+  if ((n.includes('john') && n.includes('compton')) ||
+      (n.includes('johnmark') && n.includes('compton')) ||
+      (n.includes('jm') && n.includes('compton'))) return 'Ray Breedlove';
+  // All other users → their own name
+  return userName;
+}
 
 // Helper: set rep field (select + hidden input) from a name string
 function qSetRepValue(name) {

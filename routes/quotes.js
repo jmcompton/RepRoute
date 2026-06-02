@@ -272,24 +272,6 @@ router.post('/', async (req, res) => {
         }
       }
 
-      // Check 2: same account + amount + quote_date
-      if (account_name && amount && quote_date) {
-        const dupMatch = await pool.query(
-          `SELECT id FROM quotes
-           WHERE LOWER(TRIM(account_name)) = LOWER($1)
-             AND amount = $2
-             AND quote_date::date = $3::date
-           LIMIT 1`,
-          [account_name.trim(), parseFloat(amount) || 0, quote_date]
-        );
-        if (dupMatch.rows.length > 0) {
-          return res.status(409).json({
-            error: 'duplicate',
-            message: 'A quote for "' + account_name.trim() + '" with this amount and date already exists.',
-            existing_id: dupMatch.rows[0].id
-          });
-        }
-      }
     }
 
     const result = await pool.query(
