@@ -413,7 +413,9 @@ router.post('/daily-leads', async (req, res) => {
               'places.businessStatus',
               'places.location',
               'places.primaryTypeDisplayName',
-              'places.types'
+              'places.types',
+              'places.photos',
+              'places.regularOpeningHours'
             ].join(',')
           },
           body: JSON.stringify(searchBody)
@@ -530,7 +532,10 @@ router.post('/daily-leads', async (req, res) => {
             reviews: place.userRatingCount || 0,
             primary_type: primaryType,
             matched_query: config.query,
-            homeBased: homeBasedBadge
+            homeBased: homeBasedBadge,
+            business_status: place.businessStatus || 'OPERATIONAL',
+            photo_count: (place.photos || []).length,
+            has_hours: !!(place.regularOpeningHours)
           });
         }
       } catch(e) {
@@ -596,6 +601,93 @@ router.post('/log-call', async (req, res) => {
   } catch(e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// ─── VERIFY LEAD ─────────────────────────────────────────────────────────────
+// Called before "Add to Route" — returns CRM cross-reference + Street View info
+router.post('/verify-lead', async (req, res) => {
+  const uid = req.session.user.id;
+  const { company, address, phone } = req.body;
+
+  const result = { crm: null, street_view: null };
+
+  // ── Check C: CRM cross-reference ──────────────────────────────────────────
+  try {
+    // Normalise phone to digits only for matching
+    const phoneDigits = (phone || '').replace(/\D/g, '');
+
+    // Match by company name (case-insensitive), phone digits, or address (case-insensitive)
+    const crmQuery = `
+      SELECT
+        p.id,
+        p.company,
+        p.address,
+        p.phone,
+        p.notes,
+        p.last_activity_at,
+        u.name  AS rep_name,
+        (SELECT c.call_date FROM calls c WHERE c.prospect_id = p.id ORDER BY c.call_date DESC LIMIT 1) AS last_call_date,
+        (SELECT c.notes    FROM calls c WHERE c.prospect_id = p.id ORDER BY c.call_date DESC LIMIT 1) AS last_call_note
+      FROM prospects p
+      LEFT JOIN users u ON u.id = p.user_id
+      WHERE
+        ($1::text <> '' AND LOWER(p.company) = LOWER($1))
+        OR ($2::text <> '' AND REGEXP_REPLACE(p.phone,'[^0-9]','','g') = $2)
+        OR ($3::text <> '' AND LOWER(p.address) = LOWER($3))
+      LIMIT 1
+    `;
+    const crmRes = await pool.query(crmQuery, [
+      company || '',
+      phoneDigits,
+      address || ''
+    ]);
+    if (crmRes.rows.length > 0) {
+      const row = crmRes.rows[0];
+      const activityDate = row.last_call_date || row.last_activity_at;
+      let daysAgo = null;
+      if (activityDate) {
+        const diff = Date.now() - new Date(activityDate).getTime();
+        daysAgo = Math.round(diff / (1000 * 60 * 60 * 24));
+      }
+      result.crm = {
+        found: true,
+        rep_name: row.rep_name || null,
+        days_ago: daysAgo,
+        last_note: row.last_call_note || row.notes || null
+      };
+    }
+  } catch(e) {
+    console.error('[verify-lead] CRM check failed:', e.message);
+    // skip silently
+  }
+
+  // ── Check D: Street View metadata ────────────────────────────────────────
+  try {
+    if (address && PLACES_KEY) {
+      const svUrl = `https://maps.googleapis.com/maps/api/streetview/metadata?location=${encodeURIComponent(address)}&key=${PLACES_KEY}`;
+      const controller = new AbortController();
+      const svTimeout = setTimeout(() => controller.abort(), 2500);
+      try {
+        const svRes = await fetch(svUrl, { signal: controller.signal });
+        clearTimeout(svTimeout);
+        const svData = await svRes.json();
+        result.street_view = {
+          status: svData.status || 'UNKNOWN',
+          image_url: svData.status === 'OK'
+            ? `https://maps.googleapis.com/maps/api/streetview?size=400x300&location=${encodeURIComponent(address)}&key=${PLACES_KEY}`
+            : null
+        };
+      } catch(e2) {
+        clearTimeout(svTimeout);
+        // timeout or fetch error — skip silently
+      }
+    }
+  } catch(e) {
+    console.error('[verify-lead] Street View check failed:', e.message);
+    // skip silently
+  }
+
+  res.json(result);
 });
 
 module.exports = router;

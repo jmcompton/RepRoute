@@ -3872,8 +3872,26 @@ async function bv4Run() {
     if (recList) {
       if (!d.records || d.records.length === 0) {
         recList.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text3);font-size:13px">' + (d.message || 'No records imported.') + '</div>';
+        window._bulkImportLeads = [];
       } else {
-        recList.innerHTML = d.records.map(function(rec) {
+        // Store records for route verification
+        window._bulkImportLeads = d.records.map(function(rec) {
+          return {
+            company:         rec.company || '',
+            address:         rec.address || '',
+            phone:           rec.phone   || '',
+            website:         rec.website || '',
+            category:        rec.sub_category || rec.category || '',
+            channel:         rec.type || '',
+            homeBased:       false,
+            business_status: 'OPERATIONAL',
+            photo_count:     0,
+            has_hours:       false,
+            reviews:         0,
+            rating:          null
+          };
+        });
+        recList.innerHTML = d.records.map(function(rec, i) {
           var layerColor = rec.supply_layer === 2 ? '#1e40af' : '#065f46';
           var layerBg    = rec.supply_layer === 2 ? '#dbeafe'  : '#d1fae5';
           var layerLabel = rec.supply_layer === 2 ? 'L2 · Distributor' : 'L3 · Contractor';
@@ -3889,9 +3907,12 @@ async function bv4Run() {
                 (rec.website ? '<a href="' + rec.website + '" target="_blank" style="font-size:11px;color:var(--navy)">' + rec.website.replace(/^https?:\/\//,'').split('/')[0] + '</a>' : '') +
               '</div>' +
             '</div>' +
-            '<div style="text-align:right;white-space:nowrap">' +
-              '<div style="font-size:10px;font-weight:700;color:' + layerColor + '">' + (rec.sub_category||rec.category||'') + '</div>' +
-              '<div style="font-size:10px;color:var(--text3)">' + (rec.type||'') + '</div>' +
+            '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;white-space:nowrap">' +
+              '<div style="text-align:right">' +
+                '<div style="font-size:10px;font-weight:700;color:' + layerColor + '">' + (rec.sub_category||rec.category||'') + '</div>' +
+                '<div style="font-size:10px;color:var(--text3)">' + (rec.type||'') + '</div>' +
+              '</div>' +
+              (rec.address ? '<button id="bulk-route-btn-' + i + '" onclick="addBulkLeadToRoute(' + i + ',event)" style="padding:4px 10px;background:var(--surface);border:1.5px solid var(--border);border-radius:20px;font-size:11px;font-weight:700;color:var(--navy);cursor:pointer;font-family:inherit;white-space:nowrap">+ Route</button>' : '') +
             '</div>' +
             '</div>';
         }).join('');
@@ -5059,6 +5080,32 @@ function filterAccounts(q) {
 }
 
 </script>
+
+<!-- Lead Verification Warning Modal -->
+<div id="lead-verify-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:500;align-items:flex-end;justify-content:center" onclick="if(event.target===this)_closeVerifyModal(false)">
+  <div style="background:var(--white);border-radius:16px 16px 0 0;padding:24px 20px 36px;width:100%;max-width:500px;box-shadow:0 -4px 32px rgba(0,0,0,0.18)">
+    <!-- Header -->
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <span style="font-size:22px">⚠️</span>
+      <div>
+        <div style="font-size:16px;font-weight:800;color:var(--navy)">Before you add this lead…</div>
+        <div id="lvm-company" style="font-size:12px;color:var(--text3);font-weight:600"></div>
+      </div>
+    </div>
+    <!-- Street View image -->
+    <div id="lvm-sv-wrap" style="display:none;margin-bottom:14px;border-radius:10px;overflow:hidden;border:1px solid var(--border)">
+      <img id="lvm-sv-img" src="" alt="Street View" style="width:100%;height:180px;object-fit:cover;display:block">
+      <div style="padding:4px 10px;background:#f8fafc;font-size:10px;color:var(--text3)">📍 Street View — verify this is a real business location</div>
+    </div>
+    <!-- Warnings list -->
+    <div id="lvm-warnings" style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px"></div>
+    <!-- Buttons -->
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <button id="lvm-add-btn" onclick="_closeVerifyModal(true)" style="padding:14px;background:var(--navy);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;width:100%">Add Anyway</button>
+      <button onclick="_closeVerifyModal(false)" style="padding:14px;background:transparent;color:var(--text2);border:1.5px solid var(--border);border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;width:100%">Don't Add</button>
+    </div>
+  </div>
+</div>
 
 <!-- Territory Modal -->
 <div id="territory-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:300;align-items:center;justify-content:center;padding:20px">
@@ -6813,22 +6860,192 @@ window._renderRoutePanel = function() {
   if (acts) acts.style.display = 'block';
 };
 
+// ── Lead Verification ────────────────────────────────────────────────────────
+// Regex mirrors for home-based detection (same patterns as morning.js server-side)
+var _HB_SUFFIX = /\b(dr|drive|ln|lane|ct|court|way|cir|circle|pl|place|blvd|boulevard|rd|road)\b\.?(?:\s|,|$)/i;
+var _HB_UNIT   = /\b(ste|suite|unit|fl|floor|bldg|building)\b\.?\s*\d*|\s#\s*\d+/i;
+var _HB_CORP   = /\b(llc|inc\.?|corp\.?|co\.|company|group|associates)\b/i;
+
+// Active callback for "Add Anyway"
+var _verifyCallback = null;
+
+window._closeVerifyModal = function(confirmed) {
+  var modal = document.getElementById('lead-verify-modal');
+  if (modal) modal.style.display = 'none';
+  if (confirmed && _verifyCallback) _verifyCallback();
+  _verifyCallback = null;
+};
+
+// Shared utility — call before adding any lead to route
+// lead: object with company, address, phone, website, homeBased, business_status, reviews, photo_count, has_hours
+// btn:  the DOM button element (for state updates)
+// onConfirmed: called when checks pass or rep chooses "Add Anyway"
+window.verifyBeforeRoute = async function(lead, btn, onConfirmed) {
+  // ── Guard: already in route ───────────────────────────────────────────────
+  var stops = window._routeStops || [];
+  if (stops.some(function(s){ return s.company === lead.company; })) {
+    showToast('Already in route');
+    return;
+  }
+  if (stops.length >= 20) {
+    showToast('Route full (20 stops max)');
+    return;
+  }
+
+  // ── Loading state ─────────────────────────────────────────────────────────
+  var origText = btn ? btn.textContent : '+ Route';
+  if (btn) {
+    btn.textContent = 'Checking…';
+    btn.disabled = true;
+    btn.style.opacity = '0.6';
+  }
+
+  var warnings = [];
+  var streetViewUrl = null;
+  var hardBlock = false;
+
+  // ── Check A: Business legitimacy ─────────────────────────────────────────
+  var bStatus = (lead.business_status || 'OPERATIONAL').toUpperCase();
+  if (bStatus === 'CLOSED_PERMANENTLY') {
+    hardBlock = true;
+  } else if (bStatus === 'CLOSED_TEMPORARILY') {
+    warnings.push('This business is listed as temporarily closed on Google.');
+  }
+  // Thin profile: few/no reviews AND no photos AND no hours
+  var lowProfile = (lead.reviews || 0) < 3 && (lead.photo_count || 0) === 0 && !lead.has_hours;
+  if (!hardBlock && lowProfile && !(lead.website)) {
+    warnings.push('Very thin Google listing — no reviews, photos, hours, or website. May not be a real business location.');
+  }
+
+  // ── Check B: Residential / home-based ────────────────────────────────────
+  if (!hardBlock) {
+    var addr = lead.address || '';
+    var comp = lead.company || '';
+    var homePrimary = lead.homeBased || false;
+    // If homeBased not already flagged, run quick client-side re-check
+    if (!homePrimary) {
+      var hasSuffix  = _HB_SUFFIX.test(addr);
+      var hasUnit    = _HB_UNIT.test(addr);
+      var hasCorpInc = _HB_CORP.test(comp);
+      if (hasSuffix && !hasUnit && !hasCorpInc) homePrimary = true;
+    }
+    if (homePrimary) {
+      warnings.push('Address may be home-based. Call ahead before driving out.');
+    }
+  }
+
+  // ── Checks C + D: Backend (CRM cross-ref + Street View) ──────────────────
+  if (!hardBlock && lead.address) {
+    try {
+      var ctrl = new AbortController();
+      var beTimeout = setTimeout(function(){ ctrl.abort(); }, 3000);
+      var beRes = await fetch('/api/morning/verify-lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ company: lead.company, address: lead.address, phone: lead.phone || '' }),
+        signal: ctrl.signal
+      });
+      clearTimeout(beTimeout);
+      if (beRes.ok) {
+        var beData = await beRes.json();
+
+        // Check C: CRM match
+        if (beData.crm && beData.crm.found) {
+          var c = beData.crm;
+          var whoStr = c.rep_name ? ' by ' + c.rep_name : '';
+          var whenStr = c.days_ago != null ? (c.days_ago === 0 ? ' today' : ' ' + c.days_ago + ' day' + (c.days_ago === 1 ? '' : 's') + ' ago') : '';
+          var crmMsg = 'Already in CRM' + whoStr + (whenStr ? ' (last contact' + whenStr + ')' : '') + '.';
+          if (c.last_note) crmMsg += ' Note: "' + c.last_note.substring(0, 80) + (c.last_note.length > 80 ? '…' : '') + '"';
+          warnings.push(crmMsg);
+        }
+
+        // Check D: Street View
+        if (beData.street_view) {
+          if (beData.street_view.status === 'ZERO_RESULTS') {
+            warnings.push('No Street View imagery found — location may not exist or address may be incorrect.');
+          } else if (beData.street_view.status === 'OK' && beData.street_view.image_url) {
+            streetViewUrl = beData.street_view.image_url;
+          }
+        }
+      }
+    } catch(e) {
+      // timeout or network error — skip checks C+D silently
+    }
+  }
+
+  // ── Restore button state for hard-block and warning paths ────────────────
+  if (btn) {
+    btn.textContent = origText;
+    btn.disabled = false;
+    btn.style.opacity = '';
+  }
+
+  // ── Hard block ────────────────────────────────────────────────────────────
+  if (hardBlock) {
+    if (btn) {
+      btn.textContent = 'Closed — Cannot Add';
+      btn.style.background = '#fee2e2';
+      btn.style.color = '#b91c1c';
+      btn.style.borderColor = '#fca5a5';
+      btn.disabled = true;
+    }
+    return; // no modal, no add
+  }
+
+  // ── All clear ─────────────────────────────────────────────────────────────
+  if (warnings.length === 0 && !streetViewUrl) {
+    onConfirmed();
+    return;
+  }
+
+  // ── Show warning modal ────────────────────────────────────────────────────
+  var modal   = document.getElementById('lead-verify-modal');
+  var compEl  = document.getElementById('lvm-company');
+  var svWrap  = document.getElementById('lvm-sv-wrap');
+  var svImg   = document.getElementById('lvm-sv-img');
+  var warnEl  = document.getElementById('lvm-warnings');
+  if (!modal) { onConfirmed(); return; } // fallback: just add
+
+  if (compEl) compEl.textContent = lead.company || '';
+  if (svWrap && svImg) {
+    if (streetViewUrl) {
+      svImg.src = streetViewUrl;
+      svWrap.style.display = 'block';
+    } else {
+      svWrap.style.display = 'none';
+    }
+  }
+  if (warnEl) {
+    warnEl.innerHTML = warnings.map(function(w) {
+      return '<div style="display:flex;gap:8px;align-items:flex-start;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px">' +
+        '<span style="font-size:16px;flex-shrink:0">⚠️</span>' +
+        '<span style="font-size:13px;color:#92400e;line-height:1.4">' + w + '</span>' +
+        '</div>';
+    }).join('');
+  }
+
+  _verifyCallback = onConfirmed;
+  modal.style.display = 'flex';
+};
+
 window.addToRoute = function(idx, evt) {
   if (evt) evt.stopPropagation();
   var leads = window._dailyLeads || [];
   var lead  = leads[idx];
   if (!lead) return;
   if (!lead.address) { showToast('No address for this lead'); return; }
-  var stops = window._routeStops || [];
-  if (stops.length >= 20) { showToast('Route full (20 stops max)'); return; }
-  if (stops.some(function(s){ return s.company === lead.company; })) { showToast('Already in route'); return; }
-  lead._leadIdx = idx;  // store original index for click-through
-  stops.push(lead);
-  window._routeStops = stops;
-  _renderRoutePanel();
   var btn = document.getElementById('route-btn-' + idx);
-  if (btn) { btn.textContent = '✓'; btn.style.background = '#d1fae5'; btn.style.color = '#065f46'; btn.style.borderColor = '#6ee7b7'; btn.disabled = true; }
-  showToast(lead.company + ' added to route');
+  window.verifyBeforeRoute(lead, btn, function() {
+    var stops = window._routeStops || [];
+    if (stops.some(function(s){ return s.company === lead.company; })) { showToast('Already in route'); return; }
+    if (stops.length >= 20) { showToast('Route full (20 stops max)'); return; }
+    lead._leadIdx = idx;
+    stops.push(lead);
+    window._routeStops = stops;
+    _renderRoutePanel();
+    if (btn) { btn.textContent = '✓'; btn.style.background = '#d1fae5'; btn.style.color = '#065f46'; btn.style.borderColor = '#6ee7b7'; btn.disabled = true; btn.style.opacity = ''; }
+    showToast(lead.company + ' added to route');
+  });
 };
 
 window._removeStop = function(idx) {
@@ -6836,6 +7053,26 @@ window._removeStop = function(idx) {
   stops.splice(idx, 1);
   window._routeStops = stops;
   _renderRoutePanel();
+};
+
+// Bulk import "Add to Route" — uses same verification flow
+window.addBulkLeadToRoute = function(idx, evt) {
+  if (evt) evt.stopPropagation();
+  var leads = window._bulkImportLeads || [];
+  var lead  = leads[idx];
+  if (!lead) return;
+  if (!lead.address) { showToast('No address for this lead'); return; }
+  var btn = document.getElementById('bulk-route-btn-' + idx);
+  window.verifyBeforeRoute(lead, btn, function() {
+    var stops = window._routeStops || [];
+    if (stops.some(function(s){ return s.company === lead.company; })) { showToast('Already in route'); return; }
+    if (stops.length >= 20) { showToast('Route full (20 stops max)'); return; }
+    stops.push(lead);
+    window._routeStops = stops;
+    _renderRoutePanel();
+    if (btn) { btn.textContent = '✓'; btn.style.background = '#d1fae5'; btn.style.color = '#065f46'; btn.style.borderColor = '#6ee7b7'; btn.disabled = true; btn.style.opacity = ''; }
+    showToast(lead.company + ' added to route');
+  });
 };
 
 // Open full detail panel for a route stop
