@@ -10077,26 +10077,6 @@ fetch('/api/notifications/evaluate', { method: 'POST' }).then(function(r){ retur
   0%, 100% { box-shadow: 0 0 0 100vmax rgba(0,0,0,0.55), 0 0 0 2px rgba(201,168,76,.6); }
   50%       { box-shadow: 0 0 0 100vmax rgba(0,0,0,0.55), 0 0 0 3px #C9A84C, 0 0 16px rgba(201,168,76,.5); }
 }
-#bcs-guide-frame.bcs-locked {
-  animation: none;
-  box-shadow: 0 0 0 100vmax rgba(0,0,0,0.55), 0 0 0 3px #4CAF50, 0 0 20px rgba(76,175,80,.6);
-}
-
-/* Stability progress bar inside guide frame */
-#bcs-stable-bar-wrap {
-  position: absolute;
-  bottom: 0; left: 0; right: 0;
-  height: 4px;
-  border-radius: 0 0 8px 8px;
-  overflow: hidden;
-  background: rgba(255,255,255,.15);
-}
-#bcs-stable-bar {
-  height: 100%;
-  width: 0%;
-  background: #C9A84C;
-  transition: width 0.1s linear;
-}
 
 /* Corner markers */
 #bcs-guide-frame::before, #bcs-guide-frame::after {
@@ -10150,26 +10130,34 @@ fetch('/api/notifications/evaluate', { method: 'POST' }).then(function(r){ retur
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Manual capture button (shown after timeout) */
-#bcs-manual-btn {
-  display: none;
+/* Scan button — always visible, tapped by rep to capture */
+#bcs-scan-btn {
   position: absolute;
-  bottom: calc(env(safe-area-inset-bottom, 24px) + 24px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 32px);
   left: 50%; transform: translateX(-50%);
   z-index: 20;
   background: #C9A84C;
   border: none;
-  color: #0A1628;
-  font-size: 15px;
+  color: #fff;
+  font-size: 17px;
   font-weight: 700;
-  padding: 14px 32px;
-  border-radius: 50px;
+  min-height: 56px;
+  padding: 0 40px;
+  width: calc(84% - 0px);
+  max-width: 340px;
+  border-radius: 14px;
   cursor: pointer;
   white-space: nowrap;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 4px 20px rgba(201,168,76,.45);
+  letter-spacing: .01em;
 }
-#bcs-manual-btn.bcs-visible { display: block; }
+#bcs-scan-btn:active { transform: translateX(-50%) scale(0.97); }
+#bcs-scan-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
 
 /* ── Time Tracker ─────────────────────────────────────────────── */
 #page-time .tt-wrap {
@@ -11764,24 +11752,20 @@ document.addEventListener('click', function(e) {
 <!-- BCS: Live Business Card Scanner overlay -->
 <div id="bcs-overlay" role="dialog" aria-modal="true" aria-label="Business card scanner">
   <video id="bcs-video" playsinline autoplay muted></video>
-  <!-- Hidden canvases for frame analysis -->
-  <canvas id="bcs-canvas-prev" width="50" height="50" style="display:none"></canvas>
-  <canvas id="bcs-canvas-curr" width="50" height="50" style="display:none"></canvas>
-  <!-- Full-res capture canvas -->
+  <!-- Full-res capture canvas (hidden) -->
   <canvas id="bcs-capture-canvas" style="display:none"></canvas>
   <!-- Guide frame -->
   <div id="bcs-guide-wrap">
     <div id="bcs-guide-frame">
-      <div id="bcs-stable-bar-wrap"><div id="bcs-stable-bar"></div></div>
-      <div id="bcs-status-bar">Align card within the frame</div>
+      <div id="bcs-status-bar">Frame your card then tap Scan</div>
     </div>
   </div>
   <!-- White flash -->
   <div id="bcs-flash"></div>
   <!-- Close -->
   <button id="bcs-close-btn" onclick="window.BCS.close()" aria-label="Close scanner">✕</button>
-  <!-- Manual fallback button (shown after 15s) -->
-  <button id="bcs-manual-btn" onclick="window.BCS.manualCapture()">Tap to Capture</button>
+  <!-- Scan button — always visible -->
+  <button id="bcs-scan-btn" onclick="window.BCS.scan()">📷 Scan</button>
 </div>
 
 <!-- Floating gold microphone button -->
@@ -12219,74 +12203,42 @@ document.addEventListener('click', function(e) {
 window.BCS = (function() {
   'use strict';
 
-  var _stream     = null;  // MediaStream from getUserMedia
-  var _rafId      = null;  // requestAnimationFrame handle
-  var _timeoutId  = null;  // 15-second manual-button timer
-  var _callback   = null;  // function(base64jpeg) called on capture
-  var _stableCount = 0;    // consecutive stable frames
-  var _prevData   = null;  // previous frame pixel data (Uint8ClampedArray, 50×50 gray)
-  var _active     = false; // scanner is currently open
+  var _stream   = null;   // MediaStream from getUserMedia
+  var _callback = null;   // function(base64jpeg) called on capture
+  var _active   = false;  // scanner is currently open
 
-  var STABLE_NEEDED  = 20;   // ~0.65 seconds of stability at 30fps before auto-capture
-  var MAD_THRESHOLD  = 12;   // pixel-diff threshold — balanced between too strict and too loose
-  var BRIGHT_MIN     = 60;   // minimum mean luminance
-  var BRIGHT_MAX     = 230;  // maximum mean luminance
-  var STD_MIN        = 20;   // minimum stdDev (brightness variation check)
-  var VARIANCE_MIN   = 300;  // minimum pixel variance — detects card content without being too strict
-  var TIMEOUT_MS     = 20000; // 20 seconds before manual fallback button appears
-
-  // ── DOM helpers ───────────────────────────────────────────────
+  // ── DOM helper ────────────────────────────────────────────────
   function el(id) { return document.getElementById(id); }
-  function setStatus(txt) { var s = el('bcs-status-bar'); if (s) s.textContent = txt; }
-  function setBar(pct) {
-    var b = el('bcs-stable-bar');
-    if (b) b.style.width = Math.min(100, pct) + '%';
-  }
-  function setLocked(on) {
-    var gf = el('bcs-guide-frame');
-    if (gf) { if (on) gf.classList.add('bcs-locked'); else gf.classList.remove('bcs-locked'); }
-  }
 
   // ── Open scanner ──────────────────────────────────────────────
   function open(captureCallback) {
     if (_active) return;
     _callback = captureCallback || function(){};
 
-    // Feature-detect getUserMedia
-    var gum = navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
-    if (!gum) {
-      // Fallback: trigger file input
+    // Feature-detect getUserMedia — fall back to file input if absent
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       _fallback();
       return;
     }
 
     _active = true;
-    _stableCount = 0;
-    _prevData = null;
 
-    // Show overlay
-    var overlay = el('bcs-overlay');
-    overlay.classList.add('bcs-active');
-    setStatus('Starting camera…');
-    setBar(0);
-    setLocked(false);
-    var manBtn = el('bcs-manual-btn');
-    if (manBtn) manBtn.classList.remove('bcs-visible');
+    // Show overlay, reset scan button
+    el('bcs-overlay').classList.add('bcs-active');
+    var scanBtn = el('bcs-scan-btn');
+    if (scanBtn) { scanBtn.disabled = false; scanBtn.textContent = '📷 Scan'; }
+    var flash = el('bcs-flash');
+    if (flash) flash.classList.remove('bcs-flashing');
 
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } })
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+    })
       .then(function(stream) {
         _stream = stream;
         var video = el('bcs-video');
         video.srcObject = stream;
         video.onloadedmetadata = function() {
           video.play().catch(function(){});
-          setStatus('Align card within the frame');
-          _startDetect();
-          _timeoutId = setTimeout(function() {
-            setStatus('Hold still — or tap to capture');
-            var manBtn = el('bcs-manual-btn');
-            if (manBtn) manBtn.classList.add('bcs-visible');
-          }, TIMEOUT_MS);
         };
       })
       .catch(function(err) {
@@ -12297,108 +12249,32 @@ window.BCS = (function() {
       });
   }
 
-  // ── Stop camera + cleanup ─────────────────────────────────────
+  // ── Stop camera + close overlay ───────────────────────────────
   function close() {
     _active = false;
-    if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
-    if (_timeoutId) { clearTimeout(_timeoutId); _timeoutId = null; }
     if (_stream) { _stream.getTracks().forEach(function(t){ t.stop(); }); _stream = null; }
     var video = el('bcs-video');
     if (video) { video.srcObject = null; }
     el('bcs-overlay').classList.remove('bcs-active');
     var flash = el('bcs-flash');
     if (flash) flash.classList.remove('bcs-flashing');
-    _stableCount = 0; _prevData = null;
   }
 
-  // ── Frame analysis loop ───────────────────────────────────────
-  function _startDetect() {
-    var prevCtx = el('bcs-canvas-prev').getContext('2d');
-    var currCtx = el('bcs-canvas-curr').getContext('2d');
-    var video   = el('bcs-video');
-
-    function analyze() {
-      if (!_active) return;
-      _rafId = requestAnimationFrame(analyze);
-
-      if (video.readyState < 2) return; // not enough data yet
-
-      // Draw current frame downsampled to 50×50
-      currCtx.drawImage(video, 0, 0, 50, 50);
-      var currPixels = currCtx.getImageData(0, 0, 50, 50).data;
-
-      // Build grayscale array
-      var gray = new Float32Array(2500);
-      var mean = 0;
-      for (var i = 0; i < 2500; i++) {
-        var base = i * 4;
-        gray[i] = 0.299*currPixels[base] + 0.587*currPixels[base+1] + 0.114*currPixels[base+2];
-        mean += gray[i];
-      }
-      mean /= 2500;
-
-      // Brightness check
-      if (mean < BRIGHT_MIN || mean > BRIGHT_MAX) {
-        _stableCount = 0; _prevData = null; setBar(0);
-        setStatus(mean < BRIGHT_MIN ? 'Too dark — find better lighting' : 'Too bright — avoid direct light');
-        setLocked(false);
-        return;
-      }
-
-      // Content check — compute full variance to ensure card is actually in frame
-      var variance = 0;
-      for (var j = 0; j < 2500; j++) { var dv = gray[j] - mean; variance += dv * dv; }
-      variance /= 2500;
-
-      var stdDev = Math.sqrt(variance);
-      if (stdDev < STD_MIN || variance < VARIANCE_MIN) {
-        _stableCount = 0; _prevData = null; setBar(0);
-        setStatus('Point camera at business card');
-        setLocked(false);
-        return;
-      }
-
-      // MAD check against previous frame
-      if (_prevData) {
-        var mad = 0;
-        for (var k = 0; k < 2500; k++) { mad += Math.abs(gray[k] - _prevData[k]); }
-        mad /= 2500;
-        if (mad > MAD_THRESHOLD) {
-          // Card is moving — reset countdown
-          _stableCount = 0;
-          setBar(0);
-          setLocked(false);
-          setStatus('Hold card steady inside the frame');
-        } else {
-          // Card is stable — advance countdown
-          _stableCount++;
-          setBar((_stableCount / STABLE_NEEDED) * 100);
-          if (_stableCount >= 3) setStatus('Hold still…');
-          if (_stableCount >= STABLE_NEEDED) {
-            setLocked(true);
-            _capture(video);
-            return;
-          }
-        }
-      } else {
-        setStatus('Hold card steady inside the frame');
-      }
-
-      // Copy curr to prev
-      _prevData = gray;
-      // Swap canvases
-      prevCtx.drawImage(el('bcs-canvas-curr'), 0, 0);
-    }
-
-    analyze();
-  }
-
-  // ── Capture a full-res frame ──────────────────────────────────
-  function _capture(video) {
+  // ── Scan button handler — capture current frame ───────────────
+  function scan() {
     if (!_active) return;
-    if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
-    if (_timeoutId) { clearTimeout(_timeoutId); _timeoutId = null; }
+    var video = el('bcs-video');
+    if (!video) return;
 
+    // Disable button immediately to prevent double-tap
+    var scanBtn = el('bcs-scan-btn');
+    if (scanBtn) { scanBtn.disabled = true; scanBtn.textContent = 'Reading card…'; }
+
+    _capture(video);
+  }
+
+  // ── Capture current video frame as JPEG ──────────────────────
+  function _capture(video) {
     // White flash
     var flash = el('bcs-flash');
     if (flash) {
@@ -12406,7 +12282,7 @@ window.BCS = (function() {
       setTimeout(function() { flash.classList.remove('bcs-flashing'); }, 300);
     }
 
-    // Grab full-res frame
+    // Draw current frame to full-res canvas
     var canvas = el('bcs-capture-canvas');
     var vw = video.videoWidth  || 1280;
     var vh = video.videoHeight || 720;
@@ -12415,22 +12291,14 @@ window.BCS = (function() {
     canvas.getContext('2d').drawImage(video, 0, 0, vw, vh);
     var b64 = canvas.toDataURL('image/jpeg', 0.88).split(',')[1];
 
-    // Close scanner after flash
+    // Close scanner after flash, then fire callback
     setTimeout(function() {
       close();
       if (typeof _callback === 'function') _callback(b64);
     }, 350);
   }
 
-  // ── Manual capture (timeout fallback) ────────────────────────
-  function manualCapture() {
-    var video = el('bcs-video');
-    if (!video || !_active) return;
-    setStatus('Capturing…');
-    _capture(video);
-  }
-
-  // ── File input fallback ───────────────────────────────────────
+  // ── File input fallback (no camera available) ─────────────────
   function _fallback() {
     var inp = document.getElementById('vcl-card-input');
     if (!inp) return;
@@ -12440,7 +12308,7 @@ window.BCS = (function() {
     inp.click();
   }
 
-  return { open: open, close: close, manualCapture: manualCapture };
+  return { open: open, close: close, scan: scan };
 })();
 </script>
 
