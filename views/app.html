@@ -4292,15 +4292,49 @@ function renderContactBcard(contact) {
 }
 
 function contactDetailRescan() {
-  // Trigger the VCL card scanner file input, then save the result directly to this contact
-  var inp = document.getElementById('vcl-card-input');
-  if (!inp) return;
-  if (!('ontouchstart' in window)) { inp.removeAttribute('capture'); }
-  else { inp.setAttribute('capture', 'environment'); }
-  inp.value = '';
-  // Override the handler so this scan saves to currentContactRecord, not a VCL form
+  // Use BCS live scanner; on capture, save directly to currentContactRecord.
+  // _cdRescanning flag is used as fallback path when camera is unavailable.
   window._cdRescanning = true;
-  inp.click();
+  window.BCS.open(function(b64) {
+    window._cdRescanning = false;
+    _cdHandleCardB64(b64);
+  });
+}
+
+function _cdHandleCardB64(b64) {
+  if (!currentContactRecord) return;
+  var btn = document.getElementById('cd-bcard-rescan-btn') || document.getElementById('cd-bcard-scan-btn');
+  if (btn) { btn.textContent = '⏳ Reading card...'; btn.disabled = true; }
+
+  fetch('/api/voice/scan-card', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({image:b64, mimeType:'image/jpeg'}) })
+    .then(function(r){ return r.json(); })
+    .then(function(result) {
+      var updates = { business_card_image: b64 };
+      if (result.extracted) {
+        var ce = result.extracted;
+        if (ce.phone)   updates.phone   = ce.phone;
+        if (ce.mobile)  updates.mobile  = ce.mobile;
+        if (ce.email)   updates.email   = ce.email;
+        if (ce.title)   updates.title   = ce.title;
+        if (ce.address) updates.address = ce.address;
+        if (ce.city)    updates.city    = ce.city;
+        if (ce.state)   updates.state   = ce.state;
+        if (ce.zip)     updates.zip     = ce.zip;
+        if (ce.website) updates.website = ce.website;
+      }
+      return fetch('/api/prospects/'+currentContactRecord.id+'/fill-blanks', {
+        method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(updates)
+      }).then(function(r){ return r.json(); });
+    })
+    .then(function() {
+      openContactDetail(currentContactRecord.id, _contactParentId);
+      showToast('Business card saved!');
+    })
+    .catch(function(err) {
+      console.error('[cdRescan]', err);
+      if (btn) { btn.textContent = '📷 Scan Business Card'; btn.disabled = false; }
+      showToast('Could not save card — please try again');
+    });
 }
 
 // Called by the global VCL_handleCardFile — if _cdRescanning is true,
@@ -9924,6 +9958,141 @@ fetch('/api/notifications/evaluate', { method: 'POST' }).then(function(r){ retur
 .vcl-gold-filled {
   animation: vcl-gold-flash 1.4s ease-out forwards;
 }
+
+/* ── BCS: Live Business Card Scanner ─────────────────────────── */
+#bcs-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 19000;
+  background: #000;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+#bcs-overlay.bcs-active { display: flex; }
+
+#bcs-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+#bcs-guide-wrap {
+  position: relative;
+  z-index: 2;
+  width: 84%;
+  max-width: 340px;
+}
+/* Business card aspect ratio: 85.6mm x 54mm = 63.1% */
+#bcs-guide-frame {
+  position: relative;
+  width: 100%;
+  padding-bottom: 63.1%;
+  border-radius: 8px;
+  /* Surround darkening without overflow:hidden */
+  box-shadow: 0 0 0 100vmax rgba(0,0,0,0.55), 0 0 0 2px #C9A84C;
+  animation: bcs-pulse 2s ease-in-out infinite;
+}
+@keyframes bcs-pulse {
+  0%, 100% { box-shadow: 0 0 0 100vmax rgba(0,0,0,0.55), 0 0 0 2px rgba(201,168,76,.6); }
+  50%       { box-shadow: 0 0 0 100vmax rgba(0,0,0,0.55), 0 0 0 3px #C9A84C, 0 0 16px rgba(201,168,76,.5); }
+}
+#bcs-guide-frame.bcs-locked {
+  animation: none;
+  box-shadow: 0 0 0 100vmax rgba(0,0,0,0.55), 0 0 0 3px #4CAF50, 0 0 20px rgba(76,175,80,.6);
+}
+
+/* Stability progress bar inside guide frame */
+#bcs-stable-bar-wrap {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 4px;
+  border-radius: 0 0 8px 8px;
+  overflow: hidden;
+  background: rgba(255,255,255,.15);
+}
+#bcs-stable-bar {
+  height: 100%;
+  width: 0%;
+  background: #C9A84C;
+  transition: width 0.1s linear;
+}
+
+/* Corner markers */
+#bcs-guide-frame::before, #bcs-guide-frame::after {
+  content: '';
+  position: absolute;
+  width: 20px; height: 20px;
+  border-color: #C9A84C;
+  border-style: solid;
+}
+#bcs-guide-frame::before { top: -2px; left: -2px; border-width: 3px 0 0 3px; border-radius: 6px 0 0 0; }
+#bcs-guide-frame::after  { bottom: -2px; right: -2px; border-width: 0 3px 3px 0; border-radius: 0 0 6px 0; }
+
+#bcs-status-bar {
+  position: absolute;
+  bottom: -36px;
+  left: 0; right: 0;
+  text-align: center;
+  color: rgba(255,255,255,.8);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: .02em;
+}
+
+/* Flash overlay */
+#bcs-flash {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 10;
+  transition: opacity 0.08s ease-in;
+}
+#bcs-flash.bcs-flashing { opacity: 1; }
+
+/* Close button */
+#bcs-close-btn {
+  position: absolute;
+  top: env(safe-area-inset-top, 16px);
+  right: 16px;
+  z-index: 20;
+  background: rgba(0,0,0,.45);
+  border: none;
+  color: #fff;
+  font-size: 22px;
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Manual capture button (shown after timeout) */
+#bcs-manual-btn {
+  display: none;
+  position: absolute;
+  bottom: calc(env(safe-area-inset-bottom, 24px) + 24px);
+  left: 50%; transform: translateX(-50%);
+  z-index: 20;
+  background: #C9A84C;
+  border: none;
+  color: #0A1628;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 14px 32px;
+  border-radius: 50px;
+  cursor: pointer;
+  white-space: nowrap;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+#bcs-manual-btn.bcs-visible { display: block; }
 </style>
 
 
@@ -11217,6 +11386,29 @@ document.addEventListener('click', function(e) {
   <div style="position:absolute;top:16px;right:20px;color:#fff;font-size:28px;font-weight:300;pointer-events:none">✕</div>
 </div>
 
+<!-- BCS: Live Business Card Scanner overlay -->
+<div id="bcs-overlay" role="dialog" aria-modal="true" aria-label="Business card scanner">
+  <video id="bcs-video" playsinline autoplay muted></video>
+  <!-- Hidden canvases for frame analysis -->
+  <canvas id="bcs-canvas-prev" width="50" height="50" style="display:none"></canvas>
+  <canvas id="bcs-canvas-curr" width="50" height="50" style="display:none"></canvas>
+  <!-- Full-res capture canvas -->
+  <canvas id="bcs-capture-canvas" style="display:none"></canvas>
+  <!-- Guide frame -->
+  <div id="bcs-guide-wrap">
+    <div id="bcs-guide-frame">
+      <div id="bcs-stable-bar-wrap"><div id="bcs-stable-bar"></div></div>
+      <div id="bcs-status-bar">Align card within the frame</div>
+    </div>
+  </div>
+  <!-- White flash -->
+  <div id="bcs-flash"></div>
+  <!-- Close -->
+  <button id="bcs-close-btn" onclick="window.BCS.close()" aria-label="Close scanner">✕</button>
+  <!-- Manual fallback button (shown after 15s) -->
+  <button id="bcs-manual-btn" onclick="window.BCS.manualCapture()">Tap to Capture</button>
+</div>
+
 <!-- Floating gold microphone button -->
 <button id="vcl-float-btn" onclick="VCL_open()" title="Voice Call Logger" aria-label="Log a call by voice">
   <!-- Microphone SVG -->
@@ -11330,6 +11522,231 @@ document.addEventListener('click', function(e) {
 
   </div>
 </div>
+
+<!-- BCS: Live Business Card Scanner Module -->
+<script>
+window.BCS = (function() {
+  'use strict';
+
+  var _stream     = null;  // MediaStream from getUserMedia
+  var _rafId      = null;  // requestAnimationFrame handle
+  var _timeoutId  = null;  // 15-second manual-button timer
+  var _callback   = null;  // function(base64jpeg) called on capture
+  var _stableCount = 0;    // consecutive stable frames
+  var _prevData   = null;  // previous frame pixel data (Uint8ClampedArray, 50×50 gray)
+  var _active     = false; // scanner is currently open
+
+  var STABLE_NEEDED  = 8;   // frames required for auto-capture
+  var MAD_THRESHOLD  = 15;  // max mean absolute difference between frames
+  var BRIGHT_MIN     = 60;  // minimum mean luminance
+  var BRIGHT_MAX     = 230; // maximum mean luminance
+  var STD_MIN        = 20;  // minimum stdDev (must have content)
+  var TIMEOUT_MS     = 15000;
+
+  // ── DOM helpers ───────────────────────────────────────────────
+  function el(id) { return document.getElementById(id); }
+  function setStatus(txt) { var s = el('bcs-status-bar'); if (s) s.textContent = txt; }
+  function setBar(pct) {
+    var b = el('bcs-stable-bar');
+    if (b) b.style.width = Math.min(100, pct) + '%';
+  }
+  function setLocked(on) {
+    var gf = el('bcs-guide-frame');
+    if (gf) { if (on) gf.classList.add('bcs-locked'); else gf.classList.remove('bcs-locked'); }
+  }
+
+  // ── Open scanner ──────────────────────────────────────────────
+  function open(captureCallback) {
+    if (_active) return;
+    _callback = captureCallback || function(){};
+
+    // Feature-detect getUserMedia
+    var gum = navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
+    if (!gum) {
+      // Fallback: trigger file input
+      _fallback();
+      return;
+    }
+
+    _active = true;
+    _stableCount = 0;
+    _prevData = null;
+
+    // Show overlay
+    var overlay = el('bcs-overlay');
+    overlay.classList.add('bcs-active');
+    setStatus('Starting camera…');
+    setBar(0);
+    setLocked(false);
+    var manBtn = el('bcs-manual-btn');
+    if (manBtn) manBtn.classList.remove('bcs-visible');
+
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } })
+      .then(function(stream) {
+        _stream = stream;
+        var video = el('bcs-video');
+        video.srcObject = stream;
+        video.onloadedmetadata = function() {
+          video.play().catch(function(){});
+          setStatus('Align card within the frame');
+          _startDetect();
+          _timeoutId = setTimeout(function() {
+            setStatus('Hold still — or tap to capture');
+            var manBtn = el('bcs-manual-btn');
+            if (manBtn) manBtn.classList.add('bcs-visible');
+          }, TIMEOUT_MS);
+        };
+      })
+      .catch(function(err) {
+        console.warn('[BCS] getUserMedia failed:', err);
+        _active = false;
+        el('bcs-overlay').classList.remove('bcs-active');
+        _fallback();
+      });
+  }
+
+  // ── Stop camera + cleanup ─────────────────────────────────────
+  function close() {
+    _active = false;
+    if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
+    if (_timeoutId) { clearTimeout(_timeoutId); _timeoutId = null; }
+    if (_stream) { _stream.getTracks().forEach(function(t){ t.stop(); }); _stream = null; }
+    var video = el('bcs-video');
+    if (video) { video.srcObject = null; }
+    el('bcs-overlay').classList.remove('bcs-active');
+    var flash = el('bcs-flash');
+    if (flash) flash.classList.remove('bcs-flashing');
+    _stableCount = 0; _prevData = null;
+  }
+
+  // ── Frame analysis loop ───────────────────────────────────────
+  function _startDetect() {
+    var prevCtx = el('bcs-canvas-prev').getContext('2d');
+    var currCtx = el('bcs-canvas-curr').getContext('2d');
+    var video   = el('bcs-video');
+
+    function analyze() {
+      if (!_active) return;
+      _rafId = requestAnimationFrame(analyze);
+
+      if (video.readyState < 2) return; // not enough data yet
+
+      // Draw current frame downsampled to 50×50
+      currCtx.drawImage(video, 0, 0, 50, 50);
+      var currPixels = currCtx.getImageData(0, 0, 50, 50).data;
+
+      // Build grayscale array
+      var gray = new Float32Array(2500);
+      var mean = 0;
+      for (var i = 0; i < 2500; i++) {
+        var base = i * 4;
+        gray[i] = 0.299*currPixels[base] + 0.587*currPixels[base+1] + 0.114*currPixels[base+2];
+        mean += gray[i];
+      }
+      mean /= 2500;
+
+      // Brightness check
+      if (mean < BRIGHT_MIN || mean > BRIGHT_MAX) {
+        _stableCount = 0; _prevData = null; setBar(0);
+        setStatus(mean < BRIGHT_MIN ? 'Too dark — find better lighting' : 'Too bright — avoid direct light');
+        setLocked(false);
+        return;
+      }
+
+      // Content/stdDev check
+      var variance = 0;
+      for (var j = 0; j < 2500; j++) { var d = gray[j]-mean; variance += d*d; }
+      var stdDev = Math.sqrt(variance/2500);
+      if (stdDev < STD_MIN) {
+        _stableCount = 0; _prevData = null; setBar(0);
+        setStatus('Align card within the frame');
+        setLocked(false);
+        return;
+      }
+
+      // MAD check against previous frame
+      if (_prevData) {
+        var mad = 0;
+        for (var k = 0; k < 2500; k++) { mad += Math.abs(gray[k] - _prevData[k]); }
+        mad /= 2500;
+        if (mad > MAD_THRESHOLD) {
+          _stableCount = 0;
+          setStatus('Hold still…');
+          setBar(0);
+          setLocked(false);
+        } else {
+          _stableCount++;
+          setBar((_stableCount / STABLE_NEEDED) * 100);
+          if (_stableCount >= 2) setStatus('Hold still…');
+          if (_stableCount >= STABLE_NEEDED) {
+            setLocked(true);
+            _capture(video);
+            return;
+          }
+        }
+      } else {
+        setStatus('Align card within the frame');
+      }
+
+      // Copy curr to prev
+      _prevData = gray;
+      // Swap canvases
+      prevCtx.drawImage(el('bcs-canvas-curr'), 0, 0);
+    }
+
+    analyze();
+  }
+
+  // ── Capture a full-res frame ──────────────────────────────────
+  function _capture(video) {
+    if (!_active) return;
+    if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
+    if (_timeoutId) { clearTimeout(_timeoutId); _timeoutId = null; }
+
+    // White flash
+    var flash = el('bcs-flash');
+    if (flash) {
+      flash.classList.add('bcs-flashing');
+      setTimeout(function() { flash.classList.remove('bcs-flashing'); }, 300);
+    }
+
+    // Grab full-res frame
+    var canvas = el('bcs-capture-canvas');
+    var vw = video.videoWidth  || 1280;
+    var vh = video.videoHeight || 720;
+    canvas.width  = vw;
+    canvas.height = vh;
+    canvas.getContext('2d').drawImage(video, 0, 0, vw, vh);
+    var b64 = canvas.toDataURL('image/jpeg', 0.88).split(',')[1];
+
+    // Close scanner after flash
+    setTimeout(function() {
+      close();
+      if (typeof _callback === 'function') _callback(b64);
+    }, 350);
+  }
+
+  // ── Manual capture (timeout fallback) ────────────────────────
+  function manualCapture() {
+    var video = el('bcs-video');
+    if (!video || !_active) return;
+    setStatus('Capturing…');
+    _capture(video);
+  }
+
+  // ── File input fallback ───────────────────────────────────────
+  function _fallback() {
+    var inp = document.getElementById('vcl-card-input');
+    if (!inp) return;
+    if (!('ontouchstart' in window)) { inp.removeAttribute('capture'); }
+    else { inp.setAttribute('capture', 'environment'); }
+    inp.value = '';
+    inp.click();
+  }
+
+  return { open: open, close: close, manualCapture: manualCapture };
+})();
+</script>
 
 <!-- Voice Logger JavaScript -->
 <script>
@@ -12297,18 +12714,13 @@ document.addEventListener('click', function(e) {
 
   // ── Business Card Scanner ──────────────────────────────────────
 
-  // Trigger the hidden file input (camera on iPhone, file picker on desktop)
+  // Open BCS live scanner; fall back to file input when camera unavailable
   window.VCL_scanCard = function() {
-    var inp = document.getElementById('vcl-card-input');
-    if (!inp) return;
-    // On desktop (non-touch), remove the capture attribute so a file picker opens
-    if (!('ontouchstart' in window)) {
-      inp.removeAttribute('capture');
-    } else {
-      inp.setAttribute('capture', 'environment');
-    }
-    inp.value = ''; // reset so onchange fires even if same file selected
-    inp.click();
+    // BCS.open expects a callback(base64jpeg)
+    window.BCS.open(function(b64) {
+      // Synthesize a fake "file input" result — pass the base64 directly to handleCardFile
+      window.VCL_handleCardB64(b64);
+    });
   };
 
   // Called when user picks/captures a photo
@@ -12378,6 +12790,65 @@ document.addEventListener('click', function(e) {
           statusEl.textContent = '⚠ Could not read card — please fill in manually';
         }
       });
+    });
+  };
+
+  // Called by BCS live scanner — receives base64 JPEG directly (no File object needed)
+  window.VCL_handleCardB64 = function(b64) {
+    var btn = document.getElementById('vcl-scan-card-btn');
+    var lbl = document.getElementById('vcl-scan-card-label');
+    var ico = document.getElementById('vcl-scan-card-ico');
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.75'; }
+    if (lbl) lbl.textContent = 'Reading card...';
+    if (ico) ico.textContent = '⏳';
+
+    var statusEl = document.getElementById('vcl-card-status');
+    if (statusEl) {
+      statusEl.style.display = 'block';
+      statusEl.style.background = 'rgba(201,168,76,.1)';
+      statusEl.style.border = '1px solid rgba(201,168,76,.3)';
+      statusEl.style.color = '#C9A84C';
+      statusEl.textContent = 'Processing business card...';
+    }
+
+    VCL.cardImageBase64 = b64;
+
+    fetch('/api/voice/scan-card', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: b64, mimeType: 'image/jpeg' })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(result) {
+      if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+      if (lbl) lbl.textContent = 'Scan Again';
+      if (ico) ico.textContent = '📷';
+
+      if (result.error || !result.extracted || Object.keys(result.extracted).length === 0) {
+        VCL.cardImageBase64 = null; VCL.cardExtracted = null;
+        if (statusEl) {
+          statusEl.style.background = 'rgba(239,68,68,.12)';
+          statusEl.style.border = '1px solid rgba(239,68,68,.3)';
+          statusEl.style.color = '#ef4444';
+          statusEl.textContent = '⚠ Could not read card — please fill in manually';
+        }
+        return;
+      }
+      VCL.cardExtracted = result.extracted;
+      applyCardToConfirm(result.extracted);
+    })
+    .catch(function(e) {
+      console.error('[VCL] scan-card b64 error:', e);
+      if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+      if (lbl) lbl.textContent = 'Scan Business Card';
+      if (ico) ico.textContent = '📷';
+      VCL.cardImageBase64 = null; VCL.cardExtracted = null;
+      if (statusEl) {
+        statusEl.style.background = 'rgba(239,68,68,.12)';
+        statusEl.style.border = '1px solid rgba(239,68,68,.3)';
+        statusEl.style.color = '#ef4444';
+        statusEl.textContent = '⚠ Could not read card — please fill in manually';
+      }
     });
   };
 
