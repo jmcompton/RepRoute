@@ -137,7 +137,8 @@ router.post('/', async (req, res) => {
   const {
     company, category, city, state, phone, contact, website, products,
     status, priority, notes, source, address, google_place_id,
-    data_status, manufacturer_assoc, email
+    data_status, manufacturer_assoc, email,
+    title, mobile, zip
   } = req.body;
 
   const company_type = resolveCompanyType(category);
@@ -147,14 +148,16 @@ router.post('/', async (req, res) => {
     `INSERT INTO prospects
        (user_id, company, category, company_type, city, state, phone, email,
         contact, website, products, status, priority, notes, source,
-        address, google_place_id, data_status, manufacturer_assoc, last_activity_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW())
+        address, google_place_id, data_status, manufacturer_assoc,
+        title, mobile, zip, last_activity_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,NOW())
      RETURNING *`,
     [uid, company, category, company_type,
-     city || 'Atlanta', state || 'GA', phone || null, email || null,
+     city || null, state || 'GA', phone || null, email || null,
      contact || null, website || null, products || null,
      status || 'New', priority || 'Medium', notes || null, source || 'Manual',
-     address || null, google_place_id || null, ds, manufacturer_assoc || null]
+     address || null, google_place_id || null, ds, manufacturer_assoc || null,
+     title || null, mobile || null, zip || null]
   );
   res.json(result.rows[0]);
 });
@@ -166,7 +169,8 @@ router.put('/:id', async (req, res) => {
   const {
     company, category, city, state, phone, email, contact, website,
     products, status, priority, notes, pipeline_stage, google_place_id,
-    address, data_status, manufacturer_assoc, business_card_image
+    address, data_status, manufacturer_assoc, business_card_image,
+    title, mobile, zip
   } = req.body;
 
   const fields = [];
@@ -197,6 +201,9 @@ router.put('/:id', async (req, res) => {
   add('address', address);
   add('manufacturer_assoc', manufacturer_assoc);
   add('business_card_image', business_card_image);
+  add('title', title);
+  add('mobile', mobile);
+  add('zip', zip);
 
   // data_status transitions
   if (data_status !== undefined) {
@@ -220,6 +227,54 @@ router.put('/:id', async (req, res) => {
     vals
   );
   res.json(result.rows[0] || { error: 'Not found' });
+});
+
+// ── GET /api/prospects/:id ───────────────────────────────────────
+router.get('/:id', async (req, res) => {
+  const uid = req.session.user.id;
+  try {
+    const result = await pool.query(
+      'SELECT * FROM prospects WHERE id=$1 AND user_id=$2',
+      [req.params.id, uid]
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: 'Not found' });
+    res.json(result.rows[0]);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── POST /api/prospects/:id/fill-blanks ──────────────────────────
+// Update only fields that are currently NULL or empty in the database.
+// Used by Voice Logger to safely merge new contact data without overwriting
+// existing values. All fields are optional in the request body.
+router.post('/:id/fill-blanks', async (req, res) => {
+  const uid = req.session.user.id;
+  const id  = req.params.id;
+  const allowed = ['phone','mobile','email','address','city','state','zip',
+                   'website','title','contact','business_card_image'];
+  const fields = [];
+  const vals   = [];
+
+  allowed.forEach(function(col) {
+    const v = req.body[col];
+    if (v !== undefined && v !== null && String(v).trim() !== '') {
+      vals.push(String(v).trim());
+      // COALESCE(NULLIF(TRIM(col),''), $n) — only updates if current value is NULL or blank
+      fields.push(`${col} = COALESCE(NULLIF(TRIM(${col}),''), $${vals.length})`);
+    }
+  });
+
+  if (fields.length === 0) return res.json({ ok: true, updated: 0 });
+
+  vals.push(id);
+  vals.push(uid);
+  try {
+    await pool.query(
+      `UPDATE prospects SET ${fields.join(', ')}, last_activity_at=NOW()
+       WHERE id=$${vals.length - 1} AND user_id=$${vals.length}`,
+      vals
+    );
+    res.json({ ok: true, updated: fields.length });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── DELETE /api/prospects/:id ────────────────────────────────────

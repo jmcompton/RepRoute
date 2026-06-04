@@ -3829,12 +3829,13 @@ function viewRecord(id) {
       var fields = [
         ['Contact Owner','You'],['Company Type',ctRecBadge],
         ['Contact Name',p.contact||'—'],['Account Name',p.company],
-        ['Email',p.email ? '<a href="mailto:' + p.email + '">' + p.email + '</a>' : '—'],['Phone',p.phone||'—'],
+        ['Job Title',p.title||'—'],['Email',p.email ? '<a href="mailto:' + p.email + '">' + p.email + '</a>' : '—'],
+        ['Phone',p.phone||'—'],['Mobile',p.mobile||'—'],
         ['City',p.city||'—'],['State',p.state||'GA'],
-        ['Address',p.address||'—'],['Website',p.website ? '<a href="' + p.website + '" target="_blank">Website</a>' : '—'],
+        ['Address',p.address||'—'],['Zip',p.zip||'—'],
+        ['Website',p.website ? '<a href="' + p.website + '" target="_blank">Website</a>' : '—'],
         ['Status','<span class="badge b-' + (p.status||'new').toLowerCase() + '">' + (p.status||'New') + '</span>'],
-        ['Data Status', dsBadgeRec + verifyBtn],
-        ['Manufacturer',p.manufacturer_assoc||'—'],
+        ['Data Status', dsBadgeRec + verifyBtn],['Manufacturer',p.manufacturer_assoc||'—'],
         ['Created',p.created_at ? new Date(p.created_at).toLocaleDateString() : '—'],
         ['Notes',p.notes||'—']
       ];
@@ -11408,6 +11409,55 @@ document.addEventListener('click', function(e) {
         '</button>' +
         '<div id="vcl-card-status" style="display:none;margin-top:8px;padding:8px 10px;border-radius:6px;font-size:11.5px;font-weight:600"></div>' +
       '</div>' +
+      // ── Contact detail fields (editable before/after card scan) ──
+      // Job Title
+      '<div style="margin-bottom:13px">' +
+        '<label style="' + labelStyle + '">Job Title</label>' +
+        '<input id="vcl-cf-title" type="text" placeholder="Job title..." style="' + fieldStyle + '">' +
+      '</div>' +
+      // Phone + Mobile row
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px">' +
+        '<div>' +
+          '<label style="' + labelStyle + '">Phone</label>' +
+          '<input id="vcl-cf-phone" type="tel" placeholder="Phone number..." style="' + fieldStyle + '">' +
+        '</div>' +
+        '<div>' +
+          '<label style="' + labelStyle + '">Mobile</label>' +
+          '<input id="vcl-cf-mobile" type="tel" placeholder="Mobile number..." style="' + fieldStyle + '">' +
+        '</div>' +
+      '</div>' +
+      // Email
+      '<div style="margin-bottom:13px">' +
+        '<label style="' + labelStyle + '">Email</label>' +
+        '<input id="vcl-cf-email" type="email" placeholder="Email address..." style="' + fieldStyle + '">' +
+      '</div>' +
+      // Address
+      '<div style="margin-bottom:13px">' +
+        '<label style="' + labelStyle + '">Street Address</label>' +
+        '<input id="vcl-cf-address" type="text" placeholder="Street address..." style="' + fieldStyle + '">' +
+      '</div>' +
+      // City + State + Zip row
+      '<div style="display:grid;grid-template-columns:1fr 80px 80px;gap:10px;margin-bottom:16px">' +
+        '<div>' +
+          '<label style="' + labelStyle + '">City</label>' +
+          '<input id="vcl-cf-city" type="text" placeholder="City..." style="' + fieldStyle + '">' +
+        '</div>' +
+        '<div>' +
+          '<label style="' + labelStyle + '">State</label>' +
+          '<input id="vcl-cf-state" type="text" placeholder="ST" maxlength="2" style="' + fieldStyle + ';text-transform:uppercase">' +
+        '</div>' +
+        '<div>' +
+          '<label style="' + labelStyle + '">Zip</label>' +
+          '<input id="vcl-cf-zip" type="text" placeholder="ZIP" maxlength="10" style="' + fieldStyle + '">' +
+        '</div>' +
+      '</div>' +
+      // Website
+      '<div style="margin-bottom:16px">' +
+        '<label style="' + labelStyle + '">Website</label>' +
+        '<input id="vcl-cf-website" type="text" placeholder="Website..." style="' + fieldStyle + '">' +
+      '</div>' +
+      // Divider before call-log fields
+      '<div style="height:1px;background:rgba(255,255,255,.08);margin-bottom:16px"></div>' +
       // Date + Type row
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px">' +
         '<div>' +
@@ -11466,35 +11516,50 @@ document.addEventListener('click', function(e) {
     // Determine if user edited the account name away from the matched one
     var isExistingAcct = acct && !acct.isNew && vclNorm(account) === vclNorm(acct.company);
 
+    // Collect all contact detail fields from the form
+    var cfTitle   = (($id('vcl-cf-title')   || {}).value || '').trim();
+    var cfPhone   = (($id('vcl-cf-phone')   || {}).value || '').trim();
+    var cfMobile  = (($id('vcl-cf-mobile')  || {}).value || '').trim();
+    var cfEmail   = (($id('vcl-cf-email')   || {}).value || '').trim();
+    var cfAddress = (($id('vcl-cf-address') || {}).value || '').trim();
+    var cfCity    = (($id('vcl-cf-city')    || {}).value || '').trim();
+    var cfState   = (($id('vcl-cf-state')   || {}).value || '').trim();
+    var cfZip     = (($id('vcl-cf-zip')     || {}).value || '').trim();
+    var cfWebsite = (($id('vcl-cf-website') || {}).value || '').trim();
+
     var savedProspectId = null;
-    getOrCreateProspectId(account, contName, acct, cont, isExistingAcct)
+    getOrCreateProspectId(account, contName, acct, cont, isExistingAcct,
+      { title: cfTitle, phone: cfPhone, mobile: cfMobile, email: cfEmail,
+        address: cfAddress, city: cfCity, state: cfState, zip: cfZip, website: cfWebsite })
       .then(function(prospectId) {
         if (!prospectId) throw new Error('Could not resolve account');
         savedProspectId = prospectId;
 
-        // If business card was scanned, save card data + image to the prospect
-        var cardUpdates = {};
-        if (VCL.cardImageBase64) {
-          cardUpdates.business_card_image = VCL.cardImageBase64;
-        }
-        if (VCL.cardExtracted) {
-          var ce = VCL.cardExtracted;
-          if (ce.phone)   cardUpdates.phone   = ce.phone;
-          if (ce.email)   cardUpdates.email   = ce.email;
-          if (ce.address) cardUpdates.address = ce.address;
-          if (ce.city)    cardUpdates.city    = ce.city;
-          if (ce.state)   cardUpdates.state   = ce.state;
-          if (ce.website) cardUpdates.website = ce.website;
-        }
-        var cardSavePromise = Object.keys(cardUpdates).length > 0
-          ? fetch('/api/prospects/' + prospectId, {
-              method: 'PUT',
+        // Build contact field updates from the form (form is source of truth —
+        // applyCardToConfirm already merged card data into the form fields)
+        var contactUpdates = {};
+        if (cfTitle)   contactUpdates.title   = cfTitle;
+        if (cfPhone)   contactUpdates.phone   = cfPhone;
+        if (cfMobile)  contactUpdates.mobile  = cfMobile;
+        if (cfEmail)   contactUpdates.email   = cfEmail;
+        if (cfAddress) contactUpdates.address = cfAddress;
+        if (cfCity)    contactUpdates.city    = cfCity;
+        if (cfState)   contactUpdates.state   = cfState;
+        if (cfZip)     contactUpdates.zip     = cfZip;
+        if (cfWebsite) contactUpdates.website = cfWebsite;
+        if (VCL.cardImageBase64) contactUpdates.business_card_image = VCL.cardImageBase64;
+
+        // For existing contacts — use fill-blanks so we never overwrite existing DB data.
+        // For new contacts — data was already passed at creation time (see createNew*/createContact*).
+        var contactSavePromise = Object.keys(contactUpdates).length > 0
+          ? fetch('/api/prospects/' + prospectId + '/fill-blanks', {
+              method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(cardUpdates)
+              body: JSON.stringify(contactUpdates)
             }).then(function(r) { return r.json(); }).catch(function(){})
           : Promise.resolve();
 
-        return cardSavePromise.then(function() {
+        return contactSavePromise.then(function() {
           return fetch('/api/calls', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -11532,37 +11597,47 @@ document.addEventListener('click', function(e) {
   };
 
   // Resolve the prospect_id to log the call against
-  function getOrCreateProspectId(account, contName, acct, cont, isExistingAcct) {
+  // extraFields = {title,phone,mobile,email,address,city,state,zip,website} from the form
+  function getOrCreateProspectId(account, contName, acct, cont, isExistingAcct, extraFields) {
+    var ef = extraFields || {};
     if (isExistingAcct) {
       // Existing account
       if (cont && !cont.isNew && !cont.isNone && cont.id) {
-        // Existing contact — use their prospect_id directly
+        // Existing contact — use their prospect_id directly (fill-blanks called in VCL_save)
         return Promise.resolve(cont.id);
       } else if (cont && cont.isNew && contName) {
-        // New contact under existing account — create new prospect record
-        return createContactUnderAccount(account, contName, acct);
+        // New contact under existing account — create new prospect record with all fields
+        return createContactUnderAccount(account, contName, acct, ef);
       } else {
         // No contact or "no contact" — use the account's prospect id
         return Promise.resolve(acct.id);
       }
     } else {
-      // New account (or edited name)
-      return createNewAccountProspect(account, contName);
+      // New account (or edited name) — create with all form fields
+      return createNewAccountProspect(account, contName, ef);
     }
   }
 
-  function createNewAccountProspect(company, contactName) {
+  function createNewAccountProspect(company, contactName, ef) {
+    ef = ef || {};
     return fetch('/api/prospects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        company: company,
+        company:  company,
         category: 'Unknown',
-        city: '',
-        state: 'GA',
-        contact: contactName || null,
-        source: 'Voice Logger',
-        status: 'New',
+        city:     ef.city    || null,
+        state:    ef.state   || 'GA',
+        phone:    ef.phone   || null,
+        mobile:   ef.mobile  || null,
+        email:    ef.email   || null,
+        address:  ef.address || null,
+        zip:      ef.zip     || null,
+        website:  ef.website || null,
+        title:    ef.title   || null,
+        contact:  contactName || null,
+        source:   'Voice Logger',
+        status:   'New',
         priority: 'Medium'
       })
     })
@@ -11573,18 +11648,26 @@ document.addEventListener('click', function(e) {
     });
   }
 
-  function createContactUnderAccount(company, contactName, existingAcct) {
+  function createContactUnderAccount(company, contactName, existingAcct, ef) {
+    ef = ef || {};
     return fetch('/api/prospects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        company: company,
+        company:  company,
         category: existingAcct ? (existingAcct.category || 'Unknown') : 'Unknown',
-        city: existingAcct ? (existingAcct.city || '') : '',
-        state: existingAcct ? (existingAcct.state || 'GA') : 'GA',
-        contact: contactName,
-        source: 'Voice Logger',
-        status: 'New',
+        city:     ef.city    || (existingAcct ? (existingAcct.city  || null) : null),
+        state:    ef.state   || (existingAcct ? (existingAcct.state || 'GA') : 'GA'),
+        phone:    ef.phone   || null,
+        mobile:   ef.mobile  || null,
+        email:    ef.email   || null,
+        address:  ef.address || null,
+        zip:      ef.zip     || null,
+        website:  ef.website || null,
+        title:    ef.title   || null,
+        contact:  contactName,
+        source:   'Voice Logger',
+        status:   'New',
         priority: 'Medium'
       })
     })
@@ -11804,6 +11887,15 @@ document.addEventListener('click', function(e) {
 
     applyField('vcl-cf-account',  card.company_name);
     applyField('vcl-cf-contact',  card.contact_name);
+    applyField('vcl-cf-title',    card.title);
+    applyField('vcl-cf-phone',    card.phone);
+    applyField('vcl-cf-mobile',   card.mobile);
+    applyField('vcl-cf-email',    card.email);
+    applyField('vcl-cf-address',  card.address);
+    applyField('vcl-cf-city',     card.city);
+    applyField('vcl-cf-state',    card.state);
+    applyField('vcl-cf-zip',      card.zip);
+    applyField('vcl-cf-website',  card.website);
 
     if (statusEl) {
       if (filledCount > 0 || conflictCount > 0) {

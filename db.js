@@ -244,6 +244,11 @@ async function initDB() {
     -- Business Card Scanner: store scanned card image on the prospect record
     ALTER TABLE prospects ADD COLUMN IF NOT EXISTS business_card_image TEXT;
 
+    -- Voice Logger confirm card: extended contact fields
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS title  TEXT;
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS mobile TEXT;
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS zip    TEXT;
+
     CREATE TABLE IF NOT EXISTS import_history (
       id SERIAL PRIMARY KEY,
       user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
