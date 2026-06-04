@@ -12227,12 +12227,12 @@ window.BCS = (function() {
   var _prevData   = null;  // previous frame pixel data (Uint8ClampedArray, 50×50 gray)
   var _active     = false; // scanner is currently open
 
-  var STABLE_NEEDED  = 45;   // ~1.5 seconds of stability at 30fps before auto-capture
-  var MAD_THRESHOLD  = 8;    // stricter pixel-diff threshold — requires more stillness
+  var STABLE_NEEDED  = 20;   // ~0.65 seconds of stability at 30fps before auto-capture
+  var MAD_THRESHOLD  = 12;   // pixel-diff threshold — balanced between too strict and too loose
   var BRIGHT_MIN     = 60;   // minimum mean luminance
   var BRIGHT_MAX     = 230;  // maximum mean luminance
   var STD_MIN        = 20;   // minimum stdDev (brightness variation check)
-  var VARIANCE_MIN   = 500;  // minimum pixel variance — ensures actual card content in frame
+  var VARIANCE_MIN   = 300;  // minimum pixel variance — detects card content without being too strict
   var TIMEOUT_MS     = 20000; // 20 seconds before manual fallback button appears
 
   // ── DOM helpers ───────────────────────────────────────────────
@@ -12721,10 +12721,13 @@ window.BCS = (function() {
     // Timer ticks as soon as modal opens so the UI never looks frozen.
     startTimer();
 
-    // ── getUserMedia MUST be called here, synchronously in the gesture ─
-    // iOS Safari requires this to trigger the permission prompt and to
-    // unlock audio APIs. Without it, webkitSpeechRecognition silently fails.
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    // ── Microphone startup — check existing permission first ──────
+    // If already granted we skip getUserMedia entirely (no repeated popup).
+    // If prompt/unknown we call getUserMedia to trigger the OS dialog.
+    // If denied we show the settings message immediately.
+    // iOS Safari does not support navigator.permissions, so we fall back
+    // to the always-call-getUserMedia path in that case.
+    function _doGetUserMedia() {
       navigator.mediaDevices.getUserMedia({ audio: true })
         .then(function(stream) {
           // Release immediately — we only needed the permission grant
@@ -12746,6 +12749,37 @@ window.BCS = (function() {
           }
           setTimeout(showManualFallback, 1200);
         });
+    }
+
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      if (navigator.permissions && navigator.permissions.query) {
+        // Check existing permission state before touching getUserMedia
+        navigator.permissions.query({ name: 'microphone' })
+          .then(function(result) {
+            if (result.state === 'granted') {
+              // Already granted — go straight to speech recognition, no dialog
+              setStatus('Starting recognition...', 'rgba(255,255,255,.5)');
+              setTimeout(beginSpeechRecognition, 150);
+            } else if (result.state === 'denied') {
+              // Already denied — show settings message immediately
+              stopTimer();
+              setStatus('⚠️ Microphone access denied. In Settings › Safari › Microphone, allow this site then try again.', '#ef4444');
+              var stopBtn2 = $id('vcl-stop-btn');
+              if (stopBtn2) stopBtn2.style.display = 'none';
+              setTimeout(showManualFallback, 1200);
+            } else {
+              // state === 'prompt' — need to ask; call getUserMedia to trigger dialog
+              _doGetUserMedia();
+            }
+          })
+          .catch(function() {
+            // permissions.query not supported or failed — fall back to getUserMedia
+            _doGetUserMedia();
+          });
+      } else {
+        // No Permissions API (iOS Safari) — always call getUserMedia
+        _doGetUserMedia();
+      }
     } else {
       // Older browser / no mediaDevices — attempt speech recognition directly
       setStatus('Starting microphone...', 'rgba(255,255,255,.5)');
