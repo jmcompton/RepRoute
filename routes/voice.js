@@ -203,4 +203,90 @@ router.get('/account-contacts', async (req, res) => {
   }
 });
 
+// ── POST /api/voice/scan-card ────────────────────────────────────
+// Send a base64 business card image to Claude Vision and extract fields
+router.post('/scan-card', async (req, res) => {
+  const { image, mimeType } = req.body;
+  if (!image || !image.trim()) {
+    return res.status(400).json({ error: 'Image data required' });
+  }
+
+  const mediaType = mimeType || 'image/jpeg';
+
+  const prompt = `You are a business card reader. Extract all information from this business card image and return ONLY a JSON object with these fields (use null for any field not found):
+{
+  "contact_name": "full name on card",
+  "first_name": "first name only",
+  "last_name": "last name only",
+  "company_name": "company or organization name",
+  "title": "job title or position",
+  "phone": "main phone number",
+  "mobile": "mobile/cell number if different from phone",
+  "email": "email address",
+  "address": "street address",
+  "city": "city",
+  "state": "state abbreviation",
+  "zip": "zip code",
+  "website": "website URL"
+}
+Return only the JSON object, no other text, no markdown, no backticks.`;
+
+  try {
+    const response = await fetch(CLAUDE_API, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-opus-4-5',
+        max_tokens: 1024,
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: {
+                type: 'base64',
+                media_type: mediaType,
+                data: image
+              }
+            },
+            {
+              type: 'text',
+              text: prompt
+            }
+          ]
+        }]
+      })
+    });
+
+    const data = await response.json();
+    if (data.error) {
+      console.error('[voice/scan-card] API error:', data.error.message);
+      return res.json({ error: 'Could not read card', extracted: {} });
+    }
+
+    const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+
+    if (start === -1 || end === -1) {
+      return res.json({ error: 'Could not read card', extracted: {} });
+    }
+
+    try {
+      const extracted = JSON.parse(text.substring(start, end + 1));
+      // Return extracted fields + the image data so frontend can store it
+      return res.json({ extracted, image_data: image });
+    } catch (parseErr) {
+      return res.json({ error: 'Could not read card', extracted: {} });
+    }
+  } catch (e) {
+    console.error('[voice/scan-card] error:', e.message);
+    return res.json({ error: 'Could not read card', extracted: {} });
+  }
+});
+
 module.exports = router;

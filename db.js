@@ -241,6 +241,9 @@ async function initDB() {
     ALTER TABLE prospects ADD COLUMN IF NOT EXISTS zoho_id TEXT;
     CREATE INDEX IF NOT EXISTS idx_prospects_zoho_id ON prospects(zoho_id) WHERE zoho_id IS NOT NULL;
 
+    -- Business Card Scanner: store scanned card image on the prospect record
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS business_card_image TEXT;
+
     CREATE TABLE IF NOT EXISTS import_history (
       id SERIAL PRIMARY KEY,
       user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,

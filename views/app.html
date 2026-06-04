@@ -1864,6 +1864,16 @@ window.addEventListener('load', function() {
               <div class="rec-sec-hdr"><span class="rec-sec-title">Products & Territory</span><span style="font-size:11.5px;color:var(--blue);cursor:pointer">Edit</span></div>
               <div class="rec-sec-body" id="rec-prod-fields"></div>
             </div>
+            <!-- Business Card — shown only when a scanned card image exists -->
+            <div id="rec-bcard-section" style="display:none">
+              <div class="rec-sec">
+                <div class="rec-sec-hdr"><span class="rec-sec-title">Business Card</span></div>
+                <div class="rec-sec-body" style="padding:14px 16px">
+                  <img id="rec-bcard-img" alt="Business card" style="max-width:100%;border-radius:8px;border:1px solid var(--border);cursor:pointer;display:block" onclick="openCardFullScreen(this.src)">
+                  <div style="margin-top:8px;font-size:11px;color:var(--text3)">Tap to view full size</div>
+                </div>
+              </div>
+            </div>
             <!-- Manager Notes — shown only when viewing a team contact -->
             <div id="rec-manager-notes-section" style="display:none">
               <div class="rec-sec">
@@ -3836,6 +3846,18 @@ function viewRecord(id) {
       ];
       document.getElementById('rec-prod-fields').innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0">' +
         pf.map(function(f) { return '<div class="frow"><div class="flabel">' + f[0] + '</div><div class="fval' + (f[1]==='—'?' empty':'') + '">' + f[1] + '</div></div>'; }).join('') + '</div>';
+      // Business card image section
+      var bcardSection = document.getElementById('rec-bcard-section');
+      var bcardImg = document.getElementById('rec-bcard-img');
+      if (bcardSection && bcardImg) {
+        if (p.business_card_image) {
+          bcardImg.src = 'data:image/jpeg;base64,' + p.business_card_image;
+          bcardSection.style.display = 'block';
+        } else {
+          bcardSection.style.display = 'none';
+          bcardImg.src = '';
+        }
+      }
       fetch('/api/calls')
         .then(function(r) { return r.json(); })
         .then(function(calls) {
@@ -9335,6 +9357,15 @@ fetch('/api/notifications/evaluate', { method: 'POST' }).then(function(r){ retur
 #vcl-screen-confirm textarea {
   color-scheme: dark;
 }
+
+/* Business card scan — gold flash on auto-filled fields */
+@keyframes vcl-gold-flash {
+  0%   { border-color: #C9A84C; box-shadow: 0 0 0 3px rgba(201,168,76,.35); }
+  100% { border-color: rgba(255,255,255,.18); box-shadow: none; }
+}
+.vcl-gold-filled {
+  animation: vcl-gold-flash 1.4s ease-out forwards;
+}
 </style>
 
 
@@ -10619,6 +10650,15 @@ document.addEventListener('click', function(e) {
      Falls back to manual text entry if speech not available
      ═══════════════════════════════════════════════════════════════ -->
 
+<!-- Business card scanner: hidden file input triggered programmatically -->
+<input type="file" id="vcl-card-input" accept="image/*" capture="environment" style="display:none;position:absolute;left:-9999px" onchange="window.VCL_handleCardFile(this)">
+
+<!-- Business card fullscreen viewer overlay -->
+<div id="vcl-card-fullscreen" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;cursor:pointer;align-items:center;justify-content:center;padding:20px" onclick="closeCardFullScreen()">
+  <img id="vcl-card-fullscreen-img" alt="Business card" style="max-width:100%;max-height:90vh;border-radius:10px;box-shadow:0 8px 40px rgba(0,0,0,.7);pointer-events:none">
+  <div style="position:absolute;top:16px;right:20px;color:#fff;font-size:28px;font-weight:300;pointer-events:none">✕</div>
+</div>
+
 <!-- Floating gold microphone button -->
 <button id="vcl-float-btn" onclick="VCL_open()" title="Voice Call Logger" aria-label="Log a call by voice">
   <!-- Microphone SVG -->
@@ -10740,17 +10780,19 @@ document.addEventListener('click', function(e) {
 
   // ── State object ───────────────────────────────────────────────
   var VCL = {
-    state:          'idle',   // idle | recording | processing | account-match | contact-choice | confirm
-    recognition:    null,
-    transcript:     '',
-    interimTxt:     '',
-    timerInterval:  null,
-    seconds:        0,
-    extracted:      null,     // {account_name, contact_name, summary, outcome, next_steps}
-    accountMatches: [],
-    selectedAccount: null,    // {id, company, city, state, category, isNew}
-    selectedContact: null,    // {id, contact, isNew, isNone}
-    accountContacts: []
+    state:           'idle',   // idle | recording | processing | account-match | contact-choice | confirm
+    recognition:     null,
+    transcript:      '',
+    interimTxt:      '',
+    timerInterval:   null,
+    seconds:         0,
+    extracted:       null,     // {account_name, contact_name, summary, outcome, next_steps}
+    accountMatches:  [],
+    selectedAccount: null,     // {id, company, city, state, category, isNew}
+    selectedContact: null,     // {id, contact, isNew, isNone}
+    accountContacts: [],
+    cardImageBase64: null,     // base64 JPEG from business card scan
+    cardExtracted:   null      // {contact_name, company_name, phone, email, title, address, city, state, zip, website}
   };
 
   // ── Local helpers ──────────────────────────────────────────────
@@ -10984,6 +11026,8 @@ document.addEventListener('click', function(e) {
     VCL.selectedAccount = null;
     VCL.selectedContact = null;
     VCL.accountContacts = [];
+    VCL.cardImageBase64 = null;
+    VCL.cardExtracted = null;
 
     openModal();
     showScreen('recording');
@@ -11356,6 +11400,14 @@ document.addEventListener('click', function(e) {
           contBadge +
         '</div>' +
       '</div>' +
+      // Business Card Scan button
+      '<div style="margin-bottom:16px">' +
+        '<button type="button" id="vcl-scan-card-btn" onclick="window.VCL_scanCard()" style="width:100%;padding:11px 14px;background:rgba(201,168,76,.1);border:1.5px solid rgba(201,168,76,.45);border-radius:8px;color:#C9A84C;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;touch-action:manipulation;-webkit-tap-highlight-color:rgba(201,168,76,.2)">' +
+          '<span id="vcl-scan-card-ico" style="font-size:17px;flex-shrink:0;pointer-events:none">📷</span>' +
+          '<span id="vcl-scan-card-label" style="pointer-events:none">Scan Business Card</span>' +
+        '</button>' +
+        '<div id="vcl-card-status" style="display:none;margin-top:8px;padding:8px 10px;border-radius:6px;font-size:11.5px;font-weight:600"></div>' +
+      '</div>' +
       // Date + Type row
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px">' +
         '<div>' +
@@ -11414,24 +11466,50 @@ document.addEventListener('click', function(e) {
     // Determine if user edited the account name away from the matched one
     var isExistingAcct = acct && !acct.isNew && vclNorm(account) === vclNorm(acct.company);
 
+    var savedProspectId = null;
     getOrCreateProspectId(account, contName, acct, cont, isExistingAcct)
       .then(function(prospectId) {
         if (!prospectId) throw new Error('Could not resolve account');
+        savedProspectId = prospectId;
 
-        return fetch('/api/calls', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            prospect_id:       prospectId,
-            call_date:         callDate,
-            call_type:         callType,
-            outcome:           outcome,
-            products_discussed: '',
-            next_step:         nextStep || null,
-            next_step_date:    null,
-            notes:             summary || null
-          })
-        }).then(function(r) { return r.json(); });
+        // If business card was scanned, save card data + image to the prospect
+        var cardUpdates = {};
+        if (VCL.cardImageBase64) {
+          cardUpdates.business_card_image = VCL.cardImageBase64;
+        }
+        if (VCL.cardExtracted) {
+          var ce = VCL.cardExtracted;
+          if (ce.phone)   cardUpdates.phone   = ce.phone;
+          if (ce.email)   cardUpdates.email   = ce.email;
+          if (ce.address) cardUpdates.address = ce.address;
+          if (ce.city)    cardUpdates.city    = ce.city;
+          if (ce.state)   cardUpdates.state   = ce.state;
+          if (ce.website) cardUpdates.website = ce.website;
+        }
+        var cardSavePromise = Object.keys(cardUpdates).length > 0
+          ? fetch('/api/prospects/' + prospectId, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(cardUpdates)
+            }).then(function(r) { return r.json(); }).catch(function(){})
+          : Promise.resolve();
+
+        return cardSavePromise.then(function() {
+          return fetch('/api/calls', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              prospect_id:       prospectId,
+              call_date:         callDate,
+              call_type:         callType,
+              outcome:           outcome,
+              products_discussed: '',
+              next_step:         nextStep || null,
+              next_step_date:    null,
+              notes:             summary || null
+            })
+          }).then(function(r) { return r.json(); });
+        });
       })
       .then(function(result) {
         if (result && result.error) throw new Error(result.error);
@@ -11576,6 +11654,192 @@ document.addEventListener('click', function(e) {
       sheet.addEventListener('click', doStopTap, true);
     });
   })();
+
+  // ── Business Card Scanner ──────────────────────────────────────
+
+  // Trigger the hidden file input (camera on iPhone, file picker on desktop)
+  window.VCL_scanCard = function() {
+    var inp = document.getElementById('vcl-card-input');
+    if (!inp) return;
+    // On desktop (non-touch), remove the capture attribute so a file picker opens
+    if (!('ontouchstart' in window)) {
+      inp.removeAttribute('capture');
+    } else {
+      inp.setAttribute('capture', 'environment');
+    }
+    inp.value = ''; // reset so onchange fires even if same file selected
+    inp.click();
+  };
+
+  // Called when user picks/captures a photo
+  window.VCL_handleCardFile = function(input) {
+    var file = input && input.files && input.files[0];
+    if (!file) return;
+
+    // Update button UI to loading state
+    var btn = document.getElementById('vcl-scan-card-btn');
+    var lbl = document.getElementById('vcl-scan-card-label');
+    var ico = document.getElementById('vcl-scan-card-ico');
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.75'; }
+    if (lbl) lbl.textContent = 'Reading card...';
+    if (ico) ico.textContent = '⏳';
+
+    var statusEl = document.getElementById('vcl-card-status');
+    if (statusEl) {
+      statusEl.style.display = 'block';
+      statusEl.style.background = 'rgba(201,168,76,.1)';
+      statusEl.style.border = '1px solid rgba(201,168,76,.3)';
+      statusEl.style.color = '#C9A84C';
+      statusEl.textContent = 'Processing business card...';
+    }
+
+    // Compress to max 1200px wide, JPEG 0.82 quality
+    compressCardImage(file, 1200, 0.82, function(b64, mimeType) {
+      VCL.cardImageBase64 = b64;
+
+      fetch('/api/voice/scan-card', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: b64, mimeType: mimeType })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(result) {
+        // Reset button
+        if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+        if (lbl) lbl.textContent = 'Scan Again';
+        if (ico) ico.textContent = '📷';
+
+        if (result.error || !result.extracted || Object.keys(result.extracted).length === 0) {
+          VCL.cardImageBase64 = null;
+          VCL.cardExtracted = null;
+          if (statusEl) {
+            statusEl.style.background = 'rgba(239,68,68,.12)';
+            statusEl.style.border = '1px solid rgba(239,68,68,.3)';
+            statusEl.style.color = '#ef4444';
+            statusEl.textContent = '⚠ Could not read card — please fill in manually';
+          }
+          return;
+        }
+
+        VCL.cardExtracted = result.extracted;
+        applyCardToConfirm(result.extracted);
+      })
+      .catch(function(e) {
+        console.error('[VCL] scan-card error:', e);
+        if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+        if (lbl) lbl.textContent = 'Scan Business Card';
+        if (ico) ico.textContent = '📷';
+        VCL.cardImageBase64 = null;
+        VCL.cardExtracted = null;
+        if (statusEl) {
+          statusEl.style.background = 'rgba(239,68,68,.12)';
+          statusEl.style.border = '1px solid rgba(239,68,68,.3)';
+          statusEl.style.color = '#ef4444';
+          statusEl.textContent = '⚠ Could not read card — please fill in manually';
+        }
+      });
+    });
+  };
+
+  // Canvas-based image compression — resize to maxW, convert to JPEG at quality
+  function compressCardImage(file, maxW, quality, cb) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var img = new Image();
+      img.onload = function() {
+        var w = img.width, h = img.height;
+        if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
+        var canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        var dataUrl = canvas.toDataURL('image/jpeg', quality);
+        var b64 = dataUrl.split(',')[1];
+        cb(b64, 'image/jpeg');
+      };
+      img.onerror = function() {
+        // Fallback: send raw base64 without compression
+        var b64 = e.target.result.split(',')[1];
+        cb(b64, file.type || 'image/jpeg');
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // Populate confirm form fields from card scan results
+  function applyCardToConfirm(card) {
+    var statusEl = document.getElementById('vcl-card-status');
+    var filledCount = 0;
+    var conflictCount = 0;
+
+    // Helper: fill a field or show conflict note
+    function applyField(fieldId, cardValue) {
+      if (!cardValue) return;
+      var field = document.getElementById(fieldId);
+      if (!field) return;
+      if (!field.value.trim()) {
+        // Empty — auto-fill + gold flash
+        field.value = cardValue;
+        field.classList.remove('vcl-gold-filled');
+        void field.offsetWidth; // trigger reflow
+        field.classList.add('vcl-gold-filled');
+        filledCount++;
+      } else if (field.value.trim().toLowerCase() !== cardValue.toLowerCase()) {
+        // Conflict — show note below the field
+        var outerDiv = field.parentNode.parentNode;
+        var noteId = fieldId + '-cnote';
+        var note = document.getElementById(noteId);
+        if (!note) {
+          note = document.createElement('div');
+          note.id = noteId;
+          note.style.cssText = 'margin-top:5px;font-size:11px;font-weight:600;padding:4px 8px;background:rgba(245,158,11,.12);border-radius:5px;color:#f59e0b';
+          outerDiv.appendChild(note);
+        }
+        note.textContent = 'Card says: ' + cardValue;
+        note.style.display = 'block';
+        conflictCount++;
+      }
+    }
+
+    applyField('vcl-cf-account',  card.company_name);
+    applyField('vcl-cf-contact',  card.contact_name);
+
+    if (statusEl) {
+      if (filledCount > 0 || conflictCount > 0) {
+        var msg = '✓ Business card scanned';
+        if (filledCount > 0) msg += ' — ' + filledCount + ' field' + (filledCount > 1 ? 's' : '') + ' filled';
+        if (conflictCount > 0) msg += (filledCount > 0 ? ', ' : ' — ') + conflictCount + ' conflict' + (conflictCount > 1 ? 's' : '') + ' noted below';
+        statusEl.style.background = 'rgba(16,185,129,.1)';
+        statusEl.style.border = '1px solid rgba(16,185,129,.3)';
+        statusEl.style.color = '#10b981';
+        statusEl.textContent = msg;
+      } else {
+        statusEl.style.background = 'rgba(16,185,129,.1)';
+        statusEl.style.border = '1px solid rgba(16,185,129,.3)';
+        statusEl.style.color = '#10b981';
+        statusEl.textContent = '✓ Business card scanned — fields already filled';
+      }
+      statusEl.style.display = 'block';
+    }
+  }
+
+  // Open card full-screen (also usable from contact detail view)
+  window.openCardFullScreen = function(src) {
+    var overlay = document.getElementById('vcl-card-fullscreen');
+    var img = document.getElementById('vcl-card-fullscreen-img');
+    if (!overlay || !img || !src) return;
+    img.src = src;
+    overlay.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  };
+
+  window.closeCardFullScreen = function() {
+    var overlay = document.getElementById('vcl-card-fullscreen');
+    if (!overlay) return;
+    overlay.style.display = 'none';
+    document.body.style.overflow = '';
+  };
 
   // Expose state for debugging
   window._VCL = VCL;

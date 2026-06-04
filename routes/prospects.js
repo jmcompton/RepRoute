@@ -166,7 +166,7 @@ router.put('/:id', async (req, res) => {
   const {
     company, category, city, state, phone, email, contact, website,
     products, status, priority, notes, pipeline_stage, google_place_id,
-    address, data_status, manufacturer_assoc
+    address, data_status, manufacturer_assoc, business_card_image
   } = req.body;
 
   const fields = [];
@@ -196,6 +196,7 @@ router.put('/:id', async (req, res) => {
   add('google_place_id', google_place_id);
   add('address', address);
   add('manufacturer_assoc', manufacturer_assoc);
+  add('business_card_image', business_card_image);
 
   // data_status transitions
   if (data_status !== undefined) {
