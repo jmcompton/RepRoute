@@ -1912,6 +1912,62 @@ window.addEventListener('load', function() {
     </div>
   </div>
 
+  <!-- ── Contact Detail Page ──────────────────────────────────── -->
+  <div class="page" id="page-contact">
+
+    <!-- Header — dark navy -->
+    <div id="cd-hdr">
+      <div id="cd-hdr-top">
+        <button id="cd-back-btn" onclick="contactDetailBack()" aria-label="Back">←</button>
+        <div id="cd-av">?</div>
+        <div style="flex:1;min-width:0">
+          <div id="cd-name">—</div>
+          <div id="cd-job-title" style="display:none"></div>
+          <button id="cd-company-btn" onclick="contactDetailGoToAccount()" type="button"></button>
+        </div>
+      </div>
+      <div id="cd-action-row">
+        <button id="cd-log-call-btn" onclick="logCallForContact()">Log Call</button>
+        <button id="cd-email-btn" onclick="contactDetailEmail()">Email</button>
+        <button id="cd-edit-btn" onclick="editContactDetail()">✏️ Edit</button>
+      </div>
+    </div>
+
+    <!-- Tab bar -->
+    <div id="cd-tabs">
+      <div class="cd-tab active" onclick="setContactTab('overview',this)" data-tab="overview">Overview</div>
+      <div class="cd-tab" onclick="setContactTab('timeline',this)" data-tab="timeline">Timeline</div>
+      <div class="cd-tab" onclick="setContactTab('bcard',this)" data-tab="bcard">Business Card</div>
+    </div>
+
+    <!-- Scrollable body -->
+    <div id="cd-body">
+
+      <!-- Overview tab -->
+      <div id="cd-tab-overview"></div>
+
+      <!-- Timeline tab -->
+      <div id="cd-tab-timeline" style="display:none">
+        <div style="padding:16px">
+          <div id="cd-timeline-list"><div style="text-align:center;padding:30px;color:var(--text3)">Loading...</div></div>
+        </div>
+      </div>
+
+      <!-- Business Card tab -->
+      <div id="cd-tab-bcard" style="display:none">
+        <div style="padding:16px">
+          <div id="cd-bcard-body"></div>
+        </div>
+      </div>
+
+      <!-- Save bar (edit mode only) -->
+      <div id="cd-save-bar">
+        <button id="cd-save-changes-btn" onclick="saveContactDetail()">Save Changes</button>
+      </div>
+    </div>
+
+  </div>
+
   <!-- AI LEAD FINDER -->
   <div id="page-bulk" class="page" style="overflow-y:auto;padding-bottom:72px">
   <div style="max-width:900px;margin:0 auto;padding:24px 20px 60px">
@@ -3219,7 +3275,7 @@ var currentContactType = 'installers';
 var pageTitles = {
     reports: 'Reports', analytics: 'Analytics', accounts: 'Accounts',
     forecasts: 'Forecasts', campaigns: 'Campaigns', tasks: 'Tasks',
-  dashboard: 'Home', contacts: 'Accounts', record: 'Account Detail',
+  dashboard: 'Home', contacts: 'Accounts', record: 'Account Detail', contact: 'Contact',
    bulk: 'Bulk Ingestion Mode', calls: 'Calls', weekly: 'Weekly Plan',
   command: 'AI Command Center', outreach: 'Outreach Writer',
   onboarding: 'Onboarding', manager: 'Team Dashboard', deals: 'Deal Pipeline', quotes: 'Quotes',
@@ -4006,11 +4062,392 @@ function recGoBack() {
 }
 
 function viewRecordFromContacts(id) {
-  // Store current record as the parent so back button returns here
-  if (currentRecord) {
-    _recFromContacts = { id: currentRecord.id, company: currentRecord.company };
+  // Open the dedicated contact detail page instead of re-using the account record view
+  var parentId = currentRecord ? currentRecord.id : null;
+  openContactDetail(id, parentId);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// CONTACT DETAIL PAGE
+// ═══════════════════════════════════════════════════════════════════
+var currentContactRecord = null;   // full prospect object for the open contact
+var _contactParentId     = null;   // account record ID to return to on back
+
+function openContactDetail(contactId, parentAccountId) {
+  _contactParentId = parentAccountId || null;
+
+  fetch('/api/prospects/' + contactId)
+    .then(function(r) { return r.json(); })
+    .then(function(contact) {
+      if (!contact || contact.error) { showToast('Could not load contact'); return; }
+      currentContactRecord = contact;
+
+      // Populate header
+      var name     = contact.contact || contact.company || '—';
+      var initials = name.split(' ').filter(Boolean).map(function(w){return w[0];}).join('').toUpperCase().slice(0,2) || '?';
+      var el;
+      el = document.getElementById('cd-av');       if (el) el.textContent = initials;
+      el = document.getElementById('cd-name');     if (el) el.textContent = name;
+      el = document.getElementById('cd-job-title');
+      if (el) {
+        if (contact.title) { el.textContent = contact.title; el.style.display = ''; }
+        else               { el.style.display = 'none'; }
+      }
+      el = document.getElementById('cd-company-btn');
+      if (el) el.textContent = contact.company || '—';
+      el = document.getElementById('cd-email-btn');
+      if (el) el.style.display = contact.email ? '' : 'none';
+
+      // Activate page
+      go('contact');
+
+      // Render overview immediately
+      renderContactOverview(contact, false);
+
+      // Reset tabs to Overview
+      setContactTab('overview', document.querySelector('#cd-tabs .cd-tab[data-tab="overview"]'));
+
+      // Load timeline in the background
+      fetch('/api/calls')
+        .then(function(r){ return r.json(); })
+        .then(function(calls){
+          var mine = (Array.isArray(calls) ? calls : []).filter(function(c){ return c.prospect_id === contactId; });
+          mine.sort(function(a,b){ return (b.call_date||'')>(a.call_date||'') ? 1 : -1; });
+          currentContactRecord._calls = mine;
+          renderContactTimeline(mine);
+        }).catch(function(){});
+
+      // Render business card tab
+      renderContactBcard(contact);
+    })
+    .catch(function(e){ console.error('[openContactDetail]', e); showToast('Error loading contact'); });
+}
+
+function contactDetailBack() {
+  if (_contactParentId) {
+    window._pendingRecTab = 'contacts';
+    viewRecord(_contactParentId);
+  } else {
+    go('contacts');
   }
-  viewRecord(id);
+}
+
+function contactDetailGoToAccount() {
+  if (currentContactRecord && currentContactRecord.company) {
+    // Find the account's prospect record (matching company, no contact name, or use parent ID)
+    if (_contactParentId) {
+      viewRecord(_contactParentId);
+    } else {
+      go('contacts');
+    }
+  }
+}
+
+function contactDetailEmail() {
+  if (currentContactRecord && currentContactRecord.email) {
+    window.location.href = 'mailto:' + currentContactRecord.email;
+  }
+}
+
+function setContactTab(tab, el) {
+  ['overview','timeline','bcard'].forEach(function(t) {
+    var e = document.getElementById('cd-tab-' + t);
+    if (e) e.style.display = t === tab ? 'block' : 'none';
+  });
+  document.querySelectorAll('#cd-tabs .cd-tab').forEach(function(i){ i.classList.remove('active'); });
+  if (el) el.classList.add('active');
+  // Exit edit mode when switching tabs
+  var saveBar = document.getElementById('cd-save-bar');
+  if (saveBar) saveBar.style.display = 'none';
+}
+
+// ── Overview tab ───────────────────────────────────────────────────
+function renderContactOverview(contact, editMode) {
+  var el = document.getElementById('cd-tab-overview');
+  if (!el) return;
+
+  function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  var lastContacted = '—';
+  if (currentContactRecord && currentContactRecord._calls && currentContactRecord._calls.length) {
+    var d = currentContactRecord._calls[0].call_date;
+    if (d) lastContacted = new Date(d.split('T')[0]+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  }
+
+  if (editMode) {
+    // Inline edit mode
+    var statusOpts = ['New','Warm','Hot','Cold','Active','Inactive'].map(function(s){
+      return '<option value="'+s+'"'+(contact.status===s?' selected':'')+'>'+s+'</option>';
+    }).join('');
+    el.innerHTML =
+      '<div class="cd-sec" style="margin:16px 16px 0">' +
+        '<div class="cd-sec-hdr"><span class="cd-sec-title">Contact Information</span></div>' +
+        '<div class="cd-grid">' +
+          cdEditField('cd-e-contact', 'Contact Name', contact.contact, 'text', false) +
+          cdEditField('cd-e-title',   'Job Title',    contact.title,   'text', false) +
+          cdEditField('cd-e-phone',   'Phone',        contact.phone,   'tel',  false) +
+          cdEditField('cd-e-mobile',  'Mobile',       contact.mobile,  'tel',  false) +
+          '<div class="cd-field cd-full"><div class="cd-label">Email</div>' +
+            '<input id="cd-e-email" type="email" value="'+esc(contact.email||'')+'" style="font-size:16px">' +
+          '</div>' +
+          cdEditField('cd-e-address', 'Street Address', contact.address, 'text', true) +
+          cdEditField('cd-e-city',    'City',           contact.city,    'text', false) +
+          cdEditField('cd-e-state',   'State',          contact.state,   'text', false) +
+          cdEditField('cd-e-zip',     'Zip',            contact.zip,     'text', false) +
+          cdEditField('cd-e-website', 'Website',        contact.website, 'text', true) +
+          '<div class="cd-field cd-full"><div class="cd-label">Status</div>' +
+            '<select id="cd-e-status" style="width:100%;box-sizing:border-box;padding:7px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12.5px;font-family:inherit">'+statusOpts+'</select>' +
+          '</div>' +
+          '<div class="cd-field cd-full"><div class="cd-label">Notes</div>' +
+            '<textarea id="cd-e-notes" rows="4" style="width:100%;box-sizing:border-box;padding:7px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;resize:vertical;line-height:1.4;min-height:80px">'+esc(contact.notes||'')+'</textarea>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    var saveBar = document.getElementById('cd-save-bar');
+    if (saveBar) saveBar.style.display = 'block';
+  } else {
+    // Read mode
+    var phone  = contact.phone  ? '<a href="tel:'+esc(contact.phone)+'">'+esc(contact.phone)+'</a>' : '—';
+    var mobile = contact.mobile ? '<a href="tel:'+esc(contact.mobile)+'">'+esc(contact.mobile)+'</a>' : '—';
+    var email  = contact.email  ? '<a href="mailto:'+esc(contact.email)+'">'+esc(contact.email)+'</a>' : '—';
+    var website= contact.website? '<a href="'+esc(contact.website)+'" target="_blank" rel="noopener">'+esc(contact.website)+'</a>' : '—';
+    var addr   = [contact.address, (contact.city && contact.state ? contact.city+', '+contact.state+(contact.zip?' '+contact.zip:'') : (contact.city||contact.state||''))].filter(Boolean).join('<br>') || '—';
+    var created = contact.created_at ? new Date(contact.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+    var stBadge = '<span class="badge b-'+(contact.status||'new').toLowerCase()+'">'+(contact.status||'New')+'</span>';
+
+    el.innerHTML =
+      '<div style="padding:16px 16px 8px">' +
+      '<div class="cd-sec">' +
+        '<div class="cd-sec-hdr"><span class="cd-sec-title">Contact Information</span></div>' +
+        '<div class="cd-grid">' +
+          cdField('Company',  esc(contact.company||'—')) +
+          cdField('Job Title', esc(contact.title||'—')) +
+          cdField('Phone',   phone, !contact.phone) +
+          cdField('Mobile',  mobile, !contact.mobile) +
+          cdFieldFull('Email', email, !contact.email) +
+          cdFieldFull('Address', addr, !contact.address && !contact.city) +
+          cdField('Status', stBadge, false) +
+          cdField('Created', esc(created), false) +
+          cdField('Last Contacted', esc(lastContacted), false) +
+          (contact.website ? cdFieldFull('Website', website, false) : '') +
+        '</div>' +
+      '</div>' +
+      (contact.notes ? '<div class="cd-sec"><div class="cd-sec-hdr"><span class="cd-sec-title">Notes</span></div><div style="padding:12px 16px;font-size:12.5px;color:var(--text);line-height:1.6;white-space:pre-wrap">'+esc(contact.notes)+'</div></div>' : '') +
+      '</div>';
+    var saveBar = document.getElementById('cd-save-bar');
+    if (saveBar) saveBar.style.display = 'none';
+  }
+}
+
+function cdField(label, val, isEmpty) {
+  return '<div class="cd-field"><div class="cd-label">'+label+'</div><div class="cd-val'+(isEmpty?' empty':'')+'">'+val+'</div></div>';
+}
+function cdFieldFull(label, val, isEmpty) {
+  return '<div class="cd-field cd-full"><div class="cd-label">'+label+'</div><div class="cd-val'+(isEmpty?' empty':'')+'">'+val+'</div></div>';
+}
+function cdEditField(id, label, val, type, fullWidth) {
+  function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+  var fontSize = (type==='email'||type==='tel'||type==='text') ? 'font-size:16px' : '';
+  return '<div class="cd-field'+(fullWidth?' cd-full':'')+'"><div class="cd-label">'+label+'</div>' +
+    '<input id="'+id+'" type="'+type+'" value="'+esc(val||'')+'" style="'+fontSize+'">' +
+    '</div>';
+}
+
+// ── Timeline tab ───────────────────────────────────────────────────
+function renderContactTimeline(calls) {
+  var el = document.getElementById('cd-timeline-list');
+  if (!el) return;
+  if (!calls || !calls.length) {
+    el.innerHTML = '<div style="text-align:center;padding:32px;color:var(--text3);font-size:13px">No activity logged yet.</div>';
+    return;
+  }
+  el.innerHTML = calls.map(function(c) {
+    var dateStr = c.call_date ? new Date(c.call_date.split('T')[0]+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+    return '<div class="cd-tl-item">' +
+      '<div class="cd-tl-title">'+(c.call_type||'Call')+' — '+(c.outcome||'—')+'</div>' +
+      '<div class="cd-tl-meta">'+dateStr+(c.products_discussed ? ' · Products: '+c.products_discussed : '')+'</div>' +
+      (c.notes ? '<div class="cd-tl-note">'+c.notes+'</div>' : '') +
+      (c.next_step ? '<div class="cd-tl-next">→ Next: '+c.next_step+(c.next_step_date?' ('+c.next_step_date+')':'')+'</div>' : '') +
+      '</div>';
+  }).join('');
+}
+
+// ── Business Card tab ──────────────────────────────────────────────
+function renderContactBcard(contact) {
+  var el = document.getElementById('cd-bcard-body');
+  if (!el) return;
+  if (contact.business_card_image) {
+    el.innerHTML =
+      '<img id="cd-bcard-img" src="data:image/jpeg;base64,'+contact.business_card_image+'" onclick="openCardFullScreen(this.src)" alt="Business card">' +
+      '<p style="font-size:11px;color:var(--text3);margin-top:6px">Tap to view full size</p>' +
+      '<button id="cd-bcard-rescan-btn" onclick="contactDetailRescan()">📷 Re-scan Business Card</button>';
+  } else {
+    el.innerHTML =
+      '<div style="text-align:center;padding:40px 20px">' +
+        '<div style="font-size:40px;margin-bottom:12px">📇</div>' +
+        '<div style="font-size:13px;color:var(--text3);margin-bottom:16px">No business card scanned yet.</div>' +
+        '<button id="cd-bcard-scan-btn" onclick="contactDetailRescan()">📷 Scan Business Card</button>' +
+      '</div>';
+  }
+}
+
+function contactDetailRescan() {
+  // Trigger the VCL card scanner file input, then save the result directly to this contact
+  var inp = document.getElementById('vcl-card-input');
+  if (!inp) return;
+  if (!('ontouchstart' in window)) { inp.removeAttribute('capture'); }
+  else { inp.setAttribute('capture', 'environment'); }
+  inp.value = '';
+  // Override the handler so this scan saves to currentContactRecord, not a VCL form
+  window._cdRescanning = true;
+  inp.click();
+}
+
+// Called by the global VCL_handleCardFile — if _cdRescanning is true,
+// save result directly to the open contact instead of populating the VCL confirm form
+var _cdRescanOriginalHandler = null;
+(function() {
+  var origHandle = window.VCL_handleCardFile;
+  window.VCL_handleCardFile = function(input) {
+    if (!window._cdRescanning) { return origHandle ? origHandle(input) : null; }
+    window._cdRescanning = false;
+    if (!currentContactRecord) return;
+
+    var file = input && input.files && input.files[0];
+    if (!file) return;
+
+    var btn = document.getElementById('cd-bcard-rescan-btn') || document.getElementById('cd-bcard-scan-btn');
+    if (btn) { btn.textContent = '⏳ Reading card...'; btn.disabled = true; }
+
+    // Compress via canvas
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var img = new Image();
+      img.onload = function() {
+        var w = img.width, h = img.height, maxW = 1200;
+        if (w > maxW) { h = Math.round(h*maxW/w); w = maxW; }
+        var canvas = document.createElement('canvas'); canvas.width=w; canvas.height=h;
+        canvas.getContext('2d').drawImage(img,0,0,w,h);
+        var b64 = canvas.toDataURL('image/jpeg',0.82).split(',')[1];
+
+        fetch('/api/voice/scan-card',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image:b64,mimeType:'image/jpeg'})})
+          .then(function(r){return r.json();})
+          .then(function(result){
+            // Save the image to the contact record
+            var updates = { business_card_image: b64 };
+            if (result.extracted) {
+              var ce = result.extracted;
+              if (ce.phone)   updates.phone   = updates.phone   || ce.phone;
+              if (ce.mobile)  updates.mobile  = updates.mobile  || ce.mobile;
+              if (ce.email)   updates.email   = updates.email   || ce.email;
+              if (ce.title)   updates.title   = updates.title   || ce.title;
+              if (ce.address) updates.address = updates.address || ce.address;
+              if (ce.city)    updates.city    = updates.city    || ce.city;
+              if (ce.state)   updates.state   = updates.state   || ce.state;
+              if (ce.zip)     updates.zip     = updates.zip     || ce.zip;
+              if (ce.website) updates.website = updates.website || ce.website;
+            }
+            return fetch('/api/prospects/'+currentContactRecord.id+'/fill-blanks',{
+              method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(updates)
+            }).then(function(r){return r.json();});
+          })
+          .then(function(){
+            // Refresh the contact detail
+            openContactDetail(currentContactRecord.id, _contactParentId);
+            showToast('Business card saved!');
+          })
+          .catch(function(err){
+            console.error('[cdRescan]',err);
+            if (btn) { btn.textContent = '📷 Scan Business Card'; btn.disabled = false; }
+            showToast('Could not save card — please try again');
+          });
+      };
+      img.onerror = function(){ if (btn){ btn.textContent='📷 Scan Business Card'; btn.disabled=false; } };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+})();
+
+// ── Edit mode ──────────────────────────────────────────────────────
+function editContactDetail() {
+  if (!currentContactRecord) return;
+  renderContactOverview(currentContactRecord, true);
+  setContactTab('overview', document.querySelector('#cd-tabs .cd-tab[data-tab="overview"]'));
+}
+
+function saveContactDetail() {
+  if (!currentContactRecord) return;
+  var id = currentContactRecord.id;
+
+  function fv(elId) { var e=document.getElementById(elId); return e ? e.value.trim() : ''; }
+
+  var data = {};
+  var contact = fv('cd-e-contact'); if (contact)  data.contact  = contact;
+  var title   = fv('cd-e-title');   if (title)    data.title    = title;
+  var phone   = fv('cd-e-phone');   if (phone)    data.phone    = phone;
+  var mobile  = fv('cd-e-mobile');  if (mobile)   data.mobile   = mobile;
+  var email   = fv('cd-e-email');   if (email)    data.email    = email;
+  var address = fv('cd-e-address'); if (address)  data.address  = address;
+  var city    = fv('cd-e-city');    if (city)     data.city     = city;
+  var state   = fv('cd-e-state');   if (state)    data.state    = state;
+  var zip     = fv('cd-e-zip');     if (zip)      data.zip      = zip;
+  var website = fv('cd-e-website'); if (website)  data.website  = website;
+  var status  = fv('cd-e-status');  if (status)   data.status   = status;
+  var notes   = document.getElementById('cd-e-notes');
+  if (notes) data.notes = notes.value; // always save notes (may clear it intentionally)
+
+  var btn = document.getElementById('cd-save-changes-btn');
+  if (btn) { btn.textContent = 'Saving...'; btn.disabled = true; }
+
+  fetch('/api/prospects/' + id, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(updated){
+    if (updated && updated.error) throw new Error(updated.error);
+    // Merge updates into currentContactRecord
+    Object.assign(currentContactRecord, data);
+    // Also update header fields
+    var nameVal = data.contact || currentContactRecord.contact || currentContactRecord.company || '—';
+    var nameEl = document.getElementById('cd-name'); if (nameEl) nameEl.textContent = nameVal;
+    var titleEl = document.getElementById('cd-job-title');
+    if (titleEl) {
+      if (currentContactRecord.title) { titleEl.textContent = currentContactRecord.title; titleEl.style.display = ''; }
+      else titleEl.style.display = 'none';
+    }
+    if (btn) { btn.textContent = 'Save Changes'; btn.disabled = false; }
+    renderContactOverview(currentContactRecord, false);
+    showToast('Contact saved!');
+    // Refresh prospects cache
+    if (typeof loadProspects === 'function') loadProspects();
+  })
+  .catch(function(e){
+    console.error('[saveContactDetail]', e);
+    if (btn) { btn.textContent = 'Save Changes'; btn.disabled = false; }
+    showToast('Error saving — please try again');
+  });
+}
+
+// ── Log Call scoped to this contact ───────────────────────────────
+function logCallForContact() {
+  if (!currentContactRecord) return;
+  // Temporarily set currentRecord so logCallForRecord works correctly
+  var savedRecord = currentRecord;
+  currentRecord = currentContactRecord;
+  go('calls');
+  loadCallProspects();
+  setTimeout(function() {
+    var sel = document.getElementById('call-prospect');
+    if (sel) {
+      for (var i = 0; i < sel.options.length; i++) {
+        if (parseInt(sel.options[i].value) === currentContactRecord.id) { sel.selectedIndex = i; break; }
+      }
+    }
+    currentRecord = savedRecord;
+  }, 400);
 }
 
 // Open a quote from the record detail quotes tab without navigating away (Fix 8)
@@ -9357,6 +9794,126 @@ fetch('/api/notifications/evaluate', { method: 'POST' }).then(function(r){ retur
 #vcl-screen-confirm select,
 #vcl-screen-confirm textarea {
   color-scheme: dark;
+}
+
+/* ── Contact Detail Page (#page-contact) ─────────────────────── */
+#page-contact { flex-direction:column; background:var(--bg); }
+
+/* Header */
+#cd-hdr {
+  background:var(--navy);
+  padding:14px 20px 16px;
+  flex-shrink:0;
+}
+#cd-hdr-top { display:flex; align-items:center; gap:12px; margin-bottom:14px; }
+#cd-back-btn {
+  width:36px; height:36px; border-radius:8px;
+  background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.15);
+  color:#fff; font-size:16px; cursor:pointer; display:flex;
+  align-items:center; justify-content:center; flex-shrink:0;
+  touch-action:manipulation;
+}
+#cd-back-btn:active { background:rgba(255,255,255,.2); }
+#cd-av {
+  width:48px; height:48px; border-radius:50%;
+  background:#C9A84C; display:flex; align-items:center; justify-content:center;
+  font-size:17px; font-weight:700; color:#fff; flex-shrink:0;
+}
+#cd-name { color:#fff; font-size:17px; font-weight:700; line-height:1.25; }
+#cd-job-title { color:rgba(255,255,255,.55); font-size:12px; margin-top:2px; }
+#cd-company-btn {
+  background:none; border:none; padding:0; color:#6ba7ff;
+  font-size:12px; font-weight:600; cursor:pointer; font-family:inherit;
+  margin-top:2px; text-align:left; touch-action:manipulation;
+}
+#cd-action-row { display:flex; gap:8px; }
+#cd-action-row button {
+  flex:1; height:44px; border-radius:8px; font-size:13px; font-weight:600;
+  cursor:pointer; font-family:inherit; border:none; touch-action:manipulation;
+}
+#cd-log-call-btn { background:#C9A84C; color:#fff; }
+#cd-log-call-btn:active { background:#b8973e; }
+#cd-email-btn,#cd-edit-btn { background:rgba(255,255,255,.1); color:#fff; border:1px solid rgba(255,255,255,.15) !important; }
+#cd-email-btn:active,#cd-edit-btn:active { background:rgba(255,255,255,.2); }
+
+/* Tab bar */
+#cd-tabs {
+  background:var(--white); border-bottom:1px solid var(--border);
+  display:flex; gap:0; flex-shrink:0; overflow-x:auto;
+}
+#cd-tabs::-webkit-scrollbar { display:none; }
+.cd-tab {
+  padding:11px 18px; font-size:13px; color:var(--text2); cursor:pointer;
+  border-bottom:2px solid transparent; white-space:nowrap; font-weight:500;
+  touch-action:manipulation;
+}
+.cd-tab:hover { color:var(--blue); }
+.cd-tab.active { color:var(--blue); border-bottom-color:var(--blue); font-weight:700; }
+
+/* Body */
+#cd-body { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+
+/* Overview grid */
+#cd-tab-overview { padding:16px; }
+.cd-sec { background:var(--white); border:1px solid var(--border); border-radius:8px; margin-bottom:12px; overflow:hidden; }
+.cd-sec-hdr { padding:10px 16px; border-bottom:1px solid var(--border); background:#fafbfc; display:flex; align-items:center; justify-content:space-between; }
+.cd-sec-title { font-size:12.5px; font-weight:700; color:var(--navy); }
+.cd-grid { display:grid; grid-template-columns:1fr 1fr; }
+.cd-field { padding:10px 16px; border-bottom:1px solid var(--border); }
+.cd-field:nth-last-child(-n+2) { border-bottom:none; }
+.cd-label { font-size:10px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:.05em; margin-bottom:3px; }
+.cd-val { font-size:12.5px; color:var(--text); font-weight:500; }
+.cd-val.empty { color:var(--text3); font-weight:400; }
+.cd-val a { color:var(--blue); text-decoration:none; }
+.cd-full { grid-column:1/-1; }
+/* Edit mode */
+.cd-field input,.cd-field textarea,.cd-field select {
+  width:100%; box-sizing:border-box; padding:6px 8px;
+  border:1.5px solid var(--border); border-radius:6px;
+  font-size:12.5px; font-family:inherit; color:var(--text); background:var(--bg);
+  outline:none;
+}
+.cd-field input:focus,.cd-field textarea:focus { border-color:var(--blue); }
+#cd-save-bar {
+  display:none; padding:12px 16px; background:var(--white);
+  border-top:1px solid var(--border); position:sticky; bottom:0;
+  flex-shrink:0;
+}
+#cd-save-changes-btn {
+  width:100%; height:48px; background:var(--blue); color:#fff;
+  border:none; border-radius:8px; font-size:15px; font-weight:700;
+  cursor:pointer; font-family:inherit; touch-action:manipulation;
+}
+
+/* Timeline tab */
+#cd-tab-timeline { padding:16px; }
+.cd-tl-item {
+  background:var(--white); border:1px solid var(--border); border-radius:8px;
+  padding:12px 14px; margin-bottom:8px;
+}
+.cd-tl-title { font-size:13px; font-weight:600; color:var(--navy); }
+.cd-tl-meta  { font-size:11px; color:var(--text3); margin-top:2px; }
+.cd-tl-note  { font-size:12px; color:var(--text2); margin-top:6px; padding:6px 8px; background:var(--bg); border-radius:5px; border-left:3px solid var(--blue); }
+.cd-tl-next  { font-size:11px; color:var(--blue); font-weight:600; margin-top:6px; }
+
+/* Business card tab */
+#cd-tab-bcard { padding:16px; }
+#cd-bcard-img { max-width:100%; border-radius:10px; border:1px solid var(--border); display:block; cursor:pointer; }
+#cd-bcard-rescan-btn,#cd-bcard-scan-btn {
+  margin-top:12px; width:100%; height:46px; border-radius:8px;
+  background:rgba(201,168,76,.1); border:1.5px solid rgba(201,168,76,.5);
+  color:#C9A84C; font-size:13px; font-weight:600; cursor:pointer;
+  font-family:inherit; touch-action:manipulation;
+}
+
+/* Mobile overrides */
+@media (max-width:768px) {
+  #cd-hdr { padding:12px 16px 14px; padding-top:max(12px,env(safe-area-inset-top)); }
+  #cd-name { font-size:15px; }
+  .cd-grid { grid-template-columns:1fr; }
+  .cd-field:last-child { border-bottom:none; }
+  .cd-field { border-bottom:1px solid var(--border); }
+  #page-contact { padding-bottom:62px; }
 }
 
 /* Business card scan — gold flash on auto-filled fields */
