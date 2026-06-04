@@ -289,19 +289,19 @@ async function initDB() {
     CREATE INDEX IF NOT EXISTS idx_time_sessions_user ON time_sessions(user_id, start_time DESC);
 
     -- Seed: historical session for June 4, 2026 (9 AM – 1 PM = 4 hours = 240 minutes)
-    -- Only insert if it doesn't already exist for this user+date combination
+    -- Only insert if no session already exists for this user on that date
     INSERT INTO time_sessions (user_id, start_time, end_time, duration_minutes, description)
     SELECT u.id,
-           '2026-06-04 09:00:00-04'::timestamptz,
-           '2026-06-04 13:00:00-04'::timestamptz,
+           '2026-06-04 09:00:00'::timestamp,
+           '2026-06-04 13:00:00'::timestamp,
            240,
            'Voice call logger, business card scanner, contact detail page, mobile optimization, invoice generation, board meeting PDF'
     FROM users u
-    WHERE u.email = 'jmcompton04@gmail.com'
+    WHERE u.email = 'johnmarkcompton@gmail.com'
       AND NOT EXISTS (
         SELECT 1 FROM time_sessions ts
         WHERE ts.user_id = u.id
-          AND ts.start_time = '2026-06-04 09:00:00-04'::timestamptz
+          AND DATE(ts.start_time) = '2026-06-04'
       );
 
   `);

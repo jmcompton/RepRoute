@@ -6,6 +6,53 @@ const router = express.Router();
 const JM_EMAIL = 'johnmarkcompton@gmail.com';
 const HOURLY_RATE = 50; // USD per hour — billed to Compton Sales
 
+// ── Startup: verify seed session exists, insert if missing ───────
+// Runs once after the module is first required so the June 4 2026
+// session is always present regardless of when the email was corrected.
+async function ensureSeedSession() {
+  try {
+    // Find JohnMark's user_id
+    const userRow = await pool.query(
+      'SELECT id FROM users WHERE email = $1', [JM_EMAIL]
+    );
+    if (!userRow.rows.length) {
+      console.log('[time] Seed skip — user not found:', JM_EMAIL);
+      return;
+    }
+    const uid = userRow.rows[0].id;
+
+    // Check whether the June 4 session already exists
+    const existing = await pool.query(
+      `SELECT id, duration_minutes FROM time_sessions
+       WHERE user_id = $1 AND DATE(start_time) = '2026-06-04'`,
+      [uid]
+    );
+    if (existing.rows.length) {
+      console.log('[time] Seed session OK — id=' + existing.rows[0].id +
+                  ', duration=' + existing.rows[0].duration_minutes + ' min');
+      return;
+    }
+
+    // Not found — insert it now
+    const ins = await pool.query(
+      `INSERT INTO time_sessions
+         (user_id, start_time, end_time, duration_minutes, description)
+       VALUES ($1,
+               '2026-06-04 09:00:00'::timestamp,
+               '2026-06-04 13:00:00'::timestamp,
+               240,
+               $2)
+       RETURNING id`,
+      [uid, 'Voice call logger, business card scanner, contact detail page, mobile optimization, invoice generation, board meeting PDF']
+    );
+    console.log('[time] Seed session inserted — id=' + ins.rows[0].id);
+  } catch (e) {
+    console.error('[time] ensureSeedSession error:', e.message);
+  }
+}
+// Defer until the event loop is free so the DB pool is ready
+setImmediate(ensureSeedSession);
+
 function requireJM(req, res, next) {
   if (!req.session.user || req.session.user.email !== JM_EMAIL) {
     return res.status(403).json({ error: 'Forbidden' });
