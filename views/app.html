@@ -2136,12 +2136,21 @@ window.addEventListener('load', function() {
 
   <!-- ACCOUNTS PAGE -->
   <div class="page" id="page-accounts">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
       <div style="font-size:12px;color:var(--text2)">Companies grouped from your contacts</div>
-      <input id="acc-search" placeholder="Search accounts..." oninput="filterAccounts(this.value)" style="padding:8px 12px;font-size:12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text);width:200px">
+      <div style="position:relative" id="acc-search-wrap">
+        <div style="display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:6px 10px;width:240px">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:13px;height:13px;flex-shrink:0;color:var(--text3)"><circle cx="7" cy="7" r="4"/><path d="M10.5 10.5l2.5 2.5"/></svg>
+          <input id="acc-search" placeholder="Search accounts..." autocomplete="off"
+            style="background:transparent;border:none;outline:none;font-size:12px;color:var(--text);width:100%;font-family:inherit"
+            oninput="accSearchInput(this.value)"
+            onkeydown="accSearchKeydown(event)" />
+          <button id="acc-search-clear" onclick="accSearchClear()" style="display:none;background:none;border:none;cursor:pointer;padding:0;color:var(--text3);font-size:14px;line-height:1">✕</button>
+        </div>
+        <div id="acc-search-dropdown" style="display:none;position:absolute;top:calc(100% + 4px);right:0;width:320px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:200;overflow:hidden"></div>
+      </div>
     </div>
     <div id="accounts-list" style="display:grid;gap:10px"></div>
-    </div>
   </div>
 
   <!-- FORECASTS PAGE -->
@@ -5146,44 +5155,170 @@ function loadTasks() {
 }
 
 // ── ACCOUNTS ────────────────────────────────────────────────
+// ── Accounts page — cached prospects ────────────────────────────
+var _accAllProspects = [];   // full prospect list for the page
+var _accSearchTimer  = null; // debounce handle
+var _accActiveIdx    = -1;   // keyboard nav index in dropdown
+
 async function loadAccounts() {
   try {
-    const data = await fetch('/api/prospects').then(r=>r.json());
-    const prospects = data.prospects || [];
-    const accounts = {};
-    prospects.forEach(p => {
-      const key = p.company || 'Unknown';
-      if (!accounts[key]) accounts[key] = { name:key, category:p.category, city:p.city, contacts:[], priority:p.priority };
-      accounts[key].contacts.push(p);
-    });
-    renderAccounts(Object.values(accounts));
-  } catch(e) {}
+    const data = await fetch('/api/prospects').then(r => r.json());
+    // API returns a plain array (not { prospects: [] })
+    _accAllProspects = Array.isArray(data) ? data : [];
+    renderAccounts(buildAccountMap(_accAllProspects));
+  } catch(e) { console.error('loadAccounts error:', e); }
+}
+
+function buildAccountMap(prospects) {
+  const accounts = {};
+  prospects.forEach(p => {
+    const key = (p.company || 'Unknown').trim();
+    if (!accounts[key]) {
+      accounts[key] = { name: key, category: p.category, city: p.city,
+                        state: p.state, contacts: [], firstId: p.id };
+    }
+    accounts[key].contacts.push(p);
+  });
+  return Object.values(accounts).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function renderAccounts(list) {
-  document.getElementById('accounts-list').innerHTML = list.length ? list.map(a =>
-    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px 16px;cursor:pointer" onclick="go(\'contacts\')">' +
-    '<div style="display:flex;justify-content:space-between;align-items:center">' +
-    '<div><div style="font-size:13px;font-weight:600">' + a.name + '</div>' +
-    '<div style="font-size:11px;color:var(--text2)">' + (a.category||'') + ' · ' + (a.city||'') + '</div></div>' +
-    '<div style="font-size:11px;color:var(--blue)">' + a.contacts.length + ' contact' + (a.contacts.length!==1?'s':'') + '</div>' +
-    '</div></div>'
-  ).join('') : '<div style="color:var(--text2);font-size:12px;padding:20px;text-align:center">No accounts yet</div>';
+  document.getElementById('accounts-list').innerHTML = list.length
+    ? list.map(a => {
+        var firstId = a.contacts[0] ? a.contacts[0].id : null;
+        var onclick = firstId ? 'viewRecord(' + firstId + ')' : "go('contacts')";
+        return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px 16px;cursor:pointer;transition:border-color .12s" onclick="' + onclick + '" onmouseover="this.style.borderColor=\'var(--accent)\'" onmouseout="this.style.borderColor=\'var(--border)\'">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center">' +
+          '<div>' +
+          '<div style="font-size:13px;font-weight:600;color:var(--navy)">' + escHtml(a.name) + '</div>' +
+          '<div style="font-size:11px;color:var(--text2);margin-top:2px">' + escHtml(a.category || '') + (a.city ? ' · ' + escHtml(a.city) : '') + '</div>' +
+          '</div>' +
+          '<div style="font-size:11px;color:var(--blue);font-weight:600">' + a.contacts.length + ' contact' + (a.contacts.length !== 1 ? 's' : '') + '</div>' +
+          '</div></div>';
+      }).join('')
+    : '<div style="color:var(--text2);font-size:12px;padding:20px;text-align:center">No accounts found</div>';
 }
 
-function filterAccounts(q) {
-  fetch('/api/prospects').then(r=>r.json()).then(data => {
-    const accounts = {};
-    (data.prospects||[]).forEach(p => {
-      const key = p.company||'Unknown';
-      if (!accounts[key]) accounts[key]={name:key,category:p.category,city:p.city,contacts:[],priority:p.priority};
-      accounts[key].contacts.push(p);
-    });
-    const filtered = Object.values(accounts).filter(a=>a.name.toLowerCase().includes(q.toLowerCase())||
-      (a.category||'').toLowerCase().includes(q.toLowerCase()));
-    renderAccounts(filtered);
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Accounts autocomplete search ────────────────────────────────
+function accSearchInput(val) {
+  var clearBtn = document.getElementById('acc-search-clear');
+  if (clearBtn) clearBtn.style.display = val ? 'block' : 'none';
+
+  clearTimeout(_accSearchTimer);
+  if (!val || val.trim().length < 2) {
+    accSearchCloseDropdown();
+    renderAccounts(buildAccountMap(_accAllProspects));
+    return;
+  }
+  _accSearchTimer = setTimeout(function() { accSearchFetch(val.trim()); }, 250);
+}
+
+function accSearchFetch(q) {
+  fetch('/api/prospects/contacts/search?q=' + encodeURIComponent(q))
+    .then(function(r) { return r.json(); })
+    .then(function(results) { accSearchShowDropdown(results, q); })
+    .catch(function() { accSearchCloseDropdown(); });
+}
+
+function accSearchShowDropdown(results, q) {
+  var dd = document.getElementById('acc-search-dropdown');
+  if (!dd) return;
+  _accActiveIdx = -1;
+
+  if (!results.length) {
+    dd.innerHTML = '<div style="padding:12px 14px;font-size:12px;color:var(--text3)">No accounts found</div>';
+    dd.style.display = 'block';
+    return;
+  }
+
+  // Highlight matching portion
+  var qLower = q.toLowerCase();
+  var html = results.map(function(r, i) {
+    var name = r.company || '';
+    var nameLower = name.toLowerCase();
+    var idx = nameLower.indexOf(qLower);
+    var highlighted = idx >= 0
+      ? escHtml(name.slice(0, idx)) + '<strong style="color:var(--accent)">' + escHtml(name.slice(idx, idx + q.length)) + '</strong>' + escHtml(name.slice(idx + q.length))
+      : escHtml(name);
+    var loc = [r.city, r.state].filter(Boolean).join(', ');
+    return '<div class="acc-dd-item" data-idx="' + i + '" data-id="' + r.id + '" data-company="' + escHtml(name) + '"' +
+      ' onclick="accSearchSelect(this)"' +
+      ' onmouseover="accSearchHover(' + i + ')"' +
+      ' style="display:flex;justify-content:space-between;align-items:center;padding:9px 14px;cursor:pointer;border-bottom:1px solid var(--border);font-size:12px">' +
+      '<span>' + highlighted + '</span>' +
+      '<span style="font-size:11px;color:var(--text3);margin-left:8px;white-space:nowrap">' + escHtml(loc) + '</span>' +
+      '</div>';
+  }).join('');
+
+  dd.innerHTML = html;
+  dd.style.display = 'block';
+}
+
+function accSearchHover(idx) {
+  _accActiveIdx = idx;
+  document.querySelectorAll('.acc-dd-item').forEach(function(el, i) {
+    el.style.background = i === idx ? 'var(--blue-lt)' : '';
   });
 }
+
+function accSearchSelect(el) {
+  var company = el.getAttribute('data-company');
+  var input = document.getElementById('acc-search');
+  if (input) input.value = company;
+  accSearchCloseDropdown();
+  // Filter accounts list to just this company
+  var filtered = buildAccountMap(_accAllProspects.filter(function(p) {
+    return (p.company || '').trim().toLowerCase() === company.toLowerCase();
+  }));
+  renderAccounts(filtered);
+}
+
+function accSearchClear() {
+  var input = document.getElementById('acc-search');
+  if (input) input.value = '';
+  var clearBtn = document.getElementById('acc-search-clear');
+  if (clearBtn) clearBtn.style.display = 'none';
+  accSearchCloseDropdown();
+  renderAccounts(buildAccountMap(_accAllProspects));
+}
+
+function accSearchCloseDropdown() {
+  var dd = document.getElementById('acc-search-dropdown');
+  if (dd) { dd.style.display = 'none'; dd.innerHTML = ''; }
+  _accActiveIdx = -1;
+}
+
+function accSearchKeydown(e) {
+  var dd = document.getElementById('acc-search-dropdown');
+  var items = dd ? dd.querySelectorAll('.acc-dd-item') : [];
+  if (e.key === 'Escape') {
+    accSearchCloseDropdown();
+    return;
+  }
+  if (!items.length) return;
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    _accActiveIdx = Math.min(_accActiveIdx + 1, items.length - 1);
+    accSearchHover(_accActiveIdx);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    _accActiveIdx = Math.max(_accActiveIdx - 1, 0);
+    accSearchHover(_accActiveIdx);
+  } else if (e.key === 'Enter' && _accActiveIdx >= 0) {
+    e.preventDefault();
+    accSearchSelect(items[_accActiveIdx]);
+  }
+}
+
+// Close dropdown on outside click
+document.addEventListener('click', function(e) {
+  var wrap = document.getElementById('acc-search-wrap');
+  if (wrap && !wrap.contains(e.target)) accSearchCloseDropdown();
+});
 
 </script>
 

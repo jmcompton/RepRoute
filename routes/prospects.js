@@ -77,6 +77,32 @@ router.get('/team', async (req, res) => {
   }
 });
 
+// ── GET /api/prospects/contacts/search?q=&user_id= ───────────────
+// Live autocomplete for accounts page search
+// Returns up to 8 distinct companies matching the query
+router.get('/contacts/search', async (req, res) => {
+  const uid = req.session.user.id;
+  const { q, rep_user_id } = req.query;
+  if (!q || q.trim().length < 2) return res.json([]);
+  try {
+    // Allow manager to scope search to a specific rep's accounts
+    const targetUid = rep_user_id ? parseInt(rep_user_id) : uid;
+    const result = await pool.query(
+      `SELECT DISTINCT ON (LOWER(TRIM(company)))
+              id, company, city, state, category, company_type
+       FROM prospects
+       WHERE user_id = $1
+         AND LOWER(company) ILIKE $2
+       ORDER BY LOWER(TRIM(company)), id ASC
+       LIMIT 8`,
+      [targetUid, '%' + q.trim().toLowerCase() + '%']
+    );
+    res.json(result.rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── GET /api/prospects ───────────────────────────────────────────
 router.get('/', async (req, res) => {
   const uid = req.session.user.id;
