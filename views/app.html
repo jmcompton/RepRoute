@@ -10820,11 +10820,16 @@ document.addEventListener('click', function(e) {
     VCL.timerInterval = null;
   }
 
-  // ── Speech Recognition ─────────────────────────────────────────
-  function startRecognition() {
+  // ── Status text helper ─────────────────────────────────────────
+  function setStatus(msg, color) {
+    var st = $id('vcl-rec-status');
+    if (st) { st.textContent = msg; st.style.color = color || 'rgba(255,255,255,.5)'; }
+  }
+
+  // ── Core speech recognition setup (called after getUserMedia) ──
+  function beginSpeechRecognition() {
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) {
-      // No speech API — show manual fallback
       showManualFallback();
       return;
     }
@@ -10839,12 +10844,11 @@ document.addEventListener('click', function(e) {
     rec.maxAlternatives = 1;
 
     rec.onstart = function() {
+      // Recognition confirmed live — update UI (timer already running)
       VCL.state = 'recording';
       syncFloatBtn();
-      startTimer();
       startWave();
-      var st = $id('vcl-rec-status');
-      if (st) { st.textContent = '● Recording — speak naturally'; st.style.color = '#ef4444'; }
+      setStatus('● Recording — speak naturally', '#ef4444');
     };
 
     rec.onresult = function(event) {
@@ -10860,40 +10864,45 @@ document.addEventListener('click', function(e) {
       var preview = $id('vcl-transcript-preview');
       if (preview) {
         var full = (VCL.transcript + interim).trim();
-        preview.textContent = full || '';
-        if (!full) preview.innerHTML = '<span style="color:rgba(255,255,255,.3)">Speak now...</span>';
+        if (full) {
+          preview.textContent = full;
+        } else {
+          preview.innerHTML = '<span style="color:rgba(255,255,255,.3)">Speak now...</span>';
+        }
         preview.scrollTop = preview.scrollHeight;
       }
     };
 
     rec.onerror = function(event) {
+      // not-allowed / permission denied — show message and offer manual entry
       if (event.error === 'not-allowed' || event.error === 'permission-denied') {
         stopTimer();
         stopWave();
         VCL.state = 'idle';
         syncFloatBtn();
-        var st = $id('vcl-rec-status');
-        if (st) {
-          st.textContent = '⚠️ Microphone access required. Go to Settings › Safari › Microphone and allow access, then try again.';
-          st.style.color = '#ef4444';
-        }
+        setStatus('⚠️ Microphone access denied. In Settings › Safari › Microphone, allow this site then try again.', '#ef4444');
         var stopBtn = $id('vcl-stop-btn');
         if (stopBtn) stopBtn.style.display = 'none';
+        setTimeout(showManualFallback, 1800);
         return;
       }
-      // iOS auto-stops on silence — restart gracefully
+      // iOS fires no-speech / aborted on silence — restart silently
       if (event.error === 'no-speech' || event.error === 'aborted') {
         if (VCL.state === 'recording') {
-          try { rec.start(); } catch(e) {}
+          setTimeout(function() { try { rec.start(); } catch(e) {} }, 100);
         }
         return;
+      }
+      // Any other error — try restarting
+      if (VCL.state === 'recording') {
+        setTimeout(function() { try { rec.start(); } catch(e) {} }, 300);
       }
     };
 
     rec.onend = function() {
-      // iOS Safari stops recognition after silence — restart loop
+      // iOS Safari auto-stops on silence — restart if still in recording state
       if (VCL.state === 'recording') {
-        try { rec.start(); } catch(e) {}
+        setTimeout(function() { try { rec.start(); } catch(e) {} }, 100);
       }
     };
 
@@ -10901,19 +10910,22 @@ document.addEventListener('click', function(e) {
       rec.start();
       VCL.recognition = rec;
     } catch(e) {
-      var st = $id('vcl-rec-status');
-      if (st) { st.textContent = '⚠️ Could not start microphone: ' + e.message; st.style.color = '#ef4444'; }
+      // recognition.start() threw synchronously — fall back to manual entry
+      console.warn('[VCL] recognition.start() threw:', e.message);
+      stopTimer();
+      setStatus('⚠️ Voice unavailable — type your notes below', '#f59e0b');
+      setTimeout(showManualFallback, 600);
     }
   }
 
   function stopRecognition() {
-    // Set state FIRST so onend doesn't restart
+    // Set state FIRST — prevents onend/onerror from restarting
     VCL.state = 'idle';
     syncFloatBtn();
     stopTimer();
     stopWave();
     if (VCL.recognition) {
-      try { VCL.recognition.stop(); } catch(e) {}
+      try { VCL.recognition.abort(); } catch(e) {}  // abort() is faster than stop() on iOS
       VCL.recognition = null;
     }
   }
@@ -10944,6 +10956,9 @@ document.addEventListener('click', function(e) {
   };
 
   // ── STEP 1: Open modal and start recording ─────────────────────
+  // IMPORTANT: This function is called directly from onclick — we are
+  // synchronously inside a user gesture. We MUST call getUserMedia here,
+  // before any async gap, otherwise iOS Safari silently blocks microphone.
   window.VCL_open = function() {
     // Reset all state
     VCL.state = 'idle';
@@ -10961,26 +10976,62 @@ document.addEventListener('click', function(e) {
     // Reset recording UI
     var preview = $id('vcl-transcript-preview');
     if (preview) preview.innerHTML = '<span style="color:rgba(255,255,255,.3)">Speak now — your words will appear here...</span>';
-    var timer = $id('vcl-timer');
-    if (timer) timer.textContent = '0:00';
-    var status = $id('vcl-rec-status');
-    if (status) { status.textContent = 'Starting microphone...'; status.style.color = 'rgba(255,255,255,.5)'; }
+    var timerEl = $id('vcl-timer');
+    if (timerEl) timerEl.textContent = '0:00';
+    setStatus('Requesting microphone...', 'rgba(255,255,255,.5)');
     var stopBtn = $id('vcl-stop-btn');
     if (stopBtn) stopBtn.style.display = 'flex';
     stopWave();
 
-    // Start recording after a short delay (lets modal render first)
-    setTimeout(startRecognition, 200);
+    // ── Start timer IMMEDIATELY — independent of recognition state ─
+    // Timer ticks as soon as modal opens so the UI never looks frozen.
+    startTimer();
+
+    // ── getUserMedia MUST be called here, synchronously in the gesture ─
+    // iOS Safari requires this to trigger the permission prompt and to
+    // unlock audio APIs. Without it, webkitSpeechRecognition silently fails.
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(function(stream) {
+          // Release immediately — we only needed the permission grant
+          stream.getTracks().forEach(function(t) { t.stop(); });
+          setStatus('Starting recognition...', 'rgba(255,255,255,.5)');
+          // Small delay lets the stream fully release before SR takes over
+          setTimeout(beginSpeechRecognition, 150);
+        })
+        .catch(function(err) {
+          stopTimer();
+          var denied = err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError' ||
+                       err.name === 'SecurityError' || (err.message || '').toLowerCase().includes('denied');
+          if (denied) {
+            setStatus('⚠️ Microphone access denied. In Settings › Safari › Microphone, allow this site then try again.', '#ef4444');
+            var stopBtn2 = $id('vcl-stop-btn');
+            if (stopBtn2) stopBtn2.style.display = 'none';
+          } else {
+            setStatus('⚠️ Microphone unavailable — type your notes instead', '#f59e0b');
+          }
+          setTimeout(showManualFallback, 1200);
+        });
+    } else {
+      // Older browser / no mediaDevices — attempt speech recognition directly
+      setStatus('Starting microphone...', 'rgba(255,255,255,.5)');
+      setTimeout(beginSpeechRecognition, 300);
+    }
   };
 
   // ── STEP 2: Stop and send to AI ────────────────────────────────
   window.VCL_stop = function() {
+    // Capture transcript BEFORE stopping (interimTxt is lost on abort)
     var finalTranscript = (VCL.transcript + VCL.interimTxt).trim();
+
+    // Stop recognition immediately — never let recognition state block this
     stopRecognition();
 
     if (!finalTranscript) {
-      closeModal();
-      if (typeof showToast === 'function') showToast('No speech captured — try again');
+      // Nothing captured — keep the modal open and show manual fallback
+      // so the rep can still type their notes without losing their flow
+      setStatus('No speech detected — type your notes below', '#f59e0b');
+      showManualFallback();
       return;
     }
 
