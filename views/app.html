@@ -12227,12 +12227,13 @@ window.BCS = (function() {
   var _prevData   = null;  // previous frame pixel data (Uint8ClampedArray, 50×50 gray)
   var _active     = false; // scanner is currently open
 
-  var STABLE_NEEDED  = 8;   // frames required for auto-capture
-  var MAD_THRESHOLD  = 15;  // max mean absolute difference between frames
-  var BRIGHT_MIN     = 60;  // minimum mean luminance
-  var BRIGHT_MAX     = 230; // maximum mean luminance
-  var STD_MIN        = 20;  // minimum stdDev (must have content)
-  var TIMEOUT_MS     = 15000;
+  var STABLE_NEEDED  = 45;   // ~1.5 seconds of stability at 30fps before auto-capture
+  var MAD_THRESHOLD  = 8;    // stricter pixel-diff threshold — requires more stillness
+  var BRIGHT_MIN     = 60;   // minimum mean luminance
+  var BRIGHT_MAX     = 230;  // maximum mean luminance
+  var STD_MIN        = 20;   // minimum stdDev (brightness variation check)
+  var VARIANCE_MIN   = 500;  // minimum pixel variance — ensures actual card content in frame
+  var TIMEOUT_MS     = 20000; // 20 seconds before manual fallback button appears
 
   // ── DOM helpers ───────────────────────────────────────────────
   function el(id) { return document.getElementById(id); }
@@ -12344,13 +12345,15 @@ window.BCS = (function() {
         return;
       }
 
-      // Content/stdDev check
+      // Content check — compute full variance to ensure card is actually in frame
       var variance = 0;
-      for (var j = 0; j < 2500; j++) { var d = gray[j]-mean; variance += d*d; }
-      var stdDev = Math.sqrt(variance/2500);
-      if (stdDev < STD_MIN) {
+      for (var j = 0; j < 2500; j++) { var dv = gray[j] - mean; variance += dv * dv; }
+      variance /= 2500;
+
+      var stdDev = Math.sqrt(variance);
+      if (stdDev < STD_MIN || variance < VARIANCE_MIN) {
         _stableCount = 0; _prevData = null; setBar(0);
-        setStatus('Align card within the frame');
+        setStatus('Point camera at business card');
         setLocked(false);
         return;
       }
@@ -12361,14 +12364,16 @@ window.BCS = (function() {
         for (var k = 0; k < 2500; k++) { mad += Math.abs(gray[k] - _prevData[k]); }
         mad /= 2500;
         if (mad > MAD_THRESHOLD) {
+          // Card is moving — reset countdown
           _stableCount = 0;
-          setStatus('Hold still…');
           setBar(0);
           setLocked(false);
+          setStatus('Hold card steady inside the frame');
         } else {
+          // Card is stable — advance countdown
           _stableCount++;
           setBar((_stableCount / STABLE_NEEDED) * 100);
-          if (_stableCount >= 2) setStatus('Hold still…');
+          if (_stableCount >= 3) setStatus('Hold still…');
           if (_stableCount >= STABLE_NEEDED) {
             setLocked(true);
             _capture(video);
@@ -12376,7 +12381,7 @@ window.BCS = (function() {
           }
         }
       } else {
-        setStatus('Align card within the frame');
+        setStatus('Hold card steady inside the frame');
       }
 
       // Copy curr to prev
