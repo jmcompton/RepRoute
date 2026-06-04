@@ -837,6 +837,463 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
   #contact-tab-team table.ltable th { padding:8px 6px !important; font-size:12px !important; }
   #contact-tab-team table.ltable td:nth-child(2) { max-width:140px; word-break:break-word; }
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   MOBILE V5 — FINAL PASS
+   Targets: iPhone 14/15 (390px). All inside @media max-width:768px
+   or 640px so desktop is 100% unchanged.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Global tap-target + iOS zoom safety ─────────────────────────── */
+@media(max-width:768px){
+  button { min-height:44px !important; }
+  .ai-in, .cmd-input,
+  input.ai-in {
+    font-size:16px !important;   /* prevents iOS Safari auto-zoom */
+  }
+  .ai-send { min-height:44px !important; padding:10px 18px !important; font-size:13px !important; }
+  /* Any remaining inline-styled form inputs not covered by general rule */
+  input[type="text"], input[type="search"], input[type="email"],
+  input[type="tel"], input[type="number"], input[type="date"],
+  input[type="password"], select, textarea {
+    font-size:16px !important;
+    min-height:44px;
+    box-sizing:border-box;
+  }
+  /* But don't let date-inputs go 44px tall in filter bars — only standalone */
+  .list-bar select, .list-bar input { min-height:36px; }
+}
+
+/* ── HOME PAGE (Priority 1) ──────────────────────────────────────── */
+@media(max-width:768px){
+  /* Outer padding — tighter on mobile */
+  #page-dashboard > div { padding:12px 12px 72px !important; }
+
+  /* Lead results grid — 1 col (was 1fr 1fr) */
+  #lead-results { grid-template-columns:1fr !important; }
+
+  /* Lead card header row — phone + route stacked under company */
+  #morning-call-list > div > div[id^="lead-card-"] > div:first-child {
+    flex-wrap:wrap !important;
+  }
+
+  /* Route button — full-width pill at bottom of collapsed card */
+  #morning-call-list button[id^="route-btn-"] {
+    min-height:40px !important;
+    padding:8px 16px !important;
+    font-size:12px !important;
+    border-radius:20px !important;
+  }
+
+  /* Lead card expand area — all inputs must be 16px to prevent iOS zoom */
+  div[id^="leadlog-"] input,
+  div[id^="leadlog-"] textarea,
+  div[id^="leadlog-"] select {
+    font-size:16px !important;
+    min-height:44px !important;
+  }
+  div[id^="leadlog-"] textarea { min-height:64px !important; }
+
+  /* Save to CRM / Save to Contacts buttons in lead expand */
+  div[id^="leadlog-"] button { min-height:44px !important; width:100% !important; font-size:13px !important; }
+  /* Except outcome pill buttons — those are small by design */
+  div[id^="leadlog-"] > div:nth-child(2) button {
+    width:auto !important; min-height:36px !important; font-size:11px !important;
+  }
+
+  /* City input row — stack input then buttons */
+  #lead-city-input { width:100% !important; box-sizing:border-box !important; min-height:44px !important; }
+  #lead-find-btn  { min-height:44px !important; }
+
+  /* Segment pills — allow wrap, make tappable */
+  #segment-pill-row label,
+  #lead-brand-row label {
+    min-height:36px;
+    align-items:center;
+  }
+
+  /* Morning brief — no horizontal overflow */
+  #dash-briefing { overflow-wrap:break-word; word-break:break-word; }
+
+  /* Stats grid: 3 across but slightly less padding */
+  #goal-strip > div { padding:8px 6px !important; }
+}
+
+/* ── ACCOUNTS PAGE (Priority 2) ─────────────────────────────────── */
+@media(max-width:768px){
+  /* Header row — stack search below label */
+  #page-accounts > div:first-child {
+    flex-direction:column !important;
+    align-items:stretch !important;
+    gap:10px !important;
+  }
+
+  /* Search wrap — full width */
+  #acc-search-wrap { width:100% !important; }
+  #acc-search-wrap > div:first-child { width:100% !important; box-sizing:border-box !important; }
+  #acc-search { min-height:44px !important; font-size:16px !important; }
+
+  /* Dropdown — full width instead of fixed 320px floating right */
+  #acc-search-dropdown {
+    left:0 !important;
+    right:0 !important;
+    width:auto !important;
+    min-width:0 !important;
+  }
+
+  /* Account cards — full width, easy to tap */
+  #accounts-list { gap:8px !important; }
+  #accounts-list > div { padding:14px 14px !important; min-height:60px; }
+
+  /* CRM stats bar in contacts header — horizontal scroll, no wrap */
+  #crm-stats-bar {
+    overflow-x:auto !important;
+    -webkit-overflow-scrolling:touch !important;
+    flex-shrink:0 !important;
+    gap:8px !important;
+    padding-right:12px !important;
+    white-space:nowrap !important;
+  }
+  #crm-stats-bar > * { flex-shrink:0 !important; white-space:nowrap !important; }
+}
+
+/* ── QUOTES PAGE ─────────────────────────────────────────────────── */
+@media(max-width:768px){
+  /* Top bar — stack title above buttons, hide secondary controls */
+  #page-quotes > div:first-child {
+    flex-wrap:wrap !important;
+    gap:8px !important;
+    padding:10px 12px !important;
+  }
+  #page-quotes > div:first-child > div:last-child {
+    width:100% !important;
+    flex-wrap:wrap !important;
+    gap:6px !important;
+  }
+  /* Hide the search box and Fix Rep btn — only show New Quote on mobile */
+  #quote-search { display:none !important; }
+  #fix-rep-btn  { display:none !important; }
+  #page-quotes .btn-primary { width:100% !important; min-height:44px !important; font-size:13px !important; }
+
+  /* Date range pills — horizontal scroll, single row */
+  #quote-range-bar {
+    overflow-x:auto !important;
+    -webkit-overflow-scrolling:touch !important;
+    flex-wrap:nowrap !important;
+    padding:8px 12px !important;
+    scrollbar-width:none !important;
+    gap:6px !important;
+  }
+  #quote-range-bar::-webkit-scrollbar { display:none; }
+  .qrange-pill { flex-shrink:0 !important; white-space:nowrap !important; min-height:34px !important; }
+
+  /* Stats — 2×2 grid */
+  #page-quotes > div[style*="grid-template-columns:repeat(4"] {
+    grid-template-columns:repeat(2,1fr) !important;
+    gap:8px !important;
+    padding:10px 12px !important;
+  }
+
+  /* Status tabs — horizontal scroll */
+  #quote-status-tabs {
+    overflow-x:auto !important;
+    -webkit-overflow-scrolling:touch !important;
+    flex-wrap:nowrap !important;
+    scrollbar-width:none !important;
+  }
+  #quote-status-tabs::-webkit-scrollbar { display:none; }
+  #quote-status-tabs .mod-tab { flex-shrink:0 !important; white-space:nowrap !important; }
+
+  /* Filter bar — stack vertically */
+  #page-quotes > div[style*="flex-wrap:wrap"][style*="gap:10px"] {
+    flex-direction:column !important;
+    gap:8px !important;
+    padding:8px 12px !important;
+    align-items:stretch !important;
+  }
+  #page-quotes > div[style*="flex-wrap:wrap"][style*="gap:10px"] > div {
+    width:100% !important;
+  }
+  #page-quotes > div[style*="flex-wrap:wrap"][style*="gap:10px"] > div > label {
+    min-width:80px !important;
+  }
+  #page-quotes > div[style*="flex-wrap:wrap"][style*="gap:10px"] select,
+  #page-quotes > div[style*="flex-wrap:wrap"][style*="gap:10px"] input {
+    flex:1 !important;
+  }
+  #quote-acct-filter { width:auto !important; }
+
+  /* Analytics panel stats — 2×2 */
+  #quote-analytics-panel > div[style*="repeat(3,1fr)"],
+  #qa-mfr-breakdown { grid-template-columns:repeat(2,1fr) !important; }
+
+  /* Quotes table — horizontal scroll */
+  #page-quotes > div[style*="flex:1"][style*="overflow:auto"] {
+    overflow-x:auto !important;
+    -webkit-overflow-scrolling:touch !important;
+  }
+  #quotes-table { min-width:640px; }
+
+  /* Quote detail modal — full screen on mobile */
+  #quote-detail-modal {
+    padding:0 !important;
+    align-items:flex-end !important;
+  }
+  #quote-detail-modal > div {
+    border-radius:16px 16px 0 0 !important;
+    max-width:100% !important;
+    width:100% !important;
+    max-height:92vh !important;
+    overflow-y:auto !important;
+    -webkit-overflow-scrolling:touch !important;
+    margin:0 !important;
+  }
+  /* Quick strip — stack vertically */
+  #quote-detail-modal > div > div[style*="grid-template-columns:repeat(3"] {
+    grid-template-columns:1fr !important;
+  }
+  #quote-detail-modal > div > div[style*="grid-template-columns:repeat(3"] > div {
+    border-right:none !important;
+    border-bottom:1px solid var(--border) !important;
+  }
+  /* Form g2 columns → 1 col */
+  #quote-detail-modal .g2 { grid-template-columns:1fr !important; }
+  /* Form inputs 16px */
+  #quote-detail-modal input,
+  #quote-detail-modal select,
+  #quote-detail-modal textarea { font-size:16px !important; }
+  /* Save/Delete buttons full width */
+  #qd-save-btn, #qd-delete-btn {
+    width:100% !important;
+    min-height:48px !important;
+    font-size:14px !important;
+  }
+  /* PDF drop zone — smaller on mobile */
+  #qd-drop-area { padding:14px !important; margin:10px 14px !important; }
+}
+
+/* ── RECORD DETAIL — MOBILE EXTRA TABS ──────────────────────────── */
+@media(max-width:640px){
+  /* Show the extra tab row (hidden on desktop) */
+  #rec-mobile-extra-tabs {
+    display:flex !important;
+    overflow-x:auto !important;
+    -webkit-overflow-scrolling:touch !important;
+    background:#13141c !important;
+    border-bottom:1px solid #1e2028 !important;
+    padding:0 !important;
+    scrollbar-width:none !important;
+    gap:0 !important;
+    position:sticky !important;
+    top:96px !important;   /* below header(52) + main tabs(44) */
+    z-index:8 !important;
+  }
+  #rec-mobile-extra-tabs::-webkit-scrollbar { display:none; }
+  /* Each item — pill style */
+  #rec-mobile-extra-tabs .rl-item {
+    display:inline-flex !important;
+    align-items:center !important;
+    gap:4px !important;
+    flex-shrink:0 !important;
+    padding:11px 16px !important;
+    font-size:12px !important;
+    color:rgba(255,255,255,.5) !important;
+    border-bottom:2px solid transparent !important;
+    white-space:nowrap !important;
+    cursor:pointer !important;
+    border-right:1px solid #1e2028 !important;
+    min-height:44px !important;
+  }
+  #rec-mobile-extra-tabs .rl-item.active {
+    color:#60a5fa !important;
+    border-bottom-color:#60a5fa !important;
+  }
+  #rec-mobile-extra-tabs .rl-cnt {
+    background:rgba(255,255,255,.15) !important;
+    color:rgba(255,255,255,.7) !important;
+    font-size:10px !important;
+    font-weight:700 !important;
+    padding:1px 5px !important;
+    border-radius:8px !important;
+  }
+  /* Push rec-body below two sticky rows */
+  #page-record .rec-body { padding-bottom:72px !important; }
+
+  /* rec-tab-contacts / rec-tab-quotes tables — horizontal scroll */
+  #rec-tab-contacts, #rec-tab-quotes {
+    overflow-x:hidden !important;
+  }
+  #rec-tab-contacts table,
+  #rec-tab-quotes table { min-width:340px; overflow-x:auto; }
+
+  /* Contact + Quote rows — bigger tap targets */
+  #rec-tab-contacts tr,
+  #rec-tab-quotes tr { min-height:48px; }
+  #rec-tab-contacts td,
+  #rec-tab-quotes td { padding:10px 8px !important; font-size:12px !important; }
+}
+
+/* ── MODALS — GENERAL ────────────────────────────────────────────── */
+@media(max-width:768px){
+  /* Standard .mb modals — full width with reduced side padding */
+  .mb {
+    padding:16px !important;
+    margin:0 !important;
+    border-radius:16px 16px 0 0 !important;
+    max-height:88vh !important;
+    width:100% !important;
+  }
+  .mo.open { align-items:flex-end !important; }
+
+  /* Form grid inside modals → 1 col */
+  .mb .g2 { grid-template-columns:1fr !important; }
+  .mb .g3 { grid-template-columns:1fr !important; }
+
+  /* Modal inputs — 16px */
+  .mb input, .mb select, .mb textarea { font-size:16px !important; }
+
+  /* Modal footer buttons full width */
+  .mfoot { flex-direction:column !important; gap:8px !important; }
+  .mfoot button { width:100% !important; min-height:48px !important; font-size:13px !important; }
+
+  /* Fuzzy dup modal + quote dup modal — full width sheet */
+  #fuzzy-dup-modal > div,
+  #dup-quote-modal > div {
+    border-radius:16px 16px 0 0 !important;
+    max-width:100% !important;
+    width:100% !important;
+    margin:0 !important;
+  }
+  #fuzzy-dup-modal,
+  #dup-quote-modal { align-items:flex-end !important; padding:0 !important; }
+  #fuzzy-dup-modal > div > div:last-child button,
+  #dup-quote-modal > div > div:last-child button {
+    flex:1 !important;
+    min-height:48px !important;
+    font-size:13px !important;
+  }
+}
+
+/* ── AI COMMAND PAGE ─────────────────────────────────────────────── */
+@media(max-width:768px){
+  .ai-row { gap:6px !important; }
+  #cmd-input { font-size:16px !important; min-height:44px !important; }
+  .ai-resp { max-height:60vh !important; font-size:13px !important; line-height:1.6 !important; }
+  /* Quick-action buttons — allow comfortable tapping */
+  .ai-q { min-height:36px !important; padding:6px 12px !important; font-size:12px !important; }
+  #page-command { padding-bottom:72px !important; }
+}
+
+/* ── DEAL PIPELINE ───────────────────────────────────────────────── */
+@media(max-width:768px){
+  /* Ensure pipeline board is scrollable and cards are readable */
+  #pipeline-board {
+    overflow-x:auto !important;
+    -webkit-overflow-scrolling:touch !important;
+    grid-template-columns:none !important;
+    display:flex !important;
+    gap:10px !important;
+    padding-bottom:16px !important;
+  }
+  #pipeline-board > div {
+    min-width:240px !important;
+    flex-shrink:0 !important;
+  }
+}
+
+/* ── SAMPLES PAGE ────────────────────────────────────────────────── */
+@media(max-width:768px){
+  #page-samples { overflow-y:auto !important; }
+  #page-samples .g2 { grid-template-columns:1fr !important; }
+  #page-samples table.ltable { display:block !important; overflow-x:auto !important; }
+}
+
+/* ── MANAGER PAGE ────────────────────────────────────────────────── */
+@media(max-width:768px){
+  #page-manager { overflow-y:auto !important; padding:14px !important; }
+  #page-manager > div { overflow-x:auto !important; }
+  #page-manager .g2 { grid-template-columns:1fr !important; }
+}
+
+/* ── EMAIL PAGE ──────────────────────────────────────────────────── */
+@media(max-width:768px){
+  #page-email { overflow-y:auto !important; }
+  #page-email .g2 { grid-template-columns:1fr !important; }
+  #page-email input, #page-email textarea, #page-email select {
+    font-size:16px !important;
+  }
+}
+
+/* ── CALENDAR PAGE ───────────────────────────────────────────────── */
+@media(max-width:768px){
+  #page-calendar .fc { font-size:11px !important; }
+  #page-calendar .fc-toolbar { flex-wrap:wrap !important; gap:6px !important; }
+  #page-calendar .fc-toolbar-title { font-size:14px !important; }
+  #page-calendar .fc-button { min-height:36px !important; padding:5px 10px !important; font-size:12px !important; }
+}
+
+/* ── WEEKLY PLAN PAGE ────────────────────────────────────────────── */
+@media(max-width:768px){
+  #page-weekly { overflow-y:auto !important; }
+  #page-weekly .g2, #page-weekly .g3 { grid-template-columns:1fr !important; }
+  #page-weekly input, #page-weekly select, #page-weekly textarea {
+    font-size:16px !important;
+  }
+}
+
+/* ── ONBOARDING PAGE ─────────────────────────────────────────────── */
+@media(max-width:768px){
+  #page-onboarding .g2 { grid-template-columns:1fr !important; }
+  #page-onboarding input, #page-onboarding select, #page-onboarding textarea {
+    font-size:16px !important;
+  }
+}
+
+/* ── OUTREACH + COMMAND — AI panels ─────────────────────────────── */
+@media(max-width:768px){
+  #page-outreach .g3 { grid-template-columns:1fr !important; }
+  #page-outreach .ai-panel { padding:12px !important; }
+  #page-outreach select { font-size:16px !important; }
+  #page-command .ai-panel { padding:12px !important; }
+}
+
+/* ── REPORTS + ANALYTICS ─────────────────────────────────────────── */
+@media(max-width:768px){
+  #page-reports > div, #page-analytics > div {
+    overflow-x:hidden !important;
+    padding:12px !important;
+  }
+  #page-reports table, #page-analytics table {
+    display:block !important; overflow-x:auto !important;
+  }
+  /* Analytics stat grids → 2 col */
+  #page-analytics > div > div[style*="grid-template-columns:repeat(3"] {
+    grid-template-columns:repeat(2,1fr) !important;
+  }
+}
+
+/* ── FORECASTS PAGE ──────────────────────────────────────────────── */
+@media(max-width:768px){
+  #page-forecasts > div > div[style*="grid-template-columns:repeat(3"] {
+    grid-template-columns:1fr !important;
+  }
+}
+
+/* ── ZOHO IMPORT (separate page) ─────────────────────────────────── */
+@media(max-width:768px){
+  #page-zoho .g2 { grid-template-columns:1fr !important; }
+}
+
+/* ── SAFE AREA (iPhone notch / home indicator) ───────────────────── */
+@media(max-width:768px){
+  .bottom-nav {
+    padding-bottom:env(safe-area-inset-bottom, 0px) !important;
+    height:calc(58px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  .page.active { padding-bottom:calc(62px + env(safe-area-inset-bottom, 0px)) !important; }
+  #pwa-install-banner { bottom:calc(80px + env(safe-area-inset-bottom, 0px)) !important; }
+}
 </style>
 <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
@@ -1382,6 +1839,14 @@ window.addEventListener('load', function() {
           <div class="rt" onclick="setRecTab('calls',this)">Timeline</div>
           <div class="rt" onclick="setRecTab('ai',this)">AI Intel</div>
           <div style="margin-left:auto;font-size:11px;color:var(--text3)" id="rec-last-update"></div>
+        </div>
+        <!-- Mobile-only extra tab row — mirrors the left sidebar items hidden on small screens -->
+        <div id="rec-mobile-extra-tabs" style="display:none">
+          <div class="rl-item" onclick="setRecTab('notes',this)">Notes</div>
+          <div class="rl-item" onclick="setRecTab('contacts',this)">Contacts <span class="rl-cnt" id="rec-contacts-count-mob"><!-- synced by JS --></span></div>
+          <div class="rl-item" onclick="setRecTab('quotes',this)">Quotes <span class="rl-cnt" id="rec-quote-count-mob"><!-- synced by JS --></span></div>
+          <div class="rl-item" onclick="setRecTab('deals',this)">Deals</div>
+          <div class="rl-item" onclick="setRecTab('outreach',this)">Emails</div>
         </div>
         <div class="rec-quick">
           <div><div class="rq-label">Contact Owner</div><div class="rq-val">You</div></div>
@@ -5192,6 +5657,7 @@ function renderAccounts(list) {
           '<div>' +
           '<div style="font-size:13px;font-weight:600;color:var(--navy)">' + escHtml(a.name) + '</div>' +
           '<div style="font-size:11px;color:var(--text2);margin-top:2px">' + escHtml(a.category || '') + (a.city ? ' · ' + escHtml(a.city) : '') + '</div>' +
+          (a.contacts[0] && a.contacts[0].phone ? '<div style="margin-top:4px"><a href="tel:' + escHtml(a.contacts[0].phone) + '" onclick="event.stopPropagation()" style="color:var(--accent);font-size:12px;font-weight:600;text-decoration:none">&#128222; ' + escHtml(a.contacts[0].phone) + '</a></div>' : '') +
           '</div>' +
           '<div style="font-size:11px;color:var(--blue);font-weight:600">' + a.contacts.length + ' contact' + (a.contacts.length !== 1 ? 's' : '') + '</div>' +
           '</div></div>';
