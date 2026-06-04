@@ -3,7 +3,7 @@ const { pool } = require('../db');
 const router = express.Router();
 
 // ── JohnMark-only guard ──────────────────────────────────────────
-const JM_EMAIL = 'jmcompton04@gmail.com';
+const JM_EMAIL = 'johnmarkcompton@gmail.com';
 const HOURLY_RATE = 50; // USD per hour — billed to Compton Sales
 
 function requireJM(req, res, next) {
