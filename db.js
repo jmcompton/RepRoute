@@ -274,6 +274,36 @@ async function initDB() {
     SET rep_name = 'Sean Conroy', updated_at = NOW()
     WHERE LOWER(TRIM(COALESCE(rep_name, ''))) IN ('sean compton', 'sean connery', 'sean conro');
 
+    -- ════════════════════════════════════════════════════════════
+    -- Personal Time Tracker — JohnMark Compton only
+    -- ════════════════════════════════════════════════════════════
+    CREATE TABLE IF NOT EXISTS time_sessions (
+      id               SERIAL PRIMARY KEY,
+      user_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      start_time       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      end_time         TIMESTAMPTZ,
+      duration_minutes INTEGER,
+      description      TEXT DEFAULT '',
+      created_at       TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_time_sessions_user ON time_sessions(user_id, start_time DESC);
+
+    -- Seed: historical session for June 4, 2026 (9 AM – 1 PM = 4 hours = 240 minutes)
+    -- Only insert if it doesn't already exist for this user+date combination
+    INSERT INTO time_sessions (user_id, start_time, end_time, duration_minutes, description)
+    SELECT u.id,
+           '2026-06-04 09:00:00-04'::timestamptz,
+           '2026-06-04 13:00:00-04'::timestamptz,
+           240,
+           'Voice call logger, business card scanner, contact detail page, mobile optimization, invoice generation, board meeting PDF'
+    FROM users u
+    WHERE u.email = 'jmcompton04@gmail.com'
+      AND NOT EXISTS (
+        SELECT 1 FROM time_sessions ts
+        WHERE ts.user_id = u.id
+          AND ts.start_time = '2026-06-04 09:00:00-04'::timestamptz
+      );
+
   `);
   console.log('Database initialized');
 }

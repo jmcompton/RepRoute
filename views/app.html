@@ -1414,6 +1414,10 @@ window.addEventListener('load', function() {
     <div class="sb-sec-label">Team</div>
     <button class="sb-item" onclick="go('manager')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><circle cx="5" cy="5" r="2.5"/><circle cx="11" cy="5" r="2.5"/><path d="M1 13c0-2.2 1.8-4 4-4s4 1.8 4 4"/><path d="M11 9c1.7.3 3 1.9 3 4"/></svg>Team Dashboard</button>
   </div>
+  <div class="sb-section jm-only">
+    <div class="sb-sec-label">Personal</div>
+    <button class="sb-item" onclick="go('time')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5l2 1.5"/></svg>Time Tracker</button>
+  </div>
   <div class="sb-bottom">
     <div style="padding:8px 10px;background:rgba(255,255,255,.05);border-radius:5px;margin-bottom:7px;display:flex;align-items:center;justify-content:space-between">
       <div>
@@ -2143,6 +2147,65 @@ window.addEventListener('load', function() {
       </div>
 
     </div>
+  </div>
+</div>
+
+<!-- ── Time Tracker Page (JohnMark Compton only) ──────────────── -->
+<div class="page" id="page-time" style="overflow-y:auto;background:var(--bg)">
+  <div class="tt-wrap">
+
+    <!-- Header -->
+    <div class="tt-header">
+      <div class="tt-title">⏱ Time Tracker</div>
+      <div class="tt-subtitle">RepRoute Development Hours</div>
+      <div class="tt-month-nav">
+        <button onclick="ttPrevMonth()" title="Previous month">‹</button>
+        <div class="tt-month-label" id="tt-month-label">June 2026</div>
+        <button onclick="ttNextMonth()" title="Next month">›</button>
+      </div>
+    </div>
+
+    <!-- Start / Stop button -->
+    <button id="tt-toggle-btn" class="tt-start" onclick="ttToggle()">▶ Start Session</button>
+
+    <!-- Active session info -->
+    <div id="tt-active-info">
+      <div id="tt-active-started">Started at —</div>
+      <div id="tt-elapsed">0:00:00</div>
+    </div>
+
+    <!-- Monthly summary card -->
+    <div class="tt-summary-card">
+      <div class="tt-card-title">This Month</div>
+      <div class="tt-stat-row">
+        <div class="tt-stat">
+          <div class="tt-stat-val" id="tt-total-hours">—</div>
+          <div class="tt-stat-lbl">Hours</div>
+        </div>
+        <div class="tt-stat">
+          <div class="tt-stat-val tt-billable" id="tt-billable">—</div>
+          <div class="tt-stat-lbl">Billable @ $50/hr</div>
+        </div>
+        <div class="tt-stat">
+          <div class="tt-stat-val" id="tt-session-count">—</div>
+          <div class="tt-stat-lbl">Sessions</div>
+        </div>
+      </div>
+      <button id="tt-log-toggle" onclick="ttToggleLog()">▾ View Full Log</button>
+      <div id="tt-log-list"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Stop Session Modal -->
+<div id="tt-stop-modal">
+  <div class="tt-modal-sheet">
+    <div class="tt-modal-title">What did you work on?</div>
+    <div class="tt-modal-sub" id="tt-stop-duration-hint"></div>
+    <textarea id="tt-desc-input" placeholder="Describe what you worked on…" rows="3"></textarea>
+    <button id="tt-save-session-btn" onclick="ttSaveStop()">Save Session</button>
+    <button id="tt-cancel-stop-btn" onclick="ttCancelStop()">Cancel — keep timer running</button>
   </div>
 </div>
 
@@ -3281,7 +3344,8 @@ var pageTitles = {
   onboarding: 'Onboarding', manager: 'Team Dashboard', deals: 'Deal Pipeline', quotes: 'Quotes',
   calendar: 'Team Calendar',
   email: 'Email',
-  samples: 'Sample Tracker'
+  samples: 'Sample Tracker',
+  time: 'Time Tracker'
 };
 
 window.addEventListener('load', function() {
@@ -3303,6 +3367,12 @@ window.addEventListener('load', function() {
         document.getElementById('s-role').textContent = u.role === 'manager' ? 'Manager' : 'Sales Rep';
         if (u.role === 'manager') {
           document.querySelectorAll('.manager-only').forEach(function(el) { el.style.display = ''; });
+        }
+        // JM-only features (Time Tracker)
+        if (u.email === 'jmcompton04@gmail.com') {
+          document.querySelectorAll('.jm-only').forEach(function(jmEl) {
+            jmEl.classList.add('jm-visible');
+          });
         }
       }
       loadDashboard();
@@ -3377,6 +3447,7 @@ function go(id) {
   }
   if (id === 'email') loadEmailPage();
   if (id === 'samples') loadSamples();
+  if (id === 'time') loadTimeTracker();
   // Refresh route panel whenever user navigates to home/dashboard
   if (id === 'dashboard' || id === 'home') {
     if (typeof window._renderRoutePanel === 'function') {
@@ -9648,6 +9719,12 @@ fetch('/api/notifications/evaluate', { method: 'POST' }).then(function(r){ retur
       <svg class="mm-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg>
     </button>
 
+    <button id="mm-time-tracker-btn" onclick="goAndCloseMenu('time')" class="mm-item jm-only">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#1d6aff" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="M11 7v4.5l2.5 2"/></svg>
+      <span>Time Tracker</span>
+      <svg class="mm-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg>
+    </button>
+
     <div style="font-size:11px;font-weight:700;color:#8a95a3;text-transform:uppercase;letter-spacing:.06em;padding:14px 20px 8px">Account</div>
 
     <button onclick="openMobileSettings()" class="mm-item">
@@ -10093,6 +10170,304 @@ fetch('/api/notifications/evaluate', { method: 'POST' }).then(function(r){ retur
   -webkit-tap-highlight-color: transparent;
 }
 #bcs-manual-btn.bcs-visible { display: block; }
+
+/* ── Time Tracker ─────────────────────────────────────────────── */
+#page-time .tt-wrap {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 24px 20px 80px;
+  width: 100%;
+  box-sizing: border-box;
+}
+#page-time .tt-header {
+  margin-bottom: 24px;
+}
+#page-time .tt-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 2px;
+}
+#page-time .tt-subtitle {
+  font-size: 12px;
+  color: var(--text3);
+  font-weight: 500;
+}
+#page-time .tt-month-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+#page-time .tt-month-nav button {
+  width: 30px; height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--white);
+  color: var(--text2);
+  font-size: 15px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  touch-action: manipulation;
+}
+#page-time .tt-month-nav button:hover { background: var(--bg); }
+#page-time .tt-month-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--navy);
+}
+
+/* Start/Stop button */
+#tt-toggle-btn {
+  display: block;
+  width: 100%;
+  padding: 18px;
+  border: none;
+  border-radius: 12px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+  font-family: inherit;
+  letter-spacing: .01em;
+  transition: background .15s, transform .1s;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+#tt-toggle-btn:active { transform: scale(.98); }
+#tt-toggle-btn.tt-start { background: #22C55E; }
+#tt-toggle-btn.tt-start:hover { background: #16A34A; }
+#tt-toggle-btn.tt-stop  { background: #EF4444; }
+#tt-toggle-btn.tt-stop:hover  { background: #DC2626; }
+
+/* Active session info */
+#tt-active-info {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-top: 14px;
+  display: none;
+}
+#tt-active-info.visible { display: block; }
+#tt-active-started {
+  font-size: 12px;
+  color: #15803d;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+#tt-elapsed {
+  font-size: 28px;
+  font-weight: 700;
+  color: #166534;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .02em;
+}
+
+/* Summary card */
+.tt-summary-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 20px;
+  margin-top: 20px;
+}
+.tt-summary-card .tt-card-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  margin-bottom: 14px;
+}
+.tt-stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.tt-stat {
+  text-align: center;
+  padding: 10px 6px;
+  background: var(--bg);
+  border-radius: 8px;
+}
+.tt-stat-val {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--navy);
+  line-height: 1.1;
+}
+.tt-stat-lbl {
+  font-size: 10px;
+  color: var(--text3);
+  font-weight: 500;
+  margin-top: 3px;
+}
+.tt-billable { color: #15803d !important; }
+
+/* View Full Log toggle */
+#tt-log-toggle {
+  width: 100%;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text2);
+  cursor: pointer;
+  font-family: inherit;
+  touch-action: manipulation;
+}
+#tt-log-toggle:hover { background: var(--bg); }
+
+/* Session log */
+#tt-log-list {
+  display: none;
+  margin-top: 12px;
+}
+#tt-log-list.open { display: block; }
+.tt-session-row {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.tt-session-row:last-child { border-bottom: none; }
+.tt-session-left { flex: 1; min-width: 0; }
+.tt-session-date {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin-bottom: 3px;
+}
+.tt-session-time {
+  font-size: 12.5px;
+  color: var(--navy);
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.tt-session-dur {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  background: #dcfce7;
+  color: #15803d;
+  padding: 1px 7px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+}
+.tt-session-desc {
+  font-size: 12px;
+  color: var(--text2);
+  line-height: 1.4;
+}
+.tt-del-btn {
+  background: transparent;
+  border: none;
+  color: var(--text3);
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 5px;
+  font-size: 14px;
+  flex-shrink: 0;
+  touch-action: manipulation;
+}
+.tt-del-btn:hover { background: var(--red-lt); color: var(--red); }
+
+/* Stop modal */
+#tt-stop-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(15,25,35,.55);
+  z-index: 20000;
+  align-items: flex-end;
+  justify-content: center;
+}
+#tt-stop-modal.open {
+  display: flex;
+}
+.tt-modal-sheet {
+  background: var(--white);
+  border-radius: 16px 16px 0 0;
+  padding: 20px 20px 36px;
+  width: 100%;
+  max-width: 560px;
+  box-shadow: 0 -8px 32px rgba(0,0,0,.18);
+}
+.tt-modal-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 4px;
+}
+.tt-modal-sub {
+  font-size: 12px;
+  color: var(--text3);
+  margin-bottom: 14px;
+}
+#tt-desc-input {
+  width: 100%;
+  min-height: 80px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--text);
+  resize: vertical;
+  box-sizing: border-box;
+  outline: none;
+}
+#tt-desc-input:focus { border-color: var(--accent); }
+#tt-save-session-btn {
+  width: 100%;
+  margin-top: 12px;
+  padding: 13px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  touch-action: manipulation;
+}
+#tt-save-session-btn:hover { background: var(--accent2); }
+#tt-cancel-stop-btn {
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text2);
+  cursor: pointer;
+  font-family: inherit;
+  touch-action: manipulation;
+}
+
+/* JM-only visibility */
+.jm-only { display: none !important; }
+.jm-only.jm-visible { display: block !important; }
+button.jm-only.jm-visible,
+.mm-item.jm-only.jm-visible { display: flex !important; }
+
+@media (max-width: 768px) {
+  #page-time .tt-wrap { padding: 16px 14px 100px; }
+  #tt-elapsed { font-size: 36px; }
+  .tt-stop-modal { align-items: center; }
+  .tt-modal-sheet { border-radius: 16px; }
+}
 </style>
 
 
@@ -11522,6 +11897,322 @@ document.addEventListener('click', function(e) {
 
   </div>
 </div>
+
+<!-- ── Time Tracker JS ──────────────────────────────────────────── -->
+<script>
+(function() {
+  'use strict';
+
+  var JM_EMAIL         = 'jmcompton04@gmail.com';
+  var HOURLY_RATE      = 50;
+  var LS_KEY           = 'tt_active_session';  // { id, startISO }
+
+  var _viewMonth       = new Date().getMonth() + 1; // 1-based
+  var _viewYear        = new Date().getFullYear();
+  var _activeSession   = null;  // { id, startISO }
+  var _elapsedTimer    = null;
+  var _logOpen         = false;
+  var _sessions        = [];
+
+  // ── Guard: only runs for JohnMark ───────────────────────────
+  function isJM() {
+    return window.currentUser && window.currentUser.email === JM_EMAIL;
+  }
+
+  // ── Public entry point called by go('time') ──────────────────
+  window.loadTimeTracker = function() {
+    if (!isJM()) {
+      // Redirect away — show dashboard instead
+      go('dashboard');
+      return;
+    }
+    _viewMonth = new Date().getMonth() + 1;
+    _viewYear  = new Date().getFullYear();
+    _updateMonthLabel();
+    _checkActiveSession();
+    _loadSummaryAndLog();
+  };
+
+  // ── Month navigation ─────────────────────────────────────────
+  window.ttPrevMonth = function() {
+    _viewMonth--;
+    if (_viewMonth < 1) { _viewMonth = 12; _viewYear--; }
+    _updateMonthLabel();
+    _loadSummaryAndLog();
+  };
+  window.ttNextMonth = function() {
+    _viewMonth++;
+    if (_viewMonth > 12) { _viewMonth = 1; _viewYear++; }
+    _updateMonthLabel();
+    _loadSummaryAndLog();
+  };
+
+  function _updateMonthLabel() {
+    var names = ['January','February','March','April','May','June',
+                 'July','August','September','October','November','December'];
+    var el = document.getElementById('tt-month-label');
+    if (el) el.textContent = names[_viewMonth - 1] + ' ' + _viewYear;
+  }
+
+  // ── Check for active session on page load ────────────────────
+  function _checkActiveSession() {
+    // First try localStorage (survives page navigation without a round-trip)
+    var stored = _lsGet();
+    if (stored) {
+      _activeSession = stored;
+      _setRunningUI();
+    }
+    // Then verify with server
+    fetch('/api/time/active')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data && data.id) {
+          _activeSession = { id: data.id, startISO: data.start_time };
+          _lsSet(_activeSession);
+          _setRunningUI();
+        } else {
+          // No active session on server — clear any stale localStorage
+          _activeSession = null;
+          _lsClear();
+          _setIdleUI();
+        }
+      })
+      .catch(function(e) {
+        console.error('[TT] active check error:', e);
+      });
+  }
+
+  // ── Start session ────────────────────────────────────────────
+  window.ttToggle = function() {
+    if (!isJM()) return;
+    if (_activeSession) {
+      // Open stop modal
+      var hint = document.getElementById('tt-stop-duration-hint');
+      if (hint) {
+        var elapsed = Math.floor((Date.now() - new Date(_activeSession.startISO).getTime()) / 1000);
+        hint.textContent = 'Session duration: ' + _fmtDuration(elapsed * 1000);
+      }
+      document.getElementById('tt-stop-modal').classList.add('open');
+      setTimeout(function() {
+        var ta = document.getElementById('tt-desc-input');
+        if (ta) ta.focus();
+      }, 200);
+    } else {
+      _startSession();
+    }
+  };
+
+  function _startSession() {
+    var btn = document.getElementById('tt-toggle-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Starting…'; }
+    fetch('/api/time/sessions/start', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.error) { showToast('Could not start session'); if (btn) { btn.disabled = false; btn.textContent = '▶ Start Session'; } return; }
+        _activeSession = { id: data.id, startISO: data.start_time };
+        _lsSet(_activeSession);
+        _setRunningUI();
+        if (btn) btn.disabled = false;
+      })
+      .catch(function() {
+        if (btn) { btn.disabled = false; btn.textContent = '▶ Start Session'; }
+        showToast('Could not start session');
+      });
+  }
+
+  // ── Stop modal ───────────────────────────────────────────────
+  window.ttSaveStop = function() {
+    if (!_activeSession) return;
+    var desc = (document.getElementById('tt-desc-input') || {}).value || '';
+    var btn  = document.getElementById('tt-save-session-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+    fetch('/api/time/sessions/' + _activeSession.id + '/stop', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description: desc.trim() })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.error) { showToast('Error saving session'); if (btn) { btn.disabled = false; btn.textContent = 'Save Session'; } return; }
+      _activeSession = null;
+      _lsClear();
+      document.getElementById('tt-stop-modal').classList.remove('open');
+      var ta = document.getElementById('tt-desc-input');
+      if (ta) ta.value = '';
+      if (btn) { btn.disabled = false; btn.textContent = 'Save Session'; }
+      _setIdleUI();
+      // Reload for current view month
+      _loadSummaryAndLog();
+      showToast('Session saved!');
+    })
+    .catch(function() {
+      if (btn) { btn.disabled = false; btn.textContent = 'Save Session'; }
+      showToast('Error saving session');
+    });
+  };
+
+  window.ttCancelStop = function() {
+    document.getElementById('tt-stop-modal').classList.remove('open');
+  };
+
+  // ── Delete session ───────────────────────────────────────────
+  window.ttDeleteSession = function(id) {
+    if (!confirm('Delete this session?')) return;
+    fetch('/api/time/sessions/' + id, { method: 'DELETE' })
+      .then(function() {
+        _loadSummaryAndLog();
+        showToast('Session deleted');
+      })
+      .catch(function() { showToast('Error deleting session'); });
+  };
+
+  // ── Toggle session log ────────────────────────────────────────
+  window.ttToggleLog = function() {
+    _logOpen = !_logOpen;
+    var list = document.getElementById('tt-log-list');
+    var btn  = document.getElementById('tt-log-toggle');
+    if (list) { if (_logOpen) list.classList.add('open'); else list.classList.remove('open'); }
+    if (btn)  btn.textContent = _logOpen ? '▴ Hide Log' : '▾ View Full Log';
+    if (_logOpen && _sessions.length === 0) _loadSummaryAndLog();
+  };
+
+  // ── Load summary + session log ────────────────────────────────
+  function _loadSummaryAndLog() {
+    var qs = '?month=' + _viewMonth + '&year=' + _viewYear;
+    // Summary
+    fetch('/api/time/summary' + qs)
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        var el = function(id) { return document.getElementById(id); };
+        if (el('tt-total-hours')) el('tt-total-hours').textContent = d.total_hours + ' hrs';
+        if (el('tt-billable'))    el('tt-billable').textContent    = '$' + d.billable_amount.toFixed(2);
+        if (el('tt-session-count')) el('tt-session-count').textContent = d.session_count;
+      })
+      .catch(function() {});
+
+    // Sessions
+    fetch('/api/time/sessions' + qs)
+      .then(function(r) { return r.json(); })
+      .then(function(rows) {
+        _sessions = rows || [];
+        _renderLog(_sessions);
+      })
+      .catch(function() {});
+  }
+
+  // ── Render session log ────────────────────────────────────────
+  function _renderLog(sessions) {
+    var list = document.getElementById('tt-log-list');
+    if (!list) return;
+    if (!sessions || sessions.length === 0) {
+      list.innerHTML = '<div style="padding:14px 0;text-align:center;color:var(--text3);font-size:13px">No sessions this month</div>';
+      return;
+    }
+    var html = '';
+    sessions.forEach(function(s) {
+      if (!s.end_time) return; // skip active session
+      var start = new Date(s.start_time);
+      var end   = new Date(s.end_time);
+      var dur   = _fmtMinutes(s.duration_minutes || 0);
+      var dateStr = start.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+      var startStr = start.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' });
+      var endStr   = end.toLocaleTimeString('en-US',   { hour:'numeric', minute:'2-digit' });
+      html += '<div class="tt-session-row">' +
+        '<div class="tt-session-left">' +
+          '<div class="tt-session-date">' + _esc(dateStr) + '</div>' +
+          '<div class="tt-session-time">' + _esc(startStr) + ' → ' + _esc(endStr) + '</div>' +
+          '<span class="tt-session-dur">' + _esc(dur) + '</span>' +
+          (s.description ? '<div class="tt-session-desc">' + _esc(s.description) + '</div>' : '') +
+        '</div>' +
+        '<button class="tt-del-btn" onclick="ttDeleteSession(' + s.id + ')" title="Delete session">🗑</button>' +
+      '</div>';
+    });
+    list.innerHTML = html;
+  }
+
+  // ── Running UI ───────────────────────────────────────────────
+  function _setRunningUI() {
+    var btn  = document.getElementById('tt-toggle-btn');
+    var info = document.getElementById('tt-active-info');
+    var stEl = document.getElementById('tt-active-started');
+    if (btn)  { btn.className = 'tt-stop'; btn.textContent = '■ Stop Session'; }
+    if (info) info.classList.add('visible');
+    if (stEl && _activeSession) {
+      var d = new Date(_activeSession.startISO);
+      stEl.textContent = 'Started at ' + d.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' });
+    }
+    _startElapsedTimer();
+  }
+
+  function _setIdleUI() {
+    var btn  = document.getElementById('tt-toggle-btn');
+    var info = document.getElementById('tt-active-info');
+    if (btn)  { btn.className = 'tt-start'; btn.textContent = '▶ Start Session'; }
+    if (info) info.classList.remove('visible');
+    _stopElapsedTimer();
+    var el = document.getElementById('tt-elapsed');
+    if (el) el.textContent = '0:00:00';
+  }
+
+  // ── Elapsed timer ────────────────────────────────────────────
+  function _startElapsedTimer() {
+    _stopElapsedTimer();
+    function tick() {
+      var el = document.getElementById('tt-elapsed');
+      if (!el || !_activeSession) return;
+      var ms = Date.now() - new Date(_activeSession.startISO).getTime();
+      el.textContent = _fmtElapsed(ms);
+    }
+    tick();
+    _elapsedTimer = setInterval(tick, 1000);
+  }
+
+  function _stopElapsedTimer() {
+    if (_elapsedTimer) { clearInterval(_elapsedTimer); _elapsedTimer = null; }
+  }
+
+  // ── LocalStorage helpers ─────────────────────────────────────
+  function _lsSet(sess) {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(sess)); } catch(e) {}
+  }
+  function _lsGet() {
+    try {
+      var s = localStorage.getItem(LS_KEY);
+      return s ? JSON.parse(s) : null;
+    } catch(e) { return null; }
+  }
+  function _lsClear() {
+    try { localStorage.removeItem(LS_KEY); } catch(e) {}
+  }
+
+  // ── Formatters ───────────────────────────────────────────────
+  function _fmtElapsed(ms) {
+    var total = Math.floor(ms / 1000);
+    var h = Math.floor(total / 3600);
+    var m = Math.floor((total % 3600) / 60);
+    var s = total % 60;
+    return h + ':' + (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+  }
+  function _fmtDuration(ms) {
+    var total = Math.floor(ms / 1000 / 60);
+    var h = Math.floor(total / 60);
+    var m = total % 60;
+    if (h > 0) return h + 'h ' + (m > 0 ? m + 'm' : '');
+    return m + 'm';
+  }
+  function _fmtMinutes(mins) {
+    var h = Math.floor(mins / 60);
+    var m = mins % 60;
+    if (h > 0) return h + 'h ' + (m > 0 ? m + 'm' : '');
+    return m + 'm';
+  }
+  function _esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+})();
+</script>
 
 <!-- BCS: Live Business Card Scanner Module -->
 <script>
