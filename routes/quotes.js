@@ -5,19 +5,44 @@ const { pool } = require('../db');
 // GET all quotes — team-wide (all users share the same quote board)
 router.get('/', async (req, res) => {
   try {
-    // Show all quotes across the whole team so every rep sees the full pipeline.
-    // rep_name priority: q.rep_name (explicitly stored on the quote) > u.name (creator).
-    // This prevents the creator's login name from overwriting the chosen rep.
+    const { range } = req.query;
+    const rangeFilters = {
+      'this_month':    `q.created_at >= date_trunc('month', NOW())`,
+      'last_month':    `q.created_at >= date_trunc('month', NOW() - INTERVAL '1 month') AND q.created_at < date_trunc('month', NOW())`,
+      'last_30':       `q.created_at >= NOW() - INTERVAL '30 days'`,
+      'last_90':       `q.created_at >= NOW() - INTERVAL '90 days'`,
+      'last_6_months': `q.created_at >= NOW() - INTERVAL '180 days'`,
+      'this_year':     `q.created_at >= date_trunc('year', NOW())`
+    };
+    const whereClause = (range && rangeFilters[range]) ? `WHERE ${rangeFilters[range]}` : '';
     const result = await pool.query(
       `SELECT q.*, COALESCE(q.rep_name, u.name) as rep_name
        FROM quotes q
        LEFT JOIN users u ON q.user_id = u.id
+       ${whereClause}
        ORDER BY q.created_at DESC`
     );
     res.json({ quotes: result.rows });
   } catch (e) {
     console.error('GET /api/quotes error:', e.message);
     res.json({ quotes: [], error: e.message });
+  }
+});
+
+// GET /search-accounts -- typeahead: return matching account names from prospects (Fix 2)
+router.get('/search-accounts', async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q || q.trim().length < 2) return res.json({ accounts: [] });
+    const result = await pool.query(
+      `SELECT DISTINCT TRIM(company) AS company FROM prospects
+       WHERE LOWER(TRIM(company)) LIKE LOWER($1)
+       ORDER BY company LIMIT 10`,
+      ['%' + q.trim() + '%']
+    );
+    res.json({ accounts: result.rows.map(r => r.company) });
+  } catch (e) {
+    res.status(500).json({ accounts: [], error: e.message });
   }
 });
 

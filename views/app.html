@@ -137,6 +137,9 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 .dash-card-title{font-size:12.5px;font-weight:700;color:var(--navy)}
 .f-chip{padding:4px 12px;border-radius:20px;font-size:11.5px;cursor:pointer;border:1px solid var(--border);background:var(--white);color:var(--text2);transition:all .12s;font-weight:500}
 .f-chip:hover{border-color:var(--blue);color:var(--blue)}
+.qrange-pill{padding:5px 13px;border-radius:20px;font-size:11.5px;cursor:pointer;border:1px solid var(--border);background:var(--white);color:var(--text2);transition:all .12s;font-weight:500;font-family:inherit}
+.qrange-pill:hover{border-color:var(--navy);color:var(--navy)}
+.qrange-pill.active{background:var(--navy);color:#fff;border-color:var(--navy);font-weight:600}
 .ai-panel{background:#16222e;border-radius:var(--r);padding:14px;margin-bottom:14px}
 .ai-phdr{display:flex;align-items:center;gap:8px;margin-bottom:10px}
 .ai-badge{background:#f97316;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px}
@@ -1350,6 +1353,7 @@ window.addEventListener('load', function() {
         <div class="rl-item" onclick="setRecTab('overview',this)">Connected Records</div>
         <div class="rl-item" onclick="setRecTab('overview',this)">Attachments</div>
         <div class="rl-item" onclick="setRecTab('deals',this)">Deals</div>
+        <div class="rl-item" onclick="setRecTab('contacts',this)">Contacts <span class="rl-cnt" id="rec-contacts-count">0</span></div>
         <div class="rl-item" onclick="setRecTab('quotes',this)">Quotes <span class="rl-cnt" id="rec-quote-count">0</span></div>
         <div class="rl-item" onclick="setRecTab('calls',this)">Open Activities <span class="rl-cnt" id="rec-call-count">0</span></div>
         <div class="rl-item" onclick="setRecTab('calls',this)">Closed Activities</div>
@@ -1359,7 +1363,7 @@ window.addEventListener('load', function() {
       <div class="rec-main">
         <div class="rec-hdr">
           <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-            <div style="width:28px;height:28px;border:1px solid var(--border);border-radius:4px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text3);font-size:12px" onclick="go('contacts')">←</div>
+            <div style="width:28px;height:28px;border:1px solid var(--border);border-radius:4px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text3);font-size:12px" onclick="recGoBack()">←</div>
             <div class="rec-av" id="rec-avatar">?</div>
           </div>
           <div class="rec-info">
@@ -1370,7 +1374,7 @@ window.addEventListener('load', function() {
             <button class="btn btn-primary btn-sm" onclick="logCallForRecord()">Log Call</button>
             <button class="btn btn-secondary btn-sm" onclick="writeOutreachForRecord()">Outreach</button>
             <button class="btn btn-secondary btn-sm" onclick="openEditContact(currentRecord)">✏️ Edit</button>
-            <button class="btn btn-secondary btn-sm" onclick="go('contacts')">✕ Close</button>
+            <button class="btn btn-secondary btn-sm" onclick="recGoBack()">✕ Close</button>
           </div>
         </div>
         <div class="rec-tabs">
@@ -1420,6 +1424,7 @@ window.addEventListener('load', function() {
 <div id="rec-tab-notes" style="display:none"><div style="padding:16px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-size:12px;font-weight:700;color:var(--navy)">Notes</div><button onclick="saveNote()" style="padding:6px 14px;background:var(--blue);color:#fff;border:none;border-radius:40px;font-size:11px;font-weight:700;cursor:pointer">+ Add Note</button></div><textarea id="note-input" placeholder="Write a note..." style="width:100%;height:80px;padding:10px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:12px;font-family:inherit;resize:vertical;margin-bottom:12px;box-sizing:border-box"></textarea><div id="notes-list"></div></div></div>
 <div id="rec-tab-deals" style="display:none"><div style="padding:16px"><div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:12px">Deals</div><div id="rec-deals-list"><div style="font-size:12px;color:var(--text3);text-align:center;padding:20px">No deals linked yet</div></div></div></div>
 <div id="rec-tab-quotes" style="display:none"><div style="padding:16px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="font-size:12px;font-weight:700;color:var(--navy)">Quotes</div><div style="font-size:11px;color:var(--text3)" id="rec-quotes-summary"></div></div><div id="rec-quotes-list"><div style="font-size:12px;color:var(--text3);text-align:center;padding:20px">Loading quotes...</div></div></div></div>
+<div id="rec-tab-contacts" style="display:none"><div style="padding:16px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="font-size:12px;font-weight:700;color:var(--navy)">Contacts at this Account</div><div style="font-size:11px;color:var(--text3)" id="rec-contacts-summary"></div></div><div id="rec-contacts-list"><div style="font-size:12px;color:var(--text3);text-align:center;padding:20px">Loading...</div></div></div></div>
           <div id="rec-tab-ai" style="display:none">
             <div class="ai-panel">
               <div class="ai-phdr"><span class="ai-badge">AI</span><span class="ai-ptitle">Contact Intelligence</span></div>
@@ -1808,6 +1813,17 @@ window.addEventListener('load', function() {
         <button class="btn btn-primary btn-sm" onclick="openNewQuoteModal()">+ New Quote</button>
       </div>
     </div>
+    <!-- Date Range Pills (Fix 1) -->
+    <div id="quote-range-bar" style="background:var(--white);border-bottom:1px solid var(--border);padding:9px 16px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-right:4px;white-space:nowrap">Period</span>
+      <button onclick="setQuoteDateRange('this_month')" class="qrange-pill active" id="rpill-this_month">This Month</button>
+      <button onclick="setQuoteDateRange('last_month')" class="qrange-pill" id="rpill-last_month">Last Month</button>
+      <button onclick="setQuoteDateRange('last_30')" class="qrange-pill" id="rpill-last_30">Last 30 Days</button>
+      <button onclick="setQuoteDateRange('last_90')" class="qrange-pill" id="rpill-last_90">Last 90 Days</button>
+      <button onclick="setQuoteDateRange('last_6_months')" class="qrange-pill" id="rpill-last_6_months">Last 6 Months</button>
+      <button onclick="setQuoteDateRange('this_year')" class="qrange-pill" id="rpill-this_year">This Year</button>
+      <button onclick="setQuoteDateRange('all')" class="qrange-pill" id="rpill-all">All Time</button>
+    </div>
     <!-- Stats -->
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:14px 16px;background:var(--bg);border-bottom:1px solid var(--border)">
       <div style="background:var(--white);border:1px solid var(--border);border-radius:6px;padding:12px 14px">
@@ -1979,18 +1995,17 @@ window.addEventListener('load', function() {
           <div><label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Status</label><select id="qd-status" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px;background:var(--bg)"><option value="Draft">Draft</option><option value="Sent">Sent</option><option value="Follow-Up">Follow-Up</option><option value="Won">Won</option><option value="Lost">Lost</option></select></div>
           <div>
   <label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Account Name *</label>
-  <input id="qd-acct" list="qd-acct-list" placeholder="Company name or select below"
-    oninput="document.getElementById('qd-account').textContent=this.value||'—'; debounceLoadContactsForAccount(this.value); checkAccountAutoAssignRep(this.value)"
-    onchange="loadContactsForAccount(this.value); checkAccountAutoAssignRep(this.value)"
-    autocomplete="off"
-    style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px">
+  <div style="position:relative">
+    <input id="qd-acct" placeholder="Type company name..."
+      oninput="document.getElementById('qd-account').textContent=this.value||'—'; debounceLoadContactsForAccount(this.value); checkAccountAutoAssignRep(this.value); debounceLoadAccountSuggestions(this.value)"
+      onchange="loadContactsForAccount(this.value); checkAccountAutoAssignRep(this.value)"
+      autocomplete="off"
+      style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px">
+    <div id="qd-acct-dropdown" style="display:none;position:absolute;left:0;right:0;top:calc(100% + 2px);z-index:2100;background:#fff;border:1px solid var(--border);border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,.12);max-height:200px;overflow-y:auto">
+      <div id="qd-acct-list"></div>
+    </div>
+  </div>
   <div id="qd-rep-auto-hint" style="display:none;font-size:10.5px;color:#1558b0;margin-top:3px">⚡ Auto-assigned based on account</div>
-  <datalist id="qd-acct-list">
-    <option value="Bilco">
-    <option value="CRS Internet Sales">
-    <option value="Curbs-Plus">
-    <option value="SRS Distribution">
-  </datalist>
 </div>
           <div>
   <label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Contact Name</label>
@@ -2808,7 +2823,7 @@ function go(id) {
   if (id === 'bulk') { var bq = document.getElementById('bulk-query'); if (bq && !bq.value) bq.focus(); }
   // if (id === 'onboarding') loadMyOnboarding(); // disabled - show only newly generated plans
   if (id === 'deals') loadPipeline();
-  if (id === 'quotes') loadQuotes();
+  if (id === 'quotes') { initQuoteRangePills(); loadQuotes(); }
   if (id === 'reports') loadReports();
   if (id === 'analytics') loadAnalytics();
   if (id === 'tasks') loadTasks();
@@ -3371,6 +3386,9 @@ function viewRecord(id) {
           var acctQuotes = quotes.filter(function(q) {
             return (q.account_name || '').toLowerCase().trim() === acctName;
           });
+          // Cache for openRecordQuote (Fix 8)
+          window._recQuotesCache = {};
+          acctQuotes.forEach(function(q) { window._recQuotesCache[q.id] = q; });
           var countEl = document.getElementById('rec-quote-count');
           if (countEl) countEl.textContent = acctQuotes.length;
           var totalVal = acctQuotes.reduce(function(s,q){ return s + (parseFloat(q.amount)||0); }, 0);
@@ -3399,7 +3417,7 @@ function viewRecord(id) {
             acctQuotes.map(function(q) {
               var s = sc[q.status] || sc['Draft'];
               var qnum = q.quote_number || ('QT-'+String(q.id).padStart(3,'0'));
-              return '<tr onclick="go(\'quotes\');setTimeout(function(){openQuoteDetail('+q.id+')},400)" style="cursor:pointer;border-bottom:1px solid var(--border)" onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'\'">' +
+              return '<tr onclick="openRecordQuote('+q.id+')" style="cursor:pointer;border-bottom:1px solid var(--border)" onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'\'">' +
                 '<td style="padding:8px;font-weight:600;color:var(--blue)">' + qnum + '</td>' +
                 '<td style="padding:8px;font-weight:600;color:var(--navy)">' + fmtA(q.amount) + '</td>' +
                 '<td style="padding:8px"><span style="background:'+s.bg+';color:'+s.col+';padding:2px 8px;border-radius:10px;font-weight:600;font-size:10px">' + (q.status||'Draft') + '</span></td>' +
@@ -3416,12 +3434,55 @@ function viewRecord(id) {
             '</div>';
         })
         .catch(function(){}); // silent
-      setRecTab('overview', null);
+
+      // Load contacts (other prospects at same company) — Fix 7
+      var companyName = p.company;
+      var contactsListEl = document.getElementById('rec-contacts-list');
+      var contactsCountEl = document.getElementById('rec-contacts-count');
+      var contactsSummaryEl = document.getElementById('rec-contacts-summary');
+      if (contactsListEl) contactsListEl.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:20px">Loading...</div>';
+      fetch('/api/prospects')
+        .then(function(r) { return r.json(); })
+        .then(function(all) {
+          var contacts = all.filter(function(x) {
+            return (x.company||'').trim().toLowerCase() === (companyName||'').trim().toLowerCase();
+          });
+          if (contactsCountEl) contactsCountEl.textContent = contacts.length;
+          if (contactsSummaryEl) contactsSummaryEl.textContent = contacts.length + ' contact' + (contacts.length !== 1 ? 's' : '');
+          if (!contactsListEl) return;
+          if (!contacts.length) {
+            contactsListEl.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:20px">No contacts found.</div>';
+            return;
+          }
+          contactsListEl.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:12px">' +
+            '<thead><tr style="border-bottom:2px solid var(--border)">' +
+            '<th style="padding:6px 8px;text-align:left;font-weight:600;color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:.04em">Name</th>' +
+            '<th style="padding:6px 8px;text-align:left;font-weight:600;color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:.04em">Phone</th>' +
+            '<th style="padding:6px 8px;text-align:left;font-weight:600;color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:.04em">Email</th>' +
+            '<th style="padding:6px 8px;text-align:left;font-weight:600;color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:.04em">Status</th>' +
+            '</tr></thead><tbody>' +
+            contacts.map(function(c) {
+              var isCurrent = c.id === p.id;
+              return '<tr onclick="' + (isCurrent ? '' : 'viewRecordFromContacts(' + c.id + ')') + '" style="cursor:' + (isCurrent ? 'default' : 'pointer') + ';border-bottom:1px solid var(--border);' + (isCurrent ? 'background:#f8fafc;' : '') + '" ' + (isCurrent ? '' : 'onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'\'"') + '>' +
+                '<td style="padding:8px;font-weight:600;color:var(--navy)">' + (c.contact || '—') + (isCurrent ? ' <span style="font-size:10px;color:var(--text3)">(this)</span>' : '') + '</td>' +
+                '<td style="padding:8px;color:var(--text2)">' + (c.phone || '—') + '</td>' +
+                '<td style="padding:8px;color:var(--text2)">' + (c.email || '—') + '</td>' +
+                '<td style="padding:8px"><span class="badge b-' + (c.status||'new').toLowerCase() + '">' + (c.status||'New') + '</span></td>' +
+                '</tr>';
+            }).join('') +
+            '</tbody></table>';
+        })
+        .catch(function(){});
+
+      // Respect pending tab (e.g. returning from a drill-in)
+      var pendingTab = window._pendingRecTab || 'overview';
+      window._pendingRecTab = null;
+      setRecTab(pendingTab, null);
     });
 }
 
 function setRecTab(tab, el) {
-  ['overview','calls','outreach','ai','notes','deals','quotes'].forEach(function(t) {
+  ['overview','calls','outreach','ai','notes','deals','quotes','contacts'].forEach(function(t) {
     var e = document.getElementById('rec-tab-' + t);
     if (e) e.style.display = t === tab ? 'block' : 'none';
   });
@@ -3429,6 +3490,51 @@ function setRecTab(tab, el) {
   if (el) el.classList.add('active');
   if (tab === 'notes') loadNotes();
   if (tab === 'deals') loadRecordDeals();
+}
+
+// ── Record navigation history (Fix 7 / Fix 8) ───────────────────
+var _recFromContacts = null;   // { id, company } — set when drilling into a contact from contacts tab
+var _quoteReturnToRecord = false;  // set when opening quote from record detail
+
+function recGoBack() {
+  if (_recFromContacts) {
+    var parentId = _recFromContacts.id;
+    _recFromContacts = null;
+    // Re-open parent record, then switch to contacts tab
+    window._pendingRecTab = 'contacts';
+    viewRecord(parentId);
+  } else {
+    go('contacts');
+  }
+}
+
+function viewRecordFromContacts(id) {
+  // Store current record as the parent so back button returns here
+  if (currentRecord) {
+    _recFromContacts = { id: currentRecord.id, company: currentRecord.company };
+  }
+  viewRecord(id);
+}
+
+// Open a quote from the record detail quotes tab without navigating away (Fix 8)
+function openRecordQuote(id) {
+  var q = (window._recQuotesCache || {})[id];
+  if (!q) return;
+  // Merge into allQuotes so openQuoteDetail can find it
+  var existing = allQuotes.findIndex(function(x) { return x.id === id; });
+  if (existing >= 0) { allQuotes[existing] = q; } else { allQuotes.push(q); }
+  _quoteReturnToRecord = true;
+  openQuoteDetail(id);
+}
+
+// After saving a quote that was opened from record detail, refresh quotes and return
+function _afterQuoteSaveFromRecord() {
+  if (!_quoteReturnToRecord) return;
+  _quoteReturnToRecord = false;
+  if (currentRecord) {
+    window._pendingRecTab = 'quotes';
+    viewRecord(currentRecord.id);
+  }
 }
 
 function logCallForRecord() {
@@ -5741,9 +5847,28 @@ var quoteSortField = null;
 var quoteSortAsc = true;
 var quotePdfPhone = null;
 var quotePdfEmail = null;
+var quoteDateRange = localStorage.getItem('rr-quote-range') || 'this_month';
+
+function setQuoteDateRange(range) {
+  quoteDateRange = range;
+  localStorage.setItem('rr-quote-range', range);
+  document.querySelectorAll('.qrange-pill').forEach(function(el) { el.classList.remove('active'); });
+  var active = document.getElementById('rpill-' + range);
+  if (active) active.classList.add('active');
+  loadQuotes();
+}
+
+function initQuoteRangePills() {
+  var saved = localStorage.getItem('rr-quote-range') || 'this_month';
+  quoteDateRange = saved;
+  document.querySelectorAll('.qrange-pill').forEach(function(el) { el.classList.remove('active'); });
+  var active = document.getElementById('rpill-' + saved);
+  if (active) active.classList.add('active');
+}
 
 function loadQuotes() {
-  fetch('/api/quotes')
+  var rangeParam = quoteDateRange && quoteDateRange !== 'all' ? '?range=' + quoteDateRange : '';
+  fetch('/api/quotes' + rangeParam)
     .then(function(r){ return r.json(); })
     .then(function(data) {
       allQuotes = data.quotes || [];
@@ -6281,6 +6406,59 @@ document.addEventListener('click', function(e) {
   }
 });
 
+// ── Account autocomplete (Fix 2) ───────────────────────────────────
+var _acctSuggestDebounce = null;
+
+function debounceLoadAccountSuggestions(val) {
+  clearTimeout(_acctSuggestDebounce);
+  if (!val || val.trim().length < 2) {
+    var dd = document.getElementById('qd-acct-dropdown');
+    if (dd) dd.style.display = 'none';
+    return;
+  }
+  _acctSuggestDebounce = setTimeout(function() { loadAccountSuggestions(val); }, 280);
+}
+
+function loadAccountSuggestions(val) {
+  if (!val || val.trim().length < 2) return;
+  fetch('/api/quotes/search-accounts?q=' + encodeURIComponent(val.trim()))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var accounts = data.accounts || [];
+      var dd = document.getElementById('qd-acct-dropdown');
+      var list = document.getElementById('qd-acct-list');
+      if (!accounts.length || !dd || !list) { if (dd) dd.style.display = 'none'; return; }
+      list.innerHTML = accounts.map(function(a) {
+        return '<div onclick="selectQuoteAccount(' + JSON.stringify(a) + ')" style="padding:9px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid #f1f5f9" onmouseover="this.style.background=\'#f0f5ff\'" onmouseout="this.style.background=\'\'">' + a + '</div>';
+      }).join('');
+      dd.style.display = 'block';
+    })
+    .catch(function() {
+      var dd = document.getElementById('qd-acct-dropdown');
+      if (dd) dd.style.display = 'none';
+    });
+}
+
+function selectQuoteAccount(name) {
+  var inp = document.getElementById('qd-acct');
+  if (inp) inp.value = name;
+  document.getElementById('qd-account').textContent = name || '—';
+  var dd = document.getElementById('qd-acct-dropdown');
+  if (dd) dd.style.display = 'none';
+  loadContactsForAccount(name);
+  checkAccountAutoAssignRep(name);
+}
+
+// Close account dropdown when clicking outside
+document.addEventListener('click', function(e) {
+  var inp = document.getElementById('qd-acct');
+  var dd = document.getElementById('qd-acct-dropdown');
+  if (!dd || dd.style.display === 'none') return;
+  if (inp && !inp.contains(e.target) && !dd.contains(e.target)) {
+    dd.style.display = 'none';
+  }
+});
+
 
 async function fixRepNames() {
   var btn = document.getElementById('fix-rep-btn');
@@ -6356,19 +6534,11 @@ async function saveQuote() {
     var res = await fetch(url, {method:method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
     if (!res.ok && res.status === 413) throw new Error('PDF too large to attach. Quote saved without PDF.');
     var resData = await res.json();
-    // Handle duplicate quote (409) — warn but allow override
+    // Handle duplicate quote (409) — show warning modal, allow bypass
     if (res.status === 409 && resData.error === 'duplicate') {
       btn.textContent = 'Save Quote'; btn.disabled = false;
-      var proceed = confirm('⚠️ Duplicate detected\n\n' + resData.message + '\n\nDo you still want to save this quote?');
-      if (!proceed) return;
-      // User confirmed — retry with force_override flag
-      payload.force_override = true;
-      var res2 = await fetch(url, {method:method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
-      if (!res2.ok && res2.status === 413) throw new Error('PDF too large to attach. Quote saved without PDF.');
-      var resData2 = await res2.json();
-      if (resData2.error) throw new Error(resData2.error);
-      // Swap in the successful response and continue
-      resData = resData2;
+      showDupModal(resData.message, payload, url, method);
+      return;
     } else if (resData.error) {
       throw new Error(resData.error);
     }
@@ -6403,8 +6573,10 @@ async function saveQuote() {
     } else {
       allQuotes.unshift(resData);
     }
+    var _wasFromRecord = _quoteReturnToRecord;
     closeQuoteDetail();
-    loadQuotes();
+    _afterQuoteSaveFromRecord();
+    if (!_wasFromRecord) loadQuotes();
   } catch(e) {
     alert('Save error: ' + e.message);
   } finally {
@@ -6418,6 +6590,52 @@ async function deleteCurrentQuote() {
     await fetch('/api/quotes/'+currentQuoteId, {method:'DELETE'});
     closeQuoteDetail(); loadQuotes();
   } catch(e) { alert('Error deleting quote'); }
+}
+
+// ── Duplicate quote modal helpers (Fix 5) ──────────────────────────
+var _dupPayload = null;
+var _dupUrl = null;
+var _dupMethod = null;
+
+function showDupModal(message, payload, url, method) {
+  _dupPayload = payload;
+  _dupUrl = url;
+  _dupMethod = method;
+  var msgEl = document.getElementById('dup-modal-message');
+  if (msgEl) msgEl.textContent = message;
+  document.getElementById('dup-quote-modal').style.display = 'flex';
+}
+
+function closeDupModal() {
+  document.getElementById('dup-quote-modal').style.display = 'none';
+  _dupPayload = null; _dupUrl = null; _dupMethod = null;
+}
+
+async function saveQuoteForceOverride() {
+  if (!_dupPayload || !_dupUrl || !_dupMethod) return;
+  closeDupModal();
+  var payload = Object.assign({}, _dupPayload, { force_override: true });
+  var btn = document.getElementById('qd-save-btn');
+  if (btn) { btn.textContent = 'Saving...'; btn.disabled = true; }
+  try {
+    var res = await fetch(_dupUrl, { method: _dupMethod, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    var resData = await res.json();
+    if (resData.error) throw new Error(resData.error);
+    if (currentQuoteId) {
+      allQuotes = allQuotes.map(function(q){ return q.id === resData.id ? resData : q; });
+    } else {
+      allQuotes.unshift(resData);
+    }
+    var _wasFromRecord2 = _quoteReturnToRecord;
+    closeQuoteDetail();
+    _afterQuoteSaveFromRecord();
+    if (!_wasFromRecord2) loadQuotes();
+    showToast('Quote saved!');
+  } catch(e) {
+    alert('Save error: ' + e.message);
+  } finally {
+    if (btn) { btn.textContent = 'Save Quote'; btn.disabled = false; }
+  }
 }
 
 // PDF drag & drop
@@ -8842,9 +9060,10 @@ function qSetRepValue(name) {
   document.getElementById('qd-rep').textContent = name || '—';
 }
 
-// Fix 3: Auto-assign rep based on account name
+// Account-level rep auto-assignment (Fix 3/4)
 const AUTO_ASSIGN_REPS = {
-  'bilco': 'Ray Breedlove'
+  'bilco': 'Ray Breedlove',
+  'crs internet sales': 'Ray Breedlove'
 };
 window.checkAccountAutoAssignRep = function(acctValue) {
   var hint = document.getElementById('qd-rep-auto-hint');
@@ -9498,6 +9717,179 @@ document.addEventListener('click', function(e) {
       window.restoreRouteCache();
     }, 900);
   });
+
+})();
+</script>
+
+<!-- DUPLICATE QUOTE WARNING MODAL (Fix 5) -->
+<div id="dup-quote-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:600;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:8px;width:100%;max-width:440px;box-shadow:0 12px 40px rgba(0,0,0,.2);overflow:hidden">
+    <div style="background:#fef3c7;border-bottom:1px solid #fcd34d;padding:14px 18px;display:flex;align-items:center;gap:10px">
+      <span style="font-size:20px">⚠️</span>
+      <div>
+        <div style="font-size:14px;font-weight:700;color:#92400e">Possible Duplicate Quote</div>
+        <div style="font-size:11px;color:#b45309;margin-top:1px">A similar quote already exists</div>
+      </div>
+    </div>
+    <div style="padding:18px 20px">
+      <div id="dup-modal-message" style="font-size:13px;color:#1a1a2e;line-height:1.6;margin-bottom:16px"></div>
+      <div style="font-size:12px;color:#555e6c;margin-bottom:4px">Are you sure you want to save this as a new quote?</div>
+    </div>
+    <div style="padding:12px 20px;border-top:1px solid #e0e2e7;background:#fafbfc;display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="closeDupModal()" style="padding:8px 18px;background:transparent;border:1px solid #e0e2e7;border-radius:5px;font-size:12px;cursor:pointer;color:#555e6c;font-family:inherit">Cancel</button>
+      <button onclick="saveQuoteForceOverride()" style="padding:8px 18px;background:#1f2d3d;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Save Anyway</button>
+    </div>
+  </div>
+</div>
+<!-- FUZZY DUPLICATE ACCOUNT MODAL (Fix 9) -->
+<div id="fuzzy-dup-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:700;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:8px;width:100%;max-width:440px;box-shadow:0 12px 40px rgba(0,0,0,.2);overflow:hidden">
+    <div style="background:#eff6ff;border-bottom:1px solid #bfdbfe;padding:14px 18px;display:flex;align-items:center;gap:10px">
+      <span style="font-size:20px">🔍</span>
+      <div>
+        <div style="font-size:14px;font-weight:700;color:#1e40af">Similar Account Found</div>
+        <div style="font-size:11px;color:#3b82f6;margin-top:1px">This may already exist in your CRM</div>
+      </div>
+    </div>
+    <div style="padding:18px 20px">
+      <div id="fuzzy-dup-message" style="font-size:13px;color:#1a1a2e;line-height:1.6;margin-bottom:12px"></div>
+      <div style="background:#f8fafc;border:1px solid var(--border);border-radius:6px;padding:10px 14px;font-size:12px;color:#475569" id="fuzzy-dup-existing-name"></div>
+    </div>
+    <div style="padding:12px 20px;border-top:1px solid #e0e2e7;background:#fafbfc;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+      <button onclick="fuzzyCancel()" style="padding:8px 14px;background:transparent;border:1px solid #e0e2e7;border-radius:5px;font-size:12px;cursor:pointer;color:#555e6c;font-family:inherit">Cancel</button>
+      <button onclick="fuzzyCreateNew()" style="padding:8px 14px;background:#f1f5f9;color:#1f2d3d;border:1px solid #cbd5e1;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Create New</button>
+      <button onclick="fuzzyUseExisting()" style="padding:8px 14px;background:#1f2d3d;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Use Existing</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+// FIX 9 — FUZZY DUPLICATE PREVENTION (account name entry)
+// Uses inline Levenshtein — no bundler needed
+// ═══════════════════════════════════════════════════════════════════
+(function() {
+  'use strict';
+
+  function levenshtein(a, b) {
+    var m = a.length, n = b.length, dp = [], i, j;
+    for (i = 0; i <= m; i++) { dp[i] = [i]; }
+    for (j = 0; j <= n; j++) { dp[0][j] = j; }
+    for (i = 1; i <= m; i++) {
+      for (j = 1; j <= n; j++) {
+        dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+      }
+    }
+    return dp[m][n];
+  }
+
+  function normalize(s) {
+    return (s || '').toLowerCase().replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  function similarity(a, b) {
+    a = normalize(a); b = normalize(b);
+    if (!a || !b) return 0;
+    var longer = Math.max(a.length, b.length);
+    if (longer === 0) return 1;
+    return (longer - levenshtein(a, b)) / longer;
+  }
+
+  // Find best fuzzy match in allProspects (>= 70% similarity)
+  function findFuzzyMatch(name) {
+    if (!window.allProspects || !allProspects.length) return null;
+    var best = null, bestScore = 0;
+    var seen = {};
+    allProspects.forEach(function(p) {
+      var co = (p.company || '').trim();
+      if (!co || seen[co.toLowerCase()]) return;
+      seen[co.toLowerCase()] = true;
+      var score = similarity(name, co);
+      if (score >= 0.70 && score > bestScore) { bestScore = score; best = { score: score, id: p.id, company: co }; }
+    });
+    return best;
+  }
+
+  // State for the modal
+  var _fuzzyCtx = null; // { type, onUseExisting, onCreateNew }
+
+  window.fuzzyCancel = function() {
+    document.getElementById('fuzzy-dup-modal').style.display = 'none';
+    _fuzzyCtx = null;
+  };
+
+  window.fuzzyCreateNew = function() {
+    document.getElementById('fuzzy-dup-modal').style.display = 'none';
+    var ctx = _fuzzyCtx; _fuzzyCtx = null;
+    if (ctx && ctx.onCreateNew) ctx.onCreateNew();
+  };
+
+  window.fuzzyUseExisting = function() {
+    document.getElementById('fuzzy-dup-modal').style.display = 'none';
+    var ctx = _fuzzyCtx; _fuzzyCtx = null;
+    if (ctx && ctx.onUseExisting) ctx.onUseExisting(ctx.match);
+  };
+
+  function showFuzzyModal(typedName, match, onUseExisting, onCreateNew) {
+    _fuzzyCtx = { match: match, onUseExisting: onUseExisting, onCreateNew: onCreateNew };
+    var pct = Math.round(match.score * 100);
+    document.getElementById('fuzzy-dup-message').textContent =
+      'You typed "' + typedName + '" — a ' + pct + '% match was found:';
+    document.getElementById('fuzzy-dup-existing-name').textContent = match.company;
+    document.getElementById('fuzzy-dup-modal').style.display = 'flex';
+  }
+
+  // ── Hook: addProspect (Create Account form) ─────────────────────
+  var _origAddProspect = window.addProspect;
+  window.addProspect = function() {
+    var nameEl = document.getElementById('ap-name');
+    var name = nameEl ? nameEl.value.trim() : '';
+    if (!name) { _origAddProspect(); return; }
+    var match = findFuzzyMatch(name);
+    if (!match) { _origAddProspect(); return; }
+    // Exact match — skip (server will handle true duplicate)
+    if (normalize(name) === normalize(match.company)) { _origAddProspect(); return; }
+    showFuzzyModal(name, match,
+      function(m) { viewRecord(m.id); window.closeModal && closeModal('add-prospect'); },
+      function() { _origAddProspect(); }
+    );
+  };
+
+  // ── Hook: qd-acct blur (Quote form account field) ───────────────
+  document.addEventListener('DOMContentLoaded', function() {
+    var acctInput = document.getElementById('qd-acct');
+    if (acctInput) {
+      acctInput.addEventListener('blur', function() {
+        var name = acctInput.value.trim();
+        if (!name || name.length < 3) return;
+        var match = findFuzzyMatch(name);
+        if (!match) return;
+        if (normalize(name) === normalize(match.company)) return;
+        showFuzzyModal(name, match,
+          function(m) { acctInput.value = m.company; if (window.loadContactsForAccount) loadContactsForAccount(m.company); },
+          function() { /* keep typed name */ }
+        );
+      });
+    }
+  });
+
+  // ── Hook: saveEditContact (Edit Contact form) ───────────────────
+  // Wrap the save button's action for modal-edit-prospect
+  var _origSaveEdit = window.saveEditContact;
+  if (_origSaveEdit) {
+    window.saveEditContact = function() {
+      var nameEl = document.getElementById('ep-name');
+      var name = nameEl ? nameEl.value.trim() : '';
+      if (!name) { _origSaveEdit(); return; }
+      var match = findFuzzyMatch(name);
+      if (!match) { _origSaveEdit(); return; }
+      if (normalize(name) === normalize(match.company)) { _origSaveEdit(); return; }
+      showFuzzyModal(name, match,
+        function(m) { if (nameEl) nameEl.value = m.company; _origSaveEdit(); },
+        function() { _origSaveEdit(); }
+      );
+    };
+  }
 
 })();
 </script>
