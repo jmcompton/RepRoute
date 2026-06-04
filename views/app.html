@@ -9217,6 +9217,111 @@ fetch('/api/notifications/evaluate', { method: 'POST' }).then(function(r){ retur
 .mm-item span { flex: 1; font-weight: 500; }
 .mm-item:active { background: #f1f5f9; }
 .mm-item:last-child { border-bottom: none; }
+
+/* ─── VOICE CALL LOGGER ─────────────────────────────────────── */
+#vcl-float-btn {
+  position: fixed;
+  bottom: 40px;
+  right: 32px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #C9A84C;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  z-index: 155;
+  box-shadow: 0 4px 16px rgba(201,168,76,.45), 0 2px 6px rgba(0,0,0,.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform .12s, box-shadow .12s;
+  -webkit-tap-highlight-color: transparent;
+}
+#vcl-float-btn:hover { transform: scale(1.06); box-shadow: 0 6px 20px rgba(201,168,76,.55), 0 3px 8px rgba(0,0,0,.2); }
+#vcl-float-btn:active { transform: scale(0.95); }
+#vcl-float-btn svg { width: 26px; height: 26px; fill: #fff; flex-shrink: 0; }
+
+@keyframes vcl-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(201,168,76,.6), 0 4px 16px rgba(201,168,76,.45); }
+  70%  { box-shadow: 0 0 0 14px rgba(201,168,76,0), 0 4px 16px rgba(201,168,76,.45); }
+  100% { box-shadow: 0 0 0 0 rgba(201,168,76,0), 0 4px 16px rgba(201,168,76,.45); }
+}
+#vcl-float-btn.vcl-is-recording { animation: vcl-pulse 1.4s ease-out infinite; }
+
+@media (max-width: 768px) {
+  #vcl-float-btn {
+    bottom: 74px;   /* 58px nav + 16px gap */
+    right: 20px;
+    width: 60px;
+    height: 60px;
+  }
+  #vcl-float-btn svg { width: 28px; height: 28px; }
+}
+
+/* Voice modal overlay — dark navy, bottom-sheet on mobile */
+#modal-voice-logger {
+  z-index: 300 !important;
+  align-items: flex-end;
+  padding: 0;
+}
+#vcl-sheet {
+  background: #0d1520;
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  border-radius: 20px 20px 0 0;
+  overflow: hidden;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+}
+@media (min-width: 769px) {
+  #modal-voice-logger { align-items: center; }
+  #vcl-sheet { border-radius: 16px; max-height: 85vh; margin: 0 auto; }
+}
+
+/* Waveform bars */
+.vcl-wave { display: flex; align-items: center; justify-content: center; gap: 4px; height: 60px; }
+.vcl-bar {
+  width: 4px;
+  border-radius: 2px;
+  background: #C9A84C;
+  animation: vcl-wave-anim 1.1s ease-in-out infinite;
+}
+.vcl-bar:nth-child(1) { height: 18px; animation-delay: 0.0s; }
+.vcl-bar:nth-child(2) { height: 32px; animation-delay: 0.1s; }
+.vcl-bar:nth-child(3) { height: 48px; animation-delay: 0.2s; }
+.vcl-bar:nth-child(4) { height: 28px; animation-delay: 0.3s; }
+.vcl-bar:nth-child(5) { height: 54px; animation-delay: 0.15s; }
+.vcl-bar:nth-child(6) { height: 36px; animation-delay: 0.25s; }
+.vcl-bar:nth-child(7) { height: 44px; animation-delay: 0.05s; }
+.vcl-bar:nth-child(8) { height: 22px; animation-delay: 0.35s; }
+.vcl-bar:nth-child(9) { height: 38px; animation-delay: 0.1s; }
+.vcl-bar-idle { animation-play-state: paused !important; opacity: 0.25; transform: scaleY(0.3); }
+
+@keyframes vcl-wave-anim {
+  0%, 100% { transform: scaleY(0.25); opacity: 0.4; }
+  50%       { transform: scaleY(1);    opacity: 1; }
+}
+
+/* Spinning loader */
+@keyframes vcl-spin { to { transform: rotate(360deg); } }
+.vcl-spinner {
+  width: 44px; height: 44px;
+  border: 3px solid rgba(255,255,255,.15);
+  border-top-color: #C9A84C;
+  border-radius: 50%;
+  animation: vcl-spin .8s linear infinite;
+  margin: 0 auto;
+}
+
+/* Confirm screen inputs — forced dark */
+#vcl-screen-confirm input,
+#vcl-screen-confirm select,
+#vcl-screen-confirm textarea {
+  color-scheme: dark;
+}
 </style>
 
 
@@ -10491,6 +10596,870 @@ document.addEventListener('click', function(e) {
       );
     };
   }
+
+})();
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     VOICE CALL LOGGER — Floating mic button + recording modal
+     Uses Web Speech API (webkitSpeechRecognition) for iOS Safari
+     Falls back to manual text entry if speech not available
+     ═══════════════════════════════════════════════════════════════ -->
+
+<!-- Floating gold microphone button -->
+<button id="vcl-float-btn" onclick="VCL_open()" title="Voice Call Logger" aria-label="Log a call by voice">
+  <!-- Microphone SVG -->
+  <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4z"/>
+    <path d="M19 10a7 7 0 0 1-14 0" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+    <line x1="12" y1="19" x2="12" y2="23" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+    <line x1="8" y1="23" x2="16" y2="23" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+  </svg>
+</button>
+
+<!-- Voice Logger Modal -->
+<div class="mo" id="modal-voice-logger">
+  <div id="vcl-sheet">
+
+    <!-- ── Modal Header ─────────────────────────────────────── -->
+    <div style="padding:16px 20px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.08);flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:34px;height:34px;background:#C9A84C;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="#fff"><path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4z"/></svg>
+        </div>
+        <div>
+          <div style="font-size:15px;font-weight:700;color:#fff">Voice Call Logger</div>
+          <div style="font-size:11px;color:rgba(255,255,255,.45);margin-top:1px">Speak naturally — AI will extract the details</div>
+        </div>
+      </div>
+      <button onclick="VCL_close()" style="background:transparent;border:none;cursor:pointer;color:rgba(255,255,255,.5);font-size:24px;line-height:1;padding:4px 8px;border-radius:6px" aria-label="Close">×</button>
+    </div>
+
+    <!-- ── Screen: Recording ────────────────────────────────── -->
+    <div id="vcl-screen-recording" style="padding:28px 24px 24px;flex:1;overflow-y:auto">
+
+      <!-- Waveform animation -->
+      <div style="text-align:center;margin-bottom:20px">
+        <div class="vcl-wave" id="vcl-waveform">
+          <div class="vcl-bar vcl-bar-idle"></div>
+          <div class="vcl-bar vcl-bar-idle"></div>
+          <div class="vcl-bar vcl-bar-idle"></div>
+          <div class="vcl-bar vcl-bar-idle"></div>
+          <div class="vcl-bar vcl-bar-idle"></div>
+          <div class="vcl-bar vcl-bar-idle"></div>
+          <div class="vcl-bar vcl-bar-idle"></div>
+          <div class="vcl-bar vcl-bar-idle"></div>
+          <div class="vcl-bar vcl-bar-idle"></div>
+        </div>
+      </div>
+
+      <!-- Timer -->
+      <div style="text-align:center;margin-bottom:10px">
+        <div id="vcl-timer" style="font-size:42px;font-weight:200;color:#fff;letter-spacing:2px;font-variant-numeric:tabular-nums">0:00</div>
+        <div id="vcl-rec-status" style="font-size:13px;color:rgba(255,255,255,.5);margin-top:4px">Starting microphone...</div>
+      </div>
+
+      <!-- Live transcript preview -->
+      <div style="margin:16px 0">
+        <div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Live Transcript</div>
+        <div id="vcl-transcript-preview" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:12px 14px;min-height:80px;max-height:160px;overflow-y:auto;font-size:13px;color:rgba(255,255,255,.75);line-height:1.55;font-style:italic">
+          <span style="color:rgba(255,255,255,.3)">Speak now — your words will appear here...</span>
+        </div>
+      </div>
+
+      <!-- Tips -->
+      <div style="background:rgba(201,168,76,.1);border:1px solid rgba(201,168,76,.25);border-radius:8px;padding:10px 12px;margin-bottom:20px">
+        <div style="font-size:11px;color:rgba(201,168,76,.9);line-height:1.5">
+          💡 <strong>Tips:</strong> Say the company name, who you spoke with, and what happened. Example: <em>"Visited ABC Roofing, talked to Mike, he's interested in ShurTape samples."</em>
+        </div>
+      </div>
+
+      <!-- Stop button -->
+      <button id="vcl-stop-btn" onclick="VCL_stop()" style="width:100%;padding:16px;background:#ef4444;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+        Stop &amp; Process
+      </button>
+
+    </div>
+
+    <!-- ── Screen: Processing spinner ───────────────────────── -->
+    <div id="vcl-screen-processing" style="display:none;padding:60px 24px;text-align:center">
+      <div class="vcl-spinner"></div>
+      <div style="color:rgba(255,255,255,.7);font-size:14px;font-weight:600;margin-top:20px">Processing your call...</div>
+      <div style="color:rgba(255,255,255,.35);font-size:12px;margin-top:6px">AI is extracting account, contact &amp; summary</div>
+    </div>
+
+    <!-- ── Screen: Account Match picker ─────────────────────── -->
+    <div id="vcl-screen-account-match" style="display:none;padding:24px;flex:1;overflow-y:auto">
+      <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:6px">Which account did you visit?</div>
+      <div id="vcl-account-match-body"></div>
+    </div>
+
+    <!-- ── Screen: Contact picker ────────────────────────────── -->
+    <div id="vcl-screen-contact-choice" style="display:none;padding:24px;flex:1;overflow-y:auto">
+      <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:6px">Who did you speak with?</div>
+      <div id="vcl-contact-choice-body"></div>
+    </div>
+
+    <!-- ── Screen: Confirm + Edit ────────────────────────────── -->
+    <div id="vcl-screen-confirm" style="display:none;padding:0;flex:1;overflow-y:auto;display:none">
+
+      <div style="padding:20px 20px 0">
+        <div id="vcl-confirm-body"></div>
+      </div>
+
+      <!-- Footer buttons -->
+      <div style="padding:16px 20px;border-top:1px solid rgba(255,255,255,.08);display:flex;gap:10px;flex-shrink:0;background:#0d1520">
+        <button onclick="VCL_close()" style="flex:1;padding:13px;background:rgba(255,255,255,.08);color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.15);border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">Cancel</button>
+        <button id="vcl-save-btn" onclick="VCL_save()" style="flex:2;padding:13px;background:#C9A84C;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit">Save Call</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Voice Logger JavaScript -->
+<script>
+(function() {
+  'use strict';
+
+  // ── State object ───────────────────────────────────────────────
+  var VCL = {
+    state:          'idle',   // idle | recording | processing | account-match | contact-choice | confirm
+    recognition:    null,
+    transcript:     '',
+    interimTxt:     '',
+    timerInterval:  null,
+    seconds:        0,
+    extracted:      null,     // {account_name, contact_name, summary, outcome, next_steps}
+    accountMatches: [],
+    selectedAccount: null,    // {id, company, city, state, category, isNew}
+    selectedContact: null,    // {id, contact, isNew, isNone}
+    accountContacts: []
+  };
+
+  // ── Local helpers ──────────────────────────────────────────────
+  function $id(id) { return document.getElementById(id); }
+
+  function vclEsc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function vclNorm(s) {
+    return (s || '').toLowerCase()
+      .replace(/[-_&,\.]/g, ' ')
+      .replace(/\bllc\b|\binc\b|\bcorp\b|\bco\b|\bltd\b/g, '')
+      .replace(/\s+/g, ' ').trim();
+  }
+
+  // ── Screen management ──────────────────────────────────────────
+  var SCREENS = ['recording', 'processing', 'account-match', 'contact-choice', 'confirm'];
+  function showScreen(name) {
+    SCREENS.forEach(function(s) {
+      var el = $id('vcl-screen-' + s);
+      if (el) el.style.display = s === name ? (s === 'confirm' ? 'flex' : 'block') : 'none';
+    });
+    // Flip confirm screen flex direction
+    var confirmEl = $id('vcl-screen-confirm');
+    if (confirmEl && name === 'confirm') {
+      confirmEl.style.display = 'flex';
+      confirmEl.style.flexDirection = 'column';
+    }
+  }
+
+  // ── Modal open / close ─────────────────────────────────────────
+  function openModal() {
+    var m = $id('modal-voice-logger');
+    if (m) { m.style.display = 'flex'; m.classList.add('open'); }
+  }
+
+  function closeModal() {
+    var m = $id('modal-voice-logger');
+    if (m) { m.style.display = 'none'; m.classList.remove('open'); }
+  }
+
+  // ── Floating button state ──────────────────────────────────────
+  function syncFloatBtn() {
+    var btn = $id('vcl-float-btn');
+    if (!btn) return;
+    if (VCL.state === 'recording') {
+      btn.classList.add('vcl-is-recording');
+    } else {
+      btn.classList.remove('vcl-is-recording');
+    }
+  }
+
+  // ── Waveform animation ─────────────────────────────────────────
+  function startWave() {
+    document.querySelectorAll('#vcl-waveform .vcl-bar').forEach(function(b) {
+      b.classList.remove('vcl-bar-idle');
+    });
+  }
+  function stopWave() {
+    document.querySelectorAll('#vcl-waveform .vcl-bar').forEach(function(b) {
+      b.classList.add('vcl-bar-idle');
+    });
+  }
+
+  // ── Timer ──────────────────────────────────────────────────────
+  function startTimer() {
+    VCL.seconds = 0;
+    clearInterval(VCL.timerInterval);
+    var timerEl = $id('vcl-timer');
+    if (timerEl) timerEl.textContent = '0:00';
+    VCL.timerInterval = setInterval(function() {
+      VCL.seconds++;
+      var mins = Math.floor(VCL.seconds / 60);
+      var secs = VCL.seconds % 60;
+      if (timerEl) timerEl.textContent = mins + ':' + (secs < 10 ? '0' : '') + secs;
+    }, 1000);
+  }
+
+  function stopTimer() {
+    clearInterval(VCL.timerInterval);
+    VCL.timerInterval = null;
+  }
+
+  // ── Speech Recognition ─────────────────────────────────────────
+  function startRecognition() {
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      // No speech API — show manual fallback
+      showManualFallback();
+      return;
+    }
+
+    VCL.transcript = '';
+    VCL.interimTxt = '';
+
+    var rec = new SR();
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = 'en-US';
+    rec.maxAlternatives = 1;
+
+    rec.onstart = function() {
+      VCL.state = 'recording';
+      syncFloatBtn();
+      startTimer();
+      startWave();
+      var st = $id('vcl-rec-status');
+      if (st) { st.textContent = '● Recording — speak naturally'; st.style.color = '#ef4444'; }
+    };
+
+    rec.onresult = function(event) {
+      var interim = '';
+      for (var i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          VCL.transcript += event.results[i][0].transcript + ' ';
+        } else {
+          interim += event.results[i][0].transcript;
+        }
+      }
+      VCL.interimTxt = interim;
+      var preview = $id('vcl-transcript-preview');
+      if (preview) {
+        var full = (VCL.transcript + interim).trim();
+        preview.textContent = full || '';
+        if (!full) preview.innerHTML = '<span style="color:rgba(255,255,255,.3)">Speak now...</span>';
+        preview.scrollTop = preview.scrollHeight;
+      }
+    };
+
+    rec.onerror = function(event) {
+      if (event.error === 'not-allowed' || event.error === 'permission-denied') {
+        stopTimer();
+        stopWave();
+        VCL.state = 'idle';
+        syncFloatBtn();
+        var st = $id('vcl-rec-status');
+        if (st) {
+          st.textContent = '⚠️ Microphone access required. Go to Settings › Safari › Microphone and allow access, then try again.';
+          st.style.color = '#ef4444';
+        }
+        var stopBtn = $id('vcl-stop-btn');
+        if (stopBtn) stopBtn.style.display = 'none';
+        return;
+      }
+      // iOS auto-stops on silence — restart gracefully
+      if (event.error === 'no-speech' || event.error === 'aborted') {
+        if (VCL.state === 'recording') {
+          try { rec.start(); } catch(e) {}
+        }
+        return;
+      }
+    };
+
+    rec.onend = function() {
+      // iOS Safari stops recognition after silence — restart loop
+      if (VCL.state === 'recording') {
+        try { rec.start(); } catch(e) {}
+      }
+    };
+
+    try {
+      rec.start();
+      VCL.recognition = rec;
+    } catch(e) {
+      var st = $id('vcl-rec-status');
+      if (st) { st.textContent = '⚠️ Could not start microphone: ' + e.message; st.style.color = '#ef4444'; }
+    }
+  }
+
+  function stopRecognition() {
+    // Set state FIRST so onend doesn't restart
+    VCL.state = 'idle';
+    syncFloatBtn();
+    stopTimer();
+    stopWave();
+    if (VCL.recognition) {
+      try { VCL.recognition.stop(); } catch(e) {}
+      VCL.recognition = null;
+    }
+  }
+
+  // ── Manual fallback (no speech API) ───────────────────────────
+  function showManualFallback() {
+    var screen = $id('vcl-screen-recording');
+    if (!screen) return;
+    screen.innerHTML =
+      '<div style="text-align:center;padding:20px 0 16px">' +
+        '<div style="font-size:44px;margin-bottom:12px">⌨️</div>' +
+        '<div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:8px">Type Your Call Notes</div>' +
+        '<div style="font-size:13px;color:rgba(255,255,255,.5);line-height:1.5">Voice recording is not available in this browser.<br>Type your call notes below and AI will extract the details.</div>' +
+      '</div>' +
+      '<div style="margin-bottom:16px">' +
+        '<textarea id="vcl-manual-text" rows="6" placeholder="e.g. Stopped by ABC Roofing today, talked to Mike. He\'s interested in ShurTape samples and wants a follow-up next Friday..." ' +
+          'style="width:100%;box-sizing:border-box;padding:12px;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.15);border-radius:10px;color:#fff;font-size:14px;font-family:inherit;resize:vertical;line-height:1.55;outline:none"></textarea>' +
+      '</div>' +
+      '<button onclick="VCL_processManual()" style="width:100%;padding:15px;background:#C9A84C;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit">Process Notes →</button>';
+  }
+
+  window.VCL_processManual = function() {
+    var el = $id('vcl-manual-text');
+    var text = el ? el.value.trim() : '';
+    if (!text) { if (typeof showToast === 'function') showToast('Enter your call notes first'); return; }
+    VCL.transcript = text;
+    processTranscript(text);
+  };
+
+  // ── STEP 1: Open modal and start recording ─────────────────────
+  window.VCL_open = function() {
+    // Reset all state
+    VCL.state = 'idle';
+    VCL.transcript = '';
+    VCL.interimTxt = '';
+    VCL.extracted = null;
+    VCL.accountMatches = [];
+    VCL.selectedAccount = null;
+    VCL.selectedContact = null;
+    VCL.accountContacts = [];
+
+    openModal();
+    showScreen('recording');
+
+    // Reset recording UI
+    var preview = $id('vcl-transcript-preview');
+    if (preview) preview.innerHTML = '<span style="color:rgba(255,255,255,.3)">Speak now — your words will appear here...</span>';
+    var timer = $id('vcl-timer');
+    if (timer) timer.textContent = '0:00';
+    var status = $id('vcl-rec-status');
+    if (status) { status.textContent = 'Starting microphone...'; status.style.color = 'rgba(255,255,255,.5)'; }
+    var stopBtn = $id('vcl-stop-btn');
+    if (stopBtn) stopBtn.style.display = 'flex';
+    stopWave();
+
+    // Start recording after a short delay (lets modal render first)
+    setTimeout(startRecognition, 200);
+  };
+
+  // ── STEP 2: Stop and send to AI ────────────────────────────────
+  window.VCL_stop = function() {
+    var finalTranscript = (VCL.transcript + VCL.interimTxt).trim();
+    stopRecognition();
+
+    if (!finalTranscript) {
+      closeModal();
+      if (typeof showToast === 'function') showToast('No speech captured — try again');
+      return;
+    }
+
+    processTranscript(finalTranscript);
+  };
+
+  function processTranscript(transcript) {
+    showScreen('processing');
+
+    fetch('/api/voice/process', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transcript: transcript })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      VCL.extracted = data;
+      VCL.extracted._rawTranscript = transcript;
+
+      if (!data.account_name) {
+        // No account extracted — skip matching
+        VCL.selectedAccount = null;
+        VCL.selectedContact = null;
+        renderConfirmScreen();
+        showScreen('confirm');
+        return;
+      }
+
+      // Match account name against CRM
+      return fetch('/api/voice/match-account?name=' + encodeURIComponent(data.account_name))
+        .then(function(r) { return r.json(); })
+        .then(function(matchData) {
+          handleAccountMatches(matchData);
+        });
+    })
+    .catch(function(e) {
+      console.error('[VCL] process error:', e);
+      // Graceful fallback — show confirm with raw transcript as summary
+      VCL.extracted = {
+        account_name: null, contact_name: null,
+        summary: transcript.substring(0, 400),
+        outcome: 'Other', next_steps: null,
+        _rawTranscript: transcript
+      };
+      VCL.selectedAccount = null;
+      VCL.selectedContact = null;
+      renderConfirmScreen();
+      showScreen('confirm');
+    });
+  }
+
+  // ── STEP 3: Account matching ───────────────────────────────────
+  function handleAccountMatches(matchData) {
+    if (!matchData || matchData.error) matchData = { matches: [], best_match: null };
+    VCL.accountMatches = matchData.matches || [];
+
+    if (matchData.best_match && VCL.accountMatches.length === 1) {
+      // Single clear match — auto-select and proceed
+      var bm = matchData.best_match;
+      VCL.selectedAccount = { id: bm.id, company: bm.company, city: bm.city || '', state: bm.state || '', category: bm.category || '', isNew: false };
+      loadContactsThenResolve();
+
+    } else if (VCL.accountMatches.length > 1) {
+      // Multiple matches — show picker
+      renderAccountMatchScreen(VCL.accountMatches, VCL.extracted.account_name);
+      showScreen('account-match');
+
+    } else if (VCL.extracted && VCL.extracted.account_name) {
+      // Zero matches above threshold — it's a new account
+      VCL.selectedAccount = { id: null, company: VCL.extracted.account_name, city: '', state: 'GA', category: 'Unknown', isNew: true };
+      VCL.accountContacts = [];
+      resolveContact();
+
+    } else {
+      // No account name at all
+      VCL.selectedAccount = null;
+      VCL.selectedContact = null;
+      renderConfirmScreen();
+      showScreen('confirm');
+    }
+  }
+
+  function loadContactsThenResolve() {
+    if (!VCL.selectedAccount || VCL.selectedAccount.isNew) {
+      VCL.accountContacts = [];
+      resolveContact();
+      return;
+    }
+    fetch('/api/voice/account-contacts?company=' + encodeURIComponent(VCL.selectedAccount.company))
+      .then(function(r) { return r.json(); })
+      .then(function(contacts) {
+        VCL.accountContacts = Array.isArray(contacts) ? contacts : [];
+        resolveContact();
+      })
+      .catch(function() {
+        VCL.accountContacts = [];
+        resolveContact();
+      });
+  }
+
+  // ── STEP 4: Contact resolution ─────────────────────────────────
+  function resolveContact() {
+    var spoken = VCL.extracted ? (VCL.extracted.contact_name || '').trim() : '';
+
+    if (!spoken) {
+      // No contact name mentioned
+      if (VCL.accountContacts.length > 0) {
+        // Show picker so rep can choose existing contact
+        renderContactChoiceScreen(VCL.accountContacts, null);
+        showScreen('contact-choice');
+      } else {
+        VCL.selectedContact = { id: null, contact: null, isNew: false, isNone: true };
+        renderConfirmScreen();
+        showScreen('confirm');
+      }
+      return;
+    }
+
+    // Try to find matching contact by first name
+    var spokenLower = spoken.toLowerCase();
+    var found = null;
+    for (var i = 0; i < VCL.accountContacts.length; i++) {
+      var c = VCL.accountContacts[i];
+      var firstName = (c.contact || '').trim().toLowerCase().split(' ')[0];
+      if (firstName && firstName === spokenLower) { found = c; break; }
+    }
+
+    if (found) {
+      // Exact first-name match — auto-select
+      VCL.selectedContact = { id: found.id, contact: found.contact, isNew: false, isNone: false };
+      renderConfirmScreen();
+      showScreen('confirm');
+    } else if (VCL.accountContacts.filter(function(c) { return c.contact; }).length > 0) {
+      // There are contacts but none matched — show picker with the spoken name pre-filled
+      renderContactChoiceScreen(VCL.accountContacts, spoken);
+      showScreen('contact-choice');
+    } else {
+      // No existing contacts at this account — new contact
+      VCL.selectedContact = { id: null, contact: spoken, isNew: true, isNone: false };
+      renderConfirmScreen();
+      showScreen('confirm');
+    }
+  }
+
+  // ── Render: Account match picker ───────────────────────────────
+  function renderAccountMatchScreen(matches, spokenName) {
+    var el = $id('vcl-account-match-body');
+    if (!el) return;
+    var html = '<div style="font-size:13px;color:rgba(255,255,255,.6);margin-bottom:14px">You said: <em style="color:rgba(201,168,76,.9)">"' + vclEsc(spokenName || '') + '"</em></div>';
+    html += '<div style="display:flex;flex-direction:column;gap:8px">';
+    matches.forEach(function(m, i) {
+      var pct = Math.round((m.sim || 0) * 100);
+      html +=
+        '<button onclick="VCL_pickAccount(' + i + ')" style="text-align:left;width:100%;padding:13px 15px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:10px;cursor:pointer;color:#fff;font-family:inherit;transition:background .1s" onmouseover="this.style.background=\'rgba(255,255,255,.12)\'" onmouseout="this.style.background=\'rgba(255,255,255,.07)\'">' +
+          '<div style="font-size:14px;font-weight:600">' + vclEsc(m.company) + '</div>' +
+          '<div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:3px">' + vclEsc(m.city || '') + (m.city ? ' · ' : '') + pct + '% match</div>' +
+        '</button>';
+    });
+    // "Create new" option
+    html +=
+      '<button onclick="VCL_pickNewAccount()" style="text-align:left;width:100%;padding:13px 15px;background:transparent;border:1px dashed rgba(255,255,255,.25);border-radius:10px;cursor:pointer;color:rgba(255,255,255,.6);font-family:inherit" onmouseover="this.style.background=\'rgba(255,255,255,.05)\'" onmouseout="this.style.background=\'transparent\'">' +
+        '<div style="font-size:14px;font-weight:600">+ None of these — create new</div>' +
+        '<div style="font-size:11px;color:rgba(255,255,255,.35);margin-top:3px">"' + vclEsc(spokenName || '') + '"</div>' +
+      '</button>';
+    html += '</div>';
+    el.innerHTML = html;
+  }
+
+  window.VCL_pickAccount = function(idx) {
+    var m = VCL.accountMatches[idx];
+    VCL.selectedAccount = { id: m.id, company: m.company, city: m.city || '', state: m.state || '', category: m.category || '', isNew: false };
+    showScreen('processing');
+    loadContactsThenResolve();
+  };
+
+  window.VCL_pickNewAccount = function() {
+    VCL.selectedAccount = { id: null, company: (VCL.extracted || {}).account_name || '', city: '', state: 'GA', category: 'Unknown', isNew: true };
+    VCL.accountContacts = [];
+    resolveContact();
+  };
+
+  // ── Render: Contact picker ─────────────────────────────────────
+  function renderContactChoiceScreen(contacts, spokenName) {
+    var el = $id('vcl-contact-choice-body');
+    if (!el) return;
+    var acctName = (VCL.selectedAccount || {}).company || '';
+    var filteredContacts = contacts.filter(function(c) { return c.contact && c.contact.trim(); });
+
+    var html = '<div style="font-size:13px;color:rgba(255,255,255,.6);margin-bottom:14px">At <strong style="color:#fff">' + vclEsc(acctName) + '</strong>';
+    if (spokenName) html += ' · mentioned: <em style="color:rgba(201,168,76,.9)">"' + vclEsc(spokenName) + '"</em>';
+    html += '</div><div style="display:flex;flex-direction:column;gap:8px">';
+
+    filteredContacts.forEach(function(c, i) {
+      html +=
+        '<button onclick="VCL_pickContact(' + i + ')" style="text-align:left;width:100%;padding:13px 15px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:10px;cursor:pointer;color:#fff;font-family:inherit" onmouseover="this.style.background=\'rgba(255,255,255,.12)\'" onmouseout="this.style.background=\'rgba(255,255,255,.07)\'">' +
+          '<div style="font-size:14px;font-weight:600">' + vclEsc(c.contact) + '</div>' +
+          (c.phone ? '<div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:2px">' + vclEsc(c.phone) + '</div>' : '') +
+        '</button>';
+    });
+
+    // New contact input
+    html +=
+      '<div style="padding:13px 15px;background:rgba(255,255,255,.05);border:1px dashed rgba(255,255,255,.2);border-radius:10px">' +
+        '<div style="font-size:11px;font-weight:700;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Add Someone New</div>' +
+        '<div style="display:flex;gap:8px">' +
+          '<input id="vcl-new-contact-inp" type="text" value="' + vclEsc(spokenName || '') + '" placeholder="Contact first name..." ' +
+            'style="flex:1;padding:9px 11px;background:rgba(255,255,255,.1);border:1.5px solid rgba(255,255,255,.2);border-radius:8px;color:#fff;font-size:14px;font-family:inherit;outline:none">' +
+          '<button onclick="VCL_pickNewContact()" style="padding:9px 14px;background:#C9A84C;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Add</button>' +
+        '</div>' +
+      '</div>';
+
+    html +=
+      '<button onclick="VCL_pickNoContact()" style="width:100%;padding:12px;background:transparent;border:1px solid rgba(255,255,255,.12);border-radius:10px;cursor:pointer;color:rgba(255,255,255,.45);font-size:13px;font-family:inherit">' +
+        'No specific contact — log without one' +
+      '</button>';
+
+    html += '</div>';
+    el.innerHTML = html;
+  }
+
+  // Index maps to VCL.accountContacts filtered by those with a contact name
+  window.VCL_pickContact = function(idx) {
+    var filtered = VCL.accountContacts.filter(function(c) { return c.contact && c.contact.trim(); });
+    var c = filtered[idx];
+    if (!c) { VCL.selectedContact = { id: null, contact: null, isNew: false, isNone: true }; }
+    else { VCL.selectedContact = { id: c.id, contact: c.contact, isNew: false, isNone: false }; }
+    renderConfirmScreen();
+    showScreen('confirm');
+  };
+
+  window.VCL_pickNewContact = function() {
+    var inp = $id('vcl-new-contact-inp');
+    var name = inp ? inp.value.trim() : '';
+    VCL.selectedContact = { id: null, contact: name || null, isNew: true, isNone: !name };
+    renderConfirmScreen();
+    showScreen('confirm');
+  };
+
+  window.VCL_pickNoContact = function() {
+    VCL.selectedContact = { id: null, contact: null, isNew: false, isNone: true };
+    renderConfirmScreen();
+    showScreen('confirm');
+  };
+
+  // ── Render: Confirmation card ──────────────────────────────────
+  function renderConfirmScreen() {
+    var ex = VCL.extracted || {};
+    var acct = VCL.selectedAccount;
+    var cont = VCL.selectedContact;
+    var today = new Date().toISOString().split('T')[0];
+
+    var acctName = acct ? acct.company : (ex.account_name || '');
+    var acctBadge = acct
+      ? (acct.isNew
+          ? '<span style="background:rgba(245,158,11,.15);color:#f59e0b;font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px;white-space:nowrap">New Account</span>'
+          : '<span style="background:rgba(16,185,129,.15);color:#10b981;font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px;white-space:nowrap">Existing</span>')
+      : '';
+
+    var contName = cont ? (cont.contact || '') : (ex.contact_name || '');
+    var contBadge = '';
+    if (cont && !cont.isNone) {
+      contBadge = cont.isNew
+        ? '<span style="background:rgba(245,158,11,.15);color:#f59e0b;font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px;white-space:nowrap">New Contact</span>'
+        : '<span style="background:rgba(16,185,129,.15);color:#10b981;font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px;white-space:nowrap">Existing</span>';
+    }
+
+    var OUTCOMES = ['Left Voicemail','Dropped In - Interested','Dropped In - Not Interested','Left Sample','Ready to Order','Follow-up Needed','Not Available','Phone - Interested','Phone - Not Interested','Order Placed','Demo Scheduled','Other'];
+    var selectedOutcome = ex.outcome || 'Other';
+    var outcomeOpts = OUTCOMES.map(function(o) {
+      return '<option value="' + o + '"' + (o === selectedOutcome ? ' selected' : '') + '>' + o + '</option>';
+    }).join('');
+
+    var CALL_TYPES = ['In-Person Visit','Phone Call','Jobsite Visit','Demo','Text','Email'];
+    var typeOpts = CALL_TYPES.map(function(t) { return '<option>' + t + '</option>'; }).join('');
+
+    var fieldStyle = 'width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid rgba(255,255,255,.18);border-radius:8px;font-size:14px;background:rgba(255,255,255,.08);color:#fff;font-family:inherit;outline:none';
+    var selectStyle = 'width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid rgba(255,255,255,.18);border-radius:8px;font-size:13px;background:rgba(13,21,32,.95);color:#fff;font-family:inherit;outline:none';
+    var labelStyle = 'display:block;font-size:10px;font-weight:700;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px';
+
+    var el = $id('vcl-confirm-body');
+    if (!el) return;
+
+    el.innerHTML =
+      // Account
+      '<div style="margin-bottom:13px">' +
+        '<label style="' + labelStyle + '">Account</label>' +
+        '<div style="display:flex;align-items:center;gap:8px">' +
+          '<input id="vcl-cf-account" type="text" value="' + vclEsc(acctName) + '" placeholder="Account name..." style="' + fieldStyle + ';font-weight:600;flex:1">' +
+          acctBadge +
+        '</div>' +
+      '</div>' +
+      // Contact
+      '<div style="margin-bottom:13px">' +
+        '<label style="' + labelStyle + '">Contact Person</label>' +
+        '<div style="display:flex;align-items:center;gap:8px">' +
+          '<input id="vcl-cf-contact" type="text" value="' + vclEsc(contName) + '" placeholder="Contact name (optional)" style="' + fieldStyle + ';flex:1">' +
+          contBadge +
+        '</div>' +
+      '</div>' +
+      // Date + Type row
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px">' +
+        '<div>' +
+          '<label style="' + labelStyle + '">Date</label>' +
+          '<input id="vcl-cf-date" type="date" value="' + today + '" style="' + fieldStyle + '">' +
+        '</div>' +
+        '<div>' +
+          '<label style="' + labelStyle + '">Call Type</label>' +
+          '<select id="vcl-cf-type" style="' + selectStyle + '">' + typeOpts + '</select>' +
+        '</div>' +
+      '</div>' +
+      // Outcome
+      '<div style="margin-bottom:13px">' +
+        '<label style="' + labelStyle + '">Outcome *</label>' +
+        '<select id="vcl-cf-outcome" style="' + selectStyle + '">' + outcomeOpts + '</select>' +
+      '</div>' +
+      // Summary
+      '<div style="margin-bottom:13px">' +
+        '<label style="' + labelStyle + '">Summary / Notes</label>' +
+        '<textarea id="vcl-cf-summary" rows="4" style="' + fieldStyle + ';resize:vertical;line-height:1.5">' + vclEsc(ex.summary || '') + '</textarea>' +
+      '</div>' +
+      // Next steps
+      '<div style="margin-bottom:8px">' +
+        '<label style="' + labelStyle + '">Next Steps</label>' +
+        '<input id="vcl-cf-nextstep" type="text" value="' + vclEsc(ex.next_steps || '') + '" placeholder="e.g. Send samples, Call Friday" style="' + fieldStyle + '">' +
+      '</div>';
+  }
+
+  // ── STEP 6: Save ───────────────────────────────────────────────
+  window.VCL_save = function() {
+    var account   = (($id('vcl-cf-account')  || {}).value || '').trim();
+    var contName  = (($id('vcl-cf-contact')  || {}).value || '').trim();
+    var callDate  = ($id('vcl-cf-date')   || {}).value || new Date().toISOString().split('T')[0];
+    var callType  = ($id('vcl-cf-type')   || {}).value || 'In-Person Visit';
+    var outcome   = ($id('vcl-cf-outcome') || {}).value || '';
+    var summary   = (($id('vcl-cf-summary') || {}).value || '').trim();
+    var nextStep  = (($id('vcl-cf-nextstep') || {}).value || '').trim();
+
+    if (!account) {
+      var el = $id('vcl-cf-account');
+      if (el) { el.style.borderColor = '#ef4444'; el.focus(); }
+      if (typeof showToast === 'function') showToast('Account name is required');
+      return;
+    }
+    if (!outcome) {
+      if (typeof showToast === 'function') showToast('Please select an outcome');
+      return;
+    }
+
+    var saveBtn = $id('vcl-save-btn');
+    if (saveBtn) { saveBtn.textContent = 'Saving...'; saveBtn.disabled = true; }
+
+    var acct = VCL.selectedAccount;
+    var cont = VCL.selectedContact;
+
+    // Determine if user edited the account name away from the matched one
+    var isExistingAcct = acct && !acct.isNew && vclNorm(account) === vclNorm(acct.company);
+
+    getOrCreateProspectId(account, contName, acct, cont, isExistingAcct)
+      .then(function(prospectId) {
+        if (!prospectId) throw new Error('Could not resolve account');
+
+        return fetch('/api/calls', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prospect_id:       prospectId,
+            call_date:         callDate,
+            call_type:         callType,
+            outcome:           outcome,
+            products_discussed: '',
+            next_step:         nextStep || null,
+            next_step_date:    null,
+            notes:             summary || null
+          })
+        }).then(function(r) { return r.json(); });
+      })
+      .then(function(result) {
+        if (result && result.error) throw new Error(result.error);
+        if (saveBtn) { saveBtn.textContent = 'Save Call'; saveBtn.disabled = false; }
+        closeModal();
+        VCL.state = 'idle';
+        syncFloatBtn();
+        if (typeof showToast === 'function') showToast('Call logged for ' + account);
+        // Refresh data in the background
+        if (typeof loadCalls === 'function') loadCalls();
+        if (typeof loadDashboard === 'function') loadDashboard();
+        if (typeof loadProspects === 'function') loadProspects();
+        window._qclAllProspects = null;
+      })
+      .catch(function(e) {
+        console.error('[VCL] save error:', e);
+        if (saveBtn) { saveBtn.textContent = 'Save Call'; saveBtn.disabled = false; }
+        if (typeof showToast === 'function') showToast('Error: ' + (e.message || 'Save failed'));
+      });
+  };
+
+  // Resolve the prospect_id to log the call against
+  function getOrCreateProspectId(account, contName, acct, cont, isExistingAcct) {
+    if (isExistingAcct) {
+      // Existing account
+      if (cont && !cont.isNew && !cont.isNone && cont.id) {
+        // Existing contact — use their prospect_id directly
+        return Promise.resolve(cont.id);
+      } else if (cont && cont.isNew && contName) {
+        // New contact under existing account — create new prospect record
+        return createContactUnderAccount(account, contName, acct);
+      } else {
+        // No contact or "no contact" — use the account's prospect id
+        return Promise.resolve(acct.id);
+      }
+    } else {
+      // New account (or edited name)
+      return createNewAccountProspect(account, contName);
+    }
+  }
+
+  function createNewAccountProspect(company, contactName) {
+    return fetch('/api/prospects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        company: company,
+        category: 'Unknown',
+        city: '',
+        state: 'GA',
+        contact: contactName || null,
+        source: 'Voice Logger',
+        status: 'New',
+        priority: 'Medium'
+      })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(p) {
+      if (!p || !p.id) throw new Error('Failed to create account');
+      return p.id;
+    });
+  }
+
+  function createContactUnderAccount(company, contactName, existingAcct) {
+    return fetch('/api/prospects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        company: company,
+        category: existingAcct ? (existingAcct.category || 'Unknown') : 'Unknown',
+        city: existingAcct ? (existingAcct.city || '') : '',
+        state: existingAcct ? (existingAcct.state || 'GA') : 'GA',
+        contact: contactName,
+        source: 'Voice Logger',
+        status: 'New',
+        priority: 'Medium'
+      })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(p) {
+      if (!p || !p.id) throw new Error('Failed to create contact');
+      return p.id;
+    });
+  }
+
+  // ── Close exposed ──────────────────────────────────────────────
+  window.VCL_close = function() {
+    stopRecognition();
+    closeModal();
+    VCL.state = 'idle';
+    syncFloatBtn();
+  };
+
+  // Close modal on overlay click (but not on sheet click)
+  document.addEventListener('click', function(e) {
+    var m = $id('modal-voice-logger');
+    var sheet = $id('vcl-sheet');
+    if (m && sheet && m.classList.contains('open')) {
+      if (e.target === m) VCL_close();
+    }
+  });
+
+  // Expose state for debugging
+  window._VCL = VCL;
 
 })();
 </script>

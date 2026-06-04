@@ -23,6 +23,7 @@ const { router: notificationsRoutes, evaluateForUser } = require('./routes/notif
 const { router: brandMappingsRoutes } = require('./routes/brand_mappings');
 const quotesRoutes = require('./routes/quotes');
 const zohoRoutes   = require('./routes/zoho');
+const voiceRoutes  = require('./routes/voice');
 
 const app = express();
 app.use(express.json({ limit: '25mb' }));
@@ -125,6 +126,7 @@ app.use('/api/notifications', requireAuth, notificationsRoutes);
 app.use('/api/brand-mappings', requireAuth, brandMappingsRoutes);
 app.use('/api/quotes', requireAuth, quotesRoutes);
 app.use('/api/zoho',  requireAuth, zohoRoutes);
+app.use('/api/voice', requireAuth, voiceRoutes);
 app.get('/zoho-import', requireAuth, (req, res) =>
   res.sendFile(path.join(__dirname, 'views', 'zoho-import.html'))
 );
