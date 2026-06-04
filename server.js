@@ -24,7 +24,7 @@ const { router: brandMappingsRoutes } = require('./routes/brand_mappings');
 const quotesRoutes = require('./routes/quotes');
 const zohoRoutes   = require('./routes/zoho');
 const voiceRoutes  = require('./routes/voice');
-const timeRoutes   = require('./routes/time');
+const { router: timeRoutes, ensureSeedSession } = require('./routes/time');
 
 const app = express();
 app.use(express.json({ limit: '25mb' }));
@@ -182,6 +182,8 @@ setInterval(dailyEvaluation, 60 * 60 * 1000); // hourly
 setTimeout(dailyEvaluation, 30 * 1000); // run 30s after boot
 
 const PORT = process.env.PORT || 3000;
-initDB().then(() => {
+initDB().then(async () => {
+  // Run AFTER initDB so the time_sessions table and unique constraint exist
+  await ensureSeedSession();
   app.listen(PORT, () => console.log(`RepRoute running on port ${PORT}`));
 }).catch(err => { console.error('DB init failed:', err); process.exit(1); });

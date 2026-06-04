@@ -288,21 +288,29 @@ async function initDB() {
     );
     CREATE INDEX IF NOT EXISTS idx_time_sessions_user ON time_sessions(user_id, start_time DESC);
 
-    -- Seed: historical session for June 4, 2026 (9 AM – 1 PM = 4 hours = 240 minutes)
-    -- Only insert if no session already exists for this user on that date
+    -- Unique constraint required for ON CONFLICT DO NOTHING on (user_id, start_time)
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'uq_time_sessions_user_start'
+      ) THEN
+        ALTER TABLE time_sessions
+          ADD CONSTRAINT uq_time_sessions_user_start UNIQUE (user_id, start_time);
+      END IF;
+    END $$;
+
+    -- Seed: historical session for June 4, 2026 (9 AM–1 PM, 240 min)
+    -- ON CONFLICT DO NOTHING is safe once the unique constraint exists
     INSERT INTO time_sessions (user_id, start_time, end_time, duration_minutes, description)
     SELECT u.id,
-           '2026-06-04 09:00:00'::timestamp,
-           '2026-06-04 13:00:00'::timestamp,
+           '2026-06-04 09:00:00+00'::timestamptz,
+           '2026-06-04 13:00:00+00'::timestamptz,
            240,
            'Voice call logger, business card scanner, contact detail page, mobile optimization, invoice generation, board meeting PDF'
     FROM users u
     WHERE u.email = 'johnmarkcompton@gmail.com'
-      AND NOT EXISTS (
-        SELECT 1 FROM time_sessions ts
-        WHERE ts.user_id = u.id
-          AND DATE(ts.start_time) = '2026-06-04'
-      );
+    ON CONFLICT (user_id, start_time) DO NOTHING;
 
   `);
   console.log('Database initialized');

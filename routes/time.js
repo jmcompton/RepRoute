@@ -6,53 +6,6 @@ const router = express.Router();
 const JM_EMAIL = 'johnmarkcompton@gmail.com';
 const HOURLY_RATE = 50; // USD per hour — billed to Compton Sales
 
-// ── Startup: verify seed session exists, insert if missing ───────
-// Runs once after the module is first required so the June 4 2026
-// session is always present regardless of when the email was corrected.
-async function ensureSeedSession() {
-  try {
-    // Find JohnMark's user_id
-    const userRow = await pool.query(
-      'SELECT id FROM users WHERE email = $1', [JM_EMAIL]
-    );
-    if (!userRow.rows.length) {
-      console.log('[time] Seed skip — user not found:', JM_EMAIL);
-      return;
-    }
-    const uid = userRow.rows[0].id;
-
-    // Check whether the June 4 session already exists
-    const existing = await pool.query(
-      `SELECT id, duration_minutes FROM time_sessions
-       WHERE user_id = $1 AND DATE(start_time) = '2026-06-04'`,
-      [uid]
-    );
-    if (existing.rows.length) {
-      console.log('[time] Seed session OK — id=' + existing.rows[0].id +
-                  ', duration=' + existing.rows[0].duration_minutes + ' min');
-      return;
-    }
-
-    // Not found — insert it now
-    const ins = await pool.query(
-      `INSERT INTO time_sessions
-         (user_id, start_time, end_time, duration_minutes, description)
-       VALUES ($1,
-               '2026-06-04 09:00:00'::timestamp,
-               '2026-06-04 13:00:00'::timestamp,
-               240,
-               $2)
-       RETURNING id`,
-      [uid, 'Voice call logger, business card scanner, contact detail page, mobile optimization, invoice generation, board meeting PDF']
-    );
-    console.log('[time] Seed session inserted — id=' + ins.rows[0].id);
-  } catch (e) {
-    console.error('[time] ensureSeedSession error:', e.message);
-  }
-}
-// Defer until the event loop is free so the DB pool is ready
-setImmediate(ensureSeedSession);
-
 function requireJM(req, res, next) {
   if (!req.session.user || req.session.user.email !== JM_EMAIL) {
     return res.status(403).json({ error: 'Forbidden' });
@@ -60,23 +13,86 @@ function requireJM(req, res, next) {
   next();
 }
 
+// ── ensureSeedSession ────────────────────────────────────────────
+// Called from server.js AFTER initDB() resolves so the table is
+// guaranteed to exist. Inserts the June 4 2026 seed session if
+// missing, then logs a COUNT(*) verification.
+async function ensureSeedSession() {
+  console.log('[time] ensureSeedSession starting…');
+  try {
+    // 1. Resolve JohnMark's user_id
+    const userRow = await pool.query(
+      'SELECT id FROM users WHERE email = $1', [JM_EMAIL]
+    );
+    if (!userRow.rows.length) {
+      console.log('[time] Seed skip — user not found for email:', JM_EMAIL);
+      return;
+    }
+    const uid = userRow.rows[0].id;
+    console.log('[time] JohnMark user_id =', uid);
+
+    // 2. Insert seed session; unique constraint prevents duplicates
+    const ins = await pool.query(
+      `INSERT INTO time_sessions
+         (user_id, start_time, end_time, duration_minutes, description)
+       VALUES ($1,
+               '2026-06-04 09:00:00+00'::timestamptz,
+               '2026-06-04 13:00:00+00'::timestamptz,
+               240,
+               $2)
+       ON CONFLICT (user_id, start_time) DO NOTHING
+       RETURNING id, duration_minutes, start_time`,
+      [uid, 'Voice call logger, business card scanner, contact detail page, mobile optimization, invoice generation, board meeting PDF']
+    );
+    if (ins.rows.length) {
+      console.log('[time] Seed session inserted — id=' + ins.rows[0].id +
+                  ', start=' + ins.rows[0].start_time);
+    } else {
+      console.log('[time] Seed session already existed (ON CONFLICT DO NOTHING)');
+    }
+
+    // 3. Startup verification — count all sessions and log the June 2026 total
+    const countAll = await pool.query(
+      'SELECT COUNT(*) as total FROM time_sessions WHERE user_id = $1', [uid]
+    );
+    console.log('[time] time_sessions total for user_id=' + uid + ':', countAll.rows[0].total);
+
+    const countJune = await pool.query(
+      `SELECT COUNT(*) as cnt, COALESCE(SUM(duration_minutes),0) as mins
+       FROM time_sessions
+       WHERE user_id = $1
+         AND EXTRACT(YEAR  FROM start_time AT TIME ZONE 'UTC') = 2026
+         AND EXTRACT(MONTH FROM start_time AT TIME ZONE 'UTC') = 6
+         AND end_time IS NOT NULL`,
+      [uid]
+    );
+    console.log('[time] June 2026 sessions:', countJune.rows[0].cnt,
+                '| total_minutes:', countJune.rows[0].mins);
+  } catch (e) {
+    console.error('[time] ensureSeedSession error:', e.message);
+  }
+}
+
 // ── GET /api/time/sessions?month=&year= ──────────────────────────
 router.get('/sessions', requireJM, async (req, res) => {
-  const uid = req.session.user.id;
+  const uid   = req.session.user.id;
   const month = parseInt(req.query.month) || new Date().getMonth() + 1;
   const year  = parseInt(req.query.year)  || new Date().getFullYear();
+  console.log('[time/sessions] uid=%d month=%d year=%d', uid, month, year);
   try {
     const result = await pool.query(
       `SELECT * FROM time_sessions
        WHERE user_id = $1
-         AND EXTRACT(MONTH FROM start_time) = $2
-         AND EXTRACT(YEAR  FROM start_time) = $3
+         AND EXTRACT(YEAR  FROM start_time AT TIME ZONE 'UTC') = $3
+         AND EXTRACT(MONTH FROM start_time AT TIME ZONE 'UTC') = $2
+         AND end_time IS NOT NULL
        ORDER BY start_time DESC`,
       [uid, month, year]
     );
+    console.log('[time/sessions] rows returned:', result.rows.length);
     res.json(result.rows);
   } catch (e) {
-    console.error('[time/sessions]', e.message);
+    console.error('[time/sessions] error:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -161,35 +177,39 @@ router.delete('/sessions/:id', requireJM, async (req, res) => {
 
 // ── GET /api/time/summary?month=&year= ──────────────────────────
 router.get('/summary', requireJM, async (req, res) => {
-  const uid = req.session.user.id;
+  const uid   = req.session.user.id;
   const month = parseInt(req.query.month) || new Date().getMonth() + 1;
   const year  = parseInt(req.query.year)  || new Date().getFullYear();
+  console.log('[time/summary] uid=%d month=%d year=%d', uid, month, year);
   try {
     const result = await pool.query(
       `SELECT
-         COUNT(*) FILTER (WHERE end_time IS NOT NULL) as session_count,
-         COALESCE(SUM(duration_minutes) FILTER (WHERE end_time IS NOT NULL), 0) as total_minutes
+         COUNT(*) FILTER (WHERE end_time IS NOT NULL) AS session_count,
+         COALESCE(SUM(duration_minutes) FILTER (WHERE end_time IS NOT NULL), 0) AS total_minutes
        FROM time_sessions
        WHERE user_id = $1
-         AND EXTRACT(MONTH FROM start_time) = $2
-         AND EXTRACT(YEAR  FROM start_time) = $3`,
+         AND EXTRACT(YEAR  FROM start_time AT TIME ZONE 'UTC') = $3
+         AND EXTRACT(MONTH FROM start_time AT TIME ZONE 'UTC') = $2`,
       [uid, month, year]
     );
     const row = result.rows[0];
+    console.log('[time/summary] raw row:', JSON.stringify(row));
     const totalMinutes = parseInt(row.total_minutes) || 0;
     const totalHours   = totalMinutes / 60;
     const billable     = totalHours * HOURLY_RATE;
-    res.json({
-      session_count:  parseInt(row.session_count) || 0,
-      total_minutes:  totalMinutes,
-      total_hours:    Math.round(totalHours * 10) / 10,
+    const response = {
+      session_count:   parseInt(row.session_count) || 0,
+      total_minutes:   totalMinutes,
+      total_hours:     Math.round(totalHours * 10) / 10,
       billable_amount: Math.round(billable * 100) / 100,
-      hourly_rate:    HOURLY_RATE
-    });
+      hourly_rate:     HOURLY_RATE
+    };
+    console.log('[time/summary] response:', JSON.stringify(response));
+    res.json(response);
   } catch (e) {
-    console.error('[time/summary]', e.message);
+    console.error('[time/summary] error:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
 
-module.exports = router;
+module.exports = { router, ensureSeedSession };
