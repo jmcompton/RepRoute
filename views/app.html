@@ -9281,13 +9281,14 @@ fetch('/api/notifications/evaluate', { method: 'POST' }).then(function(r){ retur
   #vcl-sheet { border-radius: 16px; max-height: 85vh; margin: 0 auto; }
 }
 
-/* Waveform bars */
-.vcl-wave { display: flex; align-items: center; justify-content: center; gap: 4px; height: 60px; }
+/* Waveform bars — pointer-events:none so they never intercept taps */
+.vcl-wave { display: flex; align-items: center; justify-content: center; gap: 4px; height: 60px; pointer-events: none; }
 .vcl-bar {
   width: 4px;
   border-radius: 2px;
   background: #C9A84C;
   animation: vcl-wave-anim 1.1s ease-in-out infinite;
+  pointer-events: none;
 }
 .vcl-bar:nth-child(1) { height: 18px; animation-delay: 0.0s; }
 .vcl-bar:nth-child(2) { height: 32px; animation-delay: 0.1s; }
@@ -9314,7 +9315,19 @@ fetch('/api/notifications/evaluate', { method: 'POST' }).then(function(r){ retur
   border-radius: 50%;
   animation: vcl-spin .8s linear infinite;
   margin: 0 auto;
+  pointer-events: none;
 }
+
+/* All decorative/animated children inside recording screen must never
+   intercept taps — the Stop button sits below them and must be hittable */
+#vcl-screen-recording > div:not(#vcl-stop-btn-wrap) { pointer-events: none; }
+#vcl-timer { pointer-events: none; }
+#vcl-rec-status { pointer-events: none; }
+/* The recording screen itself: no scroll responder — content sized to fit */
+#vcl-screen-recording { overflow: visible; }
+/* Stop button wrapper gets full pointer events */
+#vcl-stop-btn-wrap { pointer-events: auto; }
+#vcl-stop-btn { pointer-events: auto; -webkit-tap-highlight-color: rgba(239,68,68,.3); touch-action: manipulation; }
 
 /* Confirm screen inputs — forced dark */
 #vcl-screen-confirm input,
@@ -10674,11 +10687,13 @@ document.addEventListener('click', function(e) {
         </div>
       </div>
 
-      <!-- Stop button -->
-      <button id="vcl-stop-btn" onclick="VCL_stop()" style="width:100%;padding:16px;background:#ef4444;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
-        Stop &amp; Process
-      </button>
+      <!-- Stop button — NO onclick attr; listeners attached via JS for iOS reliability -->
+      <div id="vcl-stop-btn-wrap" style="pointer-events:auto">
+        <button id="vcl-stop-btn" style="width:100%;padding:16px;background:#ef4444;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;touch-action:manipulation;-webkit-tap-highlight-color:rgba(239,68,68,.3)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff" style="pointer-events:none;flex-shrink:0"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+          <span id="vcl-stop-label">Stop &amp; Process</span>
+        </button>
+      </div>
 
     </div>
 
@@ -10973,14 +10988,18 @@ document.addEventListener('click', function(e) {
     openModal();
     showScreen('recording');
 
-    // Reset recording UI
+    // Reset recording UI — including stop button which may have been disabled in a prior session
     var preview = $id('vcl-transcript-preview');
     if (preview) preview.innerHTML = '<span style="color:rgba(255,255,255,.3)">Speak now — your words will appear here...</span>';
     var timerEl = $id('vcl-timer');
     if (timerEl) timerEl.textContent = '0:00';
     setStatus('Requesting microphone...', 'rgba(255,255,255,.5)');
     var stopBtn = $id('vcl-stop-btn');
-    if (stopBtn) stopBtn.style.display = 'flex';
+    var stopLabel = $id('vcl-stop-label');
+    if (stopBtn) { stopBtn.disabled = false; stopBtn.style.opacity = '1'; stopBtn.style.display = 'flex'; }
+    if (stopLabel) stopLabel.textContent = 'Stop & Process';
+    var stopWrap = $id('vcl-stop-btn-wrap');
+    if (stopWrap) stopWrap.style.display = 'block';
     stopWave();
 
     // ── Start timer IMMEDIATELY — independent of recognition state ─
@@ -11021,6 +11040,12 @@ document.addEventListener('click', function(e) {
 
   // ── STEP 2: Stop and send to AI ────────────────────────────────
   window.VCL_stop = function() {
+    // Immediate visual feedback — confirm the tap registered on screen
+    var stopBtn = $id('vcl-stop-btn');
+    var stopLabel = $id('vcl-stop-label');
+    if (stopBtn) { stopBtn.disabled = true; stopBtn.style.opacity = '0.75'; }
+    if (stopLabel) stopLabel.textContent = 'Processing...';
+
     // Capture transcript BEFORE stopping (interimTxt is lost on abort)
     var finalTranscript = (VCL.transcript + VCL.interimTxt).trim();
 
@@ -11508,6 +11533,49 @@ document.addEventListener('click', function(e) {
       if (e.target === m) VCL_close();
     }
   });
+
+  // ── Stop button: reliable touchend + click via event delegation ──
+  // Attaching at the sheet level with capture=true ensures we intercept
+  // the event before any scroll responder or child element can steal it.
+  // touchend fires before click on mobile, so preventDefault() in the
+  // touchend handler suppresses the redundant 300ms-delayed click.
+  (function() {
+    var _stopGuard = false; // prevent double-fire on devices that send both touchend + click
+
+    function doStopTap(e) {
+      // Walk from e.target up to see if the stop button or its children were tapped
+      var t = e.target;
+      var hitStop = false;
+      while (t) {
+        if (t.id === 'vcl-stop-btn' || t.id === 'vcl-stop-btn-wrap') { hitStop = true; break; }
+        if (t.id === 'vcl-sheet') break; // didn't find it
+        t = t.parentNode;
+      }
+      if (!hitStop) return;
+
+      // Guard against double-fire (touchend + click on same tap)
+      if (_stopGuard) { e.preventDefault(); return; }
+      _stopGuard = true;
+      setTimeout(function() { _stopGuard = false; }, 600);
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      console.log('[VCL] Stop tapped | event:', e.type, '| state:', VCL.state, '| transcript chars:', (VCL.transcript + VCL.interimTxt).length);
+
+      // Call the stop handler
+      if (typeof window.VCL_stop === 'function') window.VCL_stop();
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      var sheet = document.getElementById('vcl-sheet');
+      if (!sheet) return;
+      // touchend: fires immediately on tap, no 300ms delay — primary handler for iOS
+      sheet.addEventListener('touchend', doStopTap, { passive: false, capture: true });
+      // click: fallback for desktop and cases where touchend is suppressed
+      sheet.addEventListener('click', doStopTap, true);
+    });
+  })();
 
   // Expose state for debugging
   window._VCL = VCL;
