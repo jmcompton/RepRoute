@@ -2610,7 +2610,7 @@ window.addEventListener('load', function() {
     <div style="position:relative;flex-shrink:0">
       <button id="qd-cont-btn" onclick="toggleContactDropdown()" title="Pick a contact"
         style="display:none;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:5px;cursor:pointer;font-size:13px;color:var(--navy);white-space:nowrap">
-        &#9662; Accounts
+        &#9662; Contacts
       </button>
       <div id="qd-cont-dropdown"
         style="display:none;position:absolute;right:0;top:calc(100% + 4px);z-index:2000;
@@ -7711,8 +7711,21 @@ async function saveQuote() {
     var url = currentQuoteId ? '/api/quotes/'+currentQuoteId : '/api/quotes';
     var method = currentQuoteId ? 'PUT' : 'POST';
     var res = await fetch(url, {method:method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
-    if (!res.ok && res.status === 413) throw new Error('PDF too large to attach. Quote saved without PDF.');
-    var resData = await res.json();
+    if (!res.ok && res.status === 413) throw new Error('PDF too large to attach. Try removing the PDF and saving again.');
+    if (!res.ok && res.status === 401) {
+      showToast('Your session expired — please refresh the page and log in again.');
+      btn.textContent = 'Save Quote'; btn.disabled = false;
+      return;
+    }
+
+    var resData;
+    try {
+      resData = await res.json();
+    } catch (parseErr) {
+      console.error('[saveQuote] Could not parse server response:', parseErr.message, 'status:', res.status);
+      throw new Error('Server returned an invalid response (status ' + res.status + '). Please try again.');
+    }
+
     // Handle duplicate quote (409) — show warning modal, allow bypass
     if (res.status === 409 && resData.error === 'duplicate') {
       btn.textContent = 'Save Quote'; btn.disabled = false;
@@ -7721,6 +7734,9 @@ async function saveQuote() {
     } else if (resData.error) {
       throw new Error(resData.error);
     }
+
+    // Support both { success: true, quote: {...} } and raw quote object (backward compat)
+    var savedQuote = (resData.success && resData.quote) ? resData.quote : resData;
 
     // Upsert account + contact into prospects (Google Places lookup for address/phone)
     // This runs async in background — doesn't block the quote save
@@ -7748,16 +7764,18 @@ async function saveQuote() {
 
     // ── Update allQuotes cache immediately so re-opening shows fresh data ──
     if (currentQuoteId) {
-      allQuotes = allQuotes.map(function(q){ return q.id === resData.id ? resData : q; });
+      allQuotes = allQuotes.map(function(q){ return q.id === savedQuote.id ? savedQuote : q; });
     } else {
-      allQuotes.unshift(resData);
+      allQuotes.unshift(savedQuote);
     }
     var _wasFromRecord = _quoteReturnToRecord;
     closeQuoteDetail();
     _afterQuoteSaveFromRecord();
     if (!_wasFromRecord) loadQuotes();
+    showToast('Quote saved!');
   } catch(e) {
-    alert('Save error: ' + e.message);
+    console.error('[saveQuote] error:', e.message);
+    showToast('Save failed: ' + e.message);
   } finally {
     btn.textContent = 'Save Quote'; btn.disabled = false;
   }
@@ -7798,12 +7816,15 @@ async function saveQuoteForceOverride() {
   if (btn) { btn.textContent = 'Saving...'; btn.disabled = true; }
   try {
     var res = await fetch(_dupUrl, { method: _dupMethod, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-    var resData = await res.json();
+    var resData;
+    try { resData = await res.json(); }
+    catch (parseErr) { throw new Error('Server returned an invalid response (status ' + res.status + '). Please try again.'); }
     if (resData.error) throw new Error(resData.error);
+    var savedQuote = (resData.success && resData.quote) ? resData.quote : resData;
     if (currentQuoteId) {
-      allQuotes = allQuotes.map(function(q){ return q.id === resData.id ? resData : q; });
+      allQuotes = allQuotes.map(function(q){ return q.id === savedQuote.id ? savedQuote : q; });
     } else {
-      allQuotes.unshift(resData);
+      allQuotes.unshift(savedQuote);
     }
     var _wasFromRecord2 = _quoteReturnToRecord;
     closeQuoteDetail();
@@ -7811,7 +7832,8 @@ async function saveQuoteForceOverride() {
     if (!_wasFromRecord2) loadQuotes();
     showToast('Quote saved!');
   } catch(e) {
-    alert('Save error: ' + e.message);
+    console.error('[saveQuoteForceOverride] error:', e.message);
+    showToast('Save failed: ' + e.message);
   } finally {
     if (btn) { btn.textContent = 'Save Quote'; btn.disabled = false; }
   }

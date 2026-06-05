@@ -42,6 +42,11 @@ app.use(session({
 app.use((req, res, next) => { res.locals.user = req.session.user || null; next(); });
 
 function requireAuth(req, res, next) { if (!req.session.user) return res.redirect('/'); next(); }
+// API-safe auth: returns JSON 401 instead of redirect (used for /api/* routes called via fetch)
+function requireAuthAPI(req, res, next) {
+  if (!req.session.user) return res.status(401).json({ error: 'Session expired. Please log in again.', code: 'AUTH_REQUIRED' });
+  next();
+}
 function requireManager(req, res, next) { if (!req.session.user || req.session.user.role !== 'manager') return res.redirect('/app'); next(); }
 
 // ── Domain routing ──────────────────────────────────────────────
@@ -125,7 +130,7 @@ app.use('/api/places', requireAuth, placesRoutes);
 app.use('/api/morning', requireAuth, morningRoutes);
 app.use('/api/notifications', requireAuth, notificationsRoutes);
 app.use('/api/brand-mappings', requireAuth, brandMappingsRoutes);
-app.use('/api/quotes', requireAuth, quotesRoutes);
+app.use('/api/quotes', requireAuthAPI, quotesRoutes);
 app.use('/api/zoho',  requireAuth, zohoRoutes);
 app.use('/api/voice', requireAuth, voiceRoutes);
 app.use('/api/time',  requireAuth, timeRoutes);

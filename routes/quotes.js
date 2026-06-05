@@ -269,6 +269,11 @@ router.post('/force-rep-update', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
+    // Guard: session must exist (requireAuthAPI middleware should catch this first,
+    // but defend here too so we always return JSON and never an empty/redirect response)
+    if (!req.session || !req.session.user || !req.session.user.id) {
+      return res.status(401).json({ error: 'Session expired. Please log in again.' });
+    }
     const userId = req.session.user.id;
     const {
       quote_number, status, account_name, contact_name,
@@ -296,7 +301,6 @@ router.post('/', async (req, res) => {
           });
         }
       }
-
     }
 
     const result = await pool.query(
@@ -321,16 +325,22 @@ router.post('/', async (req, res) => {
         rep_name || null
       ]
     );
-    res.json(result.rows[0]);
+    const savedQuote = result.rows[0];
+    console.log('[quotes] POST created quote id=' + savedQuote.id + ' account=' + savedQuote.account_name + ' rep=' + savedQuote.rep_name);
+    res.json({ success: true, quote: savedQuote });
   } catch (e) {
-    console.error('POST /api/quotes error:', e.message);
-    res.status(500).json({ error: e.message });
+    console.error('[quotes] POST /api/quotes error:', e.message, e.stack);
+    res.status(500).json({ error: e.message || 'Failed to save quote' });
   }
 });
 
 // PUT update quote — team-wide edit access, persists rep_name
 router.put('/:id', async (req, res) => {
   try {
+    // Guard: always return JSON even if session somehow missing
+    if (!req.session || !req.session.user || !req.session.user.id) {
+      return res.status(401).json({ error: 'Session expired. Please log in again.' });
+    }
     const {
       quote_number, status, account_name, contact_name,
       amount, products, comments, quote_date, follow_up_date,
@@ -386,11 +396,13 @@ router.put('/:id', async (req, res) => {
         rep_name || null
       ]
     );
-    if (!result.rows.length) return res.status(404).json({ error: 'Not found' });
-    res.json(result.rows[0]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Quote not found' });
+    const savedQuote = result.rows[0];
+    console.log('[quotes] PUT updated quote id=' + savedQuote.id + ' account=' + savedQuote.account_name);
+    res.json({ success: true, quote: savedQuote });
   } catch (e) {
-    console.error('PUT /api/quotes error:', e.message);
-    res.status(500).json({ error: e.message });
+    console.error('[quotes] PUT /api/quotes/:id error:', e.message, e.stack);
+    res.status(500).json({ error: e.message || 'Failed to update quote' });
   }
 });
 
