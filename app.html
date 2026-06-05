@@ -453,7 +453,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <div style="padding:14px 16px">
           <div class="g3" style="margin-bottom:12px">
             <div class="fg" style="margin:0"><label>Product Line</label>
-              <select id="lead-cat">
+              <select id="lead-cat" onchange="onLeadFilterChange()">
                 <option value="Soudal Sealants and Adhesives">Soudal — Sealants & Adhesives</option>
                 <option value="ShurTape Flashing and Deck Tape">ShurTape — Flashing & Deck Tape</option>
                 <option value="Alum-A-Pole Scaffolding and Equipment">Alum-A-Pole — Scaffolding & Equipment</option>
@@ -462,7 +462,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
                 <option value="Insulation Contractor and After-Paint Installer">Insulation & After-Paint</option>
               </select>
             </div>
-            <div class="fg" style="margin:0"><label>Territory</label><input type="text" id="lead-territory" placeholder="Atlanta Metro, GA" /></div>
+            <div class="fg" style="margin:0"><label>Territory</label><input type="text" id="lead-territory" placeholder="Atlanta Metro, GA" oninput="onLeadTerritoryInput()" /></div>
             <div style="display:flex;align-items:flex-end"><button class="btn btn-primary" style="width:100%;justify-content:center" onclick="findLeads()">🔍 Search for Leads</button></div>
           </div>
           <div id="lead-searching" style="display:none;text-align:center;padding:32px;color:var(--text3)">
@@ -1082,7 +1082,12 @@ function renderProspects() {
       '<td>' + catBadge(p.category) + '</td>' +
       '<td style="color:var(--text3)">' + (p.city||'—') + '</td>' +
       '<td>' + (p.contact||'—') + '</td>' +
-      '<td style="color:var(--text3)">' + (p.phone||'—') + '</td>' +
+      (p.phone
+        ? '<td onclick="event.stopPropagation()" style="white-space:nowrap"><div style="display:flex;gap:5px;flex-wrap:wrap">' +
+          '<a href="tel:' + p.phone + '" class="btn btn-secondary btn-sm" style="min-height:44px;display:inline-flex;align-items:center;padding:0 10px;font-size:11px;text-decoration:none;color:var(--navy)">📞 Call</a>' +
+          '<a href="sms:' + p.phone + '" class="btn btn-secondary btn-sm" style="min-height:44px;display:inline-flex;align-items:center;padding:0 10px;font-size:11px;text-decoration:none;color:#fff;background:#0EA5E9;border-color:#0EA5E9">💬 Text</a>' +
+          '</div></td>'
+        : '<td style="color:var(--text3)">—</td>') +
       '<td style="font-size:11px;color:var(--text2)">' + (p.products||'—') + '</td>' +
       '<td><span class="badge b-' + (p.status||'new').toLowerCase() + '">' + (p.status||'New') + '</span></td>' +
       '<td><span class="badge b-' + (p.priority||'medium').toLowerCase() + '">' + (p.priority||'Medium') + '</span></td>' +
@@ -1211,10 +1216,33 @@ function addProspect() {
   });
 }
 
+var _leadTerritoryTimer = null;
+
+function onLeadFilterChange() {
+  // Product line changed — clear stale results and auto-run if territory is set
+  var territory = (document.getElementById('lead-territory').value || '').trim();
+  document.getElementById('lead-results').style.display = 'none';
+  document.getElementById('lead-searching').style.display = 'none';
+  foundLeads = []; selectedLeads = new Set();
+  if (territory) {
+    findLeads();
+  }
+}
+
+function onLeadTerritoryInput() {
+  // Debounce: clear results immediately; re-run 800ms after typing stops
+  document.getElementById('lead-results').style.display = 'none';
+  document.getElementById('lead-searching').style.display = 'none';
+  foundLeads = []; selectedLeads = new Set();
+  if (_leadTerritoryTimer) clearTimeout(_leadTerritoryTimer);
+  var territory = (document.getElementById('lead-territory').value || '').trim();
+  if (!territory) return; // empty → stay in cleared state
+  _leadTerritoryTimer = setTimeout(function() { findLeads(); }, 800);
+}
+
 function findLeads() {
   var product = document.getElementById('lead-cat').value;
-  var territory = document.getElementById('lead-territory').value || 'Atlanta Metro, Georgia';
-
+  var territory = (document.getElementById('lead-territory').value || '').trim() || 'Atlanta Metro, Georgia';
   // Map each product to its best target customer types
   var categoryMap = {
     'Soudal Sealants and Adhesives': 'Roofing Contractor, Window and Door Installer, General Contractor using sealants and adhesives',
