@@ -2595,7 +2595,7 @@ window.addEventListener('load', function() {
       onchange="loadContactsForAccount(this.value); checkAccountAutoAssignRep(this.value)"
       autocomplete="off"
       style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px">
-    <div id="qd-acct-dropdown" style="display:none;position:absolute;left:0;right:0;top:calc(100% + 2px);z-index:2100;background:#fff;border:1px solid var(--border);border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,.12);max-height:200px;overflow-y:auto">
+    <div id="qd-acct-dropdown" style="display:none;position:absolute;left:0;right:0;top:calc(100% + 2px);z-index:9999;background:#fff;border:1px solid var(--border);border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,.12);max-height:200px;overflow-y:auto">
       <div id="qd-acct-list"></div>
     </div>
   </div>
@@ -7594,8 +7594,10 @@ function loadAccountSuggestions(val) {
       var dd = document.getElementById('qd-acct-dropdown');
       var list = document.getElementById('qd-acct-list');
       if (!accounts.length || !dd || !list) { if (dd) dd.style.display = 'none'; return; }
+      // Use data-acct-name attribute — avoids JSON.stringify quoting issues in onclick
       list.innerHTML = accounts.map(function(a) {
-        return '<div onclick="selectQuoteAccount(' + JSON.stringify(a) + ')" style="padding:9px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid #f1f5f9" onmouseover="this.style.background=\'#f0f5ff\'" onmouseout="this.style.background=\'\'">' + a + '</div>';
+        var safe = (a || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+        return '<div class="qd-acct-opt" data-acct-name="' + safe + '" style="padding:9px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid #f1f5f9" onmouseover="this.style.background=\'#f0f5ff\'" onmouseout="this.style.background=\'\'">' + (a || '') + '</div>';
       }).join('');
       dd.style.display = 'block';
     })
@@ -7623,6 +7625,17 @@ document.addEventListener('click', function(e) {
   if (inp && !inp.contains(e.target) && !dd.contains(e.target)) {
     dd.style.display = 'none';
   }
+});
+
+// Account autocomplete selection — use mousedown + preventDefault so the handler fires
+// BEFORE the input's blur event (blur fires after mousedown but before click/mouseup).
+// This prevents blur from stealing focus and closing the dropdown before selection registers.
+document.addEventListener('mousedown', function(e) {
+  var item = e.target.closest ? e.target.closest('.qd-acct-opt') : null;
+  if (!item) return;
+  e.preventDefault(); // stop the input from losing focus before we read the value
+  var name = item.getAttribute('data-acct-name') || item.dataset.acctName || '';
+  if (name) selectQuoteAccount(name);
 });
 
 
