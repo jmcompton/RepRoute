@@ -312,6 +312,29 @@ async function initDB() {
     WHERE u.email = 'johnmarkcompton@gmail.com'
     ON CONFLICT (user_id, start_time) DO NOTHING;
 
+    -- ════════════════════════════════════════════════════════════
+    -- Weekly Report: AI-generated per-rep activity reports built off
+    -- logged calls. period_type = 'week' (Mon–Fri) or 'month'.
+    -- ai_sections JSON: { summary_takeaways, follow_ups, opportunities, risks }
+    -- activity_stats JSON: { total_calls, calls_per_day, calls_by_line,
+    --                        calls_by_outcome, accounts_touched }
+    -- UNIQUE (user_id, period_type, period_start) makes regeneration
+    -- idempotent (overwrite, never duplicate). Idempotent migration.
+    -- ════════════════════════════════════════════════════════════
+    CREATE TABLE IF NOT EXISTS weekly_reports (
+      id            SERIAL PRIMARY KEY,
+      user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      period_type   TEXT NOT NULL DEFAULT 'week',
+      period_start  DATE NOT NULL,
+      period_end    DATE NOT NULL,
+      generated_at  TIMESTAMPTZ DEFAULT NOW(),
+      ai_sections   JSONB NOT NULL DEFAULT '{}'::jsonb,
+      activity_stats JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at    TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (user_id, period_type, period_start)
+    );
+    CREATE INDEX IF NOT EXISTS idx_weekly_reports_user ON weekly_reports(user_id, period_type, period_start DESC);
+
   `);
   console.log('Database initialized');
 }

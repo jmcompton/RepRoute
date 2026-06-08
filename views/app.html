@@ -1406,6 +1406,7 @@ window.addEventListener('load', function() {
     <div class="sb-sec-label">Activities</div>
     <button class="sb-item" onclick="go('calendar')" style="padding-left:18px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><rect x="2" y="3" width="12" height="11" rx="1"/><path d="M5 2v2M11 2v2M2 7h12"/></svg>Team Calendar</button>
     <button class="sb-item" onclick="go('email')" style="padding-left:18px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><rect x="1" y="3" width="14" height="10" rx="1"/><path d="M1 4l7 5 7-5"/></svg>Email</button>
+    <button class="sb-item" onclick="go('weekly-report')" style="padding-left:18px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 14V2M2 14h12M5 11V7M8 11V4M11 11V9"/></svg>Weekly Report</button>
     <button class="sb-item" onclick="go('command')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><path d="M9 2L7 14M3 6l-2 2 2 2M13 6l2 2-2 2"/></svg>AI Command</button>
     <button class="sb-item" onclick="go('bulk')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 2h5v5H2z"/><path d="M9 2h5v5H9z"/><path d="M2 9h5v5H2z"/><path d="M9 9h5v5H9z"/></svg>Bulk Import</button>
     <button class="sb-item" onclick="window.location.href='/zoho-import'"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M8 2v8M5 7l3 3 3-3"/><path d="M3 12h10"/></svg>Zoho Import</button>
@@ -2834,6 +2835,54 @@ window.addEventListener('load', function() {
     </div>
   </div>
 
+  <!-- WEEKLY REPORT PAGE -->
+  <div class="page" id="page-weekly-report" style="overflow-y:auto;background:var(--bg)">
+    <div style="padding:16px;max-width:1000px;margin:0 auto">
+      <!-- Controls -->
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+        <div style="display:flex;gap:6px;background:#fff;border:1px solid var(--border);border-radius:8px;padding:3px">
+          <button id="wr-tab-week" class="wr-toggle" onclick="wrSetPeriodType('week')" style="padding:6px 14px;font-size:12px;font-weight:600;border:none;border-radius:6px;background:var(--accent);color:#fff;cursor:pointer;font-family:inherit">Weekly</button>
+          <button id="wr-tab-month" class="wr-toggle" onclick="wrSetPeriodType('month')" style="padding:6px 14px;font-size:12px;font-weight:600;border:none;border-radius:6px;background:transparent;color:var(--text2);cursor:pointer;font-family:inherit">Monthly</button>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <select id="wr-period-select" onchange="wrLoad()" style="padding:6px 10px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text);font-family:inherit"></select>
+          <button class="btn btn-secondary btn-sm" onclick="wrGenerate()" id="wr-gen-btn">Generate / Refresh</button>
+          <button class="btn btn-secondary btn-sm" onclick="wrExport()">Export to Excel</button>
+          <button class="btn btn-primary btn-sm" onclick="wrOpenEmail()">Email report</button>
+        </div>
+      </div>
+
+      <!-- Manager roster (managers/admins only) -->
+      <div id="wr-roster-wrap" style="display:none;background:var(--white);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden;margin-bottom:16px">
+        <div style="padding:10px 14px;border-bottom:1px solid var(--border);background:#fafbfc;display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:12.5px;font-weight:700;color:var(--navy)">Team Activity</span>
+          <span id="wr-roster-period" style="font-size:11px;color:var(--text3)"></span>
+        </div>
+        <div style="overflow-x:auto"><table class="ltable" style="min-width:560px"><thead><tr>
+          <th>Rep</th><th>Total Calls</th><th>Calls/Day</th><th>Accounts</th><th>Top Lines</th><th></th>
+        </tr></thead><tbody id="wr-roster-body"></tbody></table></div>
+      </div>
+
+      <!-- Single rep report -->
+      <div id="wr-report" style="display:none"></div>
+
+      <div id="wr-empty" style="display:none;text-align:center;color:var(--text3);padding:40px 16px;font-size:13px"></div>
+    </div>
+  </div>
+
+  <!-- WEEKLY REPORT EMAIL MODAL -->
+  <div class="modal-overlay" id="wr-email-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:500;align-items:center;justify-content:center" onclick="if(event.target===this)this.style.display='none'">
+    <div style="background:#fff;border-radius:10px;padding:20px;width:min(420px,92vw)">
+      <div style="font-size:15px;font-weight:700;color:var(--navy);margin-bottom:12px">Email this report</div>
+      <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em">Recipient email</label>
+      <input id="wr-email-to" type="email" placeholder="keith@example.com" style="width:100%;box-sizing:border-box;margin:6px 0 14px;padding:9px 11px;border:1px solid var(--border);border-radius:7px;font-size:13px;font-family:inherit">
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('wr-email-modal').style.display='none'">Cancel</button>
+        <button class="btn btn-primary btn-sm" id="wr-email-send" onclick="wrSendEmail()">Send</button>
+      </div>
+    </div>
+  </div>
+
   <!-- SAMPLE TRACKER PAGE -->
   <div class="page" id="page-samples">
     <div style="padding:16px">
@@ -3345,7 +3394,8 @@ var pageTitles = {
   calendar: 'Team Calendar',
   email: 'Email',
   samples: 'Sample Tracker',
-  time: 'Time Tracker'
+  time: 'Time Tracker',
+  'weekly-report': 'Weekly Report'
 };
 
 window.addEventListener('load', function() {
@@ -3448,6 +3498,7 @@ function go(id) {
   if (id === 'email') loadEmailPage();
   if (id === 'samples') loadSamples();
   if (id === 'time') loadTimeTracker();
+  if (id === 'weekly-report') loadWeeklyReport();
   // Refresh route panel whenever user navigates to home/dashboard
   if (id === 'dashboard' || id === 'home') {
     if (typeof window._renderRoutePanel === 'function') {
@@ -13598,6 +13649,200 @@ window.BCS = (function() {
   window._VCL = VCL;
 
 })();
+</script>
+<script>
+// ══════════════════════════════════════════════════════════════════
+// WEEKLY REPORT — role-aware (rep sees own; manager/admin sees all reps)
+// ══════════════════════════════════════════════════════════════════
+var wrState = { period_type: 'week', period_start: null, rep_id: null, can_manage: false, last: null };
+
+function wrIsManager() {
+  var u = window.currentUser || window.__userData || {};
+  return u.role === 'manager' || u.role === 'admin';
+}
+
+function wrSetPeriodType(t) {
+  wrState.period_type = (t === 'month') ? 'month' : 'week';
+  wrState.period_start = null;
+  wrState.rep_id = null;
+  document.getElementById('wr-tab-week').style.background = t === 'week' ? 'var(--accent)' : 'transparent';
+  document.getElementById('wr-tab-week').style.color = t === 'week' ? '#fff' : 'var(--text2)';
+  document.getElementById('wr-tab-month').style.background = t === 'month' ? 'var(--accent)' : 'transparent';
+  document.getElementById('wr-tab-month').style.color = t === 'month' ? '#fff' : 'var(--text2)';
+  loadWeeklyReport();
+}
+
+function loadWeeklyReport() {
+  wrState.can_manage = wrIsManager();
+  // Populate the period dropdown, then load.
+  fetch('/api/weekly-report/periods?period_type=' + wrState.period_type)
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      var sel = document.getElementById('wr-period-select');
+      sel.innerHTML = (d.periods || []).map(function(p, i){
+        var label = (wrState.period_type === 'month')
+          ? new Date(p.period_start + 'T00:00:00Z').toLocaleDateString('en-US',{month:'long',year:'numeric',timeZone:'UTC'})
+          : ('Week of ' + new Date(p.period_start + 'T00:00:00Z').toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'}));
+        if (i === 0) label += ' (current)';
+        return '<option value="' + p.period_start + '">' + label + (p.has_report ? '' : ' — not generated') + '</option>';
+      }).join('');
+      if (!wrState.period_start && d.periods && d.periods[0]) wrState.period_start = d.periods[0].period_start;
+      if (wrState.period_start) sel.value = wrState.period_start;
+      wrLoad();
+    })
+    .catch(function(){ wrLoad(); });
+}
+
+function wrLoad() {
+  wrState.period_start = document.getElementById('wr-period-select').value || wrState.period_start;
+  wrState.rep_id = null; // back to own/team view on reload
+  if (wrState.can_manage) wrLoadRoster();
+  else document.getElementById('wr-roster-wrap').style.display = 'none';
+  wrLoadReport(null);
+}
+
+function wrLoadRoster() {
+  var q = 'period_type=' + wrState.period_type + '&period_start=' + wrState.period_start;
+  fetch('/api/weekly-report/roster?' + q)
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (d.error) { document.getElementById('wr-roster-wrap').style.display = 'none'; return; }
+      document.getElementById('wr-roster-wrap').style.display = '';
+      document.getElementById('wr-roster-period').textContent = d.period_start + ' → ' + d.period_end;
+      var body = document.getElementById('wr-roster-body');
+      body.innerHTML = (d.reps || []).map(function(rep){
+        var lines = Object.keys(rep.calls_by_line || {}).slice(0,3).map(function(k){ return k + ' (' + rep.calls_by_line[k] + ')'; }).join(', ') || '—';
+        return '<tr style="cursor:pointer" onclick="wrOpenRep(' + rep.rep_id + ")\">" +
+          '<td style="font-weight:600;color:var(--navy)">' + wrEsc(rep.rep_name) + '</td>' +
+          '<td>' + rep.total_calls + '</td>' +
+          '<td>' + rep.calls_per_day_avg + '</td>' +
+          '<td>' + rep.accounts_touched + '</td>' +
+          '<td style="font-size:11px;color:var(--text2)">' + wrEsc(lines) + '</td>' +
+          '<td style="color:var(--accent);font-size:11px;font-weight:600">Open →</td></tr>';
+      }).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:16px">No reps found.</td></tr>';
+    })
+    .catch(function(){ document.getElementById('wr-roster-wrap').style.display = 'none'; });
+}
+
+function wrOpenRep(repId) {
+  wrState.rep_id = repId;
+  wrLoadReport(repId);
+  document.getElementById('wr-report').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function wrLoadReport(repId) {
+  var q = 'period_type=' + wrState.period_type + '&period_start=' + wrState.period_start;
+  if (repId) q += '&rep_id=' + repId;
+  fetch('/api/weekly-report/report?' + q)
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      wrState.last = d;
+      wrRenderReport(d);
+    })
+    .catch(function(){
+      document.getElementById('wr-report').style.display = 'none';
+      var emp = document.getElementById('wr-empty');
+      emp.style.display = 'block'; emp.textContent = 'Could not load report.';
+    });
+}
+
+function wrEsc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function wrStatCard(label, value, accent) {
+  return '<div style="flex:1;min-width:120px;background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px 16px">' +
+    '<div style="font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">' + label + '</div>' +
+    '<div style="font-size:26px;font-weight:700;color:' + (accent || 'var(--navy)') + '">' + value + '</div></div>';
+}
+
+function wrAISection(title, body) {
+  if (!body || !String(body).trim()) return '';
+  return '<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:12px">' +
+    '<div style="font-size:12px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">' + title + '</div>' +
+    '<div style="font-size:13px;color:var(--text);line-height:1.55;white-space:pre-line">' + wrEsc(body) + '</div></div>';
+}
+
+function wrRenderReport(d) {
+  var rpt = document.getElementById('wr-report');
+  var emp = document.getElementById('wr-empty');
+  if (!d || d.error) { rpt.style.display = 'none'; emp.style.display = 'block'; emp.textContent = d && d.error ? d.error : 'No report.'; return; }
+  emp.style.display = 'none';
+  rpt.style.display = 'block';
+  var s = d.activity_stats || {};
+  var cpd = s.calls_per_day || {};
+  var ai = d.ai_sections;
+
+  var lineRows = Object.keys(s.calls_by_line || {}).map(function(k){
+    return '<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0;border-bottom:1px solid var(--border)"><span>' + wrEsc(k) + '</span><strong>' + s.calls_by_line[k] + '</strong></div>';
+  }).join('') || '<div style="font-size:12px;color:var(--text3)">No calls logged.</div>';
+  var ocRows = Object.keys(s.calls_by_outcome || {}).map(function(k){
+    return '<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0;border-bottom:1px solid var(--border)"><span>' + wrEsc(k) + '</span><strong>' + s.calls_by_outcome[k] + '</strong></div>';
+  }).join('') || '<div style="font-size:12px;color:var(--text3)">No outcomes.</div>';
+
+  var genTxt = d.generated_at ? ('AI generated ' + new Date(d.generated_at).toLocaleString()) : 'AI sections not generated yet — hit Generate / Refresh.';
+
+  rpt.innerHTML =
+    '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">' +
+      '<div><div style="font-size:18px;font-weight:700;color:var(--navy)">' + wrEsc(d.rep_name) + (d.is_self ? '' : ' (rep)') + '</div>' +
+      '<div style="font-size:12px;color:var(--text3)">' + d.period_start + ' → ' + d.period_end + ' · ' + (d.period_type === 'month' ? 'Monthly' : 'Weekly') + '</div></div>' +
+    '</div>' +
+    '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">' +
+      wrStatCard('Total Calls', s.total_calls || 0, 'var(--accent)') +
+      wrStatCard('Calls / Day', (cpd.avg != null ? cpd.avg : 0), 'var(--accent)') +
+      wrStatCard('Accounts Touched', s.accounts_touched || 0) +
+      wrStatCard('Working Days', cpd.working_days || 0) +
+    '</div>' +
+    '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">' +
+      '<div style="flex:1;min-width:220px;background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px 16px"><div style="font-size:11px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Calls by Line</div>' + lineRows + '</div>' +
+      '<div style="flex:1;min-width:220px;background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px 16px"><div style="font-size:11px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Calls by Outcome</div>' + ocRows + '</div>' +
+    '</div>' +
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:10px">' + wrEsc(genTxt) + '</div>' +
+    (ai ? (wrAISection('Summary & Takeaways', ai.summary_takeaways) + wrAISection('Follow-ups for Next Week', ai.follow_ups) +
+           wrAISection('Opportunities', ai.opportunities) + wrAISection('Risks', ai.risks))
+        : '<div style="background:#fff;border:1px dashed var(--border);border-radius:10px;padding:18px;text-align:center;color:var(--text3);font-size:13px">No AI summary yet for this period. Click <strong>Generate / Refresh</strong>.</div>');
+}
+
+function wrGenerate() {
+  var btn = document.getElementById('wr-gen-btn');
+  var orig = btn.textContent; btn.disabled = true; btn.textContent = 'Generating…';
+  var body = { period_type: wrState.period_type, period_start: wrState.period_start };
+  if (wrState.rep_id) body.rep_id = wrState.rep_id;
+  else if (wrState.can_manage) body.rep_id = 'all';
+  fetch('/api/weekly-report/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      btn.disabled = false; btn.textContent = orig;
+      if (d.error) { alert(d.error); return; }
+      if (wrState.can_manage) wrLoadRoster();
+      wrLoadReport(wrState.rep_id);
+    })
+    .catch(function(){ btn.disabled = false; btn.textContent = orig; alert('Generation failed.'); });
+}
+
+function wrExport() {
+  var scope = (wrState.can_manage && !wrState.rep_id) ? 'all' : 'mine';
+  var q = 'period_type=' + wrState.period_type + '&period_start=' + wrState.period_start + '&scope=' + scope;
+  if (wrState.rep_id) q += '&rep_id=' + wrState.rep_id;
+  window.location.href = '/api/weekly-report/export?' + q;
+}
+
+function wrOpenEmail() { document.getElementById('wr-email-modal').style.display = 'flex'; }
+
+function wrSendEmail() {
+  var to = (document.getElementById('wr-email-to').value || '').trim();
+  if (!to) { alert('Enter a recipient email.'); return; }
+  var btn = document.getElementById('wr-email-send'); btn.disabled = true; btn.textContent = 'Sending…';
+  var body = { period_type: wrState.period_type, period_start: wrState.period_start, to: to };
+  if (wrState.rep_id) body.rep_id = wrState.rep_id;
+  fetch('/api/weekly-report/email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      btn.disabled = false; btn.textContent = 'Send';
+      if (d.error) { alert(d.error); return; }
+      document.getElementById('wr-email-modal').style.display = 'none';
+      alert('Report emailed to ' + d.sent_to);
+    })
+    .catch(function(){ btn.disabled = false; btn.textContent = 'Send'; alert('Send failed.'); });
+}
 </script>
 </body>
 </html>

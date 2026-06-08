@@ -12,6 +12,8 @@ const callsRoutes = require('./routes/calls');
 const aiRoutes = require('./routes/ai');
 const onboardingRoutes = require('./routes/onboarding');
 const weeklyRoutes = require('./routes/weekly');
+const weeklyReportRoutes = require('./routes/weekly_report');
+const { generateForRep } = require('./routes/weekly_report');
 const managerRoutes = require('./routes/manager');
 const calendarRoutes = require('./routes/calendar');
 const { router: emailRoutes } = require('./routes/email');
@@ -122,6 +124,7 @@ app.use('/api/calls', requireAuth, callsRoutes);
 app.use('/api/ai', requireAuth, aiRoutes);
 app.use('/api/onboarding', requireAuth, onboardingRoutes);
 app.use('/api/weekly', requireAuth, weeklyRoutes);
+app.use('/api/weekly-report', requireAuth, weeklyReportRoutes);
 app.use('/api/manager', requireAuth, requireManager, managerRoutes);
 app.use('/api/calendar', requireAuth, calendarRoutes);
 app.use('/api/email', requireAuth, emailRoutes);
@@ -185,6 +188,30 @@ async function dailyEvaluation() {
 }
 setInterval(dailyEvaluation, 60 * 60 * 1000); // hourly
 setTimeout(dailyEvaluation, 30 * 1000); // run 30s after boot
+
+// ── Weekly Report auto-generation ────────────────────────────────
+// Generates the current week's report for every rep on Friday afternoon.
+// CONFIG (edit here): day-of-week and the hour, evaluated in America/New_York.
+const WEEKLY_REPORT_DOW = 5;        // 0=Sun .. 5=Friday
+const WEEKLY_REPORT_HOUR_ET = 15;   // 15 = 3:00 PM Eastern
+const WEEKLY_REPORT_TZ = 'America/New_York';
+let lastWeeklyReportRun = null;     // 'YYYY-MM-DD' guard so it runs once per Friday
+async function weeklyReportCron() {
+  try {
+    const nowET = new Date(new Date().toLocaleString('en-US', { timeZone: WEEKLY_REPORT_TZ }));
+    const stamp = nowET.toISOString().slice(0, 10);
+    if (nowET.getDay() === WEEKLY_REPORT_DOW && nowET.getHours() >= WEEKLY_REPORT_HOUR_ET && lastWeeklyReportRun !== stamp) {
+      lastWeeklyReportRun = stamp;
+      const users = await dbPool.query('SELECT id, name FROM users');
+      for (const u of users.rows) {
+        try { await generateForRep(u.id, u.name, 'week'); } catch (e) { console.error('weekly-report gen', u.id, e.message); }
+      }
+      console.log('[weekly-report] auto-generated for', users.rows.length, 'reps at', stamp);
+    }
+  } catch (e) { console.error('weekly-report cron error:', e.message); }
+}
+setInterval(weeklyReportCron, 30 * 60 * 1000); // check every 30 min
+setTimeout(weeklyReportCron, 45 * 1000);       // initial check 45s after boot
 
 const PORT = process.env.PORT || 3000;
 initDB().then(async () => {
