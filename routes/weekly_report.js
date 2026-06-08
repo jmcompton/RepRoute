@@ -94,10 +94,10 @@ function recentPeriods(period_type, count) {
 // ── Activity numbers — computed directly from the calls table ────
 async function computeStats(repId, start, end) {
   const r = await pool.query(
-    `SELECT c.*, p.company FROM calls c
+    `SELECT c.*, p.company, p.contact, p.city FROM calls c
      LEFT JOIN prospects p ON c.prospect_id = p.id
      WHERE c.user_id = $1 AND c.call_date BETWEEN $2 AND $3
-     ORDER BY c.call_date ASC`,
+     ORDER BY c.call_date ASC, c.created_at ASC`,
     [repId, start, end]
   );
   const calls = r.rows;
@@ -122,6 +122,25 @@ async function computeStats(repId, start, end) {
       accounts_touched: accounts.size
     }
   };
+}
+
+// ── Clean, newest-first call list for the call-detail view/export ─
+// Sourced LIVE from the `calls` table rows (no AI, no cache).
+function mapCalls(rows) {
+  const toStr = v => (v instanceof Date) ? v.toISOString().slice(0, 10) : (v ? String(v).slice(0, 10) : '');
+  return (rows || []).slice().reverse().map(c => ({
+    id: c.id,
+    call_date: toStr(c.call_date),
+    company: c.company || 'Unknown account',
+    contact: c.contact || '',
+    city: c.city || '',
+    call_type: c.call_type || '',
+    product_line: c.products_discussed || '',
+    outcome: c.outcome || '',
+    next_step: c.next_step || '',
+    next_step_date: toStr(c.next_step_date),
+    notes: c.notes || ''
+  }));
 }
 
 // ── AI sections from the period's call notes/outcomes/next-steps ─
@@ -211,7 +230,9 @@ router.get('/report', async (req, res) => {
       repId = parseInt(req.query.rep_id);
     }
     const { start, end } = periodBounds(period_type, period_start);
-    const { stats } = await computeStats(repId, start, end);
+    // Activity numbers AND the call list are computed LIVE from the call log
+    // on every request — always current, no Generate click required.
+    const { rows, stats } = await computeStats(repId, start, end);
     const stored = await pool.query(
       'SELECT ai_sections, generated_at FROM weekly_reports WHERE user_id=$1 AND period_type=$2 AND period_start=$3',
       [repId, period_type, start]
@@ -224,7 +245,8 @@ router.get('/report', async (req, res) => {
       can_manage: isManager(me),
       period_type, period_start: start, period_end: end,
       activity_stats: stats,
-      ai_sections: stored.rows[0] ? stored.rows[0].ai_sections : null,
+      calls: mapCalls(rows),              // LIVE call-detail list, newest first
+      ai_sections: stored.rows[0] ? stored.rows[0].ai_sections : null,  // cached/Friday narrative only
       generated_at: stored.rows[0] ? stored.rows[0].generated_at : null
     });
   } catch (e) {
@@ -359,16 +381,22 @@ router.get('/export', async (req, res) => {
       targets = [{ id: repId, name: repName }];
     }
 
+    // Section 1: per-rep activity summary. Section 2: live call-detail list.
+    const detail = [['Rep', 'Date', 'Account', 'Contact', 'Product Line', 'Outcome', 'Next Step', 'Notes']];
     for (const t of targets) {
-      const { stats } = await computeStats(t.id, start, end);
+      const { rows: callRows, stats } = await computeStats(t.id, start, end);
       rows.push([
         t.name, period_type, start, end,
         stats.total_calls, stats.calls_per_day.avg, stats.accounts_touched,
         mapToStr(stats.calls_by_line), mapToStr(stats.calls_by_outcome)
       ]);
+      mapCalls(callRows).forEach(c => {
+        detail.push([t.name, c.call_date, c.company, c.contact, c.product_line, c.outcome, c.next_step, c.notes]);
+      });
     }
 
-    const csv = rows.map(r => r.map(csvCell).join(',')).join('\r\n');
+    const allRows = rows.concat([[], ['Call Detail'], []], detail);
+    const csv = allRows.map(r => r.map(csvCell).join(',')).join('\r\n');
     const fname = 'weekly-report-' + scope + '-' + period_type + '-' + start + '.csv';
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="' + fname + '"');

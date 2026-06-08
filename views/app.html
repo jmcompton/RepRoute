@@ -13726,11 +13726,12 @@ function wrLoadRoster() {
 
 function wrOpenRep(repId) {
   wrState.rep_id = repId;
-  wrLoadReport(repId);
-  document.getElementById('wr-report').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Scroll happens AFTER the report renders (the panel is display:none until then,
+  // so scrolling here synchronously was a no-op — that's why Open "did nothing").
+  wrLoadReport(repId, true);
 }
 
-function wrLoadReport(repId) {
+function wrLoadReport(repId, scrollAfter) {
   var q = 'period_type=' + wrState.period_type + '&period_start=' + wrState.period_start;
   if (repId) q += '&rep_id=' + repId;
   fetch('/api/weekly-report/report?' + q)
@@ -13738,6 +13739,10 @@ function wrLoadReport(repId) {
     .then(function(d){
       wrState.last = d;
       wrRenderReport(d);
+      if (scrollAfter) {
+        var el = document.getElementById('wr-report');
+        if (el) setTimeout(function(){ el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 30);
+      }
     })
     .catch(function(){
       document.getElementById('wr-report').style.display = 'none';
@@ -13761,6 +13766,34 @@ function wrAISection(title, body) {
     '<div style="font-size:13px;color:var(--text);line-height:1.55;white-space:pre-line">' + wrEsc(body) + '</div></div>';
 }
 
+// LIVE "Calls This Period" detail list — every logged call, newest first.
+function wrCallList(calls) {
+  if (!calls || !calls.length) {
+    return '<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:18px;text-align:center;color:var(--text3);font-size:13px">No calls logged in this period yet.</div>';
+  }
+  var items = calls.map(function(c){
+    var when = c.call_date ? new Date(c.call_date + 'T00:00:00Z').toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'}) : '';
+    var meta = [];
+    if (c.contact) meta.push(wrEsc(c.contact));
+    if (c.city) meta.push(wrEsc(c.city));
+    if (c.call_type) meta.push(wrEsc(c.call_type));
+    var chips = '';
+    if (c.product_line) chips += '<span style="display:inline-block;background:#eef2ff;color:#3730a3;font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:10px;margin:0 6px 4px 0">' + wrEsc(c.product_line) + '</span>';
+    if (c.outcome) chips += '<span style="display:inline-block;background:#ecfdf5;color:#065f46;font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:10px;margin:0 6px 4px 0">' + wrEsc(c.outcome) + '</span>';
+    return '<div style="border-bottom:1px solid var(--border);padding:12px 0">' +
+      '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap">' +
+        '<div style="font-size:14px;font-weight:700;color:var(--navy)">' + wrEsc(c.company) + '</div>' +
+        '<div style="font-size:11px;color:var(--text3);white-space:nowrap">' + when + '</div>' +
+      '</div>' +
+      (meta.length ? '<div style="font-size:11.5px;color:var(--text2);margin:2px 0 6px">' + meta.join(' · ') + '</div>' : '<div style="height:4px"></div>') +
+      (chips ? '<div style="margin-bottom:4px">' + chips + '</div>' : '') +
+      (c.next_step ? '<div style="font-size:12px;color:var(--text);margin-top:2px"><strong>Next:</strong> ' + wrEsc(c.next_step) + (c.next_step_date ? ' (' + c.next_step_date + ')' : '') + '</div>' : '') +
+      (c.notes ? '<div style="font-size:12.5px;color:var(--text2);margin-top:4px;line-height:1.5;white-space:pre-line">' + wrEsc(c.notes) + '</div>' : '') +
+    '</div>';
+  }).join('');
+  return '<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:6px 16px 4px">' + items + '</div>';
+}
+
 function wrRenderReport(d) {
   var rpt = document.getElementById('wr-report');
   var emp = document.getElementById('wr-empty');
@@ -13778,7 +13811,8 @@ function wrRenderReport(d) {
     return '<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0;border-bottom:1px solid var(--border)"><span>' + wrEsc(k) + '</span><strong>' + s.calls_by_outcome[k] + '</strong></div>';
   }).join('') || '<div style="font-size:12px;color:var(--text3)">No outcomes.</div>';
 
-  var genTxt = d.generated_at ? ('AI generated ' + new Date(d.generated_at).toLocaleString()) : 'AI sections not generated yet — hit Generate / Refresh.';
+  var genTxt = d.generated_at ? ('AI summary generated ' + new Date(d.generated_at).toLocaleString() + ' · activity numbers & call list are live')
+                              : 'Activity numbers & call list are live. AI summary not generated yet — hit Generate / Refresh.';
 
   rpt.innerHTML =
     '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">' +
@@ -13795,6 +13829,9 @@ function wrRenderReport(d) {
       '<div style="flex:1;min-width:220px;background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px 16px"><div style="font-size:11px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Calls by Line</div>' + lineRows + '</div>' +
       '<div style="flex:1;min-width:220px;background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px 16px"><div style="font-size:11px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Calls by Outcome</div>' + ocRows + '</div>' +
     '</div>' +
+    '<div style="font-size:13px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.05em;margin:6px 0 8px">Calls This Period (' + ((d.calls || []).length) + ')</div>' +
+    wrCallList(d.calls) +
+    '<div style="height:16px"></div>' +
     '<div style="font-size:11px;color:var(--text3);margin-bottom:10px">' + wrEsc(genTxt) + '</div>' +
     (ai ? (wrAISection('Summary & Takeaways', ai.summary_takeaways) + wrAISection('Follow-ups for Next Week', ai.follow_ups) +
            wrAISection('Opportunities', ai.opportunities) + wrAISection('Risks', ai.risks))
