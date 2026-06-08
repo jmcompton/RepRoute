@@ -335,6 +335,23 @@ async function initDB() {
     );
     CREATE INDEX IF NOT EXISTS idx_weekly_reports_user ON weekly_reports(user_id, period_type, period_start DESC);
 
+    -- ── Weekly Planner ─────────────────────────────────────────────
+    -- Forward-looking plan: each rep plans stops + appointments per day.
+    -- "visited" is NOT stored here — computed live from the calls table.
+    CREATE TABLE IF NOT EXISTS planner_items (
+      id           SERIAL PRIMARY KEY,
+      rep_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      planned_date DATE NOT NULL,
+      item_type    TEXT NOT NULL DEFAULT 'stop',   -- 'stop' | 'appointment'
+      account_id   INTEGER REFERENCES prospects(id) ON DELETE SET NULL,
+      title        TEXT,
+      appt_time    TEXT,
+      note         TEXT,
+      sort_order   INTEGER NOT NULL DEFAULT 0,
+      created_at   TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_planner_items_rep_date ON planner_items(rep_id, planned_date);
+
   `);
   console.log('Database initialized');
 }

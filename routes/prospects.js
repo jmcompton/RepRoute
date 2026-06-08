@@ -116,7 +116,19 @@ router.get('/', async (req, res) => {
     params.push(status); query += ` AND status=$${params.length}`;
   }
   if (data_status && data_status !== 'All') {
-    params.push(data_status); query += ` AND data_status=$${params.length}`;
+    // Contacted/Unvetted are computed LIVE from call activity (not just the
+    // stored data_status column) so the filter is correct for every rep — the
+    // stored column is only reliably set for accounts that were backfilled.
+    // 'Verified CRM Data' remains a pure column match (it's a manual flag).
+    if (data_status === 'Contacted') {
+      query += ` AND (data_status IN ('Contacted','Verified CRM Data')
+                      OR EXISTS (SELECT 1 FROM calls c WHERE c.prospect_id = prospects.id AND c.user_id = $1))`;
+    } else if (data_status === 'Unvetted') {
+      query += ` AND data_status NOT IN ('Contacted','Verified CRM Data')
+                 AND NOT EXISTS (SELECT 1 FROM calls c WHERE c.prospect_id = prospects.id AND c.user_id = $1)`;
+    } else {
+      params.push(data_status); query += ` AND data_status=$${params.length}`;
+    }
   }
   if (company_type && company_type !== 'All') {
     params.push(company_type); query += ` AND company_type=$${params.length}`;
