@@ -6,11 +6,127 @@ const router = express.Router();
 const CLAUDE_API = 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-sonnet-4-20250514';
 
+// ═══════════════════════════════════════════════════════════════════════════
+// GOLD-STANDARD EXAMPLE ANCHORS — LUMBERYARD / BUILDING-SUPPLY CATEGORY
+// ───────────────────────────────────────────────────────────────────────────
+// Provided by the principal (Keith). These are PATTERN ANCHORS, not an
+// allowlist. The Lead Finder uses them as few-shot guidance to understand what
+// a "good" lumber / building-supply lead looks like, then finds businesses of
+// the SAME KIND in whatever territory the rep is working — reps work different
+// territories, so we must NEVER hardcode or restrict results to these names.
+//
+// ▸ HOW TO EDIT (Keith / Dan): just add or remove names in the `anchors`
+//   arrays below, or tweak a `searchPhrases` line. No code rebuild needed —
+//   the search query set is rebuilt from this block on server start.
+// ▸ `anchors`      = real example businesses (reference / training signal only).
+// ▸ `searchPhrases`= the GENERIC "same-kind" Google queries derived from those
+//                    anchors. The rep's city is appended at search time, so
+//                    these pull SIMILAR independent dealers in the rep's area.
+// ▸ RULES enforced elsewhere in this file:
+//     • Big-box retailers (Home Depot, Lowe's, Menards) are ALWAYS excluded.
+//     • Hardware / farm-and-home stores that indicate lumber/building materials
+//       are INCLUDED; if it's uncertain whether one carries building materials,
+//       it is SURFACED (with the normal flags) for the rep to decide — never
+//       silently dropped.
+//     • The existing verification/quality flags (home-based, closed/non-existent
+//       business status) stay intact and apply to these leads too.
+// ═══════════════════════════════════════════════════════════════════════════
+const LUMBER_BUILDING_SUPPLY_EXAMPLES = {
+  // FLAVOR A — dedicated independent lumber yards & pro building-supply dealers
+  flavorA: {
+    label: 'Independent lumber yards & pro building-supply dealers',
+    anchors: [
+      'Brand Vaughan', 'Builders FirstSource', 'Lummus Supply', 'Randall Brothers',
+      'Metro Building Products', 'North Georgia Building Supply', 'Carolina Lumber',
+      'Norcross Supply', 'Stiles Lumber', 'Still Lumber', 'Cofer Brothers',
+      'Carl E. Smith', 'Carter Lumber', 'Mac Bee Brothers',
+    ],
+    // Generic same-kind queries derived from the Flavor-A anchors above:
+    searchPhrases: [
+      'independent lumber yard',
+      'lumber and building supply dealer',
+      'pro building supply dealer contractor',
+      'building materials dealer',
+      'building supply company',
+      'wholesale lumber dealer building materials',
+      'lumber yard contractor supply',
+    ],
+    score: 10, // prime target — dedicated lumber/building-supply dealer
+  },
+  // FLAVOR B — independent hardware / farm-and-home stores that ALSO sell
+  // lumber & building materials (e.g. an Ace Hardware that carries lumber).
+  flavorB: {
+    label: 'Independent hardware / farm-and-home stores that also sell lumber & building materials',
+    anchors: [
+      'Cornelia Ace Hardware', 'Mooney Hardware', 'Farm & Home',
+      'Griffin Lumber', 'Harbin Lumber', 'Patriot Building Supply',
+    ],
+    // Generic same-kind queries derived from the Flavor-B anchors above:
+    searchPhrases: [
+      'hardware store that sells lumber',
+      'Ace Hardware lumber building materials',
+      'farm and home store building materials',
+      'independent hardware store building supplies',
+      'Do it Best hardware lumber building materials',
+      'farm and ranch supply lumber',
+    ],
+    score: 8, // include — but rep confirms it actually carries building materials
+  },
+};
+
+// Build the lumber/building-supply segment's query set FROM the anchors config
+// above. Each derived phrase becomes a Google Places text query; the rep's city
+// is appended at search time so results are local "same-kind" businesses — never
+// the literal example names. Editing the config block re-shapes this on restart.
+function buildLumberSegmentQueries() {
+  const out = [];
+  for (const flavor of [LUMBER_BUILDING_SUPPLY_EXAMPLES.flavorA, LUMBER_BUILDING_SUPPLY_EXAMPLES.flavorB]) {
+    for (const phrase of flavor.searchPhrases) {
+      out.push({ query: phrase, score: flavor.score, category: 'Lumber / Building Supply' });
+    }
+  }
+  return out;
+}
+
+// Big-box retail — ALWAYS excluded from the lumber/building-supply category
+// (and harmless to block everywhere: these are never walkable rep targets).
+// NOTE: intentionally does NOT include "84 Lumber" or "Ace" — Builders
+// FirstSource is a Flavor-A anchor and Cornelia Ace is a Flavor-B anchor, so we
+// only block true consumer big-box chains here.
+const BIG_BOX_KEYWORDS = ['home depot', "lowe's", 'lowes', 'menards'];
+function isBigBoxBlocked(name) {
+  const lower = (name || '').toLowerCase();
+  return BIG_BOX_KEYWORDS.some(kw => lower.includes(kw));
+}
+
+// Few-shot ranking nudge for the lumber/building-supply segment: reward results
+// that share the "kind" of Keith's anchors (lumber / building supply / building
+// materials / supply co / farm & home / lumber-carrying hardware). Returns a
+// small positive boost; does not penalize, so uncertain hardware/farm stores
+// still surface for the rep to decide.
+const LUMBER_KIND_SIGNALS = [
+  'lumber', 'building supply', 'building material', 'building product',
+  'supply co', 'supply company', 'building center', 'builders supply',
+  'farm & home', 'farm and home', 'farm & ranch', 'farm and ranch',
+  'do it best', 'true value', 'ace hardware', 'hardware',
+];
+const LUMBER_KIND_TYPES = new Set(['lumber_yard', 'building_materials_store', 'hardware_store', 'home_improvement_store']);
+function lumberKindBoost(name, types) {
+  const lower = (name || '').toLowerCase();
+  let boost = 0;
+  if (LUMBER_KIND_SIGNALS.some(kw => lower.includes(kw))) boost += 2;
+  if ((types || []).some(t => LUMBER_KIND_TYPES.has(t))) boost += 1;
+  return boost;
+}
+
 // ─── PRODUCT → SEARCH QUERY MAPPING ──────────────────────────────────────────
 // Each entry defines what Google Places queries to run and how to score results
-// Segment-level search config — each of the 8 pills maps directly to specific queries
+// Segment-level search config — each pill maps directly to specific queries
 // This ensures "Window/Door" never returns roofing results, etc.
 const SEGMENT_SEARCH_CONFIG = {
+  // Lumberyard / building-supply category — query set is derived from the
+  // editable gold-standard anchors config (LUMBER_BUILDING_SUPPLY_EXAMPLES).
+  'Lumber / Building Supply': buildLumberSegmentQueries(),
   'Roofing Contractor': [
     { query: 'commercial roofing contractor', score: 10, category: 'Roofing Contractor' },
     { query: 'commercial roofing company', score: 10, category: 'Roofing Contractor' },
@@ -321,6 +437,7 @@ router.post('/daily-leads', async (req, res) => {
     'Window/Door Installer': 'Contractor',
     'Deck Contractor':       'Contractor',
     'Construction Fasteners': 'Dealer',
+    'Lumber / Building Supply': 'Dealer',
     'Contractor':            'Contractor',
     'Dealer':                'Dealer',
   };
@@ -439,6 +556,9 @@ router.post('/daily-leads', async (req, res) => {
           if (existingNames.has(companyLower)) continue;
           if (sessionSeen.has(placeId || companyLower)) continue;
 
+          // Hard block — big-box retailers (Home Depot, Lowe's, Menards) are
+          // ALWAYS excluded; they are never walkable rep targets.
+          if (isBigBoxBlocked(company)) continue;
           // Hard block — never serve paint shops/painters as Alum-A-Pole leads
           if (isPaintBlocked(company, config.brand)) continue;
           // Hard block — never serve garage/overhead door companies for Window/Door segment
@@ -486,6 +606,14 @@ router.post('/daily-leads', async (req, res) => {
             matchingBrands.length,
             channel
           );
+
+          // Lumber / building-supply few-shot ranking nudge: businesses that
+          // share the "kind" of Keith's gold-standard anchors rank higher.
+          // Positive-only — uncertain hardware/farm stores still surface so the
+          // rep can decide (per the category rules).
+          if (rawChannel === 'Lumber / Building Supply') {
+            opportunityScore = Math.min(10, opportunityScore + lumberKindBoost(company, place.types || []));
+          }
 
           // Home-based business detection — badge + optional score penalty
           const homeBasedResult = isHomeBased(
