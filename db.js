@@ -352,6 +352,11 @@ async function initDB() {
     );
     CREATE INDEX IF NOT EXISTS idx_planner_items_rep_date ON planner_items(rep_id, planned_date);
 
+    -- Weekly Planner AI assist: provenance + AI annotations (nullable, additive).
+    ALTER TABLE planner_items ADD COLUMN IF NOT EXISTS source    TEXT DEFAULT 'manual';  -- 'manual' | 'ai'
+    ALTER TABLE planner_items ADD COLUMN IF NOT EXISTS ai_reason TEXT;
+    ALTER TABLE planner_items ADD COLUMN IF NOT EXISTS ai_prep   TEXT;
+
   `);
   console.log('Database initialized');
 }

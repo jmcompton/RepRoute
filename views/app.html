@@ -2852,8 +2852,18 @@ window.addEventListener('load', function() {
           <span id="pl-week-label" style="font-size:13px;font-weight:700;color:var(--navy);margin-left:6px"></span>
         </div>
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <button id="pl-build-btn" class="btn btn-primary btn-sm" onclick="plBuildWeek()" style="display:none">&#10024; Build My Week</button>
           <select id="pl-rep-select" onchange="plLoad()" style="display:none;padding:6px 10px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text);font-family:inherit"></select>
           <span id="pl-readonly-badge" style="display:none;font-size:11px;font-weight:700;color:#d97706;background:#fef3c7;padding:4px 10px;border-radius:10px">Read-only</span>
+        </div>
+      </div>
+
+      <!-- AI review bar — shown only while AI suggestions are pending review -->
+      <div id="pl-ai-bar" style="display:none;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:#f5f3ff;border:1px dashed #a78bfa;border-radius:10px;padding:10px 12px;margin-bottom:12px">
+        <div style="font-size:12px;color:#5b21b6"><strong>&#10024; AI suggestions</strong> <span id="pl-ai-count"></span> — review, remove or drag between days, then Apply. Nothing is saved until you Apply.</div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-secondary btn-sm" onclick="plDismissAI()">Dismiss</button>
+          <button class="btn btn-primary btn-sm" onclick="plApplyAI()">Apply to plan</button>
         </div>
       </div>
 
@@ -13956,7 +13966,7 @@ function wrSendEmail() {
 
 <!-- ── WEEKLY PLANNER ─────────────────────────────────────────── -->
 <script>
-var plState = { weekStart: null, repId: null, canManage: false, ownId: null, items: [], panel: null };
+var plState = { weekStart: null, repId: null, canManage: false, ownId: null, items: [], panel: null, aiSuggestions: null };
 
 function plIsManager() {
   var u = window.currentUser || window.__userData || {};
@@ -14028,6 +14038,14 @@ function plLoad() {
   document.getElementById('pl-readonly-badge').style.display = readOnly ? '' : 'none';
   plState.readOnly = readOnly;
 
+  // AI assist is button-triggered and only for the rep editing their own week.
+  var buildBtn = document.getElementById('pl-build-btn');
+  if (buildBtn) buildBtn.style.display = readOnly ? 'none' : '';
+  // Switching week/rep discards any un-applied AI suggestions.
+  plState.aiSuggestions = null;
+  var aiBar = document.getElementById('pl-ai-bar');
+  if (aiBar) aiBar.style.display = 'none';
+
   var lbl = document.getElementById('pl-week-label');
   if (lbl) lbl.textContent = plFmtMD(plState.weekStart) + ' – ' + plFmtMD(plAddDays(plState.weekStart, 4));
 
@@ -14078,20 +14096,38 @@ function plRenderGrid() {
     // stops
     stops.forEach(function(s){
       var label = plEsc(s.account_company || s.title || 'Stop');
+      var isAi = s.source === 'ai';
       html += '<div draggable="'+(ro?'false':'true')+'" ondragstart="plItemDragStart(event,'+s.id+')" style="background:'+(s.visited?'#dcfce7':'#f8fafc')+';border:1px solid '+(s.visited?'#86efac':'var(--border)')+';border-radius:6px;padding:6px 8px;margin-bottom:6px;font-size:11px;cursor:'+(ro?'default':'grab')+'">';
       html += '<div style="display:flex;justify-content:space-between;gap:4px;align-items:center">';
-      html += '<span style="font-weight:600;color:var(--navy)">'+(s.visited?'&#10003; ':'')+label+'</span>';
+      html += '<span style="font-weight:600;color:var(--navy)">'+(s.visited?'&#10003; ':'')+label+(isAi?' <span style="font-size:9px;font-weight:700;color:#7c3aed;background:#ede9fe;padding:1px 5px;border-radius:8px;vertical-align:middle">AI</span>':'')+'</span>';
       if (!ro) html += '<span style="cursor:pointer;color:#94a3b8" onclick="plDeleteItem('+s.id+')">&times;</span>';
       html += '</div>';
       if (s.visited && s.visit_outcome) html += '<div style="color:#16a34a;margin-top:2px;font-weight:600">'+plEsc(s.visit_outcome)+'</div>';
       else if (s.account_city) html += '<div style="color:var(--text3);margin-top:2px">'+plEsc(s.account_city)+'</div>';
+      if (isAi && s.ai_reason) html += '<div style="margin-top:3px"><span style="font-size:10px;color:#6d28d9;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:6px;padding:1px 6px">'+plEsc(s.ai_reason)+'</span></div>';
+      if (isAi && s.ai_prep) html += '<div style="color:var(--text3);margin-top:3px;font-style:italic">'+plEsc(s.ai_prep)+'</div>';
       html += '</div>';
     });
+
+    // AI suggestions pending review for this day (dashed/badged, NOT yet saved)
+    if (!ro && plState.aiSuggestions) {
+      plState.aiSuggestions.filter(function(g){ return g.day === date; }).forEach(function(g){
+        html += '<div draggable="true" ondragstart="plSuggestDragStart(event,\''+g._sid+'\')" style="background:#faf5ff;border:1.5px dashed #a78bfa;border-radius:6px;padding:6px 8px;margin-bottom:6px;font-size:11px;cursor:grab">';
+        html += '<div style="display:flex;justify-content:space-between;gap:4px;align-items:center">';
+        html += '<span style="font-weight:600;color:#6d28d9">'+plEsc(g.name)+' <span style="font-size:9px;font-weight:700;color:#7c3aed;background:#ede9fe;padding:1px 5px;border-radius:8px">AI</span></span>';
+        html += '<span style="cursor:pointer;color:#a78bfa" onclick="plRemoveSuggestion(\''+g._sid+'\')">&times;</span>';
+        html += '</div>';
+        if (g.reason) html += '<div style="margin-top:3px"><span style="font-size:10px;color:#6d28d9;background:#fff;border:1px solid #ddd6fe;border-radius:6px;padding:1px 6px">'+plEsc(g.reason)+'</span></div>';
+        if (g.prep) html += '<div style="color:var(--text3);margin-top:3px;font-style:italic">'+plEsc(g.prep)+'</div>';
+        html += '</div>';
+      });
+    }
 
     if (!ro) {
       html += '<div style="margin-top:auto;display:flex;gap:6px;padding-top:6px">';
       if (mobile) html += '<button class="btn btn-secondary btn-sm" style="flex:1;font-size:11px" onclick="plOpenAdd(\''+date+'\')">+ Stop</button>';
       html += '<button class="btn btn-secondary btn-sm" style="flex:1;font-size:11px" onclick="plOpenAppt(\''+date+'\')">+ Appt</button>';
+      html += '<button class="btn btn-secondary btn-sm" style="flex:1;font-size:11px" onclick="plFillDay(\''+date+'\')" title="AI: fill this day toward your goal">&#10024; Fill</button>';
       html += '</div>';
     }
     html += '</div>';
@@ -14112,6 +14148,7 @@ function plDrop(e) {
   if (!plDragData) return;
   if (plDragData.kind === 'account') plAddStop(plDragData.accountId, date);
   else if (plDragData.kind === 'move') plMoveItem(plDragData.id, date);
+  else if (plDragData.kind === 'aiMove') plMoveSuggestion(plDragData.sid, date);
   plDragData = null;
 }
 
@@ -14254,6 +14291,102 @@ function plMobileAdd(id) {
   var date = document.getElementById('pl-add-date').value;
   plAddStop(id, date);
   closeModal('pl-add');
+}
+
+// ── Weekly Planner AI assist (propose / review / apply) ───────────
+// AI is button-triggered only. Endpoints return proposals; nothing is
+// committed to the plan until the rep hits "Apply to plan".
+var plSidSeq = 1;
+function plAiTag(suggestions) {
+  // Stamp each suggestion with a stable client-side _sid for review/drag/remove.
+  (suggestions || []).forEach(function(g){ if (!g._sid) g._sid = 'sid' + (plSidSeq++); });
+  return suggestions || [];
+}
+function plShowAiBar() {
+  var bar = document.getElementById('pl-ai-bar');
+  var n = (plState.aiSuggestions || []).length;
+  document.getElementById('pl-ai-count').textContent = n + (n === 1 ? ' suggestion' : ' suggestions');
+  if (bar) bar.style.display = n ? '' : 'none';
+}
+function plBuildWeek() {
+  if (plState.readOnly) return;
+  var btn = document.getElementById('pl-build-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Thinking…'; }
+  fetch('/api/planner/build-week', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ rep_id: plState.repId, week_start: plState.weekStart }) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (d && d.error) { showToast(d.error); return; }
+      plState.aiSuggestions = plAiTag((d && d.suggestions) || []);
+      plShowAiBar();
+      plRenderGrid();
+      showToast(plState.aiSuggestions.length ? 'AI drafted your week — review, then Apply' : 'No suggestions found');
+    })
+    .catch(function(){ showToast('Build My Week failed'); })
+    .finally(function(){ if (btn) { btn.disabled = false; btn.innerHTML = '&#10024; Build My Week'; } });
+}
+function plFillDay(date) {
+  if (plState.readOnly) return;
+  fetch('/api/planner/fill-day', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ rep_id: plState.repId, date: date }) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (d && d.error) { showToast(d.error); return; }
+      var add = plAiTag((d && d.suggestions) || []);
+      if (!plState.aiSuggestions) plState.aiSuggestions = [];
+      // Drop any existing suggestions for this day, then append the fresh fill.
+      plState.aiSuggestions = plState.aiSuggestions.filter(function(g){ return g.day !== date; }).concat(add);
+      plShowAiBar();
+      plRenderGrid();
+      showToast(add.length ? 'AI suggested ' + add.length + ' for ' + plFmtMD(date) : 'No suggestions for that day');
+    })
+    .catch(function(){ showToast('Fill day failed'); });
+}
+function plRemoveSuggestion(sid) {
+  if (!plState.aiSuggestions) return;
+  plState.aiSuggestions = plState.aiSuggestions.filter(function(g){ return g._sid !== sid; });
+  plShowAiBar();
+  plRenderGrid();
+}
+function plSuggestDragStart(e, sid) {
+  if (plState.readOnly) return;
+  plDragData = { kind:'aiMove', sid:sid };
+  e.dataTransfer.effectAllowed = 'move';
+}
+function plMoveSuggestion(sid, date) {
+  if (!plState.aiSuggestions) return;
+  plState.aiSuggestions.forEach(function(g){ if (g._sid === sid) g.day = date; });
+  plRenderGrid();
+}
+function plDismissAI() {
+  plState.aiSuggestions = null;
+  plShowAiBar();
+  plRenderGrid();
+  showToast('Suggestions dismissed');
+}
+function plApplyAI() {
+  var sugg = plState.aiSuggestions || [];
+  if (!sugg.length) { plDismissAI(); return; }
+  var btn = document.querySelector('#pl-ai-bar .btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = 'Applying…'; }
+  var jobs = sugg.map(function(g){
+    return fetch('/api/planner/items', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        rep_id: plState.repId, planned_date: g.day, item_type: 'stop',
+        account_id: g.account_id, source: 'ai', ai_reason: g.reason || null, ai_prep: g.prep || null
+      }) }).then(function(r){ return r.json(); });
+  });
+  Promise.all(jobs).then(function(){
+    var n = sugg.length;
+    plState.aiSuggestions = null;
+    plShowAiBar();
+    plLoad();
+    showToast('Applied ' + n + ' AI ' + (n === 1 ? 'stop' : 'stops'));
+  }).catch(function(){
+    showToast('Apply failed');
+  }).finally(function(){
+    if (btn) { btn.disabled = false; btn.textContent = 'Apply to plan'; }
+  });
 }
 </script>
 </body>
