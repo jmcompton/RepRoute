@@ -1396,6 +1396,7 @@ window.addEventListener('load', function() {
   </div>
   <div class="sb-section">
     <div class="sb-sec-label">Sales</div>
+    <button class="sb-item" onclick="go('today')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><rect x="2" y="3" width="12" height="11" rx="1"/><path d="M2 7h12M11 1.5v2M5 1.5v2"/><path d="M6.5 10.5l1.25 1.25L10 9"/></svg>Today</button>
     <button class="sb-item" onclick="go('contacts')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg>Accounts</button>
 
     <button class="sb-item" onclick="go('deals')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 4h12M2 8h9M2 12h6"/></svg>Deal Pipeline</button>
@@ -2410,6 +2411,13 @@ window.addEventListener('load', function() {
 
 
   <!-- OPPORTUNITIES PAGE (cross-sell found-money) -->
+  <!-- TODAY PAGE (planner execution surface — phone-first) -->
+  <div class="page" id="page-today">
+    <div style="padding:16px;max-width:560px;margin:0 auto">
+      <div id="today-content"></div>
+    </div>
+  </div>
+
   <div class="page" id="page-opportunities">
     <div style="padding:16px">
       <div style="margin-bottom:14px">
@@ -3534,6 +3542,7 @@ var pageTitles = {
   command: 'AI Command Center', outreach: 'Outreach Writer',
   onboarding: 'Onboarding', manager: 'Team Dashboard', deals: 'Deal Pipeline', quotes: 'Quotes',
   opportunities: 'Cross-sell Opportunities',
+  today: 'Today',
   calendar: 'Team Calendar',
   email: 'Email',
   samples: 'Sample Tracker',
@@ -3642,6 +3651,7 @@ function go(id) {
   }
   if (id === 'email') loadEmailPage();
   if (id === 'opportunities') loadOpportunities();
+  if (id === 'today') loadToday();
   if (id === 'samples') loadSamples();
   if (id === 'time') loadTimeTracker();
   if (id === 'weekly-report') loadWeeklyReport();
@@ -4432,6 +4442,192 @@ function loadOpportunities() {
     .catch(function(){
       list.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:20px">Opportunities unavailable.</div>';
     });
+}
+
+// ══════════════════════════════════════════════════════════════
+//  TODAY VIEW — planner execution surface (phone-first)
+// ══════════════════════════════════════════════════════════════
+function _tEsc(s) {
+  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function _todayDateLabel(ymd) {
+  if (!ymd) return '';
+  var d = new Date(ymd + 'T12:00:00');
+  return d.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
+}
+function _todayNavUrl(s) {
+  if (s.google_place_id) return 'https://www.google.com/maps/place/?q=place_id:' + encodeURIComponent(s.google_place_id);
+  var dest = s.address || ((s.company || '') + (s.city ? ', ' + s.city : ''));
+  return 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(dest);
+}
+function _todayReasonTag(kind, reason) {
+  if (!reason) return '';
+  var c = { bg:'#f1f5f9', fg:'#475569' }; // neutral default
+  if (kind === 'followup_overdue' || kind === 'followup_due' || kind === 'next_step') c = { bg:'#dbeafe', fg:'#1e40af' };
+  else if (kind === 'open_deal') c = { bg:'#e0e7ff', fg:'#3730a3' };
+  else if (kind === 'cold') c = { bg:'#fef3c7', fg:'#92400e' };
+  else if (kind === 'new') c = { bg:'#f1f5f9', fg:'#475569' };
+  return '<span style="display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:' +
+    c.bg + ';color:' + c.fg + '">' + _tEsc(reason) + '</span>';
+}
+function _todayBtn(label, attrs, icon) {
+  return '<button ' + attrs + ' style="flex:1;min-height:44px;display:flex;align-items:center;justify-content:center;gap:5px;' +
+    'font-size:12px;font-weight:600;font-family:inherit;background:var(--bg);border:1px solid var(--border);' +
+    'border-radius:8px;color:var(--navy);cursor:pointer">' + (icon || '') + label + '</button>';
+}
+
+function loadToday() {
+  var el = document.getElementById('today-content');
+  if (!el) return;
+  el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:30px;text-align:center">Loading today…</div>';
+  fetch('/api/planner/today')
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){
+      if (!d) { el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:30px;text-align:center">Could not load today.</div>'; return; }
+      window._todayData = d;
+      renderToday(d);
+    })
+    .catch(function(){ el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:30px;text-align:center">Today unavailable.</div>'; });
+}
+
+function renderToday(d) {
+  var el = document.getElementById('today-content');
+  var html = '';
+
+  // Header + progress
+  var goal = d.goal || 10;
+  var done = (d.progress && d.progress.done) || 0;
+  var pct = goal > 0 ? Math.min(100, Math.round((done / goal) * 100)) : 0;
+  html += '<div style="margin-bottom:14px">' +
+    '<div style="font-size:20px;font-weight:800;color:var(--navy)">Today</div>' +
+    '<div style="font-size:12px;color:var(--text3);margin-top:1px">' + _tEsc(_todayDateLabel(d.date)) + '</div>' +
+    '<div style="height:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-top:10px">' +
+      '<div style="height:100%;width:' + pct + '%;background:var(--accent,#2563eb);transition:width .25s"></div>' +
+    '</div>' +
+    '<div style="font-size:11px;color:var(--text3);margin-top:4px;font-weight:600">' + done + ' of ' + goal + ' stops</div>' +
+  '</div>';
+
+  // Carried over
+  if (d.carried_over && d.carried_over.length) {
+    html += '<div style="margin-bottom:14px">' +
+      '<div style="font-size:11px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Missed earlier this week</div>';
+    d.carried_over.forEach(function(s){ html += todayCard(s, true); });
+    html += '</div>';
+  }
+
+  // Today's stops (incomplete first, done at bottom)
+  if (!d.stops || !d.stops.length) {
+    html += '<div style="text-align:center;padding:40px 20px;color:var(--text3)">' +
+      '<div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:6px">No stops planned for today</div>' +
+      '<div style="font-size:12px;margin-bottom:14px">Plan your day to get a route worth driving.</div>' +
+      '<button class="btn btn-primary" style="min-height:44px;padding:0 18px" onclick="go(\'weekly-planner\')">Plan my day</button>' +
+    '</div>';
+  } else {
+    var pending = d.stops.filter(function(s){ return !s.done; });
+    var finished = d.stops.filter(function(s){ return s.done; });
+    pending.forEach(function(s){ html += todayCard(s, false); });
+    finished.forEach(function(s){ html += todayCard(s, false); });
+  }
+
+  // Nearby new leads
+  if (d.nearby && d.nearby.length) {
+    html += '<div style="margin-top:18px">' +
+      '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">New leads nearby</div>';
+    d.nearby.forEach(function(n){
+      html += '<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:10px">' +
+        '<div style="min-width:0">' +
+          '<div style="font-weight:700;color:var(--navy);font-size:13px">' + _tEsc(n.company || '—') + '</div>' +
+          '<div style="font-size:11px;color:var(--text3)">' + _tEsc(n.city || '') + (n.category ? ' · ' + _tEsc(n.category) : '') + '</div>' +
+        '</div>' +
+        '<button class="btn btn-sm" style="min-height:38px;white-space:nowrap" onclick="todayAddNearby(' + n.id + ',this)">+ Add to today</button>' +
+      '</div>';
+    });
+    html += '</div>';
+  }
+
+  el.innerHTML = html;
+}
+
+function todayCard(s, isCarried) {
+  var greyed = s.done ? 'opacity:.55' : '';
+  var titleText = s.company || s.title || 'Stop';
+  var titleStyle = 'font-weight:700;color:var(--navy);font-size:15px' + (s.done ? ';text-decoration:line-through' : '');
+  var checkmark = s.done ? '<span style="color:#16a34a;font-weight:800;margin-right:5px">✓</span>' : '';
+
+  var h = '<div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:13px 14px;margin-bottom:10px;' + greyed + '">';
+
+  // Appointment time badge
+  if (s.item_type === 'appointment' && s.appt_time) {
+    h += '<div style="display:inline-block;font-size:11px;font-weight:800;color:#1e40af;background:#dbeafe;padding:2px 9px;border-radius:6px;margin-bottom:6px">' + _tEsc(s.appt_time) + '</div>';
+  }
+
+  h += '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">' +
+    '<div style="min-width:0">' +
+      '<div style="' + titleStyle + '">' + checkmark + _tEsc(titleText) + '</div>' +
+      (s.city ? '<div style="font-size:12px;color:var(--text3);margin-top:1px">' + _tEsc(s.city) + '</div>' : '') +
+    '</div>';
+  if (isCarried && s.planned_date) {
+    h += '<button class="btn btn-sm" style="min-height:36px;white-space:nowrap" onclick="todayMoveToToday(' + s.id + ',this)">Move to today</button>';
+  }
+  h += '</div>';
+
+  // Reason tag
+  if (s.reason) h += '<div style="margin-top:7px">' + _todayReasonTag(s.reason_kind, s.reason) + '</div>';
+  // Prep line
+  if (s.prep) h += '<div style="font-size:12px;color:var(--text2);margin-top:6px;line-height:1.4">' + _tEsc(s.prep) + '</div>';
+
+  // Action row
+  var phone = s.phone ? String(s.phone).replace(/[^0-9+]/g,'') : '';
+  h += '<div style="display:flex;gap:7px;margin-top:11px">';
+  h += _todayBtn('Navigate', 'onclick="window.open(\'' + _todayNavUrl(s).replace(/'/g,"\\'") + '\',\'_blank\')"');
+  if (phone) {
+    h += _todayBtn('Call', 'onclick="window.location.href=\'tel:' + phone + '\'"');
+    h += _todayBtn('Text', 'onclick="window.location.href=\'sms:' + phone + '\'"');
+  }
+  if (s.done) {
+    h += _todayBtn('Undo', 'onclick="todayUndone(' + s.id + ',this)"');
+  } else {
+    h += '<button onclick="todayMarkDone(' + s.id + ',this)" style="flex:1;min-height:44px;font-size:12px;font-weight:700;font-family:inherit;background:var(--accent,#2563eb);border:1px solid var(--accent,#2563eb);border-radius:8px;color:#fff;cursor:pointer">Done</button>';
+  }
+  h += '</div></div>';
+  return h;
+}
+
+function todayMarkDone(id, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  fetch('/api/planner/items/' + id + '/done', { method:'POST' })
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(){ loadToday(); })
+    .catch(function(){ showToast('Could not mark done'); loadToday(); });
+}
+function todayUndone(id, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  fetch('/api/planner/items/' + id + '/undone', { method:'POST' })
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(){ loadToday(); })
+    .catch(function(){ showToast('Could not undo'); loadToday(); });
+}
+function todayMoveToToday(id, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  var today = (window._todayData && window._todayData.date) || new Date().toISOString().slice(0,10);
+  fetch('/api/planner/items/' + id, {
+    method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ planned_date: today })
+  })
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(){ showToast('Moved to today'); loadToday(); })
+    .catch(function(){ showToast('Could not move stop'); loadToday(); });
+}
+function todayAddNearby(accountId, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  var today = (window._todayData && window._todayData.date) || new Date().toISOString().slice(0,10);
+  fetch('/api/planner/items', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ account_id: accountId, planned_date: today, source:'manual' })
+  })
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(){ showToast('Added to today'); loadToday(); })
+    .catch(function(){ showToast('Could not add lead'); loadToday(); });
 }
 
 function setRecTab(tab, el) {

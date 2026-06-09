@@ -60,6 +60,31 @@ function addDays(dateStr, n) {
   return d.toISOString().slice(0, 10);
 }
 
+// ── Reason classifier (single source of truth) ───────────────────
+// Classifies the strongest real reason an account is worth a visit from its
+// call/pipeline signals. Reused by gatherCandidates (AI assist) and the Today
+// endpoint so both label stops identically. Returns { reason, kind } where
+// kind ∈ followup_overdue | followup_due | next_step | open_deal | cold | new
+// (or { reason:null, kind:null } when no real reason exists).
+function classifyReason({ next_step, next_step_date, pipeline_stage, last_call_date }) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const todayStr = ymd(today);
+  const nsDate = next_step_date ? ymd(next_step_date) : null;
+  const lastCall = last_call_date ? new Date(last_call_date) : null;
+  const daysSince = lastCall ? Math.round((today - lastCall) / 86400000) : null;
+  const activePipeline = pipeline_stage && !['New Lead', 'Closed Won', 'Closed Lost'].includes(pipeline_stage);
+
+  if (nsDate && nsDate <= todayStr) return { reason: 'Overdue follow-up (promised ' + nsDate + ')', kind: 'followup_overdue' };
+  if (nsDate) return { reason: 'Follow-up due ' + nsDate, kind: 'followup_due' };
+  if (next_step) return { reason: 'Promised next step: ' + next_step, kind: 'next_step' };
+  if (activePipeline) return { reason: 'Open deal — ' + pipeline_stage, kind: 'open_deal' };
+  if (daysSince === null) return { reason: 'Never contacted', kind: 'new' };
+  if (daysSince >= 30) return { reason: 'Cold — ' + daysSince + ' days since last contact', kind: 'cold' };
+  return { reason: null, kind: null };
+}
+// Visit-priority rank per kind — lower wins (matches the original inline ordering).
+const REASON_RANK = { followup_overdue: 1, followup_due: 2, next_step: 3, open_deal: 4, cold: 5, new: 6 };
+
 // ── GET /api/planner?rep_id=&week_start= ─────────────────────────
 // Returns the week's items. Each STOP is annotated with live `visited` +
 // latest call outcome (computed from the calls table, never stored).
@@ -299,16 +324,16 @@ async function gatherCandidates(repId, excludeAccountIds, limit) {
     const lastCall = p.last_call_date ? new Date(p.last_call_date) : null;
     const daysSince = lastCall ? Math.round((today - lastCall) / 86400000) : null;
     const nsDate = p.next_step_date ? ymd(p.next_step_date) : null;
-    const activePipeline = p.pipeline_stage && !['New Lead', 'Closed Won', 'Closed Lost'].includes(p.pipeline_stage);
 
-    // Classify the strongest real reason this account is worth a visit.
-    let reason_hint = null, rank = 99;
-    if (nsDate && nsDate <= ymd(today)) { reason_hint = 'Overdue follow-up (promised ' + nsDate + ')'; rank = 1; }
-    else if (nsDate) { reason_hint = 'Follow-up due ' + nsDate; rank = 2; }
-    else if (p.next_step) { reason_hint = 'Promised next step: ' + p.next_step; rank = 3; }
-    else if (activePipeline) { reason_hint = 'Open deal — ' + p.pipeline_stage; rank = 4; }
-    else if (daysSince === null) { reason_hint = 'Never contacted'; rank = 6; }
-    else if (daysSince >= 30) { reason_hint = 'Cold — ' + daysSince + ' days since last contact'; rank = 5; }
+    // Classify the strongest real reason this account is worth a visit
+    // (shared helper — identical labels/ranks to the previous inline logic).
+    const { reason: reason_hint, kind } = classifyReason({
+      next_step: p.next_step,
+      next_step_date: p.next_step_date,
+      pipeline_stage: p.pipeline_stage,
+      last_call_date: p.last_call_date
+    });
+    const rank = kind ? REASON_RANK[kind] : 99;
 
     if (!reason_hint) continue; // no real reason → not a candidate
     out.push({
@@ -462,6 +487,179 @@ router.post('/fill-day', async (req, res) => {
     res.json({ rep_id: repId, date, goal: remaining, suggestions: stops });
   } catch (e) {
     console.error('[planner/fill-day]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════
+//  TODAY VIEW — the rep's execution surface for the current day
+// ════════════════════════════════════════════════════════════════
+
+// Build a Today-view "stop" object from a planner_items row joined with its
+// account + latest call signals. reason/reason_kind come from ai_reason or the
+// shared classifier; prep falls back ai_prep → note → last-call-notes snippet.
+function shapeStop(row) {
+  const cls = row.account_id
+    ? classifyReason({
+        next_step: row.next_step,
+        next_step_date: row.next_step_date,
+        pipeline_stage: row.pipeline_stage,
+        last_call_date: row.last_call_date
+      })
+    : { reason: null, kind: null };
+  const reason = row.ai_reason || cls.reason || null;
+  const reason_kind = row.account_id ? cls.kind : null;
+  const noteSnippet = row.last_notes ? String(row.last_notes).slice(0, 120) : null;
+  const prep = row.ai_prep || row.note || noteSnippet || null;
+  return {
+    id: row.id,
+    item_type: row.item_type,
+    account_id: row.account_id,
+    title: row.title,
+    appt_time: row.appt_time,
+    company: row.company,
+    city: row.city,
+    phone: row.phone,
+    address: row.address,
+    google_place_id: row.google_place_id,
+    reason,
+    reason_kind,
+    prep,
+    done: row.completed_at != null
+  };
+}
+
+// ── GET /api/planner/today?rep_id= ───────────────────────────────
+router.get('/today', async (req, res) => {
+  try {
+    const r = resolveRepId(req);
+    if (r.error) return res.status(403).json({ error: r.error });
+    const repId = r.repId;
+    const today = ymd(new Date());
+    const monday = mondayOf(today);
+
+    const goalRow = await pool.query('SELECT daily_call_goal FROM users WHERE id=$1', [repId]);
+    const goal = (goalRow.rows[0] && goalRow.rows[0].daily_call_goal) || 10;
+
+    // Shared SELECT shape for stops: item + account + latest-call signals.
+    const stopSelect = `
+      SELECT pi.*, p.company, p.city, p.phone, p.address, p.google_place_id, p.pipeline_stage,
+             lc.next_step, lc.next_step_date, lc.call_date AS last_call_date, lc.notes AS last_notes
+        FROM planner_items pi
+        LEFT JOIN prospects p ON p.id = pi.account_id
+        LEFT JOIN LATERAL (
+          SELECT next_step, next_step_date, call_date, notes
+            FROM calls c
+           WHERE c.prospect_id = pi.account_id AND c.user_id = $1
+           ORDER BY c.call_date DESC, c.id DESC
+           LIMIT 1
+        ) lc ON TRUE`;
+
+    const todayRows = (await pool.query(
+      `${stopSelect}
+        WHERE pi.rep_id = $1 AND pi.planned_date = $2
+        ORDER BY pi.sort_order ASC, pi.id ASC`,
+      [repId, today]
+    )).rows;
+    const stops = todayRows.map(shapeStop);
+
+    const done = stops.filter(s => s.done).length;
+    const progress = { done, total: stops.length };
+
+    // Carried over: incomplete stops earlier this week (>= Monday, < today).
+    const carriedRows = (await pool.query(
+      `${stopSelect}
+        WHERE pi.rep_id = $1 AND pi.completed_at IS NULL
+          AND pi.planned_date >= $2 AND pi.planned_date < $3
+        ORDER BY pi.planned_date ASC, pi.sort_order ASC, pi.id ASC`,
+      [repId, monday, today]
+    )).rows;
+    const carried_over = carriedRows.map(row => {
+      const s = shapeStop(row);
+      s.planned_date = ymd(row.planned_date);
+      return s;
+    });
+
+    // Nearby: ≤3 never-contacted accounts in today's stop cities (Lead Finder tie-in).
+    const todayAcctIds = stops.filter(s => s.account_id).map(s => s.account_id);
+    const cities = Array.from(new Set(stops.filter(s => s.account_id && s.city).map(s => s.city)));
+    let nearby = [];
+    if (cities.length) {
+      const exclude = todayAcctIds.length ? todayAcctIds : [-1];
+      nearby = (await pool.query(
+        `SELECT p.id, p.company, p.city, p.phone, p.category
+           FROM prospects p
+          WHERE p.user_id = $1
+            AND p.city = ANY($2::text[])
+            AND p.id <> ALL($3::int[])
+            AND p.id NOT IN (SELECT DISTINCT prospect_id FROM calls WHERE user_id = $1 AND prospect_id IS NOT NULL)
+          ORDER BY CASE p.priority WHEN 'High' THEN 1 WHEN 'Medium' THEN 2 ELSE 3 END, p.created_at ASC
+          LIMIT 3`,
+        [repId, cities, exclude]
+      )).rows;
+    }
+
+    res.json({ date: today, rep_id: repId, goal, progress, stops, carried_over, nearby });
+  } catch (e) {
+    console.error('[planner/today]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── POST /api/planner/items/:id/done ─────────────────────────────
+// Mark a stop done. If account-linked and not already logged today, write a
+// lightweight 'Visit' call + mirror the calls.js prospect side-effects.
+router.post('/items/:id/done', async (req, res) => {
+  try {
+    const me = req.session.user;
+    const id = parseInt(req.params.id);
+    const own = await pool.query('SELECT rep_id, account_id FROM planner_items WHERE id=$1', [id]);
+    if (!own.rows.length) return res.status(404).json({ error: 'Not found' });
+    if (own.rows[0].rep_id !== me.id && !isManager(me)) return res.status(403).json({ error: 'Forbidden' });
+
+    const repId = own.rows[0].rep_id;
+    const acctId = own.rows[0].account_id;
+    const upd = await pool.query('UPDATE planner_items SET completed_at = NOW() WHERE id=$1 RETURNING *', [id]);
+
+    if (acctId) {
+      const today = ymd(new Date());
+      const existing = await pool.query(
+        'SELECT 1 FROM calls WHERE user_id=$1 AND prospect_id=$2 AND call_date=$3 LIMIT 1',
+        [repId, acctId, today]
+      );
+      if (!existing.rows.length) {
+        await pool.query(
+          `INSERT INTO calls (user_id, prospect_id, call_date, call_type, outcome)
+           VALUES ($1,$2,$3,'Visit','Visited')`,
+          [repId, acctId, today]
+        );
+        await pool.query(
+          `UPDATE prospects
+              SET data_status = CASE WHEN data_status = 'Unvetted' THEN 'Contacted' ELSE data_status END,
+                  last_activity_at = NOW()
+            WHERE id=$1 AND user_id=$2`,
+          [acctId, repId]
+        );
+      }
+    }
+    res.json(upd.rows[0]);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── POST /api/planner/items/:id/undone ───────────────────────────
+// Rep mis-tapped — clear the done flag. Any logged visit call is left alone.
+router.post('/items/:id/undone', async (req, res) => {
+  try {
+    const me = req.session.user;
+    const id = parseInt(req.params.id);
+    const own = await pool.query('SELECT rep_id FROM planner_items WHERE id=$1', [id]);
+    if (!own.rows.length) return res.status(404).json({ error: 'Not found' });
+    if (own.rows[0].rep_id !== me.id && !isManager(me)) return res.status(403).json({ error: 'Forbidden' });
+    const upd = await pool.query('UPDATE planner_items SET completed_at = NULL WHERE id=$1 RETURNING *', [id]);
+    res.json(upd.rows[0]);
+  } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });

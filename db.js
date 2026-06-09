@@ -357,6 +357,9 @@ async function initDB() {
     ALTER TABLE planner_items ADD COLUMN IF NOT EXISTS ai_reason TEXT;
     ALTER TABLE planner_items ADD COLUMN IF NOT EXISTS ai_prep   TEXT;
 
+    -- Today view: authoritative "rep marked this stop done" flag (nullable, additive).
+    ALTER TABLE planner_items ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP;
+
     -- ════════════════════════════════════════════════════════════
     -- Commission Import + Account-Matching Engine
     -- Turns Trilogy "XtraReport" commission statements into clean,
