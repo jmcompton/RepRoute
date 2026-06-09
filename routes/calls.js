@@ -23,7 +23,7 @@ router.post('/', async (req, res) => {
   if (outcome) {
     const statusMap = { 'Not Interested': 'Cold', 'Spoke - Not Interested': 'Cold', 'Interested': 'Warm', 'Spoke - Interested': 'Warm', 'Ready to Buy': 'Hot', 'Order Placed': 'Hot' };
     const status = statusMap[outcome] || (outcome.includes('Not Interest') ? 'Cold' : outcome.includes('Interest') ? 'Warm' : null);
-    if (status) await pool.query('UPDATE prospects SET status=$1 WHERE id=$2', [status, prospect_id]);
+    if (status) await pool.query('UPDATE prospects SET status=$1 WHERE id=$2 AND user_id=$3', [status, prospect_id, uid]);
   }
   // If notes provided, append them to the prospect notes field so they show on contact detail
   if (notes && notes.trim()) {
@@ -45,8 +45,8 @@ router.post('/', async (req, res) => {
     `UPDATE prospects
      SET data_status    = CASE WHEN data_status = 'Unvetted' THEN 'Contacted' ELSE data_status END,
          last_activity_at = NOW()
-     WHERE id = $1`,
-    [prospect_id]
+     WHERE id = $1 AND user_id = $2`,
+    [prospect_id, uid]
   );
   res.json(result.rows[0]);
 });

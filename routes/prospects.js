@@ -85,8 +85,9 @@ router.get('/contacts/search', async (req, res) => {
   const { q, rep_user_id } = req.query;
   if (!q || q.trim().length < 2) return res.json([]);
   try {
-    // Allow manager to scope search to a specific rep's accounts
-    const targetUid = rep_user_id ? parseInt(rep_user_id) : uid;
+    // Allow manager (only) to scope search to a specific rep's accounts; reps are locked to their own.
+    const isMgr = req.session.user.role === 'manager';
+    const targetUid = (isMgr && rep_user_id) ? parseInt(rep_user_id) : uid;
     const result = await pool.query(
       `SELECT DISTINCT ON (LOWER(TRIM(company)))
               id, company, city, state, category, company_type
@@ -101,6 +102,27 @@ router.get('/contacts/search', async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// ── GET /api/prospects/stats ─────────────────────────────────────
+// Declared before GET /:id so the literal path is matched first (Express-version
+// independent — does not rely on inline-regex route ordering).
+router.get('/stats', async (req, res) => {
+  const uid = req.session.user.id;
+  try {
+    const r = await pool.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE company_type='Distributor') as distributors,
+         COUNT(*) FILTER (WHERE company_type='Contractor') as contractors,
+         COUNT(*) FILTER (WHERE data_status='Unvetted') as unvetted,
+         COUNT(*) FILTER (WHERE data_status='Contacted') as contacted,
+         COUNT(*) FILTER (WHERE data_status='Verified CRM Data') as verified,
+         COUNT(*) as total
+       FROM prospects WHERE user_id=$1`,
+      [uid]
+    );
+    res.json(r.rows[0]);
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── GET /api/prospects ───────────────────────────────────────────
@@ -375,6 +397,7 @@ router.get('/team-calls/:id', async (req, res) => {
 
 // ── POST /api/prospects/:id/manager-note ─────────────────────────
 router.post('/:id/manager-note', async (req, res) => {
+  if (req.session.user.role !== 'manager') return res.status(403).json({ error: 'Forbidden' });
   const { note } = req.body;
   try {
     const result = await pool.query(
@@ -383,25 +406,6 @@ router.post('/:id/manager-note', async (req, res) => {
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Not found' });
     res.json({ ok: true, record: result.rows[0] });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// ── GET /api/prospects/stats ─────────────────────────────────────
-router.get('/stats', async (req, res) => {
-  const uid = req.session.user.id;
-  try {
-    const r = await pool.query(
-      `SELECT
-         COUNT(*) FILTER (WHERE company_type='Distributor') as distributors,
-         COUNT(*) FILTER (WHERE company_type='Contractor') as contractors,
-         COUNT(*) FILTER (WHERE data_status='Unvetted') as unvetted,
-         COUNT(*) FILTER (WHERE data_status='Contacted') as contacted,
-         COUNT(*) FILTER (WHERE data_status='Verified CRM Data') as verified,
-         COUNT(*) as total
-       FROM prospects WHERE user_id=$1`,
-      [uid]
-    );
-    res.json(r.rows[0]);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

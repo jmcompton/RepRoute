@@ -971,9 +971,8 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
     flex-wrap:wrap !important;
     gap:6px !important;
   }
-  /* Hide the search box and Fix Rep btn — only show New Quote on mobile */
+  /* Hide the search box — only show New Quote on mobile */
   #quote-search { display:none !important; }
-  #fix-rep-btn  { display:none !important; }
   #page-quotes .btn-primary { width:100% !important; min-height:44px !important; font-size:13px !important; }
 
   /* Date range pills — horizontal scroll, single row */
@@ -2431,7 +2430,6 @@ window.addEventListener('load', function() {
       </div>
       <div style="display:flex;gap:8px;align-items:center">
         <input id="quote-search" placeholder="Search quotes..." oninput="filterQuotes(this.value)" style="padding:7px 12px;font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);width:200px">
-        <button id="fix-rep-btn" onclick="fixRepNames()" style="padding:6px 12px;font-size:11px;font-weight:600;background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:5px;cursor:pointer">Fix Rep Names</button>
         <button class="btn btn-primary btn-sm" onclick="openNewQuoteModal()">+ New Quote</button>
       </div>
     </div>
@@ -7968,55 +7966,6 @@ document.addEventListener('mousedown', function(e) {
   var name = item.getAttribute('data-acct-name') || item.dataset.acctName || '';
   if (name) selectQuoteAccount(name);
 });
-
-
-async function fixRepNames() {
-  var btn = document.getElementById('fix-rep-btn');
-  btn.textContent = 'Checking DB...'; btn.disabled = true;
-
-  try {
-    // Step 1: Check what rep names actually exist in DB
-    var debugRes = await fetch('/api/quotes/debug-reps');
-    var debugData = await debugRes.json();
-
-    var repSummary = (debugData.reps || [])
-      .map(function(r) { return r.count + 'x "' + r.rep_name + '"'; })
-      .join('\n');
-
-    var confirmMsg = 'Current rep names in database:\n\n' + repSummary +
-      '\n\nClick OK to update ALL quotes to "Ray Breedlove".';
-
-    if (!confirm(confirmMsg)) {
-      btn.textContent = 'Fix Rep Names'; btn.disabled = false;
-      return;
-    }
-
-    btn.textContent = 'Updating all...';
-
-    // Step 2: Nuclear force-update — set ALL quotes to Ray Breedlove
-    var res = await fetch('/api/quotes/force-rep-update', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ rep: 'Ray Breedlove' })
-    });
-    var data = await res.json();
-
-    if (data.success) {
-      showToast(data.message);
-      btn.textContent = 'Done (' + data.updated + ' updated)';
-      btn.style.background = '#d1fae5';
-      btn.style.color = '#065f46';
-      btn.style.borderColor = '#6ee7b7';
-      loadQuotes();
-    } else {
-      showToast('Error: ' + (data.error || 'Unknown error'));
-      btn.textContent = 'Fix Rep Names'; btn.disabled = false;
-    }
-  } catch(e) {
-    showToast('Error: ' + e.message);
-    btn.textContent = 'Fix Rep Names'; btn.disabled = false;
-  }
-}
 
 async function saveQuote() {
   var btn = document.getElementById('qd-save-btn');

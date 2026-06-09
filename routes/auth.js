@@ -28,7 +28,8 @@ router.post('/register', async (req, res) => {
     const hash = await bcrypt.hash(password, 10);
     const result = await pool.query(
       'INSERT INTO users (name, email, password, role, territory) VALUES ($1,$2,$3,$4,$5) RETURNING *',
-      [name, email, hash, role || 'rep', territory || 'Atlanta Metro']
+      // Force role to 'rep' — registration must never let a user self-grant manager access.
+      [name, email, hash, 'rep', territory || 'Atlanta Metro']
     );
     const user = result.rows[0];
     req.session.user = { id: user.id, name: user.name, email: user.email, role: user.role, territory: user.territory };

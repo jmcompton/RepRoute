@@ -54,6 +54,12 @@ function requireAuthAPI(req, res, next) {
   next();
 }
 function requireManager(req, res, next) { if (!req.session.user || req.session.user.role !== 'manager') return res.redirect('/app'); next(); }
+// API-safe manager guard: JSON 401/403 instead of redirect (used for manager-only /api/* routes).
+function requireManagerAPI(req, res, next) {
+  if (!req.session.user) return res.status(401).json({ error: 'Session expired. Please log in again.', code: 'AUTH_REQUIRED' });
+  if (req.session.user.role !== 'manager') return res.status(403).json({ error: 'Manager access required', code: 'FORBIDDEN' });
+  next();
+}
 
 // ── Domain routing ──────────────────────────────────────────────
 // comptongroupllc.com / www.comptongroupllc.com  → company homepage
@@ -130,7 +136,7 @@ app.use('/api/onboarding', requireAuth, onboardingRoutes);
 app.use('/api/weekly', requireAuth, weeklyRoutes);
 app.use('/api/weekly-report', requireAuth, weeklyReportRoutes);
 app.use('/api/planner', requireAuth, plannerRoutes);
-app.use('/api/manager', requireAuth, requireManager, managerRoutes);
+app.use('/api/manager', requireAuthAPI, requireManagerAPI, managerRoutes);
 app.use('/api/calendar', requireAuth, calendarRoutes);
 app.use('/api/email', requireAuth, emailRoutes);
 app.use('/api/samples', requireAuth, samplesRoutes);
@@ -142,8 +148,8 @@ app.use('/api/quotes', requireAuthAPI, quotesRoutes);
 app.use('/api/zoho',  requireAuth, zohoRoutes);
 app.use('/api/voice', requireAuth, voiceRoutes);
 app.use('/api/time',  requireAuth, timeRoutes);
-app.use('/api/commissions', requireAuth, requireManager, commissionsRoutes);
-app.use('/api/lines', requireAuth, requireManager, linesRoutes);
+app.use('/api/commissions', requireAuthAPI, requireManagerAPI, commissionsRoutes);
+app.use('/api/lines', requireAuthAPI, requireManagerAPI, linesRoutes);
 app.use('/api/crosssell', requireAuth, crosssellRoutes);
 app.get('/zoho-import', requireAuth, (req, res) =>
   res.sendFile(path.join(__dirname, 'views', 'zoho-import.html'))
