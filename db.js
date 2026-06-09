@@ -357,6 +357,61 @@ async function initDB() {
     ALTER TABLE planner_items ADD COLUMN IF NOT EXISTS ai_reason TEXT;
     ALTER TABLE planner_items ADD COLUMN IF NOT EXISTS ai_prep   TEXT;
 
+    -- ════════════════════════════════════════════════════════════
+    -- Commission Import + Account-Matching Engine
+    -- Turns Trilogy "XtraReport" commission statements into clean,
+    -- account-linked revenue data. account_id references prospects(id)
+    -- (prospects IS the account store in RepRoute). Idempotent block.
+    -- ════════════════════════════════════════════════════════════
+    CREATE TABLE IF NOT EXISTS commission_imports (
+      id               SERIAL PRIMARY KEY,
+      rep_name         TEXT,
+      rep_id           INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      period_start     DATE,
+      period_end       DATE,
+      source_filename  TEXT,
+      row_count        INTEGER,
+      total_sales      NUMERIC(12,2),
+      total_commission NUMERIC(12,2),
+      status           TEXT NOT NULL DEFAULT 'pending_review'
+                         CHECK (status IN ('pending_review','confirmed','discarded')),
+      created_by       INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at       TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS commission_lines (
+      id                  SERIAL PRIMARY KEY,
+      import_id           INTEGER NOT NULL REFERENCES commission_imports(id) ON DELETE CASCADE,
+      rep_name            TEXT,
+      manufacturer        TEXT,
+      customer_raw        TEXT,
+      customer_normalized TEXT,
+      account_id          INTEGER REFERENCES prospects(id) ON DELETE SET NULL,
+      sales_amount        NUMERIC(12,2),
+      commission_amount   NUMERIC(12,2),
+      period_start        DATE,
+      period_end          DATE,
+      is_adjustment       BOOLEAN DEFAULT FALSE,
+      created_at          TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_commission_lines_import ON commission_lines(import_id);
+    CREATE INDEX IF NOT EXISTS idx_commission_lines_account ON commission_lines(account_id);
+    CREATE INDEX IF NOT EXISTS idx_commission_lines_norm ON commission_lines(customer_normalized);
+
+    -- Per-rep learned map: once a raw customer (normalized) is linked to an
+    -- account, future imports for that rep auto-match it. UNIQUE per rep so the
+    -- same normalized string can resolve to different accounts across reps.
+    CREATE TABLE IF NOT EXISTS commission_customer_map (
+      id                  SERIAL PRIMARY KEY,
+      user_id             INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      customer_normalized TEXT NOT NULL,
+      account_id          INTEGER NOT NULL REFERENCES prospects(id) ON DELETE CASCADE,
+      confidence          NUMERIC,
+      created_at          TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (user_id, customer_normalized)
+    );
+    CREATE INDEX IF NOT EXISTS idx_commission_map_user ON commission_customer_map(user_id);
+
   `);
   console.log('Database initialized');
 }

@@ -406,3 +406,6 @@ router.get('/stats', async (req, res) => {
 });
 
 module.exports = router;
+// Reused by the commission import engine (account creation) so commission-created
+// accounts classify identically to manually/AI-created ones. Additive export.
+module.exports.resolveCompanyType = resolveCompanyType;

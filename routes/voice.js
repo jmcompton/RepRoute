@@ -7,38 +7,9 @@ const CLAUDE_API = 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-haiku-4-5-20251001';
 
 // ── Levenshtein + fuzzy matching ─────────────────────────────────
-function levenshtein(a, b) {
-  const m = a.length, n = b.length;
-  if (m === 0) return n;
-  if (n === 0) return m;
-  const dp = [];
-  for (let i = 0; i <= m; i++) { dp[i] = [i]; }
-  for (let j = 0; j <= n; j++) { dp[0][j] = j; }
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      dp[i][j] = a[i-1] === b[j-1]
-        ? dp[i-1][j-1]
-        : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
-    }
-  }
-  return dp[m][n];
-}
-
-function normalize(s) {
-  return (s || '').toLowerCase()
-    .replace(/[-_&,\.]/g, ' ')
-    .replace(/\bllc\b|\binc\b|\bcorp\b|\bco\b|\bltd\b/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function similarity(a, b) {
-  const na = normalize(a), nb = normalize(b);
-  if (!na || !nb) return 0;
-  const longer = Math.max(na.length, nb.length);
-  if (longer === 0) return 1;
-  return (longer - levenshtein(na, nb)) / longer;
-}
+// Shared implementation lives in lib/fuzzy.js (also used by the commission
+// import account matcher). Behavior is identical to the prior inline copy.
+const { levenshtein, normalize, similarity } = require('../lib/fuzzy');
 
 // ── POST /api/voice/process ──────────────────────────────────────
 // Extract structured data from a transcript using Anthropic

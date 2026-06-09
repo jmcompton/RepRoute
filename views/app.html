@@ -1415,6 +1415,7 @@ window.addEventListener('load', function() {
   <div class="sb-section manager-only" style="display:none">
     <div class="sb-sec-label">Team</div>
     <button class="sb-item" onclick="go('manager')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><circle cx="5" cy="5" r="2.5"/><circle cx="11" cy="5" r="2.5"/><path d="M1 13c0-2.2 1.8-4 4-4s4 1.8 4 4"/><path d="M11 9c1.7.3 3 1.9 3 4"/></svg>Team Dashboard</button>
+    <button class="sb-item" onclick="go('commissions')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M8 1v14M11 4H6.5a2 2 0 000 4h3a2 2 0 010 4H5"/></svg>Commissions</button>
   </div>
   <div class="sb-section jm-only">
     <div class="sb-sec-label">Personal</div>
@@ -3079,6 +3080,47 @@ window.addEventListener('load', function() {
       </div>
   </div>
 
+  <div class="page" id="page-commissions" style="overflow-y:auto;padding-bottom:80px">
+    <div style="padding:16px">
+      <!-- Upload card -->
+      <div id="comm-upload-card" style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:14px">
+        <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:6px">Import Commission Statement</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Upload a Trilogy Payment Detail Report (.xlsx). We'll parse the lines, group customers, and match them to accounts for review.</div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <input type="file" id="comm-file" accept=".xlsx,.xls" style="font-size:12px" />
+          <button class="btn btn-primary btn-sm" onclick="uploadCommission()" id="comm-upload-btn">Upload &amp; Parse</button>
+        </div>
+        <div id="comm-upload-status" style="font-size:12px;margin-top:10px;color:var(--text2)"></div>
+      </div>
+
+      <!-- Recent imports -->
+      <div id="comm-history-card" style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:14px">
+        <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border)">Recent Imports</div>
+        <div id="comm-history-list" style="font-size:12px;color:var(--text2)">Loading…</div>
+      </div>
+
+      <!-- Review panel -->
+      <div id="comm-review" style="display:none">
+        <div id="comm-recon-banner" style="position:sticky;top:0;z-index:5;background:var(--navy);color:#fff;border-radius:var(--r);padding:12px 16px;margin-bottom:14px;display:flex;flex-wrap:wrap;gap:18px;align-items:center;justify-content:space-between"></div>
+
+        <div id="comm-reppicker" style="display:none;background:#fff7ed;border:1px solid #fed7aa;border-radius:var(--r);padding:14px 16px;margin-bottom:14px">
+          <div style="font-size:12px;font-weight:700;color:#9a3412;margin-bottom:8px">Confirm the rep for this statement</div>
+          <select id="comm-rep-select" style="padding:7px 10px;font-size:12px;border:1px solid var(--border);border-radius:5px;min-width:240px"></select>
+        </div>
+
+        <div id="comm-groups"></div>
+
+        <div id="comm-adjustments" style="margin-top:14px"></div>
+
+        <div style="display:flex;gap:10px;margin-top:18px">
+          <button class="btn btn-primary" onclick="confirmCommission()" id="comm-confirm-btn">Confirm Import</button>
+          <button class="btn btn-secondary" onclick="discardCommission()">Discard</button>
+          <button class="btn btn-secondary" onclick="closeCommissionReview()">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <!-- MODALS -->
@@ -3476,7 +3518,8 @@ var pageTitles = {
   samples: 'Sample Tracker',
   time: 'Time Tracker',
   'weekly-report': 'Weekly Report',
-  'weekly-planner': 'Weekly Planner'
+  'weekly-planner': 'Weekly Planner',
+  commissions: 'Commissions'
 };
 
 window.addEventListener('load', function() {
@@ -3581,6 +3624,7 @@ function go(id) {
   if (id === 'time') loadTimeTracker();
   if (id === 'weekly-report') loadWeeklyReport();
   if (id === 'weekly-planner') loadPlanner();
+  if (id === 'commissions') loadCommissions();
   // Refresh route panel whenever user navigates to home/dashboard
   if (id === 'dashboard' || id === 'home') {
     if (typeof window._renderRoutePanel === 'function') {
@@ -14387,6 +14431,271 @@ function plApplyAI() {
   }).finally(function(){
     if (btn) { btn.disabled = false; btn.textContent = 'Apply to plan'; }
   });
+}
+
+// ── Commission Import (manager-only) ─────────────────────────────────────────
+var commState = { import_id: null, review: null, reps: [], decisions: {} };
+function cEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function cMoney(n){ return '$' + (Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+function loadCommissions() {
+  closeCommissionReview();
+  loadCommissionHistory();
+}
+
+function loadCommissionHistory() {
+  var el = document.getElementById('comm-history-list');
+  fetch('/api/commissions/imports').then(function(r){ return r.json(); }).then(function(rows){
+    if (!Array.isArray(rows) || !rows.length) { el.innerHTML = 'No imports yet.'; return; }
+    el.innerHTML = rows.map(function(r){
+      var status = r.status === 'confirmed' ? '<span style="color:#16a34a;font-weight:600">Confirmed</span>'
+        : r.status === 'discarded' ? '<span style="color:#9ca3af">Discarded</span>'
+        : '<span style="color:#d97706;font-weight:600">Pending review</span>';
+      var rep = cEsc(r.rep_resolved_name || r.rep_name || '—');
+      return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">'
+        + '<div><div style="font-weight:600;color:var(--navy)">' + cEsc(r.source_filename || 'statement') + '</div>'
+        + '<div style="font-size:11px;color:var(--text2)">' + rep + ' · ' + (r.row_count||0) + ' lines · ' + cMoney(r.total_sales) + ' sales</div></div>'
+        + '<div style="display:flex;align-items:center;gap:10px">' + status
+        + '<button class="btn btn-secondary btn-sm" onclick="openCommissionReview(' + r.id + ')">Review</button></div></div>';
+    }).join('');
+  }).catch(function(){ el.innerHTML = 'Failed to load imports.'; });
+}
+
+function uploadCommission() {
+  var input = document.getElementById('comm-file');
+  var statusEl = document.getElementById('comm-upload-status');
+  var btn = document.getElementById('comm-upload-btn');
+  var file = input.files && input.files[0];
+  if (!file) { statusEl.textContent = 'Please choose a file first.'; return; }
+  btn.disabled = true; statusEl.textContent = 'Reading file…';
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var b64 = String(e.target.result).split(',')[1];
+    statusEl.textContent = 'Parsing & matching…';
+    fetch('/api/commissions/import', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_b64: b64, filename: file.name, format: 'trilogy' })
+    }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
+      .then(function(res){
+        btn.disabled = false;
+        if (!res.ok) { statusEl.textContent = res.j.error || 'Import failed.'; return; }
+        statusEl.textContent = '';
+        input.value = '';
+        commState.import_id = res.j.import_id;
+        renderCommissionReview(res.j.review);
+        loadCommissionHistory();
+      }).catch(function(){ btn.disabled = false; statusEl.textContent = 'Import failed.'; });
+  };
+  reader.onerror = function(){ btn.disabled = false; statusEl.textContent = 'Failed to read file.'; };
+  reader.readAsDataURL(file);
+}
+
+function openCommissionReview(id) {
+  commState.import_id = id;
+  fetch('/api/commissions/imports/' + id + '/review').then(function(r){ return r.json(); })
+    .then(function(review){
+      if (review.error) { showToast(review.error); return; }
+      renderCommissionReview(review);
+    });
+}
+
+function closeCommissionReview() {
+  commState.import_id = null; commState.review = null; commState.decisions = {};
+  var rv = document.getElementById('comm-review'); if (rv) rv.style.display = 'none';
+  var uc = document.getElementById('comm-upload-card'); if (uc) uc.style.display = '';
+  var hc = document.getElementById('comm-history-card'); if (hc) hc.style.display = '';
+}
+
+function renderCommissionReview(review) {
+  commState.review = review;
+  commState.decisions = {};
+  document.getElementById('comm-upload-card').style.display = 'none';
+  document.getElementById('comm-history-card').style.display = 'none';
+  document.getElementById('comm-review').style.display = 'block';
+
+  // Default decision per group from the server's proposal.
+  review.groups.forEach(function(g, i){
+    if (g.proposed_account && !g.suggest_new) {
+      commState.decisions[i] = { action: 'existing', account_id: g.proposed_account.id,
+        account_name: g.proposed_account.company || g.proposed_account.name, confidence: g.confidence };
+    } else {
+      commState.decisions[i] = { action: 'new', new_name: g.representative,
+        new_city: (g.cities && g.cities[0]) || null, confidence: 1 };
+    }
+  });
+
+  renderReconBanner();
+  renderRepPicker(review);
+  renderGroups(review);
+  renderAdjustments(review);
+}
+
+function renderReconBanner() {
+  var r = commState.review;
+  var matched = 0;
+  r.groups.forEach(function(g, i){
+    var d = commState.decisions[i];
+    if (d && (d.action === 'existing' || d.action === 'new')) matched += g.total_sales;
+  });
+  matched = Math.round(matched * 100) / 100;
+  var file = r.totals.sales;
+  var unmatched = Math.round((file - matched) * 100) / 100;
+  var pct = file ? Math.round((matched / file) * 100) : 0;
+  document.getElementById('comm-recon-banner').innerHTML =
+      '<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;opacity:.7">File Total</div><div style="font-size:16px;font-weight:700">' + cMoney(file) + '</div></div>'
+    + '<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;opacity:.7">Matched</div><div style="font-size:16px;font-weight:700;color:#86efac">' + cMoney(matched) + ' (' + pct + '%)</div></div>'
+    + '<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;opacity:.7">Unassigned</div><div style="font-size:16px;font-weight:700;color:' + (Math.abs(unmatched) < 0.01 ? '#86efac' : '#fca5a5') + '">' + cMoney(unmatched) + '</div></div>'
+    + '<div style="font-size:11px;opacity:.7;max-width:220px">' + cEsc(r.source_filename || '') + (r.period && r.period.start ? ' · ' + r.period.start + ' → ' + r.period.end : '') + '</div>';
+}
+
+function renderRepPicker(review) {
+  var wrap = document.getElementById('comm-reppicker');
+  var sel = document.getElementById('comm-rep-select');
+  var needs = !review.rep || !review.rep.id || (review.rep.resolution && review.rep.resolution.needs_picker);
+  if (review.status === 'confirmed') needs = false;
+  if (!needs) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  if (!commState.reps.length) {
+    fetch('/api/commissions/reps').then(function(r){ return r.json(); }).then(function(reps){
+      commState.reps = reps || [];
+      fillRepSelect(review);
+    });
+  } else { fillRepSelect(review); }
+}
+function fillRepSelect(review) {
+  var sel = document.getElementById('comm-rep-select');
+  var current = review.rep && review.rep.id;
+  sel.innerHTML = '<option value="">— select rep —</option>' + commState.reps.map(function(u){
+    return '<option value="' + u.id + '"' + (u.id === current ? ' selected' : '') + '>' + cEsc(u.name) + (u.email ? ' (' + cEsc(u.email) + ')' : '') + '</option>';
+  }).join('');
+}
+
+function renderGroups(review) {
+  var html = review.groups.map(function(g, i){
+    var d = commState.decisions[i];
+    var spellings = (g.members || []).map(cEsc).join(', ');
+    var badge = g.matched_by === 'map' ? '<span style="font-size:10px;background:#dbeafe;color:#1e40af;padding:2px 7px;border-radius:10px;font-weight:600">Learned match</span>'
+      : (g.proposed_account && !g.suggest_new) ? '<span style="font-size:10px;background:#dcfce7;color:#166534;padding:2px 7px;border-radius:10px;font-weight:600">Fuzzy match ' + Math.round((g.confidence||0)*100) + '%</span>'
+      : '<span style="font-size:10px;background:#fef3c7;color:#92400e;padding:2px 7px;border-radius:10px;font-weight:600">New account</span>';
+    var decisionLabel = d.action === 'existing'
+      ? 'Link to: <strong>' + cEsc(d.account_name || ('#' + d.account_id)) + '</strong>'
+      : d.action === 'skip' ? '<span style="color:#9ca3af">Skipped</span>'
+      : 'Create new: <strong>' + cEsc(d.new_name) + '</strong>';
+    return '<div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:10px">'
+      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">'
+      +   '<div style="flex:1;min-width:200px">'
+      +     '<div style="font-weight:700;color:var(--navy);margin-bottom:3px">' + cEsc(g.representative) + ' ' + badge + '</div>'
+      +     '<div style="font-size:11px;color:var(--text2)">' + g.member_count + ' line' + (g.member_count===1?'':'s') + ' · ' + cMoney(g.total_sales) + ' sales · ' + cMoney(g.total_commission) + ' comm</div>'
+      +     (g.member_count > 1 ? '<div style="font-size:11px;color:var(--text2);margin-top:3px">Spellings: ' + spellings + '</div>' : '')
+      +   '</div>'
+      +   '<div style="text-align:right;min-width:200px">'
+      +     '<div id="comm-dec-' + i + '" style="font-size:12px;margin-bottom:6px">' + decisionLabel + '</div>'
+      +     '<div style="position:relative;display:inline-block">'
+      +       '<input type="text" id="comm-search-' + i + '" placeholder="Search account…" oninput="commSearch(' + i + ')" autocomplete="off" style="font-size:12px;padding:6px 9px;border:1px solid var(--border);border-radius:5px;width:200px" />'
+      +       '<div id="comm-results-' + i + '" style="display:none;position:absolute;right:0;top:34px;z-index:10;background:#fff;border:1px solid var(--border);border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,.12);width:240px;max-height:220px;overflow-y:auto"></div>'
+      +     '</div>'
+      +     '<div style="margin-top:6px;display:flex;gap:6px;justify-content:flex-end">'
+      +       '<button class="btn btn-secondary btn-sm" onclick="commSetNew(' + i + ')">New account</button>'
+      +       '<button class="btn btn-secondary btn-sm" onclick="commSetSkip(' + i + ')">Skip</button>'
+      +     '</div>'
+      +   '</div>'
+      + '</div></div>';
+  }).join('');
+  document.getElementById('comm-groups').innerHTML =
+    '<div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:8px">Customer Groups (' + review.groups.length + ')</div>' + html;
+}
+
+function renderAdjustments(review) {
+  var el = document.getElementById('comm-adjustments');
+  if (!review.adjustments || !review.adjustments.length) { el.innerHTML = ''; return; }
+  el.innerHTML = '<div style="font-size:13px;font-weight:700;color:var(--navy);margin:6px 0 8px">Adjustments (' + review.adjustments.length + ', not linked to accounts)</div>'
+    + review.adjustments.map(function(a){
+      return '<div style="background:#f8fafc;border:1px solid var(--border);border-radius:var(--r);padding:10px 14px;margin-bottom:6px;font-size:12px;color:var(--text2)">'
+        + cEsc(a.customer_raw || a.representative || 'Adjustment') + ' · ' + cMoney(a.commission || a.total_commission || 0) + ' commission</div>';
+    }).join('');
+}
+
+function commSearch(i) {
+  var q = document.getElementById('comm-search-' + i).value.trim();
+  var box = document.getElementById('comm-results-' + i);
+  if (q.length < 2) { box.style.display = 'none'; return; }
+  var repId = commState.review.rep && commState.review.rep.id;
+  var url = '/api/prospects/contacts/search?q=' + encodeURIComponent(q) + (repId ? '&rep_user_id=' + repId : '');
+  fetch(url).then(function(r){ return r.json(); }).then(function(rows){
+    if (!Array.isArray(rows) || !rows.length) { box.innerHTML = '<div style="padding:8px 10px;font-size:12px;color:var(--text2)">No matches</div>'; box.style.display = 'block'; return; }
+    box.innerHTML = rows.map(function(a){
+      var loc = [a.city, a.state].filter(Boolean).join(', ');
+      return '<div onclick="commPickAccount(' + i + ',' + a.id + ',&quot;' + cEsc((a.company||'').replace(/"/g,'')) + '&quot;)" style="padding:8px 10px;font-size:12px;cursor:pointer;border-bottom:1px solid var(--border)" onmouseover="this.style.background=\'#f1f5f9\'" onmouseout="this.style.background=\'#fff\'">'
+        + '<div style="font-weight:600;color:var(--navy)">' + cEsc(a.company) + '</div>'
+        + (loc ? '<div style="font-size:10px;color:var(--text2)">' + cEsc(loc) + '</div>' : '') + '</div>';
+    }).join('');
+    box.style.display = 'block';
+  });
+}
+function commPickAccount(i, id, name) {
+  commState.decisions[i] = { action: 'existing', account_id: id, account_name: name, confidence: 1 };
+  document.getElementById('comm-results-' + i).style.display = 'none';
+  document.getElementById('comm-search-' + i).value = '';
+  document.getElementById('comm-dec-' + i).innerHTML = 'Link to: <strong>' + cEsc(name) + '</strong>';
+  renderReconBanner();
+}
+function commSetNew(i) {
+  var g = commState.review.groups[i];
+  commState.decisions[i] = { action: 'new', new_name: g.representative, new_city: (g.cities && g.cities[0]) || null, confidence: 1 };
+  document.getElementById('comm-dec-' + i).innerHTML = 'Create new: <strong>' + cEsc(g.representative) + '</strong>';
+  renderReconBanner();
+}
+function commSetSkip(i) {
+  commState.decisions[i] = { action: 'skip' };
+  document.getElementById('comm-dec-' + i).innerHTML = '<span style="color:#9ca3af">Skipped</span>';
+  renderReconBanner();
+}
+
+function confirmCommission() {
+  var review = commState.review;
+  if (!review) return;
+  var repId = review.rep && review.rep.id;
+  var sel = document.getElementById('comm-rep-select');
+  if ((!repId || (review.rep.resolution && review.rep.resolution.needs_picker)) && sel && sel.value) repId = parseInt(sel.value);
+  if (!repId) { showToast('Select a rep before confirming.'); return; }
+
+  var decisions = review.groups.map(function(g, i){
+    var d = commState.decisions[i] || { action: 'skip' };
+    return {
+      action: d.action,
+      account_id: d.account_id,
+      new_name: d.new_name,
+      new_city: d.new_city,
+      line_ids: g.line_ids,
+      normalized_keys: g.normalized_keys,
+      confidence: d.confidence != null ? d.confidence : 1
+    };
+  });
+
+  var btn = document.getElementById('comm-confirm-btn');
+  btn.disabled = true; btn.textContent = 'Confirming…';
+  fetch('/api/commissions/imports/' + commState.import_id + '/confirm', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rep_id: repId, decisions: decisions })
+  }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
+    .then(function(res){
+      btn.disabled = false; btn.textContent = 'Confirm Import';
+      if (!res.ok) { showToast(res.j.error || 'Confirm failed'); return; }
+      showToast('Import confirmed — accounts linked.');
+      closeCommissionReview();
+      loadCommissionHistory();
+    }).catch(function(){ btn.disabled = false; btn.textContent = 'Confirm Import'; showToast('Confirm failed'); });
+}
+
+function discardCommission() {
+  if (!commState.import_id) return;
+  if (!confirm('Discard this import? It will not be linked to any accounts.')) return;
+  fetch('/api/commissions/imports/' + commState.import_id + '/discard', { method: 'POST' })
+    .then(function(r){ return r.json(); }).then(function(){
+      showToast('Import discarded.');
+      closeCommissionReview();
+      loadCommissionHistory();
+    });
 }
 </script>
 </body>

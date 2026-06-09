@@ -8,3 +8,5 @@ node_modules/
 !public/**/*.png
 !public/**/*.jpg
 !public/**/*.jpeg
+
+samples/
