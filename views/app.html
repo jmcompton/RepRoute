@@ -274,6 +274,27 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 .bn-item.active span{color:var(--accent);font-weight:600}
 .page{padding-bottom:0}
 
+/* ─── DESKTOP LAYOUT — use the width, master–detail panes (token-driven) ─── */
+@media(min-width:769px){
+  /* Cap + center the main content so no view sprawls into dead white space */
+  .page.active{max-width:1100px;margin-left:auto;margin-right:auto}
+}
+/* Today + Accounts split panes: single column by default (mobile), two-pane on wide screens */
+.today-split,.contacts-split{display:block}
+.today-detail,.contacts-detail{display:none}
+@media(min-width:1024px){
+  .today-split{display:flex;gap:16px;align-items:flex-start}
+  .today-list{flex:0 0 380px;max-width:380px;min-width:0}
+  .today-detail{display:block;flex:1;min-width:0;position:sticky;top:16px}
+  .contacts-split{display:flex;align-items:stretch;flex:1;min-height:0}
+  #contact-tab-mine,#contact-tab-team{flex:1;min-width:0;overflow:auto}
+  .contacts-detail{display:block;flex:0 0 360px;max-width:360px;border-left:1px solid var(--border);background:var(--surface);overflow-y:auto}
+}
+.td-pane,.cd-pane{background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);box-shadow:var(--shadow);padding:18px}
+.td-empty,.cd-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:var(--text3);padding:40px 24px;min-height:240px}
+.td-act{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.td-act .btn,.td-act button{min-height:44px;flex:1;min-width:120px}
+
 @media(max-width:768px){
   .topbar .btn:not(.btn-icon),
   #topbar-actions,
@@ -1754,6 +1775,7 @@ window.addEventListener('load', function() {
       </div>
     </div>
 
+    <div class="contacts-split">
     <!-- MY CONTACTS tab -->
     <div id="contact-tab-mine" class="list-wrap">
       <table class="ltable">
@@ -1833,6 +1855,15 @@ window.addEventListener('load', function() {
         <div class="empty-msg">No team accounts found.</div>
       </div>
       <div id="team-loading" style="display:none;text-align:center;padding:40px;color:var(--text3);font-size:13px">Loading team accounts...</div>
+    </div>
+    <!-- Selected-account detail (desktop ≥1024px only) -->
+    <aside class="contacts-detail" id="contacts-detail">
+      <div id="contacts-detail-pane" class="cd-pane cd-empty">
+        <div style="font-size:32px;margin-bottom:8px">🗂️</div>
+        <div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:4px">Select an account</div>
+        <div style="font-size:12px">Click a row to preview it here — or open the full record.</div>
+      </div>
+    </aside>
     </div>
   </div>
 
@@ -2437,7 +2468,7 @@ window.addEventListener('load', function() {
   <!-- OPPORTUNITIES PAGE (cross-sell found-money) -->
   <!-- TODAY PAGE (planner execution surface — phone-first) -->
   <div class="page" id="page-today">
-    <div style="padding:16px;max-width:560px;margin:0 auto">
+    <div style="padding:16px">
       <div id="today-content"></div>
     </div>
   </div>
@@ -4176,7 +4207,7 @@ function renderProspects() {
       : '<span style="font-size:10px;color:var(--text3)">No addr</span>';
 
     rows.push(
-      '<tr onclick="viewRecord(' + p.id + ')" style="' + (ct==='Distributor'?'background:#fafeff;':'') + '">' +
+      '<tr onclick="contactSelect(' + p.id + ')" style="' + (ct==='Distributor'?'background:#fafeff;':'') + '">' +
       '<td><input type="checkbox" onclick="event.stopPropagation()"/></td>' +
       '<td><span class="rec-link">' + p.company + '</span>' + (p.manufacturer_assoc ? '<br><span style="font-size:10px;color:var(--text3)">' + p.manufacturer_assoc + '</span>' : '') + '</td>' +
       '<td>' + ctBadge + '</td>' +
@@ -4192,6 +4223,47 @@ function renderProspects() {
   });
 
   tbody.innerHTML = rows.join('');
+}
+
+function contactSelect(id) {
+  // Mobile / narrow: keep the existing behavior — open the full record page.
+  if (!(window.matchMedia && window.matchMedia('(min-width:1024px)').matches)) {
+    return viewRecord(id);
+  }
+  var pane = document.getElementById('contacts-detail-pane');
+  var p = (window.allProspects || []).find(function(x){ return x.id === id; });
+  if (!pane || !p) { return viewRecord(id); }
+
+  var esc = (typeof _tEsc === 'function') ? _tEsc : function(s){ return s == null ? '' : String(s); };
+  var phone = p.phone ? String(p.phone).replace(/[^0-9+]/g,'') : '';
+  var addr = p.address || '';
+  var navUrl = addr ? 'https://maps.google.com/?q=' + encodeURIComponent(addr + (p.city ? ', ' + p.city : '')) : '';
+
+  function field(lbl, val){
+    return '<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid #f0f0f0;font-size:13px">' +
+      '<span style="color:var(--text3)">' + lbl + '</span>' +
+      '<span style="color:var(--text);font-weight:500;text-align:right">' + (val ? esc(val) : '—') + '</span></div>';
+  }
+
+  var h = '<div style="font-size:19px;font-weight:800;color:var(--navy)">' + esc(p.company || '—') + '</div>' +
+    (p.category ? '<div style="font-size:12px;color:var(--blue);margin-top:2px">' + esc(p.category) + '</div>' : '') +
+    '<div style="margin-top:12px">' +
+      field('Type', p.company_type) +
+      field('City', p.city) +
+      field('Contact', p.contact) +
+      field('Phone', p.phone) +
+      field('Status', p.status) +
+      field('Data', p.data_status) +
+    '</div>' +
+    '<div class="td-act">' +
+      _todayBtn('Open record', 'onclick="viewRecord(' + p.id + ')"') +
+      (navUrl ? _todayBtn('Navigate', 'onclick="window.open(\'' + navUrl.replace(/'/g,"\\'") + '\',\'_blank\')"') : '') +
+      (phone ? _todayBtn('Call', 'onclick="window.location.href=\'tel:' + phone + '\'"') : '') +
+      (phone ? _todayBtn('Text', 'onclick="window.location.href=\'sms:' + phone + '\'"') : '') +
+    '</div>';
+
+  pane.className = 'cd-pane';
+  pane.innerHTML = h;
 }
 
 function viewRecord(id) {
@@ -4554,13 +4626,12 @@ function loadToday() {
 
 function renderToday(d) {
   var el = document.getElementById('today-content');
-  var html = '';
 
-  // Header + progress
+  // Header + progress (spans full width above the split)
   var goal = d.goal || 10;
   var done = (d.progress && d.progress.done) || 0;
   var pct = goal > 0 ? Math.min(100, Math.round((done / goal) * 100)) : 0;
-  html += '<div style="margin-bottom:14px">' +
+  var header = '<div style="margin-bottom:14px">' +
     '<div style="font-size:20px;font-weight:800;color:var(--navy)">Today</div>' +
     '<div style="font-size:12px;color:var(--text3);margin-top:1px">' + _tEsc(_todayDateLabel(d.date)) + '</div>' +
     '<div style="height:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-top:10px">' +
@@ -4569,17 +4640,21 @@ function renderToday(d) {
     '<div style="font-size:11px;color:var(--text3);margin-top:4px;font-weight:600">' + done + ' of ' + goal + ' stops</div>' +
   '</div>';
 
+  // Build the left list column + a flat index of selectable stops
+  var list = '';
+  window._todayStops = {};
+
   // Carried over
   if (d.carried_over && d.carried_over.length) {
-    html += '<div style="margin-bottom:14px">' +
+    list += '<div style="margin-bottom:14px">' +
       '<div style="font-size:11px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Missed earlier this week</div>';
-    d.carried_over.forEach(function(s){ html += todayCard(s, true); });
-    html += '</div>';
+    d.carried_over.forEach(function(s){ window._todayStops[s.id] = s; list += todayCard(s, true); });
+    list += '</div>';
   }
 
   // Today's stops (incomplete first, done at bottom)
   if (!d.stops || !d.stops.length) {
-    html += '<div style="text-align:center;padding:40px 20px;color:var(--text3)">' +
+    list += '<div style="text-align:center;padding:40px 20px;color:var(--text3)">' +
       '<div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:6px">No stops planned for today</div>' +
       '<div style="font-size:12px;margin-bottom:14px">Plan your day to get a route worth driving.</div>' +
       '<button class="btn btn-primary" style="min-height:44px;padding:0 18px" onclick="go(\'weekly-planner\')">Plan my day</button>' +
@@ -4587,16 +4662,16 @@ function renderToday(d) {
   } else {
     var pending = d.stops.filter(function(s){ return !s.done; });
     var finished = d.stops.filter(function(s){ return s.done; });
-    pending.forEach(function(s){ html += todayCard(s, false); });
-    finished.forEach(function(s){ html += todayCard(s, false); });
+    pending.forEach(function(s){ window._todayStops[s.id] = s; list += todayCard(s, false); });
+    finished.forEach(function(s){ window._todayStops[s.id] = s; list += todayCard(s, false); });
   }
 
   // Nearby new leads
   if (d.nearby && d.nearby.length) {
-    html += '<div style="margin-top:18px">' +
+    list += '<div style="margin-top:18px">' +
       '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">New leads nearby</div>';
     d.nearby.forEach(function(n){
-      html += '<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:10px">' +
+      list += '<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:10px">' +
         '<div style="min-width:0">' +
           '<div style="font-weight:700;color:var(--navy);font-size:13px">' + _tEsc(n.company || '—') + '</div>' +
           '<div style="font-size:11px;color:var(--text3)">' + _tEsc(n.city || '') + (n.category ? ' · ' + _tEsc(n.category) : '') + '</div>' +
@@ -4604,10 +4679,76 @@ function renderToday(d) {
         '<button class="btn btn-sm" style="min-height:38px;white-space:nowrap" onclick="todayAddNearby(' + n.id + ',this)">+ Add to today</button>' +
       '</div>';
     });
-    html += '</div>';
+    list += '</div>';
   }
 
-  el.innerHTML = html;
+  // Assemble: header, then master (list) + detail panes. Detail pane only shows ≥1024px.
+  el.innerHTML = header +
+    '<div class="today-split">' +
+      '<div class="today-list">' + list + '</div>' +
+      '<div class="today-detail"><div id="today-detail-pane" class="td-pane td-empty">' +
+        '<div style="font-size:32px;margin-bottom:8px">📍</div>' +
+        '<div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:4px">Pick a stop</div>' +
+        '<div style="font-size:12px">Select a stop on the left to see prep, cross-sell, and quick actions.</div>' +
+      '</div></div>' +
+    '</div>';
+
+  // Auto-select first pending stop on desktop so the detail pane isn't blank
+  if (window.matchMedia && window.matchMedia('(min-width:1024px)').matches && d.stops) {
+    var first = d.stops.filter(function(s){ return !s.done; })[0] || d.stops[0];
+    if (first) todaySelectStop(first.id);
+  }
+}
+
+function todaySelectStop(id) {
+  var pane = document.getElementById('today-detail-pane');
+  var s = window._todayStops && window._todayStops[id];
+  if (!pane || !s) return;
+  // Highlight the selected card
+  document.querySelectorAll('.today-list .today-card').forEach(function(c){
+    c.style.boxShadow = ''; c.style.borderColor = 'var(--border)';
+  });
+  var card = document.getElementById('today-card-' + id);
+  if (card) { card.style.boxShadow = 'var(--shadow-md)'; card.style.borderColor = 'var(--accent)'; }
+
+  var phone = s.phone ? String(s.phone).replace(/[^0-9+]/g,'') : '';
+  var last = '';
+  if (s.last_call_date) last = 'Last visit ' + _tEsc(String(s.last_call_date).slice(0,10));
+  else if (s.days_since_contact != null) last = s.days_since_contact + ' days since last contact';
+  else last = 'No visit logged yet';
+
+  var h = '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">' +
+      '<div style="min-width:0">' +
+        '<div style="font-size:19px;font-weight:800;color:var(--navy)">' + (s.done ? '<span style="color:#16a34a">✓ </span>' : '') + _tEsc(s.company || s.title || 'Stop') + '</div>' +
+        (s.city ? '<div style="font-size:13px;color:var(--text3);margin-top:2px">' + _tEsc(s.city) + '</div>' : '') +
+      '</div>' +
+      (s.appt_time && s.item_type === 'appointment' ? '<div style="font-size:12px;font-weight:800;color:#1e40af;background:#dbeafe;padding:3px 10px;border-radius:6px;white-space:nowrap">' + _tEsc(s.appt_time) + '</div>' : '') +
+    '</div>';
+
+  if (s.reason) h += '<div style="margin-top:10px">' + _todayReasonTag(s.reason_kind, s.reason) + '</div>';
+  if (s.crosssell && s.reason_kind !== 'crosssell') {
+    h += '<div style="margin-top:8px;display:flex;align-items:center;gap:6px;font-size:12px;background:#dcfce7;color:#166534;border-radius:8px;padding:7px 10px;line-height:1.4">' +
+      '<span style="font-weight:800;white-space:nowrap">+$' + (Number(s.crosssell.est_sales) || 0).toLocaleString('en-US') + '</span>' +
+      '<span>' + _tEsc(s.crosssell.line_name) + ' — ' + _tEsc(s.crosssell.reason) + '</span></div>';
+  }
+  if (s.prep) h += '<div style="font-size:13px;color:var(--text2);margin-top:10px;line-height:1.5">' + _tEsc(s.prep) + '</div>';
+  h += '<div style="font-size:12px;color:var(--text3);margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">' + last + '</div>';
+
+  h += '<div class="td-act">';
+  h += _todayBtn('Navigate', 'onclick="window.open(\'' + _todayNavUrl(s).replace(/'/g,"\\'") + '\',\'_blank\')"');
+  if (phone) {
+    h += _todayBtn('Call', 'onclick="window.location.href=\'tel:' + phone + '\'"');
+    h += _todayBtn('Text', 'onclick="window.location.href=\'sms:' + phone + '\'"');
+  }
+  if (s.done) {
+    h += _todayBtn('Undo', 'onclick="todayUndone(' + s.id + ',this)"');
+  } else {
+    h += '<button onclick="todayMarkDone(' + s.id + ',this)" style="flex:1;min-width:120px;min-height:44px;font-size:13px;font-weight:700;font-family:inherit;background:var(--accent,#2563eb);border:1px solid var(--accent,#2563eb);border-radius:8px;color:#fff;cursor:pointer">Done</button>';
+  }
+  h += '</div>';
+
+  pane.className = 'td-pane';
+  pane.innerHTML = h;
 }
 
 function todayCard(s, isCarried) {
@@ -4616,7 +4757,7 @@ function todayCard(s, isCarried) {
   var titleStyle = 'font-weight:700;color:var(--navy);font-size:15px' + (s.done ? ';text-decoration:line-through' : '');
   var checkmark = s.done ? '<span style="color:#16a34a;font-weight:800;margin-right:5px">✓</span>' : '';
 
-  var h = '<div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:13px 14px;margin-bottom:10px;' + greyed + '">';
+  var h = '<div class="today-card" id="today-card-' + (s.id || 0) + '" style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:13px 14px;margin-bottom:10px;transition:box-shadow .12s,border-color .12s;' + greyed + '">';
 
   // Appointment time badge
   if (s.item_type === 'appointment' && s.appt_time) {
@@ -4624,7 +4765,7 @@ function todayCard(s, isCarried) {
   }
 
   h += '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">' +
-    '<div style="min-width:0">' +
+    '<div style="min-width:0;cursor:pointer" onclick="todaySelectStop(' + (s.id || 0) + ')">' +
       '<div style="' + titleStyle + '">' + checkmark + _tEsc(titleText) + '</div>' +
       (s.city ? '<div style="font-size:12px;color:var(--text3);margin-top:1px">' + _tEsc(s.city) + '</div>' : '') +
     '</div>';
