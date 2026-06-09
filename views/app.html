@@ -4465,6 +4465,8 @@ function _todayReasonTag(kind, reason) {
   if (!reason) return '';
   var c = { bg:'#f1f5f9', fg:'#475569' }; // neutral default
   if (kind === 'followup_overdue' || kind === 'followup_due' || kind === 'next_step') c = { bg:'#dbeafe', fg:'#1e40af' };
+  else if (kind === 'top_account') c = { bg:'#fef3c7', fg:'#92400e' };  // warning/amber
+  else if (kind === 'crosssell') c = { bg:'#dcfce7', fg:'#166534' };    // success/green
   else if (kind === 'open_deal') c = { bg:'#e0e7ff', fg:'#3730a3' };
   else if (kind === 'cold') c = { bg:'#fef3c7', fg:'#92400e' };
   else if (kind === 'new') c = { bg:'#f1f5f9', fg:'#475569' };
@@ -4574,6 +4576,13 @@ function todayCard(s, isCarried) {
 
   // Reason tag
   if (s.reason) h += '<div style="margin-top:7px">' + _todayReasonTag(s.reason_kind, s.reason) + '</div>';
+  // Cross-sell chip — shown even when the primary reason is something else
+  // (skip if the primary reason tag is already the cross-sell itself).
+  if (s.crosssell && s.reason_kind !== 'crosssell') {
+    h += '<div style="margin-top:7px;display:flex;align-items:center;gap:6px;font-size:11px;background:#dcfce7;color:#166534;border-radius:8px;padding:5px 8px;line-height:1.35">' +
+      '<span style="font-weight:800;white-space:nowrap">+$' + (Number(s.crosssell.est_sales) || 0).toLocaleString('en-US') + '</span>' +
+      '<span>' + _tEsc(s.crosssell.line_name) + ' — ' + _tEsc(s.crosssell.reason) + '</span></div>';
+  }
   // Prep line
   if (s.prep) h += '<div style="font-size:12px;color:var(--text2);margin-top:6px;line-height:1.4">' + _tEsc(s.prep) + '</div>';
 
@@ -14532,6 +14541,7 @@ function plRenderPanel() {
   var d = plState.panel || {};
   var body = document.getElementById('pl-panel-body');
   var html = '';
+  html += plPanelGroup('Money · protect & grow', d.revenue, function(p){ return p.reason || p.city || ''; });
   html += plPanelGroup('Follow-ups due', d.followUps, function(p){ return p.next_step || p.city || ''; });
   html += plPanelGroup('Not contacted', d.notContacted, function(p){ return p.city || ''; });
   html += plPanelGroup('Pipeline', d.pipeline, function(p){ return p.pipeline_stage || ''; });

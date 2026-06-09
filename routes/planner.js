@@ -2,6 +2,7 @@ const express = require('express');
 const fetch = require('node-fetch');
 const router = express.Router();
 const { pool } = require('../db');
+const { buildCooccurrence, recommendForAccount } = require('../lib/crosssell');
 
 // ── Anthropic helper — reuses the SAME client/model/key pattern as
 //    routes/ai.js & routes/weekly_report.js (no new AI dependency) ──
@@ -84,6 +85,97 @@ function classifyReason({ next_step, next_step_date, pipeline_stage, last_call_d
 }
 // Visit-priority rank per kind — lower wins (matches the original inline ordering).
 const REASON_RANK = { followup_overdue: 1, followup_due: 2, next_step: 3, open_deal: 4, cold: 5, new: 6 };
+
+// ── Revenue-aware tuning (tunable constants) ─────────────────────
+// A commission-earning account counts as "neglected" once it's gone this many
+// days without a logged visit (or has never been logged).
+const COLD_DAYS = 21;
+// Revenue-aware visit-priority order — lower wins. Folds the two new revenue
+// tiers (top_account, crosssell) in above the existing non-revenue reasons.
+const REV_RANK = {
+  followup_overdue: 1,   // broken promise — always top, unchanged
+  top_account:      2,   // commission account gone cold / never logged
+  crosssell:        3,   // a strong cross-sell rec exists
+  followup_due:     4,
+  next_step:        4,
+  open_deal:        5,
+  cold:             6,
+  new:              7
+};
+function roundDollars(n) { return Math.round(Number(n) || 0); }
+function fmtDollars(n) { return roundDollars(n).toLocaleString('en-US'); }
+
+// ── Revenue model (loaded ONCE per request, not per-account) ─────
+// Combines firm-wide cross-sell co-occurrence (patterns are stronger agency-wide)
+// with a per-account commission rollup. Read-only over account_lines/lines.
+async function loadRevenueModel() {
+  const rows = (await pool.query(
+    `SELECT al.account_id, al.line_id, l.name, al.total_sales
+       FROM account_lines al JOIN lines l ON l.id = al.line_id`
+  )).rows;
+  const coocc = buildCooccurrence(rows);
+
+  const commRows = (await pool.query(
+    `SELECT account_id, SUM(total_commission) AS commission, SUM(total_sales) AS sales
+       FROM account_lines GROUP BY account_id`
+  )).rows;
+  const commissionByAccount = {};
+  for (const r of commRows) {
+    commissionByAccount[r.account_id] = { commission: Number(r.commission) || 0, sales: Number(r.sales) || 0 };
+  }
+  return { coocc, commissionByAccount };
+}
+
+// Top cross-sell rec for one account using the already-built co-occurrence
+// (no extra query). Returns { line_name, est_sales, confidence, reason } | null.
+function crosssellFor(accountId, model) {
+  const ownedSet = model && model.coocc && model.coocc.linesByAccount[accountId];
+  if (!ownedSet || !ownedSet.size) return null;
+  const owned = Array.from(ownedSet).map(line_id => ({ line_id }));
+  const recs = recommendForAccount(accountId, model.coocc, owned);
+  return recs.length ? recs[0] : null;
+}
+
+// Trim a rec to the lightweight shape carried on candidates/stops.
+function trimRec(rec) {
+  return rec ? { line_name: rec.line_name, est_sales: roundDollars(rec.est_sales), reason: rec.reason } : null;
+}
+
+// ── Revenue-aware classifier ─────────────────────────────────────
+// Wraps the base classifyReason and overlays the two revenue tiers. `crosssell`
+// is ALWAYS passed through so a card can show the pitch even when the PRIMARY
+// reason is something else. Returns { reason, kind, rank, crosssell }.
+function classifyReasonRevenue(base) {
+  const crosssell = base.crosssell || null;
+  const commission = roundDollars(base.commission);
+  const daysSince = (base.days_since_contact == null) ? null : base.days_since_contact;
+  const core = classifyReason(base);
+
+  // rank 1 — broken promise always tops (unchanged).
+  if (core.kind === 'followup_overdue') {
+    return { reason: core.reason, kind: 'followup_overdue', rank: REV_RANK.followup_overdue, crosssell };
+  }
+  // rank 2 — top-paying account that's gone cold or never been logged.
+  if (commission > 0 && (daysSince === null || daysSince >= COLD_DAYS)) {
+    const tail = daysSince === null ? 'never logged' : (daysSince + ' days no visit');
+    return {
+      reason: 'Top account ($' + fmtDollars(commission) + ') · ' + tail,
+      kind: 'top_account', rank: REV_RANK.top_account, crosssell
+    };
+  }
+  // rank 3 — a strong cross-sell rec.
+  if (crosssell) {
+    return {
+      reason: 'Cross-sell: ' + crosssell.line_name + ' (~$' + fmtDollars(crosssell.est_sales) + ')',
+      kind: 'crosssell', rank: REV_RANK.crosssell, crosssell
+    };
+  }
+  // rank 4–7 — existing non-revenue reasons, carried through with the overlay.
+  if (core.kind) {
+    return { reason: core.reason, kind: core.kind, rank: REV_RANK[core.kind] || 99, crosssell };
+  }
+  return { reason: null, kind: null, rank: 99, crosssell };
+}
 
 // ── GET /api/planner?rep_id=&week_start= ─────────────────────────
 // Returns the week's items. Each STOP is annotated with live `visited` +
@@ -182,10 +274,50 @@ router.get('/panel', async (req, res) => {
       [repId]
     );
 
+    // Revenue source: the rep's commission accounts that are cold/never-logged
+    // (highest $ first) plus any with a cross-sell rec. Revenue-aware drag-in.
+    const model = await loadRevenueModel();
+    const revRows = (await pool.query(
+      `SELECT p.id, p.company, p.city, p.phone, p.category,
+              COALESCE(SUM(al.total_commission), 0) AS commission,
+              lc.call_date AS last_call_date
+         FROM prospects p
+         JOIN account_lines al ON al.account_id = p.id
+         LEFT JOIN LATERAL (
+           SELECT call_date FROM calls c
+            WHERE c.prospect_id = p.id AND c.user_id = $1
+            ORDER BY c.call_date DESC, c.id DESC LIMIT 1
+         ) lc ON TRUE
+        WHERE p.user_id = $1
+        GROUP BY p.id, p.company, p.city, p.phone, p.category, lc.call_date`,
+      [repId]
+    )).rows;
+
+    const todayMid = new Date(); todayMid.setHours(0, 0, 0, 0);
+    const revenue = [];
+    for (const p of revRows) {
+      const commission = roundDollars(p.commission);
+      const lastCall = p.last_call_date ? new Date(p.last_call_date) : null;
+      const daysSince = lastCall ? Math.round((todayMid - lastCall) / 86400000) : null;
+      const xs = crosssellFor(p.id, model);
+      const coldTop = commission > 0 && (daysSince === null || daysSince >= COLD_DAYS);
+      if (!coldTop && !xs) continue;
+      revenue.push({
+        id: p.id, company: p.company, city: p.city, phone: p.phone, category: p.category,
+        commission,
+        crosssell: trimRec(xs),
+        reason: coldTop
+          ? ('Top account ($' + fmtDollars(commission) + ')' + (daysSince === null ? ' · never logged' : ' · ' + daysSince + ' days'))
+          : ('Cross-sell: ' + xs.line_name)
+      });
+    }
+    revenue.sort((a, b) => (b.commission || 0) - (a.commission || 0));
+
     res.json({
       followUps: followUps.rows,
       notContacted: notContacted.rows,
-      pipeline: pipeline.rows
+      pipeline: pipeline.rows,
+      revenue: revenue.slice(0, 10)
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -318,40 +450,52 @@ async function gatherCandidates(repId, excludeAccountIds, limit) {
     [repId, exclude]
   )).rows;
 
+  // Load the revenue model ONCE for the whole candidate set (not per-account).
+  const model = await loadRevenueModel();
+
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const out = [];
   for (const p of rows) {
     const lastCall = p.last_call_date ? new Date(p.last_call_date) : null;
     const daysSince = lastCall ? Math.round((today - lastCall) / 86400000) : null;
     const nsDate = p.next_step_date ? ymd(p.next_step_date) : null;
+    const commission = (model.commissionByAccount[p.id] || {}).commission || 0;
+    const crosssell = crosssellFor(p.id, model);
 
-    // Classify the strongest real reason this account is worth a visit
-    // (shared helper — identical labels/ranks to the previous inline logic).
-    const { reason: reason_hint, kind } = classifyReason({
+    // Revenue-aware classification (wraps classifyReason, adds top_account/crosssell).
+    const cls = classifyReasonRevenue({
       next_step: p.next_step,
       next_step_date: p.next_step_date,
       pipeline_stage: p.pipeline_stage,
-      last_call_date: p.last_call_date
+      last_call_date: p.last_call_date,
+      days_since_contact: daysSince,
+      commission,
+      crosssell
     });
-    const rank = kind ? REASON_RANK[kind] : 99;
+    const reason_hint = cls.reason;
 
-    if (!reason_hint) continue; // no real reason → not a candidate
+    // Include if there's ANY existing reason OR a top-account/cross-sell signal.
+    if (!reason_hint && !cls.crosssell) continue;
     out.push({
       account_id: p.id,
       name: p.company,
       area: areaOf(p),
       deal_status: p.pipeline_stage || 'New Lead',
       days_since_contact: daysSince,
+      commission: roundDollars(commission),
+      crosssell: trimRec(cls.crosssell),
       last_outcome: p.last_outcome || null,
       last_notes: p.last_notes ? String(p.last_notes).slice(0, 240) : null,
       next_step: p.next_step || null,
       next_step_date: nsDate,
-      reason_hint,
-      _rank: rank
+      reason_hint: reason_hint || (cls.crosssell ? 'Cross-sell: ' + cls.crosssell.line_name : null),
+      _rank: cls.rank,
+      _commission: roundDollars(commission)
     });
   }
-  out.sort((a, b) => a._rank - b._rank);
-  return out.slice(0, limit || 60).map(c => { const { _rank, ...rest } = c; return rest; });
+  // Primary by tier; within a tier (esp. top_account) biggest dollars float up.
+  out.sort((a, b) => (a._rank - b._rank) || (b._commission - a._commission));
+  return out.slice(0, limit || 60).map(c => { const { _rank, _commission, ...rest } = c; return rest; });
 }
 
 // Safely extract the first JSON object from a Claude text response.
@@ -380,6 +524,7 @@ async function aiPropose({ dayList, goal, candidates, mode }) {
 RULES (follow exactly):
 - ONLY choose accounts from the CANDIDATES list below, by their numeric account_id. NEVER invent accounts or IDs.
 - Prioritize REAL reasons: overdue follow-ups, promised callbacks/next-steps, stalled/open deals, then long-cold or never-contacted accounts.
+- Prioritize protecting top-paying accounts (see each candidate's "commission") that have gone cold, and propose cross-sell visits where the data supports them; when a candidate has a "crosssell" rec, put the pitch (its "reason") in the prep line.
 - CLUSTER stops by geographic AREA so each day stays in ONE region (area grouping only — do not attempt turn-by-turn routing).
 - Aim toward the goal of ${goal} stops per day, but DO NOT pad with junk. Fewer high-quality stops beats filler.
 - Do not place the same account on more than one day.
@@ -413,7 +558,7 @@ Return STRICT JSON ONLY, no markdown, in exactly this shape:
           name: c.name,
           area: c.area,
           reason: (s.reason && String(s.reason).trim()) || c.reason_hint,
-          prep: (s.prep && String(s.prep).trim()) || null
+          prep: (s.prep && String(s.prep).trim()) || (c.crosssell ? c.crosssell.reason : null)
         });
       }
     }
@@ -498,19 +643,30 @@ router.post('/fill-day', async (req, res) => {
 // Build a Today-view "stop" object from a planner_items row joined with its
 // account + latest call signals. reason/reason_kind come from ai_reason or the
 // shared classifier; prep falls back ai_prep → note → last-call-notes snippet.
-function shapeStop(row) {
-  const cls = row.account_id
-    ? classifyReason({
-        next_step: row.next_step,
-        next_step_date: row.next_step_date,
-        pipeline_stage: row.pipeline_stage,
-        last_call_date: row.last_call_date
-      })
-    : { reason: null, kind: null };
+function shapeStop(row, model) {
+  let cls = { reason: null, kind: null, crosssell: null };
+  if (row.account_id) {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const lastCall = row.last_call_date ? new Date(row.last_call_date) : null;
+    const daysSince = lastCall ? Math.round((today - lastCall) / 86400000) : null;
+    const commission = model && model.commissionByAccount[row.account_id]
+      ? model.commissionByAccount[row.account_id].commission : 0;
+    const crosssell = model ? crosssellFor(row.account_id, model) : null;
+    cls = classifyReasonRevenue({
+      next_step: row.next_step,
+      next_step_date: row.next_step_date,
+      pipeline_stage: row.pipeline_stage,
+      last_call_date: row.last_call_date,
+      days_since_contact: daysSince,
+      commission,
+      crosssell
+    });
+  }
+  const xs = trimRec(cls.crosssell);
   const reason = row.ai_reason || cls.reason || null;
   const reason_kind = row.account_id ? cls.kind : null;
   const noteSnippet = row.last_notes ? String(row.last_notes).slice(0, 120) : null;
-  const prep = row.ai_prep || row.note || noteSnippet || null;
+  const prep = row.ai_prep || row.note || noteSnippet || (xs ? xs.reason : null) || null;
   return {
     id: row.id,
     item_type: row.item_type,
@@ -525,6 +681,7 @@ function shapeStop(row) {
     reason,
     reason_kind,
     prep,
+    crosssell: xs,
     done: row.completed_at != null
   };
 }
@@ -540,6 +697,9 @@ router.get('/today', async (req, res) => {
 
     const goalRow = await pool.query('SELECT daily_call_goal FROM users WHERE id=$1', [repId]);
     const goal = (goalRow.rows[0] && goalRow.rows[0].daily_call_goal) || 10;
+
+    // Revenue model loaded once → stops show live money reasons + cross-sell.
+    const model = await loadRevenueModel();
 
     // Shared SELECT shape for stops: item + account + latest-call signals.
     const stopSelect = `
@@ -561,7 +721,7 @@ router.get('/today', async (req, res) => {
         ORDER BY pi.sort_order ASC, pi.id ASC`,
       [repId, today]
     )).rows;
-    const stops = todayRows.map(shapeStop);
+    const stops = todayRows.map(row => shapeStop(row, model));
 
     const done = stops.filter(s => s.done).length;
     const progress = { done, total: stops.length };
@@ -575,7 +735,7 @@ router.get('/today', async (req, res) => {
       [repId, monday, today]
     )).rows;
     const carried_over = carriedRows.map(row => {
-      const s = shapeStop(row);
+      const s = shapeStop(row, model);
       s.planned_date = ymd(row.planned_date);
       return s;
     });
