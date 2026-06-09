@@ -30,6 +30,7 @@ const voiceRoutes  = require('./routes/voice');
 const { router: timeRoutes, ensureSeedSession } = require('./routes/time');
 const commissionsRoutes = require('./routes/commissions');
 const linesRoutes = require('./routes/lines');
+const crosssellRoutes = require('./routes/crosssell');
 
 const app = express();
 app.use(express.json({ limit: '25mb' }));
@@ -143,6 +144,7 @@ app.use('/api/voice', requireAuth, voiceRoutes);
 app.use('/api/time',  requireAuth, timeRoutes);
 app.use('/api/commissions', requireAuth, requireManager, commissionsRoutes);
 app.use('/api/lines', requireAuth, requireManager, linesRoutes);
+app.use('/api/crosssell', requireAuth, crosssellRoutes);
 app.get('/zoho-import', requireAuth, (req, res) =>
   res.sendFile(path.join(__dirname, 'views', 'zoho-import.html'))
 );

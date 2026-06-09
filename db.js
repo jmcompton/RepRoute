@@ -446,6 +446,16 @@ async function initDB() {
     ALTER TABLE commission_lines ADD COLUMN IF NOT EXISTS line_id INTEGER REFERENCES lines(id);
     CREATE INDEX IF NOT EXISTS idx_commission_lines_line ON commission_lines(line_id);
 
+    -- line_aliases makes manual merges durable: a normalized manufacturer string
+    -- is pinned to a line_id so re-resolution / backfill never re-splits a merge.
+    CREATE TABLE IF NOT EXISTS line_aliases (
+      id SERIAL PRIMARY KEY,
+      normalized_manufacturer TEXT UNIQUE,
+      line_id INTEGER REFERENCES lines(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_line_aliases_line ON line_aliases(line_id);
+
   `);
   console.log('Database initialized');
 }

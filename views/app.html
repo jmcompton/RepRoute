@@ -1401,6 +1401,7 @@ window.addEventListener('load', function() {
 
     <button class="sb-item" onclick="go('deals')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 4h12M2 8h9M2 12h6"/></svg>Deal Pipeline</button>
     <button class="sb-item" onclick="go('quotes')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><path d="M3 2h10a1 1 0 011 1v11a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1zM5 7h6M5 9.5h4"/></svg>Quotes</button>
+    <button class="sb-item" onclick="go('opportunities')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M8 1l2 4.5 4.9.4-3.7 3.2 1.1 4.8L8 11.5 3.7 13.9l1.1-4.8L1.1 5.9 6 5.5z"/></svg>Opportunities</button>
   </div>
   <div class="sb-section">
     <div class="sb-sec-label">Activities</div>
@@ -1878,6 +1879,11 @@ window.addEventListener('load', function() {
             <div class="rec-sec" id="rec-lines-section">
               <div class="rec-sec-hdr"><span class="rec-sec-title">Lines</span><span id="rec-lines-summary" style="font-size:11px;color:var(--text3)"></span></div>
               <div class="rec-sec-body" id="rec-lines-body"></div>
+            </div>
+            <!-- Cross-sell opportunities — peer co-occurrence over confirmed commission data -->
+            <div class="rec-sec" id="rec-xsell-section" style="display:none">
+              <div class="rec-sec-hdr"><span class="rec-sec-title">Cross-sell opportunities</span><span id="rec-xsell-summary" style="font-size:11px;color:var(--text3)"></span></div>
+              <div class="rec-sec-body" id="rec-xsell-body"></div>
             </div>
             <!-- Business Card — shown only when a scanned card image exists -->
             <div id="rec-bcard-section" style="display:none">
@@ -2403,6 +2409,17 @@ window.addEventListener('load', function() {
     </div>
   </div>
 
+
+  <!-- OPPORTUNITIES PAGE (cross-sell found-money) -->
+  <div class="page" id="page-opportunities">
+    <div style="padding:16px">
+      <div style="margin-bottom:14px">
+        <div style="font-size:15px;font-weight:700;color:var(--navy)">Cross-sell Opportunities</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:2px">Lines your accounts likely buy but don't yet — ranked by estimated potential. Built from confirmed commission data; quality improves as more is added.</div>
+      </div>
+      <div id="opps-list"></div>
+    </div>
+  </div>
 
   <!-- QUOTES PAGE -->
   <div class="page" id="page-quotes">
@@ -3518,6 +3535,7 @@ var pageTitles = {
    bulk: 'Bulk Ingestion Mode', calls: 'Calls', weekly: 'Weekly Plan',
   command: 'AI Command Center', outreach: 'Outreach Writer',
   onboarding: 'Onboarding', manager: 'Team Dashboard', deals: 'Deal Pipeline', quotes: 'Quotes',
+  opportunities: 'Cross-sell Opportunities',
   calendar: 'Team Calendar',
   email: 'Email',
   samples: 'Sample Tracker',
@@ -3625,6 +3643,7 @@ function go(id) {
     }, 50);
   }
   if (id === 'email') loadEmailPage();
+  if (id === 'opportunities') loadOpportunities();
   if (id === 'samples') loadSamples();
   if (id === 'time') loadTimeTracker();
   if (id === 'weekly-report') loadWeeklyReport();
@@ -4158,6 +4177,8 @@ function viewRecord(id) {
         pf.map(function(f) { return '<div class="frow"><div class="flabel">' + f[0] + '</div><div class="fval' + (f[1]==='—'?' empty':'') + '">' + f[1] + '</div></div>'; }).join('') + '</div>';
       // Lines this account buys (from confirmed commission data)
       loadAccountLines(p.id);
+      // Cross-sell opportunities for this account
+      loadCrossSell(p.id);
       // Business card image section
       var bcardSection = document.getElementById('rec-bcard-section');
       var bcardImg = document.getElementById('rec-bcard-img');
@@ -4321,6 +4342,97 @@ function loadAccountLines(accountId) {
     })
     .catch(function(){
       body.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:14px 16px">Lines unavailable.</div>';
+    });
+}
+
+// Cross-sell opportunities for one account — peer co-occurrence over confirmed
+// commission data. "~$X potential" is a neutral estimate (data spans one quarter).
+function loadCrossSell(accountId) {
+  var section = document.getElementById('rec-xsell-section');
+  var body = document.getElementById('rec-xsell-body');
+  var summary = document.getElementById('rec-xsell-summary');
+  if (!section || !body) return;
+  section.style.display = 'none';
+  body.innerHTML = '';
+  if (summary) summary.textContent = '';
+  fetch('/api/crosssell/account/' + accountId)
+    .then(function(r){ return r.ok ? r.json() : []; })
+    .then(function(opps){
+      if (!Array.isArray(opps) || !opps.length) return; // hide card when nothing to suggest
+      section.style.display = '';
+      var money = function(n){ return '$' + (Number(n)||0).toLocaleString('en-US',{maximumFractionDigits:0}); };
+      if (summary) summary.textContent = opps.length + ' suggestion' + (opps.length!==1?'s':'');
+      body.innerHTML = '<div style="padding:6px 16px 14px">' + opps.map(function(o){
+        var safeLine = (o.line_name||'').replace(/"/g,'&quot;').replace(/'/g,"\\'");
+        return '<div style="padding:10px 0;border-bottom:1px solid var(--border)">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px">' +
+              '<div style="font-weight:600;color:var(--navy)">' + (o.line_name||'—') + '</div>' +
+              '<div style="font-weight:700;color:var(--green,#16a34a);white-space:nowrap">~' + money(o.est_sales) + ' potential</div>' +
+            '</div>' +
+            '<div style="font-size:11px;color:var(--text3);margin:3px 0 8px">' + (o.reason||'') + '</div>' +
+            '<button class="btn btn-sm" style="font-size:11px;padding:5px 10px" onclick="logPitch(' + accountId + ',\'' + safeLine + '\',this)">Log pitch</button>' +
+          '</div>';
+      }).join('') + '</div>';
+    })
+    .catch(function(){ /* silent — card stays hidden */ });
+}
+
+// One-tap: log a neutral 'Pitched' call for this account pre-filled with the line.
+// Neutral outcome does NOT advance any pipeline stage; it does refresh last_activity_at.
+function logPitch(accountId, lineName, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Logging…'; }
+  var today = new Date().toISOString().slice(0,10);
+  fetch('/api/calls', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      prospect_id: accountId, call_date: today, call_type: 'Pitch', outcome: 'Pitched',
+      products_discussed: lineName, notes: 'Pitched ' + lineName + ' — cross-sell opportunity'
+    })
+  }).then(function(r){
+    if (!r.ok) throw new Error('failed');
+    showToast('Pitch logged: ' + lineName);
+    if (btn) { btn.textContent = 'Logged ✓'; }
+  }).catch(function(){
+    if (btn) { btn.disabled = false; btn.textContent = 'Log pitch'; }
+    showToast('Could not log pitch');
+  });
+}
+
+// Ranked found-money list across the viewer's accounts (manager = all reps).
+function loadOpportunities() {
+  var list = document.getElementById('opps-list');
+  if (!list) return;
+  list.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:20px">Loading opportunities…</div>';
+  fetch('/api/crosssell/opportunities')
+    .then(function(r){ return r.ok ? r.json() : []; })
+    .then(function(opps){
+      if (!Array.isArray(opps) || !opps.length) {
+        list.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--text3)">' +
+          '<div style="font-size:13px;font-weight:600;color:var(--navy);margin-bottom:4px">No opportunities yet</div>' +
+          '<div style="font-size:12px">Confirm more commission imports to surface cross-sell suggestions.</div></div>';
+        return;
+      }
+      var money = function(n){ return '$' + (Number(n)||0).toLocaleString('en-US',{maximumFractionDigits:0}); };
+      list.innerHTML = opps.map(function(o){
+        var safeLine = (o.line_name||'').replace(/'/g,"\\'");
+        return '<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px">' +
+            '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">' +
+              '<div style="min-width:0">' +
+                '<div style="font-weight:700;color:var(--navy)"><span style="cursor:pointer;text-decoration:underline" onclick="viewRecord(' + o.account_id + ')">' + (o.account_name||'—') + '</span></div>' +
+                '<div style="font-size:12px;color:var(--text2);margin-top:2px">Add <b>' + (o.line_name||'') + '</b>' + (o.rep ? ' · ' + o.rep : '') + '</div>' +
+                '<div style="font-size:11px;color:var(--text3);margin-top:3px">' + (o.reason||'') + '</div>' +
+              '</div>' +
+              '<div style="text-align:right;white-space:nowrap">' +
+                '<div style="font-weight:700;color:var(--green,#16a34a)">~' + money(o.est_sales) + '</div>' +
+                '<div style="font-size:10px;color:var(--text3)">potential</div>' +
+              '</div>' +
+            '</div>' +
+            '<div style="margin-top:8px"><button class="btn btn-sm" style="font-size:11px;padding:5px 10px" onclick="logPitch(' + o.account_id + ',\'' + safeLine + '\',this)">Log pitch</button></div>' +
+          '</div>';
+      }).join('');
+    })
+    .catch(function(){
+      list.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:20px">Opportunities unavailable.</div>';
     });
 }
 
