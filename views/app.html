@@ -1801,6 +1801,7 @@ window.addEventListener('load', function() {
       </select>
       <div style="display:flex;gap:6px;margin-left:auto">
         <button class="btn btn-secondary btn-sm" id="btn-add-contact" onclick="openModal('add-prospect')">+ New</button>
+        <button class="btn btn-secondary btn-sm" id="btn-enrich-phones" onclick="findMissingPhones()" title="Auto-fill missing phone numbers &amp; addresses via Google Places">📞 Find phone #s</button>
         <button class="btn btn-primary btn-sm" onclick="go('leads')">Find Leads</button>
         <button class="btn btn-sm" onclick="go('bulk')" style="background:var(--navy);color:#00FF87;border:none;font-weight:700;padding:6px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit">Bulk Import</button>
         <button id="view-route-btn" onclick="go('leads')" style="display:none;padding:6px 12px;background:#059669;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">View Route (<span id="view-route-count">0</span>)</button>
@@ -15382,7 +15383,51 @@ function confirmCommission() {
       showToast('Import confirmed — accounts linked.');
       closeCommissionReview();
       loadCommissionHistory();
+      // Auto-enrich: commission-imported accounts arrive with no phone/address.
+      // Fill them in via Google Places in batches (separate from confirm so the
+      // confirm request itself never waits on Places calls). Non-blocking.
+      enrichMissingLoop(repId);
     }).catch(function(){ btn.disabled = false; btn.textContent = 'Confirm Import'; showToast('Confirm failed'); });
+}
+
+// Batched, idempotent enrichment loop. Calls POST /api/prospects/enrich-missing
+// (20 accounts/call) until nothing is left missing a phone. Shows a small,
+// non-blocking progress toast. repId optional (manager enriching a rep).
+function enrichMissingLoop(repId) {
+  var totalEnriched = 0;
+  function step() {
+    fetch('/api/prospects/enrich-missing', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(repId ? { rep_id: repId } : {})
+    }).then(function(r){ return r.json(); }).then(function(j){
+      if (!j || j.error) return;
+      totalEnriched += (j.enriched || 0);
+      if (j.remaining > 0 && j.processed > 0) {
+        showToast('Looking up phone numbers for ' + j.remaining + ' account' + (j.remaining === 1 ? '' : 's') + '…');
+        setTimeout(step, 600);
+      } else if (totalEnriched > 0) {
+        showToast('Filled in contact info for ' + totalEnriched + ' account' + (totalEnriched === 1 ? '' : 's') + '.');
+        if (typeof loadProspects === 'function' && document.getElementById('page-contacts') && document.getElementById('page-contacts').classList.contains('active')) loadProspects();
+      }
+    }).catch(function(){});
+  }
+  step();
+}
+
+// Manual trigger from the Accounts page toolbar.
+function findMissingPhones() {
+  var b = document.getElementById('btn-enrich-phones');
+  if (b) { b.disabled = true; b.textContent = 'Looking up…'; }
+  fetch('/api/prospects/enrich-missing', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}'
+  }).then(function(r){ return r.json(); }).then(function(j){
+    if (b) { b.disabled = false; b.textContent = '📞 Find phone #s'; }
+    if (!j || j.error) { showToast('Lookup failed'); return; }
+    if (j.processed === 0) { showToast('No accounts are missing a phone number.'); return; }
+    showToast('Filled ' + j.enriched + ' of ' + j.processed + (j.remaining > 0 ? ' · ' + j.remaining + ' still to go' : ''));
+    if (typeof loadProspects === 'function') loadProspects();
+    if (j.remaining > 0) enrichMissingLoop(); // continue with remaining batches
+  }).catch(function(){ if (b) { b.disabled = false; b.textContent = '📞 Find phone #s'; } showToast('Lookup failed'); });
 }
 
 function discardCommission() {

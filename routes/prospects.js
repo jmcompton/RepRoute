@@ -409,6 +409,45 @@ router.post('/:id/manager-note', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── POST /api/prospects/enrich-missing ───────────────────────────
+// Auto-fill phone/address/website/city/state via Google Places for the rep's
+// accounts that are missing a phone. Blanks-only, idempotent, cost-capped at
+// 20 per call (skips anything already enriched). Manager may pass rep_id to
+// enrich another rep's accounts. Returns { processed, enriched, remaining }.
+const { enrichAccount } = require('../lib/places');
+router.post('/enrich-missing', async (req, res) => {
+  const uid = req.session.user.id;
+  const isMgr = req.session.user.role === 'manager';
+  const targetUid = (isMgr && req.body && req.body.rep_id) ? parseInt(req.body.rep_id) : uid;
+  try {
+    const blanks = await pool.query(
+      `SELECT id FROM prospects
+       WHERE user_id=$1 AND (phone IS NULL OR TRIM(phone)='')
+       ORDER BY id ASC
+       LIMIT 20`,
+      [targetUid]
+    );
+
+    let enriched = 0;
+    for (const row of blanks.rows) {
+      const r = await enrichAccount(pool, row.id);
+      if (r && r.enriched) enriched++;
+    }
+
+    // Count how many still lack a phone after this batch.
+    const remR = await pool.query(
+      `SELECT COUNT(*)::int AS c FROM prospects
+       WHERE user_id=$1 AND (phone IS NULL OR TRIM(phone)='')`,
+      [targetUid]
+    );
+
+    res.json({ processed: blanks.rows.length, enriched, remaining: remR.rows[0].c });
+  } catch (e) {
+    console.error('enrich-missing error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;
 // Reused by the commission import engine (account creation) so commission-created
 // accounts classify identically to manually/AI-created ones. Additive export.
