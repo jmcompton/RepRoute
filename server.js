@@ -35,6 +35,15 @@ const crosssellRoutes = require('./routes/crosssell');
 const app = express();
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
+
+// Serve the service worker with no HTTP caching so browsers pick up SW changes
+// (new cache version, updated fetch strategy) on the very next visit instead of
+// running a stale worker out of the HTTP cache.
+app.get('/sw.js', (req, res) => {
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.sendFile(path.join(__dirname, 'public', 'sw.js'));
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use(session({
