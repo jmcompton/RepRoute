@@ -14520,7 +14520,7 @@ function renderCommissionReview(review) {
         account_name: g.proposed_account.company || g.proposed_account.name, confidence: g.confidence };
     } else {
       commState.decisions[i] = { action: 'new', new_name: g.representative,
-        new_city: (g.cities && g.cities[0]) || null, confidence: 1 };
+        new_city: (g.cities && g.cities[0]) || null, new_state: g.state || (g.states && g.states[0]) || null, confidence: 1 };
     }
   });
 
@@ -14532,20 +14532,24 @@ function renderCommissionReview(review) {
 
 function renderReconBanner() {
   var r = commState.review;
-  var matched = 0;
+  var file = r.totals.sales;
+  // Accounted-for sales = every clustered group the rep keeps (existing OR new);
+  // skipped groups fall out. Adjustments (Freight) reconcile separately.
+  var accounted = 0;
   r.groups.forEach(function(g, i){
     var d = commState.decisions[i];
-    if (d && (d.action === 'existing' || d.action === 'new')) matched += g.total_sales;
+    if (d && (d.action === 'existing' || d.action === 'new')) accounted += g.total_sales;
   });
-  matched = Math.round(matched * 100) / 100;
-  var file = r.totals.sales;
-  var unmatched = Math.round((file - matched) * 100) / 100;
-  var pct = file ? Math.round((matched / file) * 100) : 0;
+  accounted = Math.round(accounted * 100) / 100;
+  var adj = (r.reconciliation && r.reconciliation.adjustment_sales) || 0;
+  var unaccounted = Math.round((file - accounted - adj) * 100) / 100;
+  var pct = file ? Math.round((accounted / file) * 100) : 0;
+  var clean = Math.abs(unaccounted) < 0.01;
   document.getElementById('comm-recon-banner').innerHTML =
       '<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;opacity:.7">File Total</div><div style="font-size:16px;font-weight:700">' + cMoney(file) + '</div></div>'
-    + '<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;opacity:.7">Matched</div><div style="font-size:16px;font-weight:700;color:#86efac">' + cMoney(matched) + ' (' + pct + '%)</div></div>'
-    + '<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;opacity:.7">Unassigned</div><div style="font-size:16px;font-weight:700;color:' + (Math.abs(unmatched) < 0.01 ? '#86efac' : '#fca5a5') + '">' + cMoney(unmatched) + '</div></div>'
-    + '<div style="font-size:11px;opacity:.7;max-width:220px">' + cEsc(r.source_filename || '') + (r.period && r.period.start ? ' · ' + r.period.start + ' → ' + r.period.end : '') + '</div>';
+    + '<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;opacity:.7">Accounted For</div><div style="font-size:16px;font-weight:700;color:#86efac">' + cMoney(accounted) + ' (' + pct + '%)</div></div>'
+    + '<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;opacity:.7">Unaccounted</div><div style="font-size:16px;font-weight:700;color:' + (clean ? '#86efac' : '#fca5a5') + '">' + cMoney(unaccounted) + '</div></div>'
+    + '<div style="font-size:11px;opacity:.85;max-width:260px">Accounted for: ' + cMoney(accounted) + ' of ' + cMoney(file) + ' — ' + cMoney(unaccounted) + ' unaccounted</div>';
 }
 
 function renderRepPicker(review) {
@@ -14641,7 +14645,7 @@ function commPickAccount(i, id, name) {
 }
 function commSetNew(i) {
   var g = commState.review.groups[i];
-  commState.decisions[i] = { action: 'new', new_name: g.representative, new_city: (g.cities && g.cities[0]) || null, confidence: 1 };
+  commState.decisions[i] = { action: 'new', new_name: g.representative, new_city: (g.cities && g.cities[0]) || null, new_state: g.state || (g.states && g.states[0]) || null, confidence: 1 };
   document.getElementById('comm-dec-' + i).innerHTML = 'Create new: <strong>' + cEsc(g.representative) + '</strong>';
   renderReconBanner();
 }
@@ -14666,6 +14670,7 @@ function confirmCommission() {
       account_id: d.account_id,
       new_name: d.new_name,
       new_city: d.new_city,
+      new_state: d.new_state,
       line_ids: g.line_ids,
       normalized_keys: g.normalized_keys,
       confidence: d.confidence != null ? d.confidence : 1
