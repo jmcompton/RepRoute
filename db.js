@@ -412,6 +412,40 @@ async function initDB() {
     );
     CREATE INDEX IF NOT EXISTS idx_commission_map_user ON commission_customer_map(user_id);
 
+    -- ════════════════════════════════════════════════════════════
+    -- Manufacturer "lines" — first-class product lines built from the
+    -- commission data. A line is a deduped manufacturer/principal. Each
+    -- confirmed commission_line is resolved to a line; account_lines is the
+    -- per-account × per-line revenue rollup. Foundation for cross-sell and
+    -- per-line reporting (later prompts). Idempotent block.
+    -- ════════════════════════════════════════════════════════════
+    CREATE TABLE IF NOT EXISTS lines (
+      id              SERIAL PRIMARY KEY,
+      name            TEXT,
+      normalized_name TEXT UNIQUE,
+      status          TEXT DEFAULT 'active',
+      category_hint   TEXT,
+      created_at      TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS account_lines (
+      id               SERIAL PRIMARY KEY,
+      account_id       INTEGER REFERENCES prospects(id) ON DELETE CASCADE,
+      line_id          INTEGER REFERENCES lines(id) ON DELETE CASCADE,
+      total_sales      NUMERIC(12,2),
+      total_commission NUMERIC(12,2),
+      line_count       INTEGER,
+      first_period     DATE,
+      last_period      DATE,
+      updated_at       TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (account_id, line_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_account_lines_account ON account_lines(account_id);
+    CREATE INDEX IF NOT EXISTS idx_account_lines_line ON account_lines(line_id);
+
+    ALTER TABLE commission_lines ADD COLUMN IF NOT EXISTS line_id INTEGER REFERENCES lines(id);
+    CREATE INDEX IF NOT EXISTS idx_commission_lines_line ON commission_lines(line_id);
+
   `);
   console.log('Database initialized');
 }

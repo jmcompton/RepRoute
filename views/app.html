@@ -1874,6 +1874,11 @@ window.addEventListener('load', function() {
               <div class="rec-sec-hdr"><span class="rec-sec-title">Products & Territory</span><span style="font-size:11.5px;color:var(--blue);cursor:pointer">Edit</span></div>
               <div class="rec-sec-body" id="rec-prod-fields"></div>
             </div>
+            <!-- Lines this account buys — built from confirmed commission data -->
+            <div class="rec-sec" id="rec-lines-section">
+              <div class="rec-sec-hdr"><span class="rec-sec-title">Lines</span><span id="rec-lines-summary" style="font-size:11px;color:var(--text3)"></span></div>
+              <div class="rec-sec-body" id="rec-lines-body"></div>
+            </div>
             <!-- Business Card — shown only when a scanned card image exists -->
             <div id="rec-bcard-section" style="display:none">
               <div class="rec-sec">
@@ -4151,6 +4156,8 @@ function viewRecord(id) {
       ];
       document.getElementById('rec-prod-fields').innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0">' +
         pf.map(function(f) { return '<div class="frow"><div class="flabel">' + f[0] + '</div><div class="fval' + (f[1]==='—'?' empty':'') + '">' + f[1] + '</div></div>'; }).join('') + '</div>';
+      // Lines this account buys (from confirmed commission data)
+      loadAccountLines(p.id);
       // Business card image section
       var bcardSection = document.getElementById('rec-bcard-section');
       var bcardImg = document.getElementById('rec-bcard-img');
@@ -4279,6 +4286,41 @@ function viewRecord(id) {
       var pendingTab = window._pendingRecTab || 'overview';
       window._pendingRecTab = null;
       setRecTab(pendingTab, null);
+    });
+}
+
+// Lines this account buys — built from confirmed commission data (account_lines).
+function loadAccountLines(accountId) {
+  var section = document.getElementById('rec-lines-section');
+  var body = document.getElementById('rec-lines-body');
+  var summary = document.getElementById('rec-lines-summary');
+  if (!section || !body) return;
+  body.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:14px 16px">Loading lines…</div>';
+  if (summary) summary.textContent = '';
+  fetch('/api/lines/account/' + accountId)
+    .then(function(r){ return r.ok ? r.json() : []; })
+    .then(function(lines){
+      if (!Array.isArray(lines) || !lines.length) {
+        body.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:14px 16px">No commission lines linked to this account yet.</div>';
+        return;
+      }
+      var money = function(n){ return '$' + (Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+      var totSales = lines.reduce(function(s,l){ return s + (Number(l.total_sales)||0); }, 0);
+      var totComm  = lines.reduce(function(s,l){ return s + (Number(l.total_commission)||0); }, 0);
+      if (summary) summary.textContent = lines.length + ' line' + (lines.length!==1?'s':'') + ' · ' + money(totSales);
+      body.innerHTML = '<div style="padding:6px 16px 14px">' + lines.map(function(l){
+        return '<div class="frow" style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border)">' +
+            '<div style="min-width:0"><div style="font-weight:600;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + (l.name||'—') + '</div>' +
+            '<div style="font-size:11px;color:var(--text3)">' + (l.line_count||0) + ' line' + ((l.line_count||0)!==1?'s':'') + ' · ' + money(l.total_commission) + ' commission</div></div>' +
+            '<div style="font-weight:700;color:var(--navy);white-space:nowrap">' + money(l.total_sales) + '</div>' +
+          '</div>';
+      }).join('') +
+        '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0 0;font-size:12px;font-weight:700;color:var(--navy)">' +
+          '<span>Total · ' + money(totComm) + ' commission</span><span>' + money(totSales) + '</span></div>' +
+      '</div>';
+    })
+    .catch(function(){
+      body.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:14px 16px">Lines unavailable.</div>';
     });
 }
 
