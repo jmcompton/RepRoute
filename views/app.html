@@ -295,6 +295,35 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 .td-act{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
 .td-act .btn,.td-act button{min-height:44px;flex:1;min-width:120px}
 
+/* ─── ROLE-AWARE COCKPIT ─── */
+.ck{background:linear-gradient(180deg,#eef2f8,#f7f8fa);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:20px}
+.ck-hero{background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);box-shadow:var(--shadow);padding:18px 20px;margin-bottom:12px}
+.ck-hero-lbl{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.07em}
+.ck-hero-num{font-size:40px;font-weight:800;color:var(--navy);line-height:1.05;margin-top:4px}
+.ck-hero-num small{font-size:18px;font-weight:700;color:var(--text3)}
+.ck-bar{height:10px;background:var(--bg);border:1px solid var(--border);border-radius:999px;overflow:hidden;margin-top:12px}
+.ck-bar > div{height:100%;border-radius:999px;transition:width .5s ease}
+.ck-tiles{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.ck-tile{background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);box-shadow:var(--shadow);padding:14px 16px}
+.ck-tile-lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.ck-tile-num{font-size:26px;font-weight:800;line-height:1}
+.ck-tile-sub{font-size:11px;color:var(--text3);margin-top:3px}
+.ck-primary{display:block;width:100%;min-height:50px;border:none;border-radius:var(--r2);font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;background:var(--accent);color:#fff;box-shadow:var(--shadow);margin-bottom:12px}
+.ck-primary:hover{background:var(--accent2)}
+.ck-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);box-shadow:var(--shadow);padding:16px;margin-bottom:12px}
+.ck-card:last-child{margin-bottom:0}
+.ck-card-hdr{font-size:12px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}
+.ck-up-name{font-size:17px;font-weight:800;color:var(--navy)}
+.ck-brief-line{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2);padding:5px 0}
+.ck-brief-line b{color:var(--navy)}
+.ck-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+@media(min-width:1024px){
+  .ck-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:12px;align-items:start}
+  .ck-tiles{grid-template-columns:1fr 1fr}
+  .ck-funnel{grid-template-columns:repeat(4,1fr) !important}
+}
+.ck-funnel{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
 @media(max-width:768px){
   .topbar .btn:not(.btn-icon),
   #topbar-actions,
@@ -1520,6 +1549,9 @@ window.addEventListener('load', function() {
       <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px" id="dash-date"></div>
       <div style="font-size:22px;font-weight:700;color:var(--navy);margin-bottom:16px" id="dash-greeting"></div>
 
+      <!-- ROLE-AWARE COCKPIT — populated by renderCockpit() -->
+      <div id="cockpit"></div>
+
       <!-- AI Morning Brief card -->
       <div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:18px 20px;margin-bottom:16px;position:relative;overflow:hidden">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
@@ -1535,8 +1567,8 @@ window.addEventListener('load', function() {
       </div>
       </div>
 
-      <!-- Progress bar -->
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:20px">
+      <!-- Progress bar (superseded by cockpit hero; kept for legacy JS targets) -->
+      <div style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:20px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
           <span style="font-size:12.5px;font-weight:600;color:var(--navy)">Today's Call Goal</span>
           <span style="font-size:12px;color:var(--text3)" id="progress-count">0 / 10 calls</span>
@@ -1546,8 +1578,8 @@ window.addEventListener('load', function() {
         </div>
       </div>
 
-      <!-- Stat cards -->
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px;width:100%">
+      <!-- Stat cards (superseded by cockpit tiles; kept for legacy JS targets) -->
+      <div style="display:none;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px;width:100%">
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px">
           <div style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Overdue Follow-ups</div>
           <div style="font-size:24px;font-weight:700;color:var(--red)" id="st-followups">—</div>
@@ -3762,6 +3794,156 @@ function setModTab(cat, el) {
   loadProspects();
 }
 
+// ─── ROLE-AWARE COCKPIT ───────────────────────────────────────────
+function ckEsc(s){ return (typeof _tEsc === 'function') ? _tEsc(s) : (s == null ? '' : String(s)); }
+function ckMoney(n){ return '$' + (Math.round(Number(n) || 0)).toLocaleString('en-US'); }
+function ckGetJSON(url){ return fetch(url).then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; }); }
+
+function ckHero(lbl, done, goal, color){
+  done = Number(done) || 0; goal = Number(goal) || 0;
+  var pct = goal > 0 ? Math.min(100, Math.round(done / goal * 100)) : 0;
+  return '<div class="ck-hero"><div class="ck-hero-lbl">' + lbl + '</div>' +
+    '<div class="ck-hero-num">' + done + ' <small>/ ' + goal + '</small></div>' +
+    '<div class="ck-bar"><div style="width:' + pct + '%;background:' + (color || 'var(--accent)') + '"></div></div></div>';
+}
+function ckHeroBig(lbl, valHtml, sub){
+  return '<div class="ck-hero"><div class="ck-hero-lbl">' + lbl + '</div>' +
+    '<div class="ck-hero-num">' + valHtml + '</div>' +
+    (sub ? '<div class="ck-tile-sub" style="margin-top:6px">' + sub + '</div>' : '') + '</div>';
+}
+function ckTile(lbl, num, sub, color){
+  return '<div class="ck-tile"><div class="ck-tile-lbl" style="color:' + color + '">' + lbl + '</div>' +
+    '<div class="ck-tile-num" style="color:' + color + '">' + num + '</div>' +
+    '<div class="ck-tile-sub">' + sub + '</div></div>';
+}
+function ckBriefLine(color, text){
+  return '<div class="ck-brief-line"><span class="ck-dot" style="background:' + color + '"></span><span>' + text + '</span></div>';
+}
+function ckFindLeads(){
+  go('dashboard');
+  var f = document.getElementById('lead-city-input');
+  if (f) { f.scrollIntoView({ behavior:'smooth', block:'center' }); try { f.focus(); } catch(e){} }
+}
+
+function renderCockpit(){
+  var el = document.getElementById('cockpit');
+  if (!el) return;
+  var role = (currentUser && (currentUser.role === 'manager' || currentUser.role === 'intern')) ? currentUser.role : 'rep';
+  el.innerHTML = '<div class="ck"><div style="font-size:12px;color:var(--text3);padding:8px">Loading your cockpit…</div></div>';
+  Promise.all([
+    ckGetJSON('/api/morning'),
+    ckGetJSON('/api/planner/today'),
+    ckGetJSON('/api/planner/panel'),
+    ckGetJSON('/api/crosssell/opportunities')
+  ]).then(function(res){
+    var morning = res[0] || {}, today = res[1] || {}, panel = res[2] || {}, opps = res[3] || [];
+    var stats = morning.stats || {};
+    if (role === 'manager') el.innerHTML = ckManager(stats, panel, opps);
+    else if (role === 'intern') el.innerHTML = ckIntern(stats, today, panel);
+    else el.innerHTML = ckRep(stats, today, panel);
+  });
+}
+
+function ckRep(stats, today, panel){
+  var prog = today.progress || {};
+  var done = (prog.done != null) ? prog.done : (stats.callsMadeToday || 0);
+  var goal = today.goal || stats.dailyGoal || 10;
+  var revenue = panel.revenue || [];
+  var foundMoney = 0; revenue.forEach(function(r){ if (r.crosssell) foundMoney += Number(r.crosssell.est_sales) || 0; });
+  var goingCold = revenue.filter(function(r){ return (Number(r.commission) || 0) > 0; }).length;
+  var stops = today.stops || [];
+  var next = stops.filter(function(s){ return !s.done; })[0];
+  var up;
+  if (next){
+    var phone = next.phone ? String(next.phone).replace(/[^0-9+]/g,'') : '';
+    up = '<div class="ck-up-name">' + ckEsc(next.company || next.title || 'Stop') + '</div>' +
+      (next.city ? '<div style="font-size:12px;color:var(--text3);margin-top:2px">' + ckEsc(next.city) + '</div>' : '') +
+      (next.reason ? '<div style="margin-top:8px">' + _todayReasonTag(next.reason_kind, next.reason) + '</div>' : '') +
+      '<div class="td-act">' +
+        _todayBtn('Navigate', 'onclick="window.open(\'' + _todayNavUrl(next).replace(/'/g,"\\'") + '\',\'_blank\')"') +
+        (phone ? _todayBtn('Call', 'onclick="window.location.href=\'tel:' + phone + '\'"') : '') +
+        '<button onclick="todayMarkDone(' + next.id + ',this);setTimeout(renderCockpit,400)" style="flex:1;min-width:120px;min-height:44px;font-size:13px;font-weight:700;font-family:inherit;background:var(--accent);border:1px solid var(--accent);border-radius:8px;color:#fff;cursor:pointer">Done</button>' +
+      '</div>';
+  } else {
+    up = '<div style="color:var(--text3);font-size:13px">No stops left for today. <a onclick="go(\'weekly-planner\')" style="color:var(--accent);cursor:pointer;font-weight:600">Plan more →</a></div>';
+  }
+  var followDue = stats.overdueFollowUps || 0;
+  var nearby = (today.nearby || []).length;
+  return '<div class="ck">' +
+    ckHero("Today's visits", done, goal, 'var(--accent)') +
+    '<div class="ck-tiles">' +
+      ckTile('Found money', ckMoney(foundMoney), 'cross-sell in your book', 'var(--green)') +
+      ckTile('Going cold', goingCold, 'top accounts need a visit', 'var(--amber)') +
+    '</div>' +
+    '<div class="ck-card"><div class="ck-card-hdr">Up next</div>' + up + '</div>' +
+    '<div class="ck-card"><div class="ck-card-hdr">Today\'s brief</div>' +
+      ckBriefLine('var(--red)', '<b>' + followDue + '</b> follow-up' + (followDue == 1 ? '' : 's') + ' due') +
+      ckBriefLine('var(--amber)', '<b>' + goingCold + '</b> cold top account' + (goingCold == 1 ? '' : 's')) +
+      ckBriefLine('var(--accent)', '<b>' + nearby + '</b> new lead' + (nearby == 1 ? '' : 's') + ' nearby') +
+    '</div>' +
+    '<button class="ck-primary" onclick="go(\'today\')">Open today\'s route →</button>' +
+  '</div>';
+}
+
+function ckIntern(stats, today, panel){
+  var prog = today.progress || {};
+  var done = (prog.done != null) ? prog.done : (stats.callsMadeToday || 0);
+  var goal = today.goal || stats.dailyGoal || 10;
+  var found = stats.freshProspects || 0;
+  var booked = (panel.pipeline ? panel.pipeline.length : (stats.hotProspects || 0));
+  var nc = (panel.notContacted || [])[0];
+  var up;
+  if (nc){
+    var phone = nc.phone ? String(nc.phone).replace(/[^0-9+]/g,'') : '';
+    up = '<div class="ck-up-name">' + ckEsc(nc.company || '—') + '</div>' +
+      (nc.city ? '<div style="font-size:12px;color:var(--text3);margin-top:2px">' + ckEsc(nc.city) + (nc.category ? ' · ' + ckEsc(nc.category) : '') + '</div>' : '') +
+      '<div class="td-act">' +
+        (phone ? _todayBtn('Call', 'onclick="window.location.href=\'tel:' + phone + '\'"') : '') +
+        (phone ? _todayBtn('Text', 'onclick="window.location.href=\'sms:' + phone + '\'"') : '') +
+        '<button onclick="goLogCall(' + nc.id + ')" style="flex:1;min-width:120px;min-height:44px;font-size:13px;font-weight:700;font-family:inherit;background:var(--accent);border:1px solid var(--accent);border-radius:8px;color:#fff;cursor:pointer">Log</button>' +
+      '</div>';
+  } else {
+    up = '<div style="color:var(--text3);font-size:13px">No new leads queued yet — hit <b>Find new leads</b> to build your list.</div>';
+  }
+  return '<div class="ck">' +
+    ckHero('Leads worked today', done, goal, 'var(--accent)') +
+    '<div class="ck-tiles">' +
+      ckTile('Found today', found, 'fresh leads to work', 'var(--green)') +
+      ckTile('Booked', booked, 'in pipeline', 'var(--accent)') +
+    '</div>' +
+    '<button class="ck-primary" onclick="ckFindLeads()">🔎 Find new leads</button>' +
+    '<div class="ck-card"><div class="ck-card-hdr">Up next to call</div>' + up + '</div>' +
+  '</div>';
+}
+
+function ckManager(stats, panel, opps){
+  opps = opps || [];
+  var totalMoney = 0, accts = {};
+  opps.forEach(function(o){ totalMoney += Number(o.est_sales) || 0; accts[o.account_id] = 1; });
+  var acctCount = Object.keys(accts).length;
+  var hot = stats.hotProspects || 0;
+  var top = opps.slice(0, 4);
+  var coverage = top.length ? top.map(function(o){
+    return '<div style="display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #f0f0f0;font-size:13px">' +
+      '<span style="color:var(--navy);font-weight:600;min-width:0">' + ckEsc(o.account_name) + (o.rep ? ' <span style="color:var(--text3);font-weight:400">· ' + ckEsc(o.rep) + '</span>' : '') + '</span>' +
+      '<span style="color:var(--green);font-weight:700;white-space:nowrap">' + ckMoney(o.est_sales) + '</span></div>';
+  }).join('') : '<div style="color:var(--text3);font-size:12px">No open cross-sell opportunities.</div>';
+  return '<div class="ck">' +
+    ckHeroBig('Cross-sell pipeline at stake (team)', '<span style="color:var(--green)">' + ckMoney(totalMoney) + '</span>', opps.length + ' open opportunities across ' + acctCount + ' accounts') +
+    '<div class="ck-funnel">' +
+      ckTile('Opportunities', opps.length, 'cross-sell plays', 'var(--accent)') +
+      ckTile('Accounts covered', acctCount, 'with commission data', 'var(--navy)') +
+      ckTile('Money found', ckMoney(totalMoney), 'est. cross-sell', 'var(--green)') +
+      ckTile('Hot prospects', hot, 'high priority', 'var(--amber)') +
+    '</div>' +
+    '<div class="ck-card"><div class="ck-card-hdr">Team coverage — top money on the table</div>' + coverage + '</div>' +
+    '<div style="display:flex;gap:10px;flex-wrap:wrap">' +
+      '<button class="ck-primary" style="margin-bottom:0;flex:1;min-width:140px" onclick="go(\'manager\')">Team Dashboard →</button>' +
+      '<button class="ck-primary" style="margin-bottom:0;flex:1;min-width:140px;background:var(--green)" onclick="go(\'commissions\')">Commissions →</button>' +
+    '</div>' +
+  '</div>';
+}
+
 function loadDashboard() {
   // Set greeting and date
   var hours = new Date().getHours();
@@ -3772,6 +3954,8 @@ function loadDashboard() {
   var userName = (currentUser && currentUser.name) ? currentUser.name.split(' ')[0] : '';
   document.getElementById('dash-greeting').textContent = greet + (userName ? ', ' + userName : '');
   document.getElementById('dash-date').textContent = days[now.getDay()] + ', ' + months[now.getMonth()] + ' ' + now.getDate() + ' · ' + ((currentUser && currentUser.territory) || 'Southeast');
+
+  try { renderCockpit(); } catch(e) { console.error('cockpit', e); }
 
   fetch('/app/data')
     .then(function(r) { return r.json(); })
