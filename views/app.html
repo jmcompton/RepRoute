@@ -1476,6 +1476,7 @@ window.addEventListener('load', function() {
     <button class="sb-item" data-roles="rep intern manager" onclick="go('deals')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 4h12M2 8h9M2 12h6"/></svg>Deal Pipeline</button>
     <button class="sb-item" data-roles="rep manager" onclick="go('quotes')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><path d="M3 2h10a1 1 0 011 1v11a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1zM5 7h6M5 9.5h4"/></svg>Quotes</button>
     <button class="sb-item" data-roles="rep manager" onclick="go('opportunities')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M8 1l2 4.5 4.9.4-3.7 3.2 1.1 4.8L8 11.5 3.7 13.9l1.1-4.8L1.1 5.9 6 5.5z"/></svg>Opportunities</button>
+    <button class="sb-item" data-roles="rep intern manager" onclick="go('manufacturers')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 14V6l4-2v3l4-2v3l4-2v8z"/><path d="M2 14h12"/></svg>Manufacturers</button>
   </div>
   <div class="sb-section" data-roles="rep manager">
     <div class="sb-sec-label">Activities</div>
@@ -2513,6 +2514,25 @@ window.addEventListener('load', function() {
         <div style="font-size:12px;color:var(--text3);margin-top:2px">Lines your accounts likely buy but don't yet — ranked by estimated potential. Built from confirmed commission data; quality improves as more is added.</div>
       </div>
       <div id="opps-list"></div>
+    </div>
+  </div>
+
+  <!-- MANUFACTURERS PAGE -->
+  <div class="page" id="page-manufacturers" style="overflow-y:auto;padding-bottom:80px">
+    <div style="padding:16px">
+      <!-- LIST view -->
+      <div id="mfr-list-view">
+        <div style="margin-bottom:14px">
+          <div style="font-size:15px;font-weight:700;color:var(--navy)">Manufacturers</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px">Your lines, ranked by sales. Tap one to see its accounts grouped by territory. Built from confirmed commission data.</div>
+        </div>
+        <div id="mfr-cards"></div>
+      </div>
+      <!-- DRILL-IN view -->
+      <div id="mfr-detail-view" style="display:none">
+        <div onclick="closeManufacturer()" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--accent);cursor:pointer;margin-bottom:12px">&larr; All manufacturers</div>
+        <div id="mfr-detail"></div>
+      </div>
     </div>
   </div>
 
@@ -3637,7 +3657,8 @@ var pageTitles = {
   time: 'Time Tracker',
   'weekly-report': 'Weekly Report',
   'weekly-planner': 'Weekly Planner',
-  commissions: 'Commissions'
+  commissions: 'Commissions',
+  manufacturers: 'Manufacturers'
 };
 
 // Role-based nav visibility. Returns the normalized role used.
@@ -3780,6 +3801,7 @@ function go(id) {
   if (id === 'weekly-report') loadWeeklyReport();
   if (id === 'weekly-planner') loadPlanner();
   if (id === 'commissions') loadCommissions();
+  if (id === 'manufacturers') loadManufacturers();
   // Refresh route panel whenever user navigates to home/dashboard
   if (id === 'dashboard' || id === 'home') {
     if (typeof window._renderRoutePanel === 'function') {
@@ -15135,6 +15157,85 @@ function cMoney(n){ return '$' + (Number(n)||0).toLocaleString('en-US',{minimumF
 function loadCommissions() {
   closeCommissionReview();
   loadCommissionHistory();
+}
+
+// ── Manufacturers view: lines → territory ────────────────────────────────────
+// Reads /api/manufacturers (summary cards) and /api/manufacturers/:id (one line's
+// accounts grouped by state). Scope is enforced server-side (manager = all, rep =
+// own). Reuses cMoney/cEsc. Money shown whole-dollar for compactness.
+function mfrMoney(n){ return '$' + (Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0}); }
+
+function loadManufacturers() {
+  // Always return to the list view on (re)entry.
+  document.getElementById('mfr-detail-view').style.display = 'none';
+  document.getElementById('mfr-list-view').style.display = '';
+  var el = document.getElementById('mfr-cards');
+  el.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:8px 0">Loading…</div>';
+  fetch('/api/manufacturers').then(function(r){ return r.json(); }).then(function(rows){
+    if (!Array.isArray(rows) || !rows.length) {
+      el.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:8px 0">No manufacturers yet. They appear automatically after a commission import.</div>';
+      return;
+    }
+    el.innerHTML = rows.map(function(m){
+      return '<div onclick="openManufacturer(' + m.id + ')" style="background:var(--white);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px">'
+        + '<div style="min-width:0">'
+        +   '<div style="font-weight:700;color:var(--navy);font-size:14px">' + cEsc(m.name) + '</div>'
+        +   '<div style="font-size:11px;color:var(--text2);margin-top:3px">' + (m.account_count||0) + ' account' + (m.account_count===1?'':'s') + ' · ' + (m.territory_count||0) + ' territor' + (m.territory_count===1?'y':'ies') + '</div>'
+        + '</div>'
+        + '<div style="text-align:right;flex-shrink:0">'
+        +   '<div style="font-weight:700;color:var(--navy);font-size:14px">' + mfrMoney(m.total_sales) + '</div>'
+        +   '<div style="font-size:11px;color:#16a34a;font-weight:600;margin-top:3px">' + mfrMoney(m.total_commission) + ' comm</div>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+  }).catch(function(){ el.innerHTML = '<div style="color:var(--danger);font-size:13px;padding:8px 0">Failed to load manufacturers.</div>'; });
+}
+
+function openManufacturer(id) {
+  document.getElementById('mfr-list-view').style.display = 'none';
+  document.getElementById('mfr-detail-view').style.display = '';
+  var el = document.getElementById('mfr-detail');
+  el.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:8px 0">Loading…</div>';
+  fetch('/api/manufacturers/' + id).then(function(r){ return r.json(); }).then(function(d){
+    if (!d || d.error || !d.manufacturer) { el.innerHTML = '<div style="color:var(--danger);font-size:13px">Failed to load.</div>'; return; }
+    var m = d.manufacturer;
+    var html = '<div style="margin-bottom:14px">'
+      + '<div style="font-size:17px;font-weight:700;color:var(--navy)">' + cEsc(m.name) + '</div>'
+      + '<div style="font-size:12px;color:var(--text2);margin-top:3px">' + (m.account_count||0) + ' account' + (m.account_count===1?'':'s') + ' · ' + mfrMoney(m.total_sales) + ' sales · <span style="color:#16a34a;font-weight:600">' + mfrMoney(m.total_commission) + ' commission</span></div>'
+      + '</div>';
+    var terrs = d.territories || [];
+    if (!terrs.length) {
+      html += '<div style="color:var(--text3);font-size:13px;padding:8px 0">No accounts for this manufacturer yet.</div>';
+    } else {
+      html += terrs.map(function(t){
+        var accts = (t.accounts || []).map(function(a){
+          var loc = a.city ? cEsc(a.city) : '';
+          return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--border)">'
+            + '<div style="min-width:0"><div style="font-weight:600;color:var(--navy);font-size:13px">' + cEsc(a.company) + '</div>'
+            + (loc ? '<div style="font-size:11px;color:var(--text2);margin-top:2px">' + loc + '</div>' : '')
+            + '</div>'
+            + '<div style="text-align:right;flex-shrink:0;font-weight:600;color:var(--navy);font-size:13px">' + mfrMoney(a.total_sales) + '</div>'
+            + '</div>';
+        }).join('');
+        return '<div style="background:var(--white);border:1px solid var(--border);border-radius:8px;margin-bottom:10px;overflow:hidden">'
+          + '<div style="padding:10px 14px;background:var(--bg);border-bottom:1px solid var(--border)">'
+          +   '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px">'
+          +     '<div style="font-weight:700;color:var(--navy);font-size:13px">' + cEsc(t.state) + '</div>'
+          +     '<div style="font-size:12px;color:var(--text2)">' + (t.account_count||0) + ' acct' + (t.account_count===1?'':'s') + ' · ' + mfrMoney(t.total_sales) + '</div>'
+          +   '</div>'
+          +   '<div style="font-size:11px;color:var(--text3);margin-top:2px">Rep: ' + (t.rep ? cEsc(t.rep) : '—') + '</div>'
+          + '</div>'
+          + accts
+          + '</div>';
+      }).join('');
+    }
+    el.innerHTML = html;
+  }).catch(function(){ el.innerHTML = '<div style="color:var(--danger);font-size:13px">Failed to load.</div>'; });
+}
+
+function closeManufacturer() {
+  document.getElementById('mfr-detail-view').style.display = 'none';
+  document.getElementById('mfr-list-view').style.display = '';
 }
 
 function loadCommissionHistory() {
