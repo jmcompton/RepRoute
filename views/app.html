@@ -6289,9 +6289,9 @@ function saveLeadWithNotes(idx, event) {
   })
   .then(function(r) { return r.json(); })
   .then(function(d) {
-    if (btn) { btn.textContent = 'Saved!'; btn.style.background = '#059669'; }
-    showToast(lead.company + ' saved to CRM.');
-    loadProspects();
+    if (btn) { btn.textContent = 'Saved ✓'; btn.style.background = '#059669'; btn.style.color = '#fff'; }
+    showToast('Saved to your accounts ✓');
+    if (typeof loadProspects === 'function') { try { loadProspects(); } catch(_) {} }
   })
   .catch(function() {
     if (btn) { btn.textContent = 'Save to CRM'; btn.disabled = false; }
@@ -9044,15 +9044,20 @@ window.leadSel = function(i, outcome, e) {
 };
 
 window.leadLogAndAdd = function(i, e) {
-  e.stopPropagation();
+  if (e) e.stopPropagation();
   var lead = window._dailyLeads?.[i];
-  if (!lead) return;
+  if (!lead) { showToast('Lead not found'); return; }
   var contactName = document.getElementById('lead-contact-' + i)?.value || '';
   var contactTitle = document.getElementById('lead-contact-title-' + i)?.value || '';
   var nextStep = document.getElementById('lead-ns-' + i)?.value || '';
   var nextDate = document.getElementById('lead-nd-' + i)?.value || '';
   var notes = (document.getElementById('lead-notes-' + i) || {}).value || '';
   var outcome = window._leadSelected[i] || '';
+
+  // ── Immediate optimistic feedback so the intern SEES the tap register ──
+  var saveBtn = e && e.target ? e.target : null;
+  var origBtnText = saveBtn ? saveBtn.textContent : 'Save to Contacts';
+  if (saveBtn) { saveBtn.textContent = 'Saving…'; saveBtn.disabled = true; saveBtn.style.opacity = '0.7'; }
 
   // First create the prospect in CRM
   fetch('/api/prospects', {
@@ -9074,9 +9079,13 @@ window.leadLogAndAdd = function(i, e) {
       source: 'AI',
       pipeline_stage: 'New Lead'
     })
-  }).then(function(r) { return r.json(); }).then(function(prospect) {
-    if (!prospect || !prospect.id) { showToast('Error saving prospect'); return; }
-    // Now log the call against this new prospect
+  }).then(function(r) {
+    if (!r.ok) throw new Error('save failed (' + r.status + ')');
+    return r.json();
+  }).then(function(prospect) {
+    // Do NOT fall through to the success handler when the save didn't stick.
+    if (!prospect || !prospect.id) throw new Error('no prospect id returned');
+    // Now log the call/visit against this new prospect
     return fetch('/api/morning/log-call', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -9088,21 +9097,46 @@ window.leadLogAndAdd = function(i, e) {
         next_step_date: nextDate,
         notes: notes
       })
+    }).then(function(r2) {
+      if (!r2.ok) throw new Error('log-call failed (' + r2.status + ')');
+      return r2.json().catch(function(){ return {}; });
     });
   }).then(function() {
+    // ── Success: lock the card into a visible "Visited ✓" state ──
     var card = document.getElementById('lead-card-' + i);
     var check = document.getElementById('lead-check-' + i);
     var log = document.getElementById('leadlog-' + i);
-    card.dataset.done = '1';
-    card.style.opacity = '0.5';
-    card.style.borderColor = '#059669';
+    if (card) {
+      card.dataset.done = '1';
+      card.style.opacity = '0.6';
+      card.style.borderColor = '#059669';
+      // Persistent "logged" badge on the card so progress is visible after collapse
+      if (!card.querySelector('.lead-visited-badge')) {
+        var badge = document.createElement('span');
+        badge.className = 'lead-visited-badge';
+        badge.textContent = '✓ Visited' + (outcome ? ' · ' + outcome : '');
+        badge.style.cssText = 'display:inline-block;margin-left:8px;background:#dcfce7;color:#15803d;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;vertical-align:middle';
+        var nameSpan = card.querySelector('span');
+        if (nameSpan && nameSpan.parentNode) nameSpan.parentNode.insertBefore(badge, nameSpan.nextSibling);
+      }
+    }
     if (check) { check.style.background = '#059669'; check.style.borderColor = '#059669'; check.innerHTML = '<svg width="10" height="10" viewBox="0 0 10 10"><path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>'; }
+    if (saveBtn) { saveBtn.textContent = 'Visited ✓'; saveBtn.style.background = '#059669'; saveBtn.style.color = '#fff'; saveBtn.style.opacity = ''; }
     if (log) log.style.display = 'none';
+    // Increment today's progress so the intern sees the count move
     var made = parseInt((document.getElementById('progress-count')?.textContent||'0').split('/')[0]) + 1;
     var goal = parseInt(((document.getElementById('progress-count')?.textContent||'/ 10').split('/')[1]||'10').trim()) || 10;
     if (document.getElementById('progress-fill')) document.getElementById('progress-fill').style.width = Math.min(100, Math.round(made/goal*100)) + '%';
     if (document.getElementById('progress-count')) document.getElementById('progress-count').textContent = made + ' / ' + goal + ' calls';
-    showToast('Visit logged & added to CRM');
+    showToast('Saved to your accounts ✓');
+    // Make it actually APPEAR in the Accounts list (refresh cache so it's there
+    // when the intern switches tabs).
+    if (typeof loadProspects === 'function') { try { loadProspects(); } catch(_) {} }
+  }).catch(function(err) {
+    // ── Failure: never swallow it — restore the button + show an error toast ──
+    if (saveBtn) { saveBtn.textContent = origBtnText; saveBtn.disabled = false; saveBtn.style.opacity = ''; }
+    console.error('leadLogAndAdd failed:', err);
+    showToast('Could not save — please try again');
   });
 };
 

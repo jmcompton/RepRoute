@@ -88,22 +88,74 @@ function buildLumberSegmentQueries() {
   return out;
 }
 
-// Big-box retail — ALWAYS excluded from the lumber/building-supply category
-// (and harmless to block everywhere: these are never walkable rep targets).
+// Big-box / national-chain retail — ALWAYS excluded from intern door-knocking
+// results. These are not rep-firm prospects (they buy through corporate, not a
+// walking rep), so a national chain must never surface regardless of how its
+// name/rating scores. Kody's "Garden Center at Tractor Supply" hit is caught
+// here ('tractor supply') AND by the garden_center hard type-block below.
 // NOTE: intentionally does NOT include "84 Lumber" or "Ace" — Builders
 // FirstSource is a Flavor-A anchor and Cornelia Ace is a Flavor-B anchor, so we
-// only block true consumer big-box chains here.
-const BIG_BOX_KEYWORDS = ['home depot', "lowe's", 'lowes', 'menards'];
+// keep independent dealers/distributors and only block true national big-box.
+const BIG_BOX_KEYWORDS = [
+  'home depot', "lowe's", 'lowes', 'menards',
+  'tractor supply', 'tractor supply co',
+  'walmart', 'wal-mart', 'wal mart',
+  'costco', "sam's club", 'sams club',
+  'harbor freight', 'family dollar', 'dollar general', 'dollar tree',
+];
 function isBigBoxBlocked(name) {
   const lower = (name || '').toLowerCase();
   return BIG_BOX_KEYWORDS.some(kw => lower.includes(kw));
+}
+
+// ── HARD TYPE / NAME EXCLUSIONS (all segments) ───────────────────────────────
+// Google Places' OWN `types` are used as a HARD filter. A result carrying ANY
+// of these types is rejected outright, regardless of name/rating/score — this
+// is what makes it *impossible* for a pawn shop, gun range, garden center,
+// supermarket, restaurant, gas station, etc. to surface for a building-products
+// search. (The live daily-leads pipeline previously had NO type blocklist at
+// all — that is exactly how "Trading Place Pawn & Indoor Gun Range" reached an
+// intern: its only gates were name keywords + a soft channel filter, and a
+// pawn shop trips neither.)
+const HARD_EXCLUDE_TYPES = new Set([
+  'pawn_shop',
+  'gun_store', 'shooting_range', 'firearms_dealer', 'archery_range',
+  'garden_center', 'florist', 'plant_nursery',
+  'department_store', 'supermarket', 'grocery_or_supermarket', 'grocery_store',
+  'convenience_store', 'liquor_store', 'wholesale_grocer', 'tobacco_shop',
+  'restaurant', 'food', 'cafe', 'coffee_shop', 'bar', 'meal_takeaway',
+  'meal_delivery', 'bakery', 'fast_food_restaurant',
+  'gas_station', 'car_dealer', 'car_rental', 'car_wash', 'car_repair',
+  'bank', 'atm', 'finance', 'insurance_agency', 'real_estate_agency',
+  'lodging', 'hotel', 'motel', 'gym', 'spa', 'beauty_salon', 'hair_care',
+  'pharmacy', 'drugstore', 'hospital', 'doctor', 'dentist', 'veterinary_care',
+  'school', 'church', 'place_of_worship', 'clothing_store', 'shoe_store',
+  'jewelry_store', 'pet_store', 'book_store', 'electronics_store',
+  'furniture_store', 'night_club', 'movie_theater', 'casino', 'bowling_alley',
+]);
+function hardExcludedType(types) {
+  if (!Array.isArray(types)) return null;
+  for (const t of types) if (HARD_EXCLUDE_TYPES.has(t)) return t;
+  return null;
+}
+
+// Name-level backstop for the same junk, in case Google mis-types a listing
+// (some pawn/gun businesses come back as a generic 'store'/'establishment').
+const HARD_EXCLUDE_NAME = [
+  'pawn', 'gun range', 'gun shop', 'gun store', 'firearms', 'shooting range',
+  'indoor range', 'gun & pawn', 'pawn & gun',
+];
+function hardExcludedName(name) {
+  const lower = (name || '').toLowerCase();
+  return HARD_EXCLUDE_NAME.find(kw => lower.includes(kw)) || null;
 }
 
 // Few-shot ranking nudge for the lumber/building-supply segment: reward results
 // that share the "kind" of Keith's anchors (lumber / building supply / building
 // materials / supply co / farm & home / lumber-carrying hardware). Returns a
 // small positive boost; does not penalize, so uncertain hardware/farm stores
-// still surface for the rep to decide.
+// still surface for the rep to decide. These signals double as the on-topic
+// allowlist for the Lumber segment in SEGMENT_ONTOPIC below.
 const LUMBER_KIND_SIGNALS = [
   'lumber', 'building supply', 'building material', 'building product',
   'supply co', 'supply company', 'building center', 'builders supply',
@@ -118,6 +170,80 @@ function lumberKindBoost(name, types) {
   if ((types || []).some(t => LUMBER_KIND_TYPES.has(t))) boost += 1;
   return boost;
 }
+
+// ── PER-SEGMENT KEYWORD / TYPE GUARD ─────────────────────────────────────────
+// After the hard type/name block, each result must show at least ONE on-topic
+// signal for the segment being searched — either an on-topic word in its name
+// OR an on-topic Google type. Anything with no on-topic signal is rejected
+// (and the reason is logged) so junk that Google's fuzzy text search dragged in
+// ("Cherokee Steel Supply" on a lumber search, a garage-door-only shop on a
+// window/door search) can't reach an intern. This mirrors the AlumaPole
+// category-mapping fix and Keith's pro-lumber vs. independent-hardware rules:
+// hardware / farm-and-home stores DO carry an on-topic signal, so they still
+// surface for the rep to decide — only truly off-topic results drop out.
+const SEGMENT_ONTOPIC = {
+  'Lumber / Building Supply': { name: LUMBER_KIND_SIGNALS, types: LUMBER_KIND_TYPES },
+  'Window/Door Installer': {
+    name: ['window', 'door', 'glass', 'glazing', 'millwork', 'fenestration', 'storefront', 'sash'],
+    types: new Set(['window_installation_service', 'door_supplier', 'glazier']),
+  },
+  'Roofing Contractor': { name: ['roof', 'roofing'], types: new Set(['roofing_contractor']) },
+  'Roofing Distributor': {
+    name: ['roof', 'roofing', 'building material', 'building product', 'supply', 'wholesale', 'distribut'],
+    types: new Set(['roofing_supply_store', 'building_materials_store']),
+  },
+  'Siding Contractor': {
+    name: ['siding', 'exterior', 'fiber cement', 'hardie', 'stucco', 'soffit', 'fascia'],
+    types: new Set(['siding_contractor']),
+  },
+  'Siding Distributor': {
+    name: ['siding', 'exterior', 'building material', 'building product', 'supply', 'wholesale', 'distribut'],
+    types: new Set(['building_materials_store']),
+  },
+  'Cornice Contractor': {
+    name: ['cornice', 'soffit', 'fascia', 'trim', 'sheet metal', 'gutter', 'exterior'],
+    types: new Set([]),
+  },
+  'Deck Contractor': {
+    name: ['deck', 'outdoor living', 'patio', 'composite', 'railing'],
+    types: new Set(['deck_builder', 'general_contractor']),
+  },
+  'Construction Fasteners': {
+    name: ['fastener', 'supply', 'hardware', 'tool', 'building material', 'scaffold', 'contractor supply', 'distribut'],
+    types: new Set(['hardware_store', 'building_materials_store']),
+  },
+};
+// Window/Door extra rule: a garage-door / overhead-door business with NO
+// window/entry-door signal is a garage-door-only company → reject.
+function isGarageDoorOnly(name) {
+  const lower = (name || '').toLowerCase();
+  const isGarage = /garage door|garage doors|overhead door|overhead garage/.test(lower);
+  const hasWindowDoorSig = /window|glass|entry door|patio door|exterior door|french door|storm door/.test(lower);
+  return isGarage && !hasWindowDoorSig;
+}
+// Returns a reject reason string if the result is off-topic for the segment,
+// or null if it carries an on-topic name/type signal.
+function offTopicReason(segment, name, types) {
+  const rule = SEGMENT_ONTOPIC[segment];
+  if (!rule) return null; // no guard configured for this segment
+  const lower = (name || '').toLowerCase();
+  const t = types || [];
+  if ((segment === 'Window/Door Installer') && isGarageDoorOnly(name)) {
+    return 'garage-door-only (no window/entry-door signal)';
+  }
+  const nameHit = rule.name.some(kw => lower.includes(kw));
+  const typeHit = t.some(x => rule.types.has(x));
+  if (!nameHit && !typeHit) {
+    return `no on-topic signal for "${segment}" in name or Google types [${t.join(', ') || 'none'}]`;
+  }
+  return null;
+}
+
+// Score floor — leads scoring below this are FILTERED OUT (not merely sorted
+// low). 1–10 opportunity scale; 4 keeps solid prospects while dropping weak/
+// home-based matches that the penalties pushed down. Tunable from intern
+// feedback (the per-reject logs below feed this).
+const MIN_OPPORTUNITY_SCORE = 4;
 
 // ─── PRODUCT → SEARCH QUERY MAPPING ──────────────────────────────────────────
 // Each entry defines what Google Places queries to run and how to score results
@@ -502,6 +628,13 @@ router.post('/daily-leads', async (req, res) => {
 
     const allLeads = [];
     const sessionSeen = new Set();
+    // Loggable reject tracker — every dropped result records WHY, so we can tune
+    // the filters from real intern feedback (e.g. Kody's texts) instead of guessing.
+    const rejects = [];
+    const rejectLog = (company, reason) => {
+      rejects.push({ company, reason });
+      console.log(`[daily-leads][reject] "${company}" — ${reason}`);
+    };
 
     for (const config of uniqueConfigs) {
       if (allLeads.length >= 25) break; // Collect 25, return top 10 (more headroom for refresh)
@@ -551,22 +684,36 @@ router.post('/daily-leads', async (req, res) => {
           // Basic validity checks
           if (!company) continue;
 
-          if (isResidentialRooferBlocked(place.displayName?.text || place.name || '', place.types || [], rawChannel)) { skippedResidential++; continue; }          if (place.businessStatus === 'CLOSED_PERMANENTLY') continue;
+          const placeTypesArr = place.types || [];
+
+          // ── Dedup / status gates (silent — not "rejects" worth tuning on) ──
+          if (place.businessStatus === 'CLOSED_PERMANENTLY') continue;
           if (placeId && existingPlaceIds.has(placeId)) continue;
           if (existingNames.has(companyLower)) continue;
           if (sessionSeen.has(placeId || companyLower)) continue;
-
-          // Hard block — big-box retailers (Home Depot, Lowe's, Menards) are
-          // ALWAYS excluded; they are never walkable rep targets.
-          if (isBigBoxBlocked(company)) continue;
-          // Hard block — never serve paint shops/painters as Alum-A-Pole leads
-          if (isPaintBlocked(company, config.brand)) continue;
-          // Hard block — never serve garage/overhead door companies for Window/Door segment
-          if (isGarageDoorBlocked(company, rawChannel)) continue;
-          if (isResidentialRooferBlocked(company, rawChannel)) continue;
-          // Hard block — never return heavy equipment / construction machinery companies
-          if (isHeavyEquipmentBlocked(company, place.types || [])) continue;
           sessionSeen.add(placeId || companyLower);
+
+          // ── HARD FILTER 1: Places' own types ─────────────────────────────
+          // A pawn shop / gun range / garden center / supermarket / etc. is
+          // impossible to surface, regardless of name or score.
+          const badType = hardExcludedType(placeTypesArr);
+          if (badType) { rejectLog(company, `hard-excluded Google type: ${badType}`); continue; }
+          const badName = hardExcludedName(company);
+          if (badName) { rejectLog(company, `hard-excluded name keyword: "${badName}"`); continue; }
+
+          // ── HARD FILTER 2: national big-box / chain retail ───────────────
+          if (isBigBoxBlocked(company)) { rejectLog(company, 'national big-box / chain retailer'); continue; }
+
+          // ── HARD FILTER 3: per-segment keyword/type guard ────────────────
+          // Must show at least one on-topic signal for the segment searched.
+          const offTopic = offTopicReason(rawChannel, company, placeTypesArr);
+          if (offTopic) { rejectLog(company, offTopic); continue; }
+
+          // ── Existing brand/segment-specific hard blocks ──────────────────
+          if (isPaintBlocked(company, config.brand)) { rejectLog(company, 'paint shop blocked for Alum-A-Pole'); continue; }
+          if (isGarageDoorBlocked(company, rawChannel)) { rejectLog(company, 'garage/overhead door blocked for Window/Door'); continue; }
+          if (isResidentialRooferBlocked(company, placeTypesArr, rawChannel)) { rejectLog(company, 'residential-only roofer blocked for Roofing Contractor'); continue; }
+          if (isHeavyEquipmentBlocked(company, placeTypesArr)) { rejectLog(company, 'heavy equipment / machinery'); continue; }
 
           // Distance filter — use the rep's actual radius
           let distMi = null;
@@ -671,15 +818,28 @@ router.post('/daily-leads', async (req, res) => {
       }
     }
 
+    // ── ENFORCE THE SCORE THRESHOLD ──────────────────────────────────────────
+    // Low scorers are FILTERED OUT here, not merely sorted to the bottom. Each
+    // drop is logged so the floor can be tuned from intern feedback.
+    const scored = allLeads.filter(l => {
+      if ((l.opportunity_score || 0) < MIN_OPPORTUNITY_SCORE) {
+        rejectLog(l.company, `below score floor (${l.opportunity_score} < ${MIN_OPPORTUNITY_SCORE})`);
+        return false;
+      }
+      return true;
+    });
+
     // Sort: opportunity score DESC, then distance ASC
-    allLeads.sort((a, b) => {
+    scored.sort((a, b) => {
       if (b.opportunity_score !== a.opportunity_score) return b.opportunity_score - a.opportunity_score;
       const da = a.distance_miles ?? 999;
       const db = b.distance_miles ?? 999;
       return da - db;
     });
 
-    const topLeads = allLeads.slice(0, 10);
+    const topLeads = scored.slice(0, 10);
+
+    console.log(`[daily-leads] segment="${rawChannel}" kept=${topLeads.length} passed-floor=${scored.length} rejected=${rejects.length}`);
 
     res.json({
       ok: true,
@@ -688,8 +848,11 @@ router.post('/daily-leads', async (req, res) => {
       channel,
       radius_miles: radiusMiles,
       center: { city, coords: centerCoords },
-      total_found: allLeads.length,
-      excluded_count: existingNames.size
+      total_found: scored.length,
+      excluded_count: existingNames.size,
+      score_floor: MIN_OPPORTUNITY_SCORE,
+      rejected_count: rejects.length,
+      rejected_sample: rejects.slice(0, 25)
     });
 
   } catch(e) {
@@ -819,3 +982,10 @@ router.post('/verify-lead', async (req, res) => {
 });
 
 module.exports = router;
+
+// Test surface — the pure relevance/filter predicates, exposed for unit tests
+// and offline verification of the reject path (does not affect routing).
+module.exports._filters = {
+  hardExcludedType, hardExcludedName, isBigBoxBlocked, offTopicReason,
+  isGarageDoorOnly, MIN_OPPORTUNITY_SCORE,
+};
