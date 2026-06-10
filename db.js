@@ -284,6 +284,10 @@ async function initDB() {
     ALTER TABLE prospects ADD COLUMN IF NOT EXISTS title  TEXT;
     ALTER TABLE prospects ADD COLUMN IF NOT EXISTS mobile TEXT;
     ALTER TABLE prospects ADD COLUMN IF NOT EXISTS zip    TEXT;
+    -- Phone-enrichment attempt marker: set whenever Places enrichment runs for an
+    -- account (success OR miss) so unmatchable businesses leave the "missing phone"
+    -- queue instead of being retried forever. Re-eligible after ~30 days.
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS enrich_attempted_at TIMESTAMPTZ;
 
     CREATE TABLE IF NOT EXISTS import_history (
       id SERIAL PRIMARY KEY,

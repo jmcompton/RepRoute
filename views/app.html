@@ -15390,44 +15390,63 @@ function confirmCommission() {
     }).catch(function(){ btn.disabled = false; btn.textContent = 'Confirm Import'; showToast('Confirm failed'); });
 }
 
-// Batched, idempotent enrichment loop. Calls POST /api/prospects/enrich-missing
-// (20 accounts/call) until nothing is left missing a phone. Shows a small,
-// non-blocking progress toast. repId optional (manager enriching a rep).
-function enrichMissingLoop(repId) {
-  var totalEnriched = 0;
+// Batched, idempotent, BOUNDED enrichment loop. Calls POST
+// /api/prospects/enrich-missing (20 accounts/call). Each call drains the queue
+// (attempted accounts get stamped server-side and drop out), so it terminates.
+// Stops on ANY of: remaining===0, processed===0, or remaining failed to drop
+// since the last call (safety net so it can never spin forever). On finish it
+// dismisses the progress toast and shows a one-time summary. Not auto-run on
+// page load — only after a commission import or the manual button.
+// opts: { manual:bool, onDone:fn }
+function enrichMissingLoop(repId, opts) {
+  opts = opts || {};
+  var totalEnriched = 0, totalProcessed = 0, prevRemaining = Infinity;
+
+  function finish() {
+    var t = document.getElementById('toast');
+    if (t) t.classList.remove('show'); // dismiss the lingering progress toast
+    if (totalProcessed === 0) {
+      if (opts.manual) showToast('No accounts need a phone lookup right now.');
+    } else {
+      var couldnt = totalProcessed - totalEnriched;
+      var msg = 'Filled ' + totalEnriched + ' number' + (totalEnriched === 1 ? '' : 's');
+      if (couldnt > 0) msg += ' · ' + couldnt + " couldn't be found";
+      showToast(msg, 4000);
+      if (typeof loadProspects === 'function' &&
+          document.getElementById('page-contacts') &&
+          document.getElementById('page-contacts').classList.contains('active')) loadProspects();
+    }
+    if (typeof opts.onDone === 'function') opts.onDone();
+  }
+
   function step() {
     fetch('/api/prospects/enrich-missing', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(repId ? { rep_id: repId } : {})
     }).then(function(r){ return r.json(); }).then(function(j){
-      if (!j || j.error) return;
+      if (!j || j.error) { finish(); return; }
       totalEnriched += (j.enriched || 0);
-      if (j.remaining > 0 && j.processed > 0) {
-        showToast('Looking up phone numbers for ' + j.remaining + ' account' + (j.remaining === 1 ? '' : 's') + '…');
-        setTimeout(step, 600);
-      } else if (totalEnriched > 0) {
-        showToast('Filled in contact info for ' + totalEnriched + ' account' + (totalEnriched === 1 ? '' : 's') + '.');
-        if (typeof loadProspects === 'function' && document.getElementById('page-contacts') && document.getElementById('page-contacts').classList.contains('active')) loadProspects();
-      }
-    }).catch(function(){});
+      totalProcessed += (j.processed || 0);
+      var rem = j.remaining || 0;
+      // Stop: queue empty, nothing processed, or no forward progress (safety).
+      if (rem === 0 || j.processed === 0 || rem >= prevRemaining) { finish(); return; }
+      prevRemaining = rem;
+      showToast('Looking up phone numbers… ' + rem + ' to go', 5000);
+      setTimeout(step, 600);
+    }).catch(function(){ finish(); });
   }
   step();
 }
 
-// Manual trigger from the Accounts page toolbar.
+// Manual trigger from the Accounts page toolbar — delegates to the bounded loop.
 function findMissingPhones() {
   var b = document.getElementById('btn-enrich-phones');
   if (b) { b.disabled = true; b.textContent = 'Looking up…'; }
-  fetch('/api/prospects/enrich-missing', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}'
-  }).then(function(r){ return r.json(); }).then(function(j){
-    if (b) { b.disabled = false; b.textContent = '📞 Find phone #s'; }
-    if (!j || j.error) { showToast('Lookup failed'); return; }
-    if (j.processed === 0) { showToast('No accounts are missing a phone number.'); return; }
-    showToast('Filled ' + j.enriched + ' of ' + j.processed + (j.remaining > 0 ? ' · ' + j.remaining + ' still to go' : ''));
-    if (typeof loadProspects === 'function') loadProspects();
-    if (j.remaining > 0) enrichMissingLoop(); // continue with remaining batches
-  }).catch(function(){ if (b) { b.disabled = false; b.textContent = '📞 Find phone #s'; } showToast('Lookup failed'); });
+  showToast('Looking up phone numbers…', 5000);
+  enrichMissingLoop(null, {
+    manual: true,
+    onDone: function(){ if (b) { b.disabled = false; b.textContent = '📞 Find phone #s'; } }
+  });
 }
 
 function discardCommission() {

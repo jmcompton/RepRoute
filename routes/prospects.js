@@ -420,11 +420,16 @@ router.post('/enrich-missing', async (req, res) => {
   const isMgr = req.session.user.role === 'manager';
   const targetUid = (isMgr && req.body && req.body.rep_id) ? parseInt(req.body.rep_id) : uid;
   try {
+    // Queue = accounts missing a phone that haven't been attempted recently.
+    // Once enrichAccount stamps enrich_attempted_at, they leave this queue even
+    // if Places found nothing — so the loop terminates instead of spinning on
+    // businesses that can't be matched. Re-eligible after 30 days.
+    const QUEUE_WHERE =
+      `user_id=$1 AND (phone IS NULL OR TRIM(phone)='')
+       AND (enrich_attempted_at IS NULL OR enrich_attempted_at < NOW() - INTERVAL '30 days')`;
+
     const blanks = await pool.query(
-      `SELECT id FROM prospects
-       WHERE user_id=$1 AND (phone IS NULL OR TRIM(phone)='')
-       ORDER BY id ASC
-       LIMIT 20`,
+      `SELECT id FROM prospects WHERE ${QUEUE_WHERE} ORDER BY id ASC LIMIT 20`,
       [targetUid]
     );
 
@@ -434,10 +439,10 @@ router.post('/enrich-missing', async (req, res) => {
       if (r && r.enriched) enriched++;
     }
 
-    // Count how many still lack a phone after this batch.
+    // remaining = accounts STILL in the queue after this batch. Decreases every
+    // call (attempted accounts drop out), so the frontend loop reaches 0.
     const remR = await pool.query(
-      `SELECT COUNT(*)::int AS c FROM prospects
-       WHERE user_id=$1 AND (phone IS NULL OR TRIM(phone)='')`,
+      `SELECT COUNT(*)::int AS c FROM prospects WHERE ${QUEUE_WHERE}`,
       [targetUid]
     );
 
