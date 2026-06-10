@@ -204,6 +204,42 @@ async function initDB() {
     CREATE INDEX IF NOT EXISTS idx_quotes_followup ON quotes(follow_up_date);
     ALTER TABLE quotes ADD COLUMN IF NOT EXISTS rep_name TEXT;
 
+    -- ── Duplicate quote numbers are LEGITIMATE (revisions, different customers,
+    --    manufacturer-specific numbering). Relax any historical UNIQUE constraint
+    --    or unique index on quote_number so the "Save anyway" override can persist
+    --    a duplicate. Idempotent: a no-op when none exists. (Only UNIQUE
+    --    constraints/indexes are touched — the id primary key is never affected.)
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+      FOR r IN
+        SELECT con.conname
+        FROM pg_constraint con
+        JOIN pg_class rel ON rel.oid = con.conrelid
+        WHERE rel.relname = 'quotes'
+          AND con.contype = 'u'
+          AND pg_get_constraintdef(con.oid) ILIKE '%quote_number%'
+      LOOP
+        EXECUTE 'ALTER TABLE quotes DROP CONSTRAINT ' || quote_ident(r.conname);
+      END LOOP;
+
+      FOR r IN
+        SELECT i.relname AS idxname
+        FROM pg_index idx
+        JOIN pg_class i ON i.oid = idx.indexrelid
+        JOIN pg_class t ON t.oid = idx.indrelid
+        WHERE t.relname = 'quotes'
+          AND idx.indisunique
+          AND NOT idx.indisprimary
+          AND pg_get_indexdef(idx.indexrelid) ILIKE '%quote_number%'
+      LOOP
+        EXECUTE 'DROP INDEX ' || quote_ident(r.idxname);
+      END LOOP;
+    END $$;
+
+    -- Keep a NON-unique index for quote_number lookups.
+    CREATE INDEX IF NOT EXISTS idx_quotes_quote_number ON quotes(quote_number);
+
     -- ════════════════════════════════════════════════════════════
     -- CRM Intelligence Upgrade: data_status + company_type
     -- data_status: Unvetted | Contacted | Verified CRM Data

@@ -201,11 +201,13 @@ router.put('/:id', async (req, res) => {
     const {
       quote_number, status, account_name, contact_name,
       amount, products, comments, quote_date, follow_up_date,
-      pdf_data, pdf_filename, rep_name
+      pdf_data, pdf_filename, rep_name, force_override
     } = req.body;
 
     // ── Duplicate check: if quote_number changed, ensure it doesn't collide ──
-    if (quote_number && quote_number.trim()) {
+    // Skipped when the user explicitly chose "Save anyway" (force_override) —
+    // duplicate quote numbers are legitimately allowed.
+    if (!force_override && quote_number && quote_number.trim()) {
       const dupNum = await pool.query(
         `SELECT id FROM quotes
          WHERE LOWER(TRIM(quote_number)) = LOWER($1) AND id != $2 LIMIT 1`,
