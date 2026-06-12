@@ -20,6 +20,7 @@ const calendarRoutes = require('./routes/calendar');
 const { router: emailRoutes } = require('./routes/email');
 const samplesRoutes = require('./routes/samples');
 const adminRoutes = require('./routes/admin');
+const demoDataRoutes = require('./routes/demo-data');
 const placesRoutes = require('./routes/places');
 const morningRoutes = require('./routes/morning');
 const { router: notificationsRoutes, evaluateForUser } = require('./routes/notifications');
@@ -161,6 +162,7 @@ app.use('/api/time',  requireAuth, timeRoutes);
 app.use('/api/commissions', requireAuthAPI, requireManagerAPI, commissionsRoutes);
 app.use('/api/lines', requireAuthAPI, requireManagerAPI, linesRoutes);
 app.use('/api/manufacturers', requireAuthAPI, manufacturersRoutes);
+app.use('/api/admin/demo-data', requireAuthAPI, requireManagerAPI, demoDataRoutes);
 app.use('/api/crosssell', requireAuth, crosssellRoutes);
 app.get('/zoho-import', requireAuth, (req, res) =>
   res.sendFile(path.join(__dirname, 'views', 'zoho-import.html'))
