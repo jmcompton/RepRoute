@@ -15305,9 +15305,13 @@ function cpdfRenderPreview(p) {
   rows += row('Sales (parsed)', cpdfFmt(g.parsed_sales));
   rows += row('Commission (parsed)', cpdfFmt(g.parsed_commission));
   var mism = '';
-  if (!ok && Array.isArray(rec.mismatches) && rec.mismatches.length) {
+  if (!ok && Array.isArray(rec.reasons) && rec.reasons.length) {
+    mism = '<div style="margin-top:8px;font-size:12px;color:#991b1b"><div style="font-weight:700;margin-bottom:3px">Why it’s blocked:</div>'
+      + rec.reasons.map(function(s){ return '<div>• '+cEsc(s)+'</div>'; }).join('')
+      + '</div>';
+  } else if (!ok && Array.isArray(rec.mismatches) && rec.mismatches.length) {
     mism = '<div style="margin-top:8px;font-size:12px;color:#991b1b"><div style="font-weight:700;margin-bottom:3px">Mismatches:</div>'
-      + rec.mismatches.map(function(m){ return '<div>• '+cEsc(m.label||m.manufacturer||'section')+': parsed '+cpdfFmt(m.parsed!=null?m.parsed:m.parsed_sales)+' vs printed '+cpdfFmt(m.printed!=null?m.printed:m.printed_sales)+'</div>'; }).join('')
+      + rec.mismatches.map(function(m){ return '<div>• '+cEsc(m.label||m.manufacturer||m.section||'section')+': parsed '+cpdfFmt(m.parsed!=null?m.parsed:m.parsed_sales)+' vs printed '+cpdfFmt(m.printed!=null?m.printed:m.printed_sales)+'</div>'; }).join('')
       + '</div>';
   }
   var confirmBtn = ok

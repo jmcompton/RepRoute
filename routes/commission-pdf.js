@@ -74,6 +74,7 @@ router.post('/commit', upload.single('file'), async (req, res) => {
       return res.status(400).json({
         error: 'The report did not reconcile to its printed totals — import blocked.',
         mismatches: parsed.reconciliation.mismatches,
+        reasons: parsed.reconciliation.reasons,
       });
     }
 
