@@ -400,7 +400,9 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 
   /* Find Today's Leads box - stack everything vertically */
   #page-dashboard div[style*="Find Today"]:has(#lead-find-btn),
-  #page-dashboard > div > div[style*="background:var(--surface)"][style*="display:flex"][style*="justify-content:space-between"]:has(#lead-find-btn) {
+  #daily-lead-finder div[style*="Find Today"]:has(#lead-find-btn),
+  #page-dashboard > div > div[style*="background:var(--surface)"][style*="display:flex"][style*="justify-content:space-between"]:has(#lead-find-btn),
+  #daily-lead-finder > div[style*="background:var(--surface)"][style*="display:flex"][style*="justify-content:space-between"]:has(#lead-find-btn) {
     flex-direction:column !important;
     align-items:stretch !important;
   }
@@ -414,7 +416,8 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
   }
 
   /* Stack call list and drive route vertically */
-  #page-dashboard div[style*="grid-template-columns:1fr 320px"] {
+  #page-dashboard div[style*="grid-template-columns:1fr 320px"],
+  #daily-lead-finder div[style*="grid-template-columns:1fr 320px"] {
     grid-template-columns:1fr !important;
     gap:14px !important;
   }
@@ -1639,6 +1642,7 @@ window.addEventListener('load', function() {
       </div>
 
       <!-- Find Today's Leads -->
+      <div id="daily-lead-finder">
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px 20px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
         <div style="flex:1;min-width:200px">
           <div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:3px">Find Today's Leads</div>
@@ -1779,6 +1783,7 @@ window.addEventListener('load', function() {
         </div>
 
       </div>
+      </div><!-- /#daily-lead-finder -->
 
       <!-- Hidden elements for backward compat -->
       <div style="display:none">
@@ -2559,8 +2564,10 @@ window.addEventListener('load', function() {
   <!-- OPPORTUNITIES PAGE (cross-sell found-money) -->
   <!-- TODAY PAGE (planner execution surface — phone-first) -->
   <div class="page" id="page-today">
-    <div style="padding:16px">
-      <div id="today-content"></div>
+    <div id="today-root" style="padding:16px;display:flex;flex-direction:column">
+      <div id="today-header" style="order:1"></div>
+      <div id="today-content" style="order:2"></div>
+      <div id="today-finder-slot" style="order:3;display:none"></div>
     </div>
   </div>
 
@@ -3807,9 +3814,9 @@ window.addEventListener('load', function() {
         // "search bounces me to Today" bug on slower loads).
         var _role = applyRoleNav(u.role);
         if (!window._userNavigated) {
-          var _home = _role === 'rep' ? 'today' : 'dashboard';
-          go(_home);
-          setActiveNav(_home === 'today' ? 'bn-today' : 'bn-home');
+          // Home for everyone is the adaptive Today cockpit.
+          go('today');
+          setActiveNav('bn-home');
         }
       } else {
         applyRoleNav('rep');
@@ -3840,6 +3847,9 @@ function goLogCall(prospectId) {
 }
 
 function go(id) {
+  // Home is now the adaptive Today cockpit. Old money-dashboard is retired as a
+  // landing surface; both "Home" entry points resolve to the Today cockpit.
+  if (id === 'dashboard' || id === 'home') id = 'today';
   if (window._teamViewActive && id !== 'record') {
     var _lb = document.querySelector('[onclick="logCallForRecord()"]');
     var _ob = document.querySelector('[onclick="writeOutreachForRecord()"]');
@@ -4970,41 +4980,138 @@ function _todayBtn(label, attrs, icon) {
     'border-radius:8px;color:var(--navy);cursor:pointer">' + (icon || '') + label + '</button>';
 }
 
-function loadToday() {
-  var el = document.getElementById('today-content');
-  if (!el) return;
-  el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:30px;text-align:center">Loading today…</div>';
-  fetch('/api/planner/today')
-    .then(function(r){ return r.ok ? r.json() : null; })
-    .then(function(d){
-      if (!d) { el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:30px;text-align:center">Could not load today.</div>'; return; }
-      window._todayData = d;
-      renderToday(d);
-    })
-    .catch(function(){ el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:30px;text-align:center">Today unavailable.</div>'; });
+// ── Today: adaptive, role-aware home cockpit ─────────────────────────────────
+// Surfaces (does not rebuild) the existing Weekly Planner stops, Daily Lead
+// Finder, Reconnect "money nearby", and quick call-log. Layout adapts by role:
+//   rep/manager → header → plan → money nearby → Lead Finder
+//   intern/hunter → slim header → Lead Finder (hero) → log-call box
+// The Daily Lead Finder is the SAME DOM node relocated into #today-finder-slot,
+// so all its existing handlers/IDs keep working untouched.
+
+// Move the live Daily Lead Finder node into the Today finder slot (once).
+function moveFinderIntoToday() {
+  var slot = document.getElementById('today-finder-slot');
+  var finder = document.getElementById('daily-lead-finder');
+  if (slot && finder && finder.parentNode !== slot) slot.appendChild(finder);
 }
 
-function renderToday(d) {
-  var el = document.getElementById('today-content');
+// "Today's working city": city of the earliest appointment/stop today, else the
+// rep's selected territory. Used for the Lead Finder default + money-nearby.
+function todayWorkingCity(d) {
+  var stops = (d && d.stops) || [];
+  var appts = stops.filter(function(s){ return s.appt_time && s.city; })
+                   .sort(function(a,b){ return String(a.appt_time).localeCompare(String(b.appt_time)); });
+  if (appts.length) return appts[0].city;
+  var withCity = stops.filter(function(s){ return s.city; });
+  if (withCity.length) return withCity[0].city;
+  return (window.currentUser && window.currentUser.territory) || '';
+}
 
-  // Header + progress (spans full width above the split)
+function loadToday() {
+  moveFinderIntoToday();
+  var content = document.getElementById('today-content');
+  var hdr = document.getElementById('today-header');
+  if (!content) return;
+  content.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:30px;text-align:center">Loading today…</div>';
+  function okJson(r){ return r && r.ok ? r.json() : null; }
+  Promise.all([
+    fetch('/api/planner/today').then(okJson).catch(function(){ return null; }),
+    fetch('/api/morning').then(okJson).catch(function(){ return null; }),
+    fetch('/api/reconnect?filter=all').then(okJson).catch(function(){ return null; }),
+    fetch('/api/planner/panel').then(okJson).catch(function(){ return null; })
+  ]).then(function(res){
+    var d = res[0] || { date: new Date().toISOString().slice(0,10), goal: 10, progress:{done:0,total:0}, stops:[], carried_over:[], nearby:[] };
+    window._todayData = d;
+    var calls = (res[1] && res[1].stats && res[1].stats.callsMadeToday) || 0;
+    var recon = (res[2] && res[2].accounts) || [];
+    var commissionCount = (res[3] && res[3].revenue && res[3].revenue.length) || 0;
+    renderTodayCockpit(d, { calls: calls, recon: recon, commissionCount: commissionCount });
+  });
+}
+
+function renderTodayCockpit(d, extra) {
+  var hdr = document.getElementById('today-header');
+  var content = document.getElementById('today-content');
+  var finderSlot = document.getElementById('today-finder-slot');
+  extra = extra || {};
+
+  // Role: explicit 'intern' wins; otherwise a user with NO stops AND NO
+  // commission accounts is a "hunter" → intern-style. Managers never hunt.
+  var role = (window.currentUser && window.currentUser.role) || 'rep';
+  var noStops = !d.stops || !d.stops.length;
+  var isIntern = role === 'intern' ||
+    (role !== 'manager' && noStops && !extra.commissionCount);
+
+  var city = todayWorkingCity(d);
+
+  // Make the Lead Finder visible inside Today + default its city to working city.
+  if (finderSlot) finderSlot.style.display = '';
+  var cityInput = document.getElementById('lead-city-input');
+  if (cityInput && city && !cityInput.value) cityInput.value = city;
+
+  if (isIntern) {
+    renderTodayIntern(d, extra, city);
+  } else {
+    renderTodayRep(d, extra, city);
+  }
+}
+
+// ── Intern / hunter view: slim header → Lead Finder hero → log-call box ───────
+function renderTodayIntern(d, extra, city) {
+  var hdr = document.getElementById('today-header');
+  var content = document.getElementById('today-content');
+  var finderSlot = document.getElementById('today-finder-slot');
+  // Finder above the log-call box.
+  if (finderSlot) finderSlot.style.order = '2';
+  if (content) content.style.order = '3';
+
+  hdr.innerHTML = '<div style="margin-bottom:14px">' +
+    '<div style="font-size:20px;font-weight:800;color:var(--navy)">Today</div>' +
+    '<div style="font-size:12px;color:var(--text3);margin-top:1px">' + _tEsc(_todayDateLabel(d.date)) +
+      (city ? ' · ' + _tEsc(city) : '') + '</div>' +
+  '</div>';
+
+  var calls = extra.calls || 0;
+  content.innerHTML =
+    '<div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px;margin-top:6px">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">' +
+        '<div>' +
+          '<div style="font-size:13px;font-weight:800;color:var(--navy)">Log your calls</div>' +
+          '<div style="font-size:12px;color:var(--text3);margin-top:2px"><span style="font-weight:800;color:var(--accent,#2563eb)">' + calls + '</span> call' + (calls === 1 ? '' : 's') + ' logged today</div>' +
+        '</div>' +
+        '<button onclick="openQuickCallLog()" style="min-height:44px;padding:0 18px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">+ Log a call</button>' +
+      '</div>' +
+    '</div>';
+}
+
+// ── Rep / manager view: header → plan → money nearby → Lead Finder ────────────
+function renderTodayRep(d, extra, city) {
+  var hdr = document.getElementById('today-header');
+  var content = document.getElementById('today-content');
+  var finderSlot = document.getElementById('today-finder-slot');
+  if (finderSlot) finderSlot.style.order = '3';
+  if (content) content.style.order = '2';
+
   var goal = d.goal || 10;
   var done = (d.progress && d.progress.done) || 0;
+  var total = (d.progress && d.progress.total) || (d.stops ? d.stops.length : 0);
   var pct = goal > 0 ? Math.min(100, Math.round((done / goal) * 100)) : 0;
-  var header = '<div style="margin-bottom:14px">' +
+  var calls = extra.calls || 0;
+
+  hdr.innerHTML = '<div style="margin-bottom:14px">' +
     '<div style="font-size:20px;font-weight:800;color:var(--navy)">Today</div>' +
-    '<div style="font-size:12px;color:var(--text3);margin-top:1px">' + _tEsc(_todayDateLabel(d.date)) + '</div>' +
+    '<div style="font-size:12px;color:var(--text3);margin-top:1px">' + _tEsc(_todayDateLabel(d.date)) +
+      (city ? ' · ' + _tEsc(city) : '') +
+      ' · ' + done + ' of ' + total + ' stops done · ' + calls + ' call' + (calls === 1 ? '' : 's') + ' logged today</div>' +
     '<div style="height:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-top:10px">' +
       '<div style="height:100%;width:' + pct + '%;background:var(--accent,#2563eb);transition:width .25s"></div>' +
     '</div>' +
-    '<div style="font-size:11px;color:var(--text3);margin-top:4px;font-weight:600">' + done + ' of ' + goal + ' stops</div>' +
   '</div>';
 
-  // Build the left list column + a flat index of selectable stops
+  // Build the plan list + flat index of selectable stops
   var list = '';
   window._todayStops = {};
 
-  // Carried over
   if (d.carried_over && d.carried_over.length) {
     list += '<div style="margin-bottom:14px">' +
       '<div style="font-size:11px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Missed earlier this week</div>';
@@ -5012,11 +5119,10 @@ function renderToday(d) {
     list += '</div>';
   }
 
-  // Today's stops (incomplete first, done at bottom)
   if (!d.stops || !d.stops.length) {
-    list += '<div style="text-align:center;padding:40px 20px;color:var(--text3)">' +
+    list += '<div style="text-align:center;padding:34px 20px;color:var(--text3)">' +
       '<div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:6px">No stops planned for today</div>' +
-      '<div style="font-size:12px;margin-bottom:14px">Plan your day to get a route worth driving.</div>' +
+      '<div style="font-size:12px;margin-bottom:14px">Plan your day, or find new leads below.</div>' +
       '<button class="btn btn-primary" style="min-height:44px;padding:0 18px" onclick="go(\'weekly-planner\')">Plan my day</button>' +
     '</div>';
   } else {
@@ -5026,24 +5132,8 @@ function renderToday(d) {
     finished.forEach(function(s){ window._todayStops[s.id] = s; list += todayCard(s, false); });
   }
 
-  // Nearby new leads
-  if (d.nearby && d.nearby.length) {
-    list += '<div style="margin-top:18px">' +
-      '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">New leads nearby</div>';
-    d.nearby.forEach(function(n){
-      list += '<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:10px">' +
-        '<div style="min-width:0">' +
-          '<div style="font-weight:700;color:var(--navy);font-size:13px">' + _tEsc(n.company || '—') + '</div>' +
-          '<div style="font-size:11px;color:var(--text3)">' + _tEsc(n.city || '') + (n.category ? ' · ' + _tEsc(n.category) : '') + '</div>' +
-        '</div>' +
-        '<button class="btn btn-sm" style="min-height:38px;white-space:nowrap" onclick="todayAddNearby(' + n.id + ',this)">+ Add to today</button>' +
-      '</div>';
-    });
-    list += '</div>';
-  }
-
-  // Assemble: header, then master (list) + detail panes. Detail pane only shows ≥1024px.
-  el.innerHTML = header +
+  var planSection = '<div style="margin-bottom:18px">' +
+    '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Your plan</div>' +
     '<div class="today-split">' +
       '<div class="today-list">' + list + '</div>' +
       '<div class="today-detail"><div id="today-detail-pane" class="td-pane td-empty">' +
@@ -5051,12 +5141,91 @@ function renderToday(d) {
         '<div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:4px">Pick a stop</div>' +
         '<div style="font-size:12px">Select a stop on the left to see prep, cross-sell, and quick actions.</div>' +
       '</div></div>' +
-    '</div>';
+    '</div>' +
+  '</div>';
+
+  // Money nearby (Reconnect) — top flagged accounts near the working city. If
+  // none in the working city, fall back to the top flagged overall. Hidden when
+  // Reconnect returns nothing at all.
+  var moneySection = '';
+  var recon = extra.recon || [];
+  if (recon.length) {
+    var near = city ? recon.filter(function(a){ return a.city && String(a.city).toLowerCase() === String(city).toLowerCase(); }) : [];
+    var pick = (near.length ? near : recon).slice(0, 3);
+    if (pick.length) {
+      moneySection = '<div style="margin-bottom:18px">' +
+        '<div style="font-size:11px;font-weight:700;color:#166534;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Money nearby</div>';
+      pick.forEach(function(a){
+        var amt = Number(a.trailing_commission) || 0;
+        moneySection += '<div style="background:#fff;border:1px solid var(--border);border-left:3px solid ' + (a.tier_color || '#16a34a') + ';border-radius:10px;padding:11px 13px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:10px">' +
+          '<div style="min-width:0">' +
+            '<div style="font-weight:700;color:var(--navy);font-size:13px">' + _tEsc(a.company || '—') + '</div>' +
+            '<div style="font-size:11px;color:var(--text3)">' + _tEsc(a.city || '') +
+              (amt ? ' · <span style="color:#166534;font-weight:700">$' + amt.toLocaleString('en-US') + '/yr</span>' : '') +
+              (a.days_quiet ? ' · quiet ' + a.days_quiet + 'd' : '') + '</div>' +
+          '</div>' +
+          '<button class="btn btn-sm" style="min-height:38px;white-space:nowrap" onclick="todayAddNearby(' + a.id + ',this)">+ Add to route</button>' +
+        '</div>';
+      });
+      moneySection += '</div>';
+    }
+  }
+
+  // New leads nearby (planner tie-in, never-contacted accounts in stop cities)
+  var nearbySection = '';
+  if (d.nearby && d.nearby.length) {
+    nearbySection = '<div style="margin-bottom:6px">' +
+      '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">New leads nearby</div>';
+    d.nearby.forEach(function(n){
+      nearbySection += '<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:10px">' +
+        '<div style="min-width:0">' +
+          '<div style="font-weight:700;color:var(--navy);font-size:13px">' + _tEsc(n.company || '—') + '</div>' +
+          '<div style="font-size:11px;color:var(--text3)">' + _tEsc(n.city || '') + (n.category ? ' · ' + _tEsc(n.category) : '') + '</div>' +
+        '</div>' +
+        '<button class="btn btn-sm" style="min-height:38px;white-space:nowrap" onclick="todayAddNearby(' + n.id + ',this)">+ Add to today</button>' +
+      '</div>';
+    });
+    nearbySection += '</div>';
+  }
+
+  content.innerHTML = planSection + moneySection + nearbySection;
 
   // Auto-select first pending stop on desktop so the detail pane isn't blank
-  if (window.matchMedia && window.matchMedia('(min-width:1024px)').matches && d.stops) {
+  if (window.matchMedia && window.matchMedia('(min-width:1024px)').matches && d.stops && d.stops.length) {
     var first = d.stops.filter(function(s){ return !s.done; })[0] || d.stops[0];
     if (first) todaySelectStop(first.id);
+  }
+}
+
+// "Visited" → open the EXISTING quick call-log, pre-selected to the stop's
+// account. On save (saveQuickCall) the pending stop is marked done.
+function todayVisit(stopId) {
+  var s = (window._todayStops && window._todayStops[stopId]) || null;
+  openQuickCallLog();
+  window._todayPendingStopId = stopId || null;
+  if (s && s.account_id) {
+    setTimeout(function(){
+      qclSelectCrmCompany(s.account_id, s.company || s.title || '', s.city || '', '', s.phone || '');
+    }, 220);
+  }
+}
+
+// Is the Today cockpit the active page right now?
+function _todayIsActive() {
+  var p = document.getElementById('page-today');
+  return !!(p && p.classList.contains('active'));
+}
+
+// Called from saveQuickCall success: mark the pending stop done, refresh Today.
+function _todayAfterCallSave() {
+  var sid = window._todayPendingStopId;
+  window._todayPendingStopId = null;
+  if (sid) {
+    fetch('/api/planner/items/' + sid + '/done', { method: 'POST' })
+      .catch(function(){})
+      .then(function(){ if (_todayIsActive()) loadToday(); });
+  } else if (_todayIsActive()) {
+    loadToday();
   }
 }
 
@@ -5103,7 +5272,7 @@ function todaySelectStop(id) {
   if (s.done) {
     h += _todayBtn('Undo', 'onclick="todayUndone(' + s.id + ',this)"');
   } else {
-    h += '<button onclick="todayMarkDone(' + s.id + ',this)" style="flex:1;min-width:120px;min-height:44px;font-size:13px;font-weight:700;font-family:inherit;background:var(--accent,#2563eb);border:1px solid var(--accent,#2563eb);border-radius:8px;color:#fff;cursor:pointer">Done</button>';
+    h += '<button onclick="todayVisit(' + s.id + ')" style="flex:1;min-width:120px;min-height:44px;font-size:13px;font-weight:700;font-family:inherit;background:var(--accent,#2563eb);border:1px solid var(--accent,#2563eb);border-radius:8px;color:#fff;cursor:pointer">Visited</button>';
   }
   h += '</div>';
 
@@ -5157,7 +5326,7 @@ function todayCard(s, isCarried) {
   if (s.done) {
     h += _todayBtn('Undo', 'onclick="todayUndone(' + s.id + ',this)"');
   } else {
-    h += '<button onclick="todayMarkDone(' + s.id + ',this)" style="flex:1;min-height:44px;font-size:12px;font-weight:700;font-family:inherit;background:var(--accent,#2563eb);border:1px solid var(--accent,#2563eb);border-radius:8px;color:#fff;cursor:pointer">Done</button>';
+    h += '<button onclick="todayVisit(' + s.id + ')" style="flex:1;min-height:44px;font-size:12px;font-weight:700;font-family:inherit;background:var(--accent,#2563eb);border:1px solid var(--accent,#2563eb);border-radius:8px;color:#fff;cursor:pointer">Visited</button>';
   }
   h += '</div></div>';
   return h;
@@ -12061,7 +12230,9 @@ console.log('✓ Fix 2: Salesperson dropdown shows Sean Conroy');
 console.log('✓ Fix 3: Bilco auto-assignment active');
 
 window.openQuickCallLog = function() {
-  // Reset form state
+  // Reset form state. Clear any stale Today "Visited" linkage; todayVisit() sets
+  // it again right after this call when launched from a stop.
+  window._todayPendingStopId = null;
   window._qclProspectId = null;
   window._qclGpData = null;
   var ids = ['qcl-search','qcl-notes','qcl-products','qcl-nextstep','qcl-nextdate'];
@@ -12391,6 +12562,8 @@ window.saveQuickCall = function() {
         // Refresh call list + dashboard counts
         if (typeof loadCalls === 'function') loadCalls();
         if (typeof loadDashboard === 'function') loadDashboard();
+        // If launched from a Today "Visited" tap, mark the stop done + refresh.
+        if (typeof _todayAfterCallSave === 'function') _todayAfterCallSave();
         // Update cached prospects
         window._qclAllProspects = null;
       })
@@ -12434,6 +12607,7 @@ window.saveQuickCall = function() {
       if (typeof loadProspects === 'function') loadProspects();
       if (typeof loadCalls === 'function') loadCalls();
       if (typeof loadDashboard === 'function') loadDashboard();
+      if (typeof _todayAfterCallSave === 'function') _todayAfterCallSave();
       window._qclAllProspects = null;
     })
     .catch(function(e) {
