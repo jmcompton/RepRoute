@@ -335,6 +335,18 @@ router.post('/items', async (req, res) => {
     const type = item_type === 'appointment' ? 'appointment' : 'stop';
     const src = source === 'ai' ? 'ai' : 'manual';
 
+    // NEVER DUPLICATE: if this account already has a stop on this day, return it
+    // instead of inserting again (guards repeated "Apply" of AI suggestions).
+    if (type === 'stop' && account_id) {
+      const dup = await pool.query(
+        `SELECT * FROM planner_items
+          WHERE rep_id=$1 AND planned_date=$2 AND item_type='stop' AND account_id=$3
+          LIMIT 1`,
+        [repId, ymd(planned_date), account_id]
+      );
+      if (dup.rows.length) return res.json(dup.rows[0]);
+    }
+
     // place new item at end of that day
     const ord = await pool.query(
       'SELECT COALESCE(MAX(sort_order), -1) + 1 AS next FROM planner_items WHERE rep_id=$1 AND planned_date=$2',
@@ -421,6 +433,58 @@ function areaOf(p) {
     if (parts.length >= 2) return parts[parts.length - 2];
   }
   return 'Unknown area';
+}
+
+// ── Geography: per-day anchor + radius fill ──────────────────────
+// prospects carry a city but NO stored lat/lng, so "within N miles" is computed
+// against geocoded CITY centroids (cached). When no Places key is available (or
+// a city won't geocode) we fall back to a strict SAME-CITY match so the radius
+// rule still holds deterministically and a day never mixes far-apart cities.
+const PLACES_KEY = process.env.GOOGLE_PLACES_API_KEY;
+const DEFAULT_RADIUS_MI = 25;
+const _geoCache = {};   // normalized city string → {lat,lng} | null
+
+function distanceMiles(lat1, lng1, lat2, lng2) {
+  const R = 3958.8;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function normCity(c) { return c ? String(c).trim().toLowerCase() : ''; }
+
+// Geocode a city centroid (cached). Returns {lat,lng} or null. Never throws.
+async function geocodeCity(city) {
+  const key = normCity(city);
+  if (!key || key === 'unknown area') return null;
+  if (Object.prototype.hasOwnProperty.call(_geoCache, key)) return _geoCache[key];
+  let coords = null;
+  if (PLACES_KEY) {
+    try {
+      const r = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(city)}&key=${PLACES_KEY}`
+      );
+      const d = await r.json();
+      if (d.results && d.results[0]) {
+        const loc = d.results[0].geometry.location;
+        coords = { lat: loc.lat, lng: loc.lng };
+      }
+    } catch (e) { console.error('[planner geocodeCity]', e.message); }
+  }
+  _geoCache[key] = coords;
+  return coords;
+}
+
+// Is `cand` (with .area = its city) within `radiusMi` of an anchor?
+// Strict same-city fallback when either side has no geocode.
+function withinRadius(anchor, cand, radiusMi) {
+  const sameCity = anchor.cityKey && anchor.cityKey === normCity(cand.area);
+  if (anchor.coords && cand.coords) {
+    return distanceMiles(anchor.coords.lat, anchor.coords.lng, cand.coords.lat, cand.coords.lng) <= radiusMi;
+  }
+  return sameCity;   // no coords on one side → only same-city counts
 }
 
 // Gather candidate accounts for a rep, each annotated with the signals the AI
@@ -577,20 +641,89 @@ router.post('/build-week', async (req, res) => {
     const friday = addDays(weekStart, 4);
     const dayList = [0, 1, 2, 3, 4].map(n => addDays(weekStart, n));
     const goal = parseInt(req.body.goal) || 10;
+    const radius = Math.max(1, parseFloat(req.body.radius) || DEFAULT_RADIUS_MI);
 
-    // Accounts already planned this week → excluded so we never propose dupes.
+    // ── Existing stops this week, ordered so the EARLIEST stop on each day
+    //    becomes that day's ANCHOR (its city/coords define the day's region).
+    const existing = (await pool.query(
+      `SELECT pi.planned_date, pi.account_id, pi.id, p.city, p.address
+         FROM planner_items pi
+         LEFT JOIN prospects p ON p.id = pi.account_id
+        WHERE pi.rep_id=$1 AND pi.planned_date BETWEEN $2 AND $3 AND pi.item_type='stop'
+        ORDER BY pi.planned_date, pi.id`,
+      [repId, weekStart, friday]
+    )).rows;
+
+    const anchorCityByDay = {};   // date → anchor city string
+    const dayCounts = {};         // date → existing stop count
+    for (const row of existing) {
+      const d = ymd(row.planned_date);
+      dayCounts[d] = (dayCounts[d] || 0) + 1;
+      if (!anchorCityByDay[d] && row.account_id) anchorCityByDay[d] = areaOf(row);
+    }
+
+    // ── DEDUP: exclude accounts already planned in THIS week or ANY FUTURE week
+    //    (planned_date >= weekStart). Fixes "apply re-adds the same stops" and
+    //    "future weeks show past ones" without permanently banning reconnects.
     const planned = (await pool.query(
       `SELECT DISTINCT account_id FROM planner_items
-        WHERE rep_id=$1 AND planned_date BETWEEN $2 AND $3 AND account_id IS NOT NULL`,
-      [repId, weekStart, friday]
+        WHERE rep_id=$1 AND planned_date >= $2 AND account_id IS NOT NULL`,
+      [repId, weekStart]
     )).rows.map(x => x.account_id);
 
-    const candidates = await gatherCandidates(repId, planned, 60);
+    // Territory fallback for days with no anchor.
+    const ures = (await pool.query(
+      `SELECT territory, home_base_lat, home_base_lng FROM users WHERE id=$1`, [repId]
+    )).rows[0] || {};
+    const territoryCity = ures.territory && String(ures.territory).trim() ? String(ures.territory).trim() : null;
+
+    // Candidate pool (wide), each annotated with reason/area/commission ranking.
+    const candidates = await gatherCandidates(repId, planned, 250);
     if (!candidates.length) {
       return res.json({ rep_id: repId, week_start: weekStart, week_end: friday, suggestions: [], message: 'No candidate accounts found to plan.' });
     }
-    const { stops } = await aiPropose({ dayList, goal, candidates, mode: 'build-week' });
-    res.json({ rep_id: repId, week_start: weekStart, week_end: friday, goal, suggestions: stops });
+
+    // Geocode candidate cities once (cached); attach coords for radius math.
+    for (const c of candidates) c.coords = await geocodeCity(c.area);
+
+    // Resolve each day's anchor (city + coords). No anchor → rep territory city
+    // → home base coords. Days keep gatherCandidates' commission/reconnect order.
+    const used = new Set();
+    const suggestions = [];
+    for (const day of dayList) {
+      const remaining = goal - (dayCounts[day] || 0);
+      if (remaining <= 0) continue;
+
+      const city = anchorCityByDay[day] || territoryCity;
+      let coords = city ? await geocodeCity(city) : null;
+      if (!coords && ures.home_base_lat && ures.home_base_lng) {
+        coords = { lat: parseFloat(ures.home_base_lat), lng: parseFloat(ures.home_base_lng) };
+      }
+      const anchor = { cityKey: normCity(city), coords };
+
+      // If the day has no anchor city at all, we cannot enforce a region — skip
+      // (rep can drop an account to seed the day, then Build again).
+      if (!anchor.cityKey && !anchor.coords) continue;
+
+      let picked = 0;
+      for (const c of candidates) {
+        if (picked >= remaining) break;
+        if (used.has(c.account_id)) continue;
+        if (!withinRadius(anchor, c, radius)) continue;   // GEOGRAPHIC SANITY
+        used.add(c.account_id);
+        picked++;
+        suggestions.push({
+          account_id: c.account_id,
+          day,
+          name: c.name,
+          area: c.area,
+          reason: c.reason_hint,
+          prep: c.crosssell ? c.crosssell.reason : (c.next_step || null)
+        });
+      }
+    }
+
+    res.json({ rep_id: repId, week_start: weekStart, week_end: friday, goal, radius, suggestions });
   } catch (e) {
     console.error('[planner/build-week]', e.message);
     res.status(500).json({ error: e.message });
@@ -607,29 +740,54 @@ router.post('/fill-day', async (req, res) => {
     const date = ymd(req.body.date);
     if (!date) return res.status(400).json({ error: 'date required' });
     const goal = parseInt(req.body.goal) || 10;
+    const radius = Math.max(1, parseFloat(req.body.radius) || DEFAULT_RADIUS_MI);
+    const weekStart = mondayOf(date);
 
-    // That day's existing stops: exclude their accounts; bias toward their areas.
+    // That day's existing stops: earliest is the day's ANCHOR city.
     const dayItems = (await pool.query(
-      `SELECT pi.account_id, p.city, p.address
+      `SELECT pi.account_id, pi.id, p.city, p.address
          FROM planner_items pi LEFT JOIN prospects p ON p.id = pi.account_id
-        WHERE pi.rep_id=$1 AND pi.planned_date=$2 AND pi.item_type='stop'`,
+        WHERE pi.rep_id=$1 AND pi.planned_date=$2 AND pi.item_type='stop'
+        ORDER BY pi.id`,
       [repId, date]
     )).rows;
-    const planned = dayItems.filter(d => d.account_id).map(d => d.account_id);
-    const focusAreas = new Set(dayItems.map(d => areaOf(d)).filter(a => a && a !== 'Unknown area'));
+    const anchorRow = dayItems.find(d => d.account_id);
     const remaining = Math.max(1, goal - dayItems.length);
 
-    let candidates = await gatherCandidates(repId, planned, 60);
-    // If the day already has stops, prefer candidates in the same area(s).
-    if (focusAreas.size) {
-      const inArea = candidates.filter(c => focusAreas.has(c.area));
-      if (inArea.length) candidates = inArea;
+    // DEDUP across this week + future weeks (same rule as build-week).
+    const planned = (await pool.query(
+      `SELECT DISTINCT account_id FROM planner_items
+        WHERE rep_id=$1 AND planned_date >= $2 AND account_id IS NOT NULL`,
+      [repId, weekStart]
+    )).rows.map(x => x.account_id);
+
+    const ures = (await pool.query(
+      `SELECT territory, home_base_lat, home_base_lng FROM users WHERE id=$1`, [repId]
+    )).rows[0] || {};
+    const city = anchorRow ? areaOf(anchorRow)
+      : (ures.territory && String(ures.territory).trim() ? String(ures.territory).trim() : null);
+    let coords = city ? await geocodeCity(city) : null;
+    if (!coords && ures.home_base_lat && ures.home_base_lng) {
+      coords = { lat: parseFloat(ures.home_base_lat), lng: parseFloat(ures.home_base_lng) };
     }
-    if (!candidates.length) {
-      return res.json({ rep_id: repId, date, suggestions: [], message: 'No candidate accounts to fill this day.' });
+    const anchor = { cityKey: normCity(city), coords };
+    if (!anchor.cityKey && !anchor.coords) {
+      return res.json({ rep_id: repId, date, suggestions: [], message: 'No anchor for this day — drop an account or set a territory first.' });
     }
-    const { stops } = await aiPropose({ dayList: [date], goal: remaining, candidates, mode: 'fill-day' });
-    res.json({ rep_id: repId, date, goal: remaining, suggestions: stops });
+
+    const candidates = await gatherCandidates(repId, planned, 250);
+    for (const c of candidates) c.coords = await geocodeCity(c.area);
+
+    const suggestions = [];
+    for (const c of candidates) {
+      if (suggestions.length >= remaining) break;
+      if (!withinRadius(anchor, c, radius)) continue;
+      suggestions.push({
+        account_id: c.account_id, day: date, name: c.name, area: c.area,
+        reason: c.reason_hint, prep: c.crosssell ? c.crosssell.reason : (c.next_step || null)
+      });
+    }
+    res.json({ rep_id: repId, date, goal: remaining, radius, suggestions });
   } catch (e) {
     console.error('[planner/fill-day]', e.message);
     res.status(500).json({ error: e.message });
