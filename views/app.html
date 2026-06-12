@@ -8999,7 +8999,7 @@ async function saveQuote() {
     // Handle duplicate quote (409) — show warning modal, allow bypass
     if (res.status === 409 && resData.error === 'duplicate') {
       btn.textContent = 'Save Quote'; btn.disabled = false;
-      showDupModal(resData.message, payload, url, method);
+      showDupModal(resData, payload, url, method);
       return;
     } else if (resData.error) {
       throw new Error(resData.error);
@@ -9060,28 +9060,51 @@ async function deleteCurrentQuote() {
 }
 
 // ── Duplicate quote modal helpers (Fix 5) ──────────────────────────
+// A same-rep duplicate quote-number is a WARNING, not a dead end. The modal
+// shows what it collides with and offers "View existing" or "Save anyway"
+// (which re-submits the SAME payload with force:true and must succeed).
 var _dupPayload = null;
 var _dupUrl = null;
 var _dupMethod = null;
+var _dupExistingId = null;
 
-function showDupModal(message, payload, url, method) {
+function showDupModal(resData, payload, url, method) {
   _dupPayload = payload;
   _dupUrl = url;
   _dupMethod = method;
+  _dupExistingId = (resData && resData.existing_id) || null;
+  var ex = (resData && resData.existing) || {};
+  var num = (payload && payload.quote_number) || '';
+  var parts = [];
+  if (ex.account_name) parts.push(ex.account_name);
+  if (ex.amount != null && ex.amount !== '') parts.push('$' + (Number(ex.amount) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+  if (ex.quote_date) parts.push(String(ex.quote_date).slice(0, 10));
+  var msg = 'Quote ' + (num ? '"' + num + '" ' : '') + 'already exists' +
+            (parts.length ? ' — ' + parts.join(', ') : '') + '.';
   var msgEl = document.getElementById('dup-modal-message');
-  if (msgEl) msgEl.textContent = message;
+  if (msgEl) msgEl.textContent = msg;
+  var viewBtn = document.getElementById('dup-view-existing-btn');
+  if (viewBtn) viewBtn.style.display = _dupExistingId ? '' : 'none';
   document.getElementById('dup-quote-modal').style.display = 'flex';
 }
 
 function closeDupModal() {
   document.getElementById('dup-quote-modal').style.display = 'none';
-  _dupPayload = null; _dupUrl = null; _dupMethod = null;
+  _dupPayload = null; _dupUrl = null; _dupMethod = null; _dupExistingId = null;
+}
+
+// "View existing" — open the colliding quote so the rep can compare.
+function viewExistingDup() {
+  var id = _dupExistingId;
+  closeDupModal();
+  if (id) openQuoteDetail(id);
 }
 
 async function saveQuoteForceOverride() {
   if (!_dupPayload || !_dupUrl || !_dupMethod) return;
   closeDupModal();
-  var payload = Object.assign({}, _dupPayload, { force_override: true });
+  // Re-submit the SAME payload with the force flag the server honors.
+  var payload = Object.assign({}, _dupPayload, { force: true, force_override: true });
   var btn = document.getElementById('qd-save-btn');
   if (btn) { btn.textContent = 'Saving...'; btn.disabled = true; }
   try {
@@ -12898,11 +12921,12 @@ document.addEventListener('click', function(e) {
     </div>
     <div style="padding:18px 20px">
       <div id="dup-modal-message" style="font-size:13px;color:#1a1a2e;line-height:1.6;margin-bottom:16px"></div>
-      <div style="font-size:12px;color:#555e6c;margin-bottom:4px">Are you sure you want to save this as a new quote?</div>
+      <div style="font-size:12px;color:#555e6c;margin-bottom:4px">You can open the existing quote or save this one anyway.</div>
     </div>
-    <div style="padding:12px 20px;border-top:1px solid #e0e2e7;background:#fafbfc;display:flex;gap:8px;justify-content:flex-end">
+    <div style="padding:12px 20px;border-top:1px solid #e0e2e7;background:#fafbfc;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
       <button onclick="closeDupModal()" style="padding:8px 18px;background:transparent;border:1px solid #e0e2e7;border-radius:5px;font-size:12px;cursor:pointer;color:#555e6c;font-family:inherit">Cancel</button>
-      <button onclick="saveQuoteForceOverride()" style="padding:8px 18px;background:#1f2d3d;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Save Anyway</button>
+      <button id="dup-view-existing-btn" onclick="viewExistingDup()" style="padding:8px 18px;background:transparent;border:1px solid #1f2d3d;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;color:#1f2d3d;font-family:inherit">View existing</button>
+      <button onclick="saveQuoteForceOverride()" style="padding:8px 18px;background:#1f2d3d;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Save anyway</button>
     </div>
   </div>
 </div>

@@ -137,26 +137,32 @@ router.post('/', async (req, res) => {
       amount, products, comments, quote_date, follow_up_date,
       pdf_data, pdf_filename, rep_name, force_override
     } = req.body;
+    // "Save anyway" override — accept either `force` (new) or `force_override` (legacy).
+    const force = req.body.force === true || force_override === true;
 
     if (!account_name || !account_name.trim()) {
       return res.status(400).json({ error: 'Account name is required' });
     }
 
-    // ── Duplicate checks — skipped if user explicitly chose to proceed (force_override) ──
-    if (!force_override) {
-      // Check 1: same quote_number (team-wide)
-      if (quote_number && quote_number.trim()) {
-        const dupNum = await pool.query(
-          `SELECT id FROM quotes WHERE LOWER(TRIM(quote_number)) = LOWER($1) LIMIT 1`,
-          [quote_number.trim()]
-        );
-        if (dupNum.rows.length > 0) {
-          return res.status(409).json({
-            error: 'duplicate',
-            message: 'A quote with number "' + quote_number.trim() + '" already exists.',
-            existing_id: dupNum.rows[0].id
-          });
-        }
+    // ── Duplicate check — PER-REP only ──────────────────────────────────────────
+    // Manufacturer quote numbers legitimately repeat across reps and revisions, so
+    // a different rep using the same number is NEVER a conflict (allowed silently).
+    // Only a same-rep collision warns, and even then `force:true` saves anyway.
+    if (!force && quote_number && quote_number.trim()) {
+      const dupNum = await pool.query(
+        `SELECT id, account_name, amount, quote_date FROM quotes
+          WHERE rep_id = $1 AND LOWER(TRIM(quote_number)) = LOWER($2)
+          ORDER BY id DESC LIMIT 1`,
+        [userId, quote_number.trim()]
+      );
+      if (dupNum.rows.length > 0) {
+        const ex = dupNum.rows[0];
+        return res.status(409).json({
+          error: 'duplicate',
+          message: 'A quote with number "' + quote_number.trim() + '" already exists.',
+          existing_id: ex.id,
+          existing: { account_name: ex.account_name, amount: ex.amount, quote_date: ex.quote_date }
+        });
       }
     }
 
@@ -203,21 +209,27 @@ router.put('/:id', async (req, res) => {
       amount, products, comments, quote_date, follow_up_date,
       pdf_data, pdf_filename, rep_name, force_override
     } = req.body;
+    const force = req.body.force === true || force_override === true;
 
-    // ── Duplicate check: if quote_number changed, ensure it doesn't collide ──
-    // Skipped when the user explicitly chose "Save anyway" (force_override) —
-    // duplicate quote numbers are legitimately allowed.
-    if (!force_override && quote_number && quote_number.trim()) {
+    // ── Duplicate check (PER-REP) — never collides with the quote's OWN id ──
+    // Scoped to the same rep as the quote being edited and excludes this id, so
+    // re-saving a quote while keeping its own number can never self-collide.
+    if (!force && quote_number && quote_number.trim()) {
       const dupNum = await pool.query(
-        `SELECT id FROM quotes
-         WHERE LOWER(TRIM(quote_number)) = LOWER($1) AND id != $2 LIMIT 1`,
+        `SELECT id, account_name, amount, quote_date FROM quotes
+          WHERE LOWER(TRIM(quote_number)) = LOWER($1)
+            AND id != $2
+            AND rep_id IS NOT DISTINCT FROM (SELECT rep_id FROM quotes WHERE id = $2)
+          ORDER BY id DESC LIMIT 1`,
         [quote_number.trim(), req.params.id]
       );
       if (dupNum.rows.length > 0) {
+        const ex = dupNum.rows[0];
         return res.status(409).json({
           error: 'duplicate',
           message: 'A quote with number "' + quote_number.trim() + '" already exists.',
-          existing_id: dupNum.rows[0].id
+          existing_id: ex.id,
+          existing: { account_name: ex.account_name, amount: ex.amount, quote_date: ex.quote_date }
         });
       }
     }
