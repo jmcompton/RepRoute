@@ -5035,12 +5035,11 @@ function renderTodayCockpit(d, extra) {
   var finderSlot = document.getElementById('today-finder-slot');
   extra = extra || {};
 
-  // Role: explicit 'intern' wins; otherwise a user with NO stops AND NO
-  // commission accounts is a "hunter" → intern-style. Managers never hunt.
+  // Role: ONLY an explicit 'intern' gets the lead-finder-first hunter view.
+  // Reps and managers always get the full cockpit — empty states already cover
+  // no-data (no stops → "Plan my day"; no commission → money-nearby hidden).
   var role = (window.currentUser && window.currentUser.role) || 'rep';
-  var noStops = !d.stops || !d.stops.length;
-  var isIntern = role === 'intern' ||
-    (role !== 'manager' && noStops && !extra.commissionCount);
+  var isIntern = role === 'intern';
 
   var city = todayWorkingCity(d);
 
