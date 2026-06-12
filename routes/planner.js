@@ -613,7 +613,7 @@ async function gatherRankedCandidates(repId, excludeAccountIds) {
   // Tier 1 (commission, by run_rate) + Tier 2 (leads). One pass over the rep's
   // open prospects with a commission rollup; reconnect ids already captured above.
   const rows = (await pool.query(
-    `SELECT p.id, p.company, p.city, p.address, p.next_step,
+    `SELECT p.id, p.company, p.city, p.address,
             COALESCE(SUM(al.total_commission), 0) AS commission,
             COUNT(DISTINCT cl.period_start)        AS months_loaded
        FROM prospects p
@@ -621,7 +621,7 @@ async function gatherRankedCandidates(repId, excludeAccountIds) {
        LEFT JOIN commission_lines cl ON cl.account_id = p.id
       WHERE p.user_id = $1
         AND COALESCE(p.pipeline_stage,'') NOT IN ('Closed Won','Closed Lost')
-      GROUP BY p.id, p.company, p.city, p.address, p.next_step`,
+      GROUP BY p.id, p.company, p.city, p.address`,
     [repId]
   )).rows;
   for (const p of rows) {
@@ -635,12 +635,12 @@ async function gatherRankedCandidates(repId, excludeAccountIds) {
       const runRate = months > 0 ? (commission / months) * 12 : commission;
       out.push({
         account_id: p.id, name: p.company, area, tier: 1, sortKey: runRate,
-        reason_hint: 'Customer · $' + fmtDollars(commission) + ' trailing', prep: p.next_step || null
+        reason_hint: 'Customer · $' + fmtDollars(commission) + ' trailing', prep: null
       });
     } else {
       out.push({
         account_id: p.id, name: p.company, area, tier: 2, sortKey: 0,
-        reason_hint: 'Prospect — new opportunity', prep: p.next_step || null
+        reason_hint: 'Prospect — new opportunity', prep: null
       });
     }
   }

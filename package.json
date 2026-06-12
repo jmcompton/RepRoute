@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node test/commission-pdf.test.js"
+    "test": "node test/commission-pdf.test.js && node test/planner-schema.test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
