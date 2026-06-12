@@ -3309,13 +3309,28 @@ window.addEventListener('load', function() {
 
   <div class="page" id="page-commissions" style="overflow-y:auto;padding-bottom:80px">
     <div style="padding:16px">
-      <!-- Upload card -->
+      <!-- PRIMARY: Commission PDF importer (Trilogy Payment Detail Report) -->
+      <div id="cpdf2-card" style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+          <span style="font-size:16px">📄</span>
+          <span style="font-size:14px;font-weight:800;color:var(--navy)">Import Commission PDF</span>
+          <span style="font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#065f46;background:#d1fae5;border-radius:10px;padding:2px 8px">Recommended</span>
+        </div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Upload a Trilogy “Payment Detail Report” (.pdf). We parse it, verify it reconciles to its printed totals, then you confirm to import.</div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <input type="file" id="cpdf2-file" accept="application/pdf,.pdf" style="font-size:12px;font-family:inherit;color:var(--navy)" />
+          <button id="cpdf2-preview-btn" class="btn btn-primary btn-sm" onclick="cpdfPreview('cpdf2')">Preview</button>
+        </div>
+        <div id="cpdf2-result" style="margin-top:14px;display:none"></div>
+      </div>
+
+      <!-- Upload card (Excel — legacy/alternate) -->
       <div id="comm-upload-card" style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:14px">
-        <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:6px">Import Commission Statement</div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Upload a Trilogy Payment Detail Report (.xlsx). We'll parse the lines, group customers, and match them to accounts for review.</div>
+        <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:6px">Import Commission Statement (Excel)</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Have a spreadsheet instead? Upload a Trilogy Payment Detail Report (.xlsx). We'll parse the lines, group customers, and match them to accounts for review.</div>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <input type="file" id="comm-file" accept=".xlsx,.xls" style="font-size:12px" />
-          <button class="btn btn-primary btn-sm" onclick="uploadCommission()" id="comm-upload-btn">Upload &amp; Parse</button>
+          <button class="btn btn-secondary btn-sm" onclick="uploadCommission()" id="comm-upload-btn">Upload &amp; Parse</button>
         </div>
         <div id="comm-upload-status" style="font-size:12px;margin-top:10px;color:var(--text2)"></div>
       </div>
@@ -15546,33 +15561,39 @@ function loadCommissions() {
 // Preview parses-only (writes nothing) and shows whether the report reconciles
 // to its printed totals; Confirm commits. The parsed PDF is re-sent on commit so
 // the server is the single source of truth. Reuses cEsc; money formatted here.
-window.__cpdfFile = null;
+// Scope-aware Commission PDF import (preview → confirm). The SAME flow backs the
+// Bulk Import page (scope 'cpdf') and the Commissions page (scope 'cpdf2') — each
+// scope prefixes its own DOM ids and keeps its own pending file, so the two cards
+// never collide.
+window.__cpdfFiles = {};
 function cpdfFmt(n){ return '$' + (Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 
-function cpdfPreview() {
-  var input = document.getElementById('cpdf-file');
+function cpdfPreview(scope) {
+  scope = scope || 'cpdf';
+  var input = document.getElementById(scope + '-file');
   var f = (input && input.files && input.files[0]) || null;
   if (!f) { showToast('Choose a PDF first.'); return; }
-  window.__cpdfFile = f;
-  var btn = document.getElementById('cpdf-preview-btn');
-  var out = document.getElementById('cpdf-result');
-  btn.disabled = true; btn.textContent = 'Parsing…';
+  window.__cpdfFiles[scope] = f;
+  var btn = document.getElementById(scope + '-preview-btn');
+  var out = document.getElementById(scope + '-result');
+  if (btn) { btn.disabled = true; btn.textContent = 'Parsing…'; }
   out.style.display = 'block';
   out.innerHTML = '<div style="color:var(--text3);font-size:13px">Parsing the PDF…</div>';
   var fd = new FormData(); fd.append('file', f);
   fetch('/api/commission-pdf/preview', { method:'POST', body: fd })
     .then(function(r){ return r.json().then(function(j){ return { ok:r.ok, j:j }; }); })
     .then(function(res){
-      btn.disabled = false; btn.textContent = 'Preview';
+      if (btn) { btn.disabled = false; btn.textContent = 'Preview'; }
       if (!res.ok) { out.innerHTML = '<div style="color:#b91c1c;font-size:13px;font-weight:600">'+cEsc(res.j.error||'Could not parse the PDF.')+'</div>'; return; }
-      cpdfRenderPreview(res.j.preview);
+      cpdfRenderPreview(res.j.preview, scope);
     })
-    .catch(function(e){ btn.disabled = false; btn.textContent = 'Preview';
+    .catch(function(e){ if (btn) { btn.disabled = false; btn.textContent = 'Preview'; }
       out.innerHTML = '<div style="color:#b91c1c;font-size:13px">'+cEsc(e.message||'Upload failed.')+'</div>'; });
 }
 
-function cpdfRenderPreview(p) {
-  var out = document.getElementById('cpdf-result');
+function cpdfRenderPreview(p, scope) {
+  scope = scope || 'cpdf';
+  var out = document.getElementById(scope + '-result');
   var rec = p.reconciliation || {};
   var ok = !!rec.reconciles;
   var badge = ok
@@ -15600,17 +15621,18 @@ function cpdfRenderPreview(p) {
       + '</div>';
   }
   var confirmBtn = ok
-    ? '<button id="cpdf-commit-btn" onclick="cpdfCommit()" style="margin-top:12px;padding:10px 18px;border:none;border-radius:7px;font-size:13px;font-weight:800;font-family:inherit;color:#fff;background:linear-gradient(135deg,#059669,#10b981);cursor:pointer">Confirm import</button>'
+    ? '<button id="'+scope+'-commit-btn" onclick="cpdfCommit(\''+scope+'\')" style="margin-top:12px;padding:10px 18px;border:none;border-radius:7px;font-size:13px;font-weight:800;font-family:inherit;color:#fff;background:linear-gradient(135deg,#059669,#10b981);cursor:pointer">Confirm import</button>'
     : '';
   out.innerHTML = '<div style="border:1px solid var(--border);border-radius:8px;padding:14px;background:#fff">'
     + '<div style="margin-bottom:10px">'+badge+'</div>'
     + '<div style="font-size:13px">'+rows+'</div>'+mism+confirmBtn+'</div>';
 }
 
-function cpdfCommit() {
-  var f = window.__cpdfFile;
+function cpdfCommit(scope) {
+  scope = scope || 'cpdf';
+  var f = window.__cpdfFiles[scope];
   if (!f) { showToast('Re-run Preview first.'); return; }
-  var btn = document.getElementById('cpdf-commit-btn');
+  var btn = document.getElementById(scope + '-commit-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Importing…'; }
   var fd = new FormData(); fd.append('file', f);
   fetch('/api/commission-pdf/commit', { method:'POST', body: fd })
@@ -15623,11 +15645,12 @@ function cpdfCommit() {
       }
       var d = res.j;
       showToast('Imported '+d.accounts+' accounts across '+d.lines+' lines for '+(d.rep||'rep')+' ('+d.period+').', 4000);
-      var out = document.getElementById('cpdf-result');
+      var out = document.getElementById(scope + '-result');
       if (out) out.innerHTML = '<div style="border:1px solid #a7f3d0;border-radius:8px;padding:14px;background:#ecfdf5;color:#065f46;font-size:13px;font-weight:600">✓ Imported '+d.accounts+' accounts · '+d.lines+' lines · '+cEsc(d.rep||'')+' · '+cEsc(d.period||'')+'</div>';
-      window.__cpdfFile = null;
-      var input = document.getElementById('cpdf-file'); if (input) input.value = '';
+      window.__cpdfFiles[scope] = null;
+      var input = document.getElementById(scope + '-file'); if (input) input.value = '';
       if (typeof loadProspects === 'function') loadProspects();
+      if (typeof loadCommissions === 'function') loadCommissions();
     })
     .catch(function(e){ if (btn) { btn.disabled = false; btn.textContent = 'Confirm import'; }
       showToast(e.message || 'Import failed.', 4000); });

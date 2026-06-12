@@ -4,7 +4,8 @@
   "description": "RepRoute - AI-Powered Field Sales Platform by Compton Group LLC",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node test/commission-pdf.test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
