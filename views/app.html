@@ -354,9 +354,12 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 
 /* ─── MOBILE UX OVERHAUL ───────────────────────────────────────── */
 @media(max-width:768px){
-  /* Hide topbar elements that don't fit */
+  /* Hide topbar elements that don't fit.
+     NOTE: scope the territory selectors to the topbar only — an unscoped
+     [id*="territory"] also matched #territory-modal / #territory-input and
+     hid the Change-Territory picker on mobile (button looked dead). */
   .tb-territory, .tb-territory-pill,
-  #territory-pill, [id*="territory"],
+  .topbar #territory-pill, .topbar [id*="territory"],
   .topbar .btn:not(.btn-icon),
   .topbar a.btn { display:none !important; }
 
@@ -1927,8 +1930,9 @@ window.addEventListener('load', function() {
       </div>
       <div id="team-loading" style="display:none;text-align:center;padding:40px;color:var(--text3);font-size:13px">Loading team accounts...</div>
     </div>
-    <!-- Selected-account detail (desktop ≥1024px only) -->
-    <aside class="contacts-detail" id="contacts-detail">
+    <!-- Selected-account detail (desktop ≥1024px only). Hidden until a row is
+         selected so the empty placeholder doesn't occupy the right column. -->
+    <aside class="contacts-detail" id="contacts-detail" style="display:none">
       <div id="contacts-detail-pane" class="cd-pane cd-empty">
         <div style="font-size:32px;margin-bottom:8px">🗂️</div>
         <div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:4px">Select an account</div>
@@ -3797,11 +3801,16 @@ window.addEventListener('load', function() {
             jmEl.classList.add('jm-visible');
           });
         }
-        // Role-based navigation visibility + landing page
+        // Role-based navigation visibility + landing page.
+        // Guard: if the user already navigated/searched while /app/data was in
+        // flight, do NOT yank them back to the landing page (this caused the
+        // "search bounces me to Today" bug on slower loads).
         var _role = applyRoleNav(u.role);
-        var _home = _role === 'rep' ? 'today' : 'dashboard';
-        go(_home);
-        setActiveNav(_home === 'today' ? 'bn-today' : 'bn-home');
+        if (!window._userNavigated) {
+          var _home = _role === 'rep' ? 'today' : 'dashboard';
+          go(_home);
+          setActiveNav(_home === 'today' ? 'bn-today' : 'bn-home');
+        }
       } else {
         applyRoleNav('rep');
       }
@@ -3859,7 +3868,11 @@ function go(id) {
   if (id === 'calls') { loadCallProspects(); loadCalls(); }
   if (id === 'weekly') loadWeeklyPlan();
   if (id === 'manager') loadManager();
-  if (id === 'contacts') { loadProspects(); loadCrmStats(); }
+  if (id === 'contacts') {
+    loadProspects(); loadCrmStats();
+    // Keep the preview column hidden until a row is actually selected.
+    if (!window._selectedContactId && typeof clearContactSelection === 'function') clearContactSelection();
+  }
   if (id === 'bulk') { var bq = document.getElementById('bulk-query'); if (bq && !bq.value) bq.focus(); }
   // if (id === 'onboarding') loadMyOnboarding(); // disabled - show only newly generated plans
   if (id === 'deals') loadPipeline();
@@ -4399,25 +4412,50 @@ function runDashAI() {
 }
 
 function loadProspects() {
-  var search = (document.getElementById('p-search') || {value:''}).value;
-  var cat = categoryFilter !== 'All' ? '&category=' + encodeURIComponent(categoryFilter) : '';
-  var q = search ? '&search=' + encodeURIComponent(search) : '';
-  // New: company_type + data_status filter params
-  var ctFilter = (document.getElementById('filter-company-type') || {value:'All'}).value;
-  var dsFilter = (document.getElementById('filter-data-status') || {value:'All'}).value;
-  var ctParam = ctFilter && ctFilter !== 'All' ? '&company_type=' + encodeURIComponent(ctFilter) : '';
-  var dsParam = dsFilter && dsFilter !== 'All' ? '&data_status=' + encodeURIComponent(dsFilter) : '';
-  fetch('/api/prospects?1=1' + cat + q + ctParam + dsParam)
+  // Fetch the full account set once; the type/status/search filters are applied
+  // client-side in renderProspects() so they always COMBINE (type AND status AND
+  // search) and re-filtering is instant without a round-trip.
+  var cat = categoryFilter !== 'All' ? '?category=' + encodeURIComponent(categoryFilter) : '';
+  fetch('/api/prospects' + cat)
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      allProspects = data;
+      allProspects = Array.isArray(data) ? data : [];
       renderProspects();
     });
 }
 
-// handleContactSearch — triggered by search input OR filter dropdowns
+// handleContactSearch — triggered by search input OR filter dropdowns.
+// Just re-render; no refetch needed since filtering is client-side.
 function handleContactSearch() {
-  loadProspects();
+  window._userNavigated = true;
+  renderProspects();
+}
+
+// Apply the three Accounts filters (company type, data status, free-text search)
+// to the loaded set. Returns the filtered array.
+function filterProspects(list) {
+  var ctFilter = (document.getElementById('filter-company-type') || {value:'All'}).value || 'All';
+  var dsFilter = (document.getElementById('filter-data-status') || {value:'All'}).value || 'All';
+  var q = ((document.getElementById('p-search') || {value:''}).value || '').trim().toLowerCase();
+  return (list || []).filter(function(p) {
+    // Company type — exact match on the stored/displayed value.
+    if (ctFilter !== 'All') {
+      var ct = p.company_type || 'Contractor';
+      if (ct !== ctFilter) return false;
+    }
+    // Data status — match the badge the user sees (p.data_status||'Unvetted').
+    if (dsFilter !== 'All') {
+      var ds = p.data_status || 'Unvetted';
+      if (ds !== dsFilter) return false;
+    }
+    // Free-text search across the visible fields.
+    if (q) {
+      var hay = [p.company, p.contact, p.phone, p.email, p.city, p.category]
+        .map(function(v){ return (v == null ? '' : String(v)).toLowerCase(); }).join(' ');
+      if (hay.indexOf(q) === -1) return false;
+    }
+    return true;
+  });
 }
 
 function renderProspects() {
@@ -4425,13 +4463,15 @@ function renderProspects() {
   var empty = document.getElementById('p-empty');
   var count = document.getElementById('list-count');
   if (!tbody) return;
-  if (count) count.textContent = allProspects.length + ' record' + (allProspects.length !== 1 ? 's' : '');
-  if (!allProspects.length) { tbody.innerHTML = ''; if (empty) empty.style.display = 'block'; return; }
+  // Apply the active type/status/search filters (combined) before counting/rendering.
+  var visible = filterProspects(allProspects);
+  if (count) count.textContent = visible.length + ' record' + (visible.length !== 1 ? 's' : '');
+  if (!visible.length) { tbody.innerHTML = ''; if (empty) empty.style.display = 'block'; return; }
   if (empty) empty.style.display = 'none';
 
   // Apply sort
   var sortVal = (document.getElementById('sort-contacts') || {value:'default'}).value;
-  var sorted = allProspects.slice();
+  var sorted = visible.slice();
   // Ascending helper
   function strAsc(key) { return function(a,b){ return (a[key]||'').localeCompare(b[key]||''); }; }
   function strDesc(key){ return function(a,b){ return (b[key]||'').localeCompare(a[key]||''); }; }
@@ -4535,7 +4575,11 @@ function contactSelect(id) {
       '<span style="color:var(--text);font-weight:500;text-align:right">' + (val ? esc(val) : '—') + '</span></div>';
   }
 
-  var h = '<div style="font-size:19px;font-weight:800;color:var(--navy)">' + esc(p.company || '—') + '</div>' +
+  var h = '<div style="display:flex;justify-content:flex-end;margin:-6px -6px 2px 0">' +
+      '<button onclick="clearContactSelection()" title="Close preview" ' +
+        'style="background:transparent;border:none;color:var(--text3);font-size:18px;line-height:1;cursor:pointer;padding:4px 6px">&times;</button>' +
+    '</div>' +
+    '<div style="font-size:19px;font-weight:800;color:var(--navy)">' + esc(p.company || '—') + '</div>' +
     (p.category ? '<div style="font-size:12px;color:var(--blue);margin-top:2px">' + esc(p.category) + '</div>' : '') +
     '<div style="margin-top:12px">' +
       field('Type', p.company_type) +
@@ -4554,6 +4598,25 @@ function contactSelect(id) {
 
   pane.className = 'cd-pane';
   pane.innerHTML = h;
+  // Reveal the detail column now that something is selected.
+  var aside = document.getElementById('contacts-detail');
+  if (aside) aside.style.display = 'block';
+  window._selectedContactId = id;
+}
+
+// Release the desktop preview pane: clear the selection and hide the column so
+// it no longer "sticks" and the empty placeholder doesn't occupy the layout.
+function clearContactSelection() {
+  window._selectedContactId = null;
+  var aside = document.getElementById('contacts-detail');
+  var pane = document.getElementById('contacts-detail-pane');
+  if (pane) {
+    pane.className = 'cd-pane cd-empty';
+    pane.innerHTML = '<div style="font-size:32px;margin-bottom:8px">🗂️</div>' +
+      '<div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:4px">Select an account</div>' +
+      '<div style="font-size:12px">Click a row to preview it here — or open the full record.</div>';
+  }
+  if (aside) aside.style.display = 'none';
 }
 
 function viewRecord(id) {
@@ -4580,9 +4643,16 @@ function viewRecord(id) {
       var dsBadgeRec = '<span style="' + dsRecStyle + '">' + dsRec + '</span>';
       var ctRec = p.company_type || 'Contractor';
       var ctRecBadge = '<span style="' + (ctRec==='Distributor'?'background:#1e3a5f;color:#fff':'background:#f1f5f9;color:#475569') + ';font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px">' + ctRec + '</span>';
-      var verifyBtn = dsRec !== 'Verified CRM Data'
-        ? '<button onclick="verifyRecord(' + p.id + ')" style="padding:3px 10px;background:#059669;color:#fff;border:none;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;margin-left:6px">Mark Verified</button>'
-        : '';
+      // Data-status picker — allow ANY transition (Unvetted/Contacted/Verified),
+      // persisted to the DB. Replaces the one-way "Mark Verified" button.
+      var dsOpts = ['Unvetted','Contacted','Verified CRM Data'];
+      var dsSelect = '<select onchange="setRecordDataStatus(' + p.id + ', this.value)" ' +
+        'style="margin-left:8px;padding:2px 6px;border:1px solid var(--border);border-radius:5px;font-size:11px;font-family:inherit;background:#fff;color:var(--navy)">' +
+        dsOpts.map(function(o){
+          return '<option value="' + o + '"' + (o === dsRec ? ' selected' : '') + '>' +
+                 (o === 'Verified CRM Data' ? 'Verified' : o) + '</option>';
+        }).join('') + '</select>';
+      var verifyBtn = dsSelect;
       var fields = [
         ['Contact Owner','You'],['Company Type',ctRecBadge],
         ['Contact Name',p.contact||'—'],['Account Name',p.company],
@@ -5152,6 +5222,9 @@ function recGoBack() {
     window._pendingRecTab = 'contacts';
     viewRecord(parentId);
   } else {
+    // Returning to the list: drop the open record and release the preview pane.
+    currentRecord = null;
+    if (typeof clearContactSelection === 'function') clearContactSelection();
     go('contacts');
   }
 }
@@ -6338,6 +6411,31 @@ function verifyRecord(id) {
     .catch(function() { showToast('Verify failed — try again'); });
 }
 
+// Change a record's data_status to ANY value (Unvetted/Contacted/Verified CRM
+// Data) and persist it. Used by the picker in the record detail view.
+function setRecordDataStatus(id, value) {
+  fetch('/api/prospects/' + id, {
+    method: 'PUT',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ data_status: value })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d && d.error) { showToast('Could not update status'); return; }
+      showToast('Data status → ' + (value === 'Verified CRM Data' ? 'Verified' : value));
+      if (currentRecord && currentRecord.id === id) {
+        currentRecord.data_status = value;
+        viewRecord(id);
+      }
+      // Keep the list/filters/stats in sync immediately.
+      var pIdx = (allProspects || []).findIndex(function(x){ return x.id === id; });
+      if (pIdx !== -1) allProspects[pIdx].data_status = value;
+      renderProspects();
+      loadCrmStats();
+    })
+    .catch(function() { showToast('Status update failed — try again'); });
+}
+
 // Save a single lead to CRM with pre-call notes and category before visiting
 function saveLeadWithNotes(idx, event) {
   if (event) event.stopPropagation();
@@ -6960,14 +7058,19 @@ function closeModal(id) {
   return; document.getElementById('modal-'+id).classList.remove('open'); }
 document.addEventListener('click', function(e) { if(e.target.classList.contains('mo')) e.target.classList.remove('open'); });
 function globalSearch(q) {
-  q = q.trim();
+  // Mark that the user has taken control of navigation so the deferred
+  // initial-landing redirect (to Today) can't bounce them mid-search.
+  window._userNavigated = true;
+  q = (q || '').trim();
   if (!q) return;
-  // Navigate to contacts and filter
-  go('contacts');
+  // Show the Accounts page and filter it in place — never navigate to Today.
+  var onContacts = document.getElementById('page-contacts') &&
+                   document.getElementById('page-contacts').classList.contains('active');
+  if (!onContacts) go('contacts');
   var pSearch = document.getElementById('p-search');
   if (pSearch) {
     pSearch.value = q;
-    loadProspects();
+    handleContactSearch();
   }
 }
 
@@ -7455,10 +7558,19 @@ async function saveTerritoryChange() {
       body: JSON.stringify({ territory: t })
     });
     window.currentTerritory = t;
-    document.getElementById('sb-territory-label').textContent = t;
+    if (window.currentUser) window.currentUser.territory = t;
+    if (window.__userData) window.__userData.territory = t;
+    var sbLbl = document.getElementById('sb-territory-label');
+    if (sbLbl) sbLbl.textContent = t;
     var leadTerr = document.getElementById('lead-territory');
     if (leadTerr) leadTerr.value = t;
+    // Reflect in the dashboard date strip (uses currentUser.territory)
+    var dashDate = document.getElementById('dash-date');
+    if (dashDate && dashDate.textContent.indexOf('·') !== -1) {
+      dashDate.textContent = dashDate.textContent.replace(/·.*$/, '· ' + t);
+    }
     closeTerritoryModal();
+    showToast('Territory updated to ' + t);
   } catch(e) { alert('Error saving territory'); }
 }
 
