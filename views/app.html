@@ -2149,6 +2149,22 @@ window.addEventListener('load', function() {
       </div>
     </div>
 
+    <!-- Commission PDF importer (Trilogy Payment Detail Report) -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <span style="font-size:16px">📄</span>
+        <span style="font-size:15px;font-weight:800;color:var(--navy)">Import Commission PDF (.pdf)</span>
+      </div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:12px">Upload a Trilogy “Payment Detail Report”. We parse it, verify it reconciles to its printed totals, then you confirm to import.</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <input type="file" id="cpdf-file" accept="application/pdf,.pdf"
+          style="font-size:13px;font-family:inherit;color:var(--navy)">
+        <button id="cpdf-preview-btn" onclick="cpdfPreview()"
+          style="padding:9px 16px;border:none;border-radius:7px;font-size:13px;font-weight:700;font-family:inherit;color:#fff;background:linear-gradient(135deg,#1e40af,#3b82f6);cursor:pointer">Preview</button>
+      </div>
+      <div id="cpdf-result" style="margin-top:14px;display:none"></div>
+    </div>
+
     <!-- Controls -->
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:16px">
 
@@ -15197,6 +15213,93 @@ function cMoney(n){ return '$' + (Number(n)||0).toLocaleString('en-US',{minimumF
 function loadCommissions() {
   closeCommissionReview();
   loadCommissionHistory();
+}
+
+// ── Commission PDF importer (Trilogy Payment Detail Report) ──────────────────
+// Preview parses-only (writes nothing) and shows whether the report reconciles
+// to its printed totals; Confirm commits. The parsed PDF is re-sent on commit so
+// the server is the single source of truth. Reuses cEsc; money formatted here.
+window.__cpdfFile = null;
+function cpdfFmt(n){ return '$' + (Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+function cpdfPreview() {
+  var input = document.getElementById('cpdf-file');
+  var f = (input && input.files && input.files[0]) || null;
+  if (!f) { showToast('Choose a PDF first.'); return; }
+  window.__cpdfFile = f;
+  var btn = document.getElementById('cpdf-preview-btn');
+  var out = document.getElementById('cpdf-result');
+  btn.disabled = true; btn.textContent = 'Parsing…';
+  out.style.display = 'block';
+  out.innerHTML = '<div style="color:var(--text3);font-size:13px">Parsing the PDF…</div>';
+  var fd = new FormData(); fd.append('file', f);
+  fetch('/api/commission-pdf/preview', { method:'POST', body: fd })
+    .then(function(r){ return r.json().then(function(j){ return { ok:r.ok, j:j }; }); })
+    .then(function(res){
+      btn.disabled = false; btn.textContent = 'Preview';
+      if (!res.ok) { out.innerHTML = '<div style="color:#b91c1c;font-size:13px;font-weight:600">'+cEsc(res.j.error||'Could not parse the PDF.')+'</div>'; return; }
+      cpdfRenderPreview(res.j.preview);
+    })
+    .catch(function(e){ btn.disabled = false; btn.textContent = 'Preview';
+      out.innerHTML = '<div style="color:#b91c1c;font-size:13px">'+cEsc(e.message||'Upload failed.')+'</div>'; });
+}
+
+function cpdfRenderPreview(p) {
+  var out = document.getElementById('cpdf-result');
+  var rec = p.reconciliation || {};
+  var ok = !!rec.reconciles;
+  var badge = ok
+    ? '<span style="font-size:12px;font-weight:800;padding:4px 10px;border-radius:10px;background:#d1fae5;color:#065f46">✓ Reconciles to printed totals</span>'
+    : '<span style="font-size:12px;font-weight:800;padding:4px 10px;border-radius:10px;background:#fee2e2;color:#991b1b">✗ Does not reconcile — import blocked</span>';
+  var g = p.grand_totals || {};
+  var c = p.counts || {};
+  var rows = '';
+  function row(k,v){ return '<div style="display:flex;justify-content:space-between;gap:16px;padding:4px 0"><span style="color:var(--text3)">'+k+'</span><span style="font-weight:700;color:var(--navy)">'+v+'</span></div>'; }
+  rows += row('Rep', cEsc(p.rep_name||'—'));
+  rows += row('Period', cEsc(p.period||'—') + (p.date_range ? ' ('+cEsc(p.date_range)+')' : ''));
+  rows += row('Manufacturers (lines)', (c.lines!=null?c.lines:(p.manufacturers?p.manufacturers.length:'—')));
+  rows += row('Accounts', (c.accounts!=null?c.accounts:'—'));
+  rows += row('Rows', (c.rows!=null?c.rows:'—'));
+  rows += row('Sales (parsed)', cpdfFmt(g.parsed_sales));
+  rows += row('Commission (parsed)', cpdfFmt(g.parsed_commission));
+  var mism = '';
+  if (!ok && Array.isArray(rec.mismatches) && rec.mismatches.length) {
+    mism = '<div style="margin-top:8px;font-size:12px;color:#991b1b"><div style="font-weight:700;margin-bottom:3px">Mismatches:</div>'
+      + rec.mismatches.map(function(m){ return '<div>• '+cEsc(m.label||m.manufacturer||'section')+': parsed '+cpdfFmt(m.parsed!=null?m.parsed:m.parsed_sales)+' vs printed '+cpdfFmt(m.printed!=null?m.printed:m.printed_sales)+'</div>'; }).join('')
+      + '</div>';
+  }
+  var confirmBtn = ok
+    ? '<button id="cpdf-commit-btn" onclick="cpdfCommit()" style="margin-top:12px;padding:10px 18px;border:none;border-radius:7px;font-size:13px;font-weight:800;font-family:inherit;color:#fff;background:linear-gradient(135deg,#059669,#10b981);cursor:pointer">Confirm import</button>'
+    : '';
+  out.innerHTML = '<div style="border:1px solid var(--border);border-radius:8px;padding:14px;background:#fff">'
+    + '<div style="margin-bottom:10px">'+badge+'</div>'
+    + '<div style="font-size:13px">'+rows+'</div>'+mism+confirmBtn+'</div>';
+}
+
+function cpdfCommit() {
+  var f = window.__cpdfFile;
+  if (!f) { showToast('Re-run Preview first.'); return; }
+  var btn = document.getElementById('cpdf-commit-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Importing…'; }
+  var fd = new FormData(); fd.append('file', f);
+  fetch('/api/commission-pdf/commit', { method:'POST', body: fd })
+    .then(function(r){ return r.json().then(function(j){ return { ok:r.ok, j:j }; }); })
+    .then(function(res){
+      if (!res.ok) {
+        if (btn) { btn.disabled = false; btn.textContent = 'Confirm import'; }
+        showToast(res.j.error || 'Import failed.', 4000);
+        return;
+      }
+      var d = res.j;
+      showToast('Imported '+d.accounts+' accounts across '+d.lines+' lines for '+(d.rep||'rep')+' ('+d.period+').', 4000);
+      var out = document.getElementById('cpdf-result');
+      if (out) out.innerHTML = '<div style="border:1px solid #a7f3d0;border-radius:8px;padding:14px;background:#ecfdf5;color:#065f46;font-size:13px;font-weight:600">✓ Imported '+d.accounts+' accounts · '+d.lines+' lines · '+cEsc(d.rep||'')+' · '+cEsc(d.period||'')+'</div>';
+      window.__cpdfFile = null;
+      var input = document.getElementById('cpdf-file'); if (input) input.value = '';
+      if (typeof loadProspects === 'function') loadProspects();
+    })
+    .catch(function(e){ if (btn) { btn.disabled = false; btn.textContent = 'Confirm import'; }
+      showToast(e.message || 'Import failed.', 4000); });
 }
 
 // ── Manufacturers view: lines → territory ────────────────────────────────────
