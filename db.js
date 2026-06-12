@@ -406,6 +406,18 @@ async function initDB() {
     -- Today view: authoritative "rep marked this stop done" flag (nullable, additive).
     ALTER TABLE planner_items ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP;
 
+    -- Per-day MANUAL anchor cities for the Weekly Planner. One row per rep+day;
+    -- only present when the rep has explicitly set/overridden the anchor. Auto
+    -- anchors (first stop's city) are derived live and never stored here, so a
+    -- manual anchor is never clobbered by auto behavior. Clearing = delete row.
+    CREATE TABLE IF NOT EXISTS planner_anchors (
+      rep_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      anchor_date DATE NOT NULL,
+      city        TEXT NOT NULL,
+      updated_at  TIMESTAMPTZ DEFAULT NOW(),
+      PRIMARY KEY (rep_id, anchor_date)
+    );
+
     -- ════════════════════════════════════════════════════════════
     -- Commission Import + Account-Matching Engine
     -- Turns Trilogy "XtraReport" commission statements into clean,

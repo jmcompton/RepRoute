@@ -3080,6 +3080,13 @@ window.addEventListener('load', function() {
           <span id="pl-week-label" style="font-size:13px;font-weight:700;color:var(--navy);margin-left:6px"></span>
         </div>
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <span id="pl-radius-wrap" style="display:none;align-items:center;gap:4px;font-size:11px;color:var(--text3)">Radius
+            <select id="pl-radius" onchange="plState.radius=parseInt(this.value)" style="padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text);font-family:inherit">
+              <option value="10">10 mi</option>
+              <option value="25" selected>25 mi</option>
+              <option value="50">50 mi</option>
+            </select>
+          </span>
           <button id="pl-build-btn" class="btn btn-primary btn-sm" onclick="plBuildWeek()" style="display:none">&#10024; Build My Week</button>
           <select id="pl-rep-select" onchange="plLoad()" style="display:none;padding:6px 10px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text);font-family:inherit"></select>
           <span id="pl-readonly-badge" style="display:none;font-size:11px;font-weight:700;color:#d97706;background:#fef3c7;padding:4px 10px;border-radius:10px">Read-only</span>
@@ -3087,12 +3094,16 @@ window.addEventListener('load', function() {
       </div>
 
       <!-- AI review bar — shown only while AI suggestions are pending review -->
-      <div id="pl-ai-bar" style="display:none;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:#f5f3ff;border:1px dashed #a78bfa;border-radius:10px;padding:10px 12px;margin-bottom:12px">
-        <div style="font-size:12px;color:#5b21b6"><strong>&#10024; AI suggestions</strong> <span id="pl-ai-count"></span> — review, remove or drag between days, then Apply. Nothing is saved until you Apply.</div>
-        <div style="display:flex;gap:6px">
-          <button class="btn btn-secondary btn-sm" onclick="plDismissAI()">Dismiss</button>
-          <button class="btn btn-primary btn-sm" onclick="plApplyAI()">Apply to plan</button>
+      <div id="pl-ai-bar" style="display:none;flex-direction:column;gap:8px;background:#f5f3ff;border:1px dashed #a78bfa;border-radius:10px;padding:10px 12px;margin-bottom:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+          <div style="font-size:12px;color:#5b21b6"><strong>&#10024; AI suggestions</strong> <span id="pl-ai-count"></span> — review, remove or drag between days, then Apply. Nothing is saved until you Apply.</div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-secondary btn-sm" onclick="plDismissAI()">Dismiss</button>
+            <button class="btn btn-primary btn-sm" onclick="plApplyAI()">Apply to plan</button>
+          </div>
         </div>
+        <div id="pl-ai-messages" style="font-size:11px;color:#92400e"></div>
+        <div id="pl-ai-noplace" style="font-size:11px;color:#5b21b6"></div>
       </div>
 
       <div style="display:flex;gap:14px;align-items:flex-start" id="pl-layout">
@@ -5013,6 +5024,10 @@ function moveFinderIntoToday() {
 // "Today's working city": city of the earliest appointment/stop today, else the
 // rep's selected territory. Used for the Lead Finder default + money-nearby.
 function todayWorkingCity(d) {
+  // Prefer the current day's planner anchor (manual override, else first stop's
+  // city) when the backend provides one; otherwise fall back to the original
+  // earliest-appointment → first-stop-city → territory logic.
+  if (d && d.anchor_city) return d.anchor_city;
   var stops = (d && d.stops) || [];
   var appts = stops.filter(function(s){ return s.appt_time && s.city; })
                    .sort(function(a,b){ return String(a.appt_time).localeCompare(String(b.appt_time)); });
@@ -15147,7 +15162,7 @@ function wrSendEmail() {
 
 <!-- ── WEEKLY PLANNER ─────────────────────────────────────────── -->
 <script>
-var plState = { weekStart: null, repId: null, canManage: false, ownId: null, items: [], panel: null, aiSuggestions: null };
+var plState = { weekStart: null, repId: null, canManage: false, ownId: null, items: [], panel: null, aiSuggestions: null, anchors: {}, radius: 25, couldntPlace: [], buildMessages: [] };
 
 function plIsManager() {
   var u = window.currentUser || window.__userData || {};
@@ -15210,6 +15225,26 @@ function plWeekShift(dir) {
   plLoad();
 }
 
+// Tap an anchor chip → set/change/clear that day's MANUAL anchor city. Empty
+// input clears it (reverts to auto first-stop behavior). Manual anchors are
+// never overwritten by auto-set.
+function plEditAnchor(date) {
+  if (plState.readOnly) return;
+  var cur = (plState.anchors && plState.anchors[date] && plState.anchors[date].manual)
+    ? plState.anchors[date].city : '';
+  var val = window.prompt('Anchor city for ' + plFmtDay(date) + ' ' + plFmtMD(date) + '\n(leave blank to clear and use the first stop\'s city):', cur || '');
+  if (val === null) return;  // cancelled
+  fetch('/api/planner/anchors', { method:'PUT', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ rep_id: plState.repId, date: date, city: val.trim() }) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (d && d.error) { showToast(d.error); return; }
+      plLoad();
+      showToast(val.trim() ? 'Anchor set: ' + val.trim() : 'Anchor cleared');
+    })
+    .catch(function(){ showToast('Could not update anchor'); });
+}
+
 function plLoad() {
   var sel = document.getElementById('pl-rep-select');
   if (plState.canManage && sel && sel.value) plState.repId = parseInt(sel.value);
@@ -15222,6 +15257,8 @@ function plLoad() {
   // AI assist is button-triggered and only for the rep editing their own week.
   var buildBtn = document.getElementById('pl-build-btn');
   if (buildBtn) buildBtn.style.display = readOnly ? 'none' : '';
+  var radiusWrap = document.getElementById('pl-radius-wrap');
+  if (radiusWrap) radiusWrap.style.display = readOnly ? 'none' : 'inline-flex';
   // Switching week/rep discards any un-applied AI suggestions.
   plState.aiSuggestions = null;
   var aiBar = document.getElementById('pl-ai-bar');
@@ -15232,7 +15269,7 @@ function plLoad() {
 
   fetch('/api/planner?rep_id=' + plState.repId + '&week_start=' + plState.weekStart)
     .then(function(r){ return r.json(); })
-    .then(function(d){ plState.items = (d && d.items) || []; plRenderGrid(); });
+    .then(function(d){ plState.items = (d && d.items) || []; plState.anchors = (d && d.anchors) || {}; plRenderGrid(); });
 
   if (!readOnly) plLoadPanel();
   else { document.getElementById('pl-panel').style.display = 'none'; document.getElementById('pl-hint').style.display='none'; }
@@ -15262,6 +15299,18 @@ function plRenderGrid() {
     html += '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">';
     html += '<div><span style="font-size:13px;font-weight:700;color:var(--navy)">'+plFmtDay(date)+'</span> <span style="font-size:11px;color:var(--text3)">'+plFmtMD(date)+'</span></div>';
     html += '<span style="font-size:10px;font-weight:700;color:'+(stops.length>=goal?'#16a34a':'var(--text3)')+'">'+stops.length+'/'+goal+'</span>';
+    html += '</div>';
+
+    // Per-day anchor chip — manual override (solid) vs auto first-stop (subtle).
+    var anc = (plState.anchors && plState.anchors[date]) || { city: null, manual: false };
+    var ancCity = anc.city;
+    var ancStyle = ancCity
+      ? (anc.manual ? 'background:#eef2ff;border:1px solid #c7d2fe;color:#3730a3'
+                    : 'background:#f8fafc;border:1px dashed var(--border);color:var(--text3)')
+      : 'background:#fff;border:1px dashed var(--border);color:#94a3b8';
+    var ancLabel = ancCity ? ('📍 ' + plEsc(ancCity)) : '📍 Set anchor';
+    html += '<div style="margin-bottom:8px">';
+    html += '<span '+(ro?'':'onclick="plEditAnchor(\''+date+'\')" ')+'title="'+(anc.manual?'Manual anchor — tap to change or clear':'Auto anchor (first stop). Tap to set a city.')+'" style="display:inline-block;font-size:10px;font-weight:600;border-radius:10px;padding:2px 8px;'+(ro?'':'cursor:pointer;')+ancStyle+'">'+ancLabel+'</span>';
     html += '</div>';
 
     // appointments
@@ -15336,7 +15385,13 @@ function plDrop(e) {
 function plAddStop(accountId, date) {
   fetch('/api/planner/items', { method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({ rep_id: plState.repId, planned_date: date, item_type:'stop', account_id: accountId }) })
-    .then(function(r){ return r.json(); }).then(function(){ plLoad(); showToast('Stop added'); });
+    .then(function(r){ return r.json(); }).then(function(d){
+      plLoad();
+      // NEVER-DUPLICATE: server returns the existing item flagged when the account
+      // is already on the week — surface "Already planned <Day>" instead of "added".
+      if (d && d.duplicate) showToast('Already planned ' + plFmtDay(d.planned_date || date));
+      else showToast('Stop added');
+    });
 }
 function plMoveItem(id, date) {
   fetch('/api/planner/items/' + id, { method:'PUT', headers:{'Content-Type':'application/json'},
@@ -15488,21 +15543,42 @@ function plShowAiBar() {
   var bar = document.getElementById('pl-ai-bar');
   var n = (plState.aiSuggestions || []).length;
   document.getElementById('pl-ai-count').textContent = n + (n === 1 ? ' suggestion' : ' suggestions');
-  if (bar) bar.style.display = n ? '' : 'none';
+
+  // Geographic honesty: thin-radius messages ("Only 3 good stops within 25mi…").
+  var msgs = plState.buildMessages || [];
+  var msgEl = document.getElementById('pl-ai-messages');
+  if (msgEl) msgEl.innerHTML = msgs.length ? msgs.map(function(m){ return plEsc(m); }).join('<br>') : '';
+
+  // Accounts with no location → rep drags them in manually.
+  var np = plState.couldntPlace || [];
+  var npEl = document.getElementById('pl-ai-noplace');
+  if (npEl) {
+    npEl.innerHTML = np.length
+      ? '<strong>Couldn\'t place (no location):</strong> ' + np.map(function(a){ return plEsc(a.name); }).join(', ') + ' — drag these in manually.'
+      : '';
+  }
+
+  // Show the bar whenever there are suggestions OR notes to convey.
+  var show = n || msgs.length || np.length;
+  if (bar) bar.style.display = show ? 'flex' : 'none';
 }
 function plBuildWeek() {
   if (plState.readOnly) return;
   var btn = document.getElementById('pl-build-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Thinking…'; }
   fetch('/api/planner/build-week', { method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ rep_id: plState.repId, week_start: plState.weekStart }) })
+    body: JSON.stringify({ rep_id: plState.repId, week_start: plState.weekStart, radius: plState.radius }) })
     .then(function(r){ return r.json(); })
     .then(function(d){
       if (d && d.error) { showToast(d.error); return; }
+      // Re-running tops up empty slots only — never duplicates existing stops or
+      // removes the rep's placements (server excludes already-planned accounts).
       plState.aiSuggestions = plAiTag((d && d.suggestions) || []);
+      plState.buildMessages = (d && d.messages) || [];
+      plState.couldntPlace = (d && d.couldnt_place) || [];
       plShowAiBar();
       plRenderGrid();
-      showToast(plState.aiSuggestions.length ? 'AI drafted your week — review, then Apply' : 'No suggestions found');
+      showToast(plState.aiSuggestions.length ? 'AI drafted your week — review, then Apply' : (d && d.message) || 'No stops found in radius');
     })
     .catch(function(){ showToast('Build My Week failed'); })
     .finally(function(){ if (btn) { btn.disabled = false; btn.innerHTML = '&#10024; Build My Week'; } });
@@ -15510,7 +15586,7 @@ function plBuildWeek() {
 function plFillDay(date) {
   if (plState.readOnly) return;
   fetch('/api/planner/fill-day', { method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ rep_id: plState.repId, date: date }) })
+    body: JSON.stringify({ rep_id: plState.repId, date: date, radius: plState.radius }) })
     .then(function(r){ return r.json(); })
     .then(function(d){
       if (d && d.error) { showToast(d.error); return; }
@@ -15518,9 +15594,12 @@ function plFillDay(date) {
       if (!plState.aiSuggestions) plState.aiSuggestions = [];
       // Drop any existing suggestions for this day, then append the fresh fill.
       plState.aiSuggestions = plState.aiSuggestions.filter(function(g){ return g.day !== date; }).concat(add);
+      // Merge this day's geographic messages; refresh couldn't-place list.
+      plState.buildMessages = (plState.buildMessages || []).filter(function(m){ return m.indexOf(date) === -1; }).concat((d && d.messages) || []);
+      plState.couldntPlace = (d && d.couldnt_place) || plState.couldntPlace || [];
       plShowAiBar();
       plRenderGrid();
-      showToast(add.length ? 'AI suggested ' + add.length + ' for ' + plFmtMD(date) : 'No suggestions for that day');
+      showToast(add.length ? 'AI suggested ' + add.length + ' for ' + plFmtMD(date) : ((d && d.message) || 'No stops found in radius'));
     })
     .catch(function(){ showToast('Fill day failed'); });
 }
@@ -15542,6 +15621,8 @@ function plMoveSuggestion(sid, date) {
 }
 function plDismissAI() {
   plState.aiSuggestions = null;
+  plState.buildMessages = [];
+  plState.couldntPlace = [];
   plShowAiBar();
   plRenderGrid();
   showToast('Suggestions dismissed');

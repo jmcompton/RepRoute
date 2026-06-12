@@ -3,6 +3,7 @@ const fetch = require('node-fetch');
 const router = express.Router();
 const { pool } = require('../db');
 const { buildCooccurrence, recommendForAccount } = require('../lib/crosssell');
+const { getReconnect } = require('../lib/reconnect-store');
 
 // ── Anthropic helper — reuses the SAME client/model/key pattern as
 //    routes/ai.js & routes/weekly_report.js (no new AI dependency) ──
@@ -227,7 +228,67 @@ router.get('/', async (req, res) => {
       };
     });
 
-    res.json({ week_start: weekStart, week_end: friday, rep_id: repId, items: out });
+    // Per-day anchors: MANUAL (stored) wins; otherwise AUTO = the earliest stop's
+    // city on that day. Returned as { date: { city, manual } } so the grid can
+    // render an editable chip per column.
+    const manualMap = await loadManualAnchors(repId, weekStart, friday);
+    const autoMap = {};
+    for (const i of out) {
+      if (i.item_type !== 'stop' || !i.account_city) continue;
+      const d = i.planned_date;
+      if (!autoMap[d]) autoMap[d] = i.account_city;   // items already ordered date,sort,id
+    }
+    const anchors = {};
+    for (let n = 0; n < 5; n++) {
+      const d = addDays(weekStart, n);
+      if (manualMap[d]) anchors[d] = { city: manualMap[d], manual: true };
+      else if (autoMap[d]) anchors[d] = { city: autoMap[d], manual: false };
+      else anchors[d] = { city: null, manual: false };
+    }
+
+    res.json({ week_start: weekStart, week_end: friday, rep_id: repId, items: out, anchors });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── GET /api/planner/anchors?rep_id=&week_start= ─────────────────
+// Manual anchor cities for the week, as a { date: city } map.
+router.get('/anchors', async (req, res) => {
+  try {
+    const r = resolveRepId(req);
+    if (r.error) return res.status(403).json({ error: r.error });
+    const weekStart = mondayOf(req.query.week_start);
+    const map = await loadManualAnchors(r.repId, weekStart, addDays(weekStart, 4));
+    res.json({ rep_id: r.repId, week_start: weekStart, anchors: map });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── PUT /api/planner/anchors ─────────────────────────────────────
+// Set or clear a MANUAL anchor for one day. Body: { date, city }. A blank/empty
+// city CLEARS the manual anchor (reverts to auto behavior). Managers may pass
+// rep_id; reps are pinned to their own plan.
+router.put('/anchors', async (req, res) => {
+  try {
+    const r = resolveRepId(req);
+    if (r.error) return res.status(403).json({ error: r.error });
+    const repId = r.repId;
+    const date = ymd(req.body.date);
+    if (!date) return res.status(400).json({ error: 'date required' });
+    const city = (req.body.city == null ? '' : String(req.body.city)).trim();
+    if (!city) {
+      await pool.query('DELETE FROM planner_anchors WHERE rep_id=$1 AND anchor_date=$2', [repId, date]);
+      return res.json({ ok: true, date, city: null, manual: false });
+    }
+    await pool.query(
+      `INSERT INTO planner_anchors (rep_id, anchor_date, city, updated_at)
+       VALUES ($1,$2,$3,NOW())
+       ON CONFLICT (rep_id, anchor_date) DO UPDATE SET city=EXCLUDED.city, updated_at=NOW()`,
+      [repId, date, city]
+    );
+    res.json({ ok: true, date, city, manual: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -335,16 +396,26 @@ router.post('/items', async (req, res) => {
     const type = item_type === 'appointment' ? 'appointment' : 'stop';
     const src = source === 'ai' ? 'ai' : 'manual';
 
-    // NEVER DUPLICATE: if this account already has a stop on this day, return it
-    // instead of inserting again (guards repeated "Apply" of AI suggestions).
+    // NEVER DUPLICATE (rule 3d): if this account already has a stop ANYWHERE in
+    // the same Mon–Fri week, adding again is a no-op — return the existing item
+    // flagged as a duplicate (with its day) so the UI can toast "Already planned
+    // Thursday". Guards drag re-adds and repeated "Apply" of AI suggestions.
     if (type === 'stop' && account_id) {
+      const wkStart = mondayOf(ymd(planned_date));
+      const wkEnd = addDays(wkStart, 4);
       const dup = await pool.query(
         `SELECT * FROM planner_items
-          WHERE rep_id=$1 AND planned_date=$2 AND item_type='stop' AND account_id=$3
-          LIMIT 1`,
-        [repId, ymd(planned_date), account_id]
+          WHERE rep_id=$1 AND item_type='stop' AND account_id=$2
+            AND planned_date BETWEEN $3 AND $4
+          ORDER BY planned_date ASC, id ASC LIMIT 1`,
+        [repId, account_id, wkStart, wkEnd]
       );
-      if (dup.rows.length) return res.json(dup.rows[0]);
+      if (dup.rows.length) {
+        return res.json(Object.assign({}, dup.rows[0], {
+          duplicate: true,
+          planned_date: ymd(dup.rows[0].planned_date)
+        }));
+      }
     }
 
     // place new item at end of that day
@@ -485,6 +556,97 @@ function withinRadius(anchor, cand, radiusMi) {
     return distanceMiles(anchor.coords.lat, anchor.coords.lng, cand.coords.lat, cand.coords.lng) <= radiusMi;
   }
   return sameCity;   // no coords on one side → only same-city counts
+}
+
+// ── Manual anchors (per rep + day) ───────────────────────────────
+// Load the rep's MANUAL anchor cities for a Mon–Fri week as a {date: city} map.
+async function loadManualAnchors(repId, weekStart, weekEnd) {
+  const rows = (await pool.query(
+    `SELECT anchor_date, city FROM planner_anchors
+      WHERE rep_id=$1 AND anchor_date BETWEEN $2 AND $3`,
+    [repId, weekStart, weekEnd]
+  )).rows;
+  const map = {};
+  for (const r of rows) map[ymd(r.anchor_date)] = r.city;
+  return map;
+}
+
+// Accounts the rep has VISITED (logged a call) during this Mon–Fri week — they
+// must not be re-proposed (NEVER-DUPLICATE rule 3a "or was visited this week").
+async function visitedThisWeek(repId, weekStart, weekEnd) {
+  const rows = (await pool.query(
+    `SELECT DISTINCT prospect_id FROM calls
+      WHERE user_id=$1 AND prospect_id IS NOT NULL AND call_date BETWEEN $2 AND $3`,
+    [repId, weekStart, weekEnd]
+  )).rows;
+  return rows.map(r => r.prospect_id);
+}
+
+// ── Ranked candidate pool for radius fill ────────────────────────
+// Priority is explicit (task rule 2c):
+//   tier 0 — Reconnect accounts (real $ going quiet), highest trailing commission first
+//   tier 1 — other commission customers, by annualized run_rate
+//   tier 2 — AI leads / unvetted prospects last
+// Each candidate carries .area (its city) for radius placement; coords are
+// attached later by the caller. Excludes anything in excludeAccountIds.
+async function gatherRankedCandidates(repId, excludeAccountIds) {
+  const exclude = new Set((excludeAccountIds || []).map(Number));
+  const seen = new Set();
+  const out = [];
+
+  // Tier 0 — Reconnect (commission customers gone quiet past their cadence).
+  let reconnect = { accounts: [] };
+  try {
+    reconnect = await getReconnect(pool, { uid: repId, scope: 'rep', filter: 'customers' });
+  } catch (e) { console.error('[planner reconnect]', e.message); }
+  for (const a of reconnect.accounts) {
+    if (exclude.has(a.id) || seen.has(a.id)) continue;
+    seen.add(a.id);
+    out.push({
+      account_id: a.id, name: a.company, area: (a.city && String(a.city).trim()) || null,
+      tier: 0, sortKey: Number(a.trailing_commission) || 0,
+      reason_hint: 'Reconnect — $' + fmtDollars(a.trailing_commission) + ' going quiet · ' + a.days_quiet + 'd',
+      prep: a.lines ? ('Lines: ' + a.lines) : null
+    });
+  }
+
+  // Tier 1 (commission, by run_rate) + Tier 2 (leads). One pass over the rep's
+  // open prospects with a commission rollup; reconnect ids already captured above.
+  const rows = (await pool.query(
+    `SELECT p.id, p.company, p.city, p.address, p.next_step,
+            COALESCE(SUM(al.total_commission), 0) AS commission,
+            COUNT(DISTINCT cl.period_start)        AS months_loaded
+       FROM prospects p
+       LEFT JOIN account_lines  al ON al.account_id = p.id
+       LEFT JOIN commission_lines cl ON cl.account_id = p.id
+      WHERE p.user_id = $1
+        AND COALESCE(p.pipeline_stage,'') NOT IN ('Closed Won','Closed Lost')
+      GROUP BY p.id, p.company, p.city, p.address, p.next_step`,
+    [repId]
+  )).rows;
+  for (const p of rows) {
+    if (exclude.has(p.id) || seen.has(p.id)) continue;
+    seen.add(p.id);
+    const commission = Number(p.commission) || 0;
+    const months = Number(p.months_loaded) || 0;
+    const area = (p.city && String(p.city).trim()) ? String(p.city).trim()
+      : (areaOf(p) !== 'Unknown area' ? areaOf(p) : null);
+    if (commission > 0) {
+      const runRate = months > 0 ? (commission / months) * 12 : commission;
+      out.push({
+        account_id: p.id, name: p.company, area, tier: 1, sortKey: runRate,
+        reason_hint: 'Customer · $' + fmtDollars(commission) + ' trailing', prep: p.next_step || null
+      });
+    } else {
+      out.push({
+        account_id: p.id, name: p.company, area, tier: 2, sortKey: 0,
+        reason_hint: 'Prospect — new opportunity', prep: p.next_step || null
+      });
+    }
+  }
+
+  out.sort((a, b) => (a.tier - b.tier) || (b.sortKey - a.sortKey));
+  return out;
 }
 
 // Gather candidate accounts for a rep, each annotated with the signals the AI
@@ -654,22 +816,27 @@ router.post('/build-week', async (req, res) => {
       [repId, weekStart, friday]
     )).rows;
 
-    const anchorCityByDay = {};   // date → anchor city string
+    // Auto anchor = the EARLIEST existing stop's city on a day. MANUAL anchor
+    // (set by the rep) wins and is never overwritten by auto behavior.
+    const autoCityByDay = {};     // date → auto (first-stop) city string
     const dayCounts = {};         // date → existing stop count
     for (const row of existing) {
       const d = ymd(row.planned_date);
       dayCounts[d] = (dayCounts[d] || 0) + 1;
-      if (!anchorCityByDay[d] && row.account_id) anchorCityByDay[d] = areaOf(row);
+      if (!autoCityByDay[d] && row.account_id) autoCityByDay[d] = areaOf(row);
     }
+    const manualAnchors = await loadManualAnchors(repId, weekStart, friday);
 
-    // ── DEDUP: exclude accounts already planned in THIS week or ANY FUTURE week
-    //    (planned_date >= weekStart). Fixes "apply re-adds the same stops" and
-    //    "future weeks show past ones" without permanently banning reconnects.
+    // ── DEDUP: exclude accounts already planned THIS week or ANY FUTURE week
+    //    (planned_date >= weekStart) OR visited this week. Reconnect's own cadence
+    //    already keeps recently-touched accounts out of the tier-0 pool.
     const planned = (await pool.query(
       `SELECT DISTINCT account_id FROM planner_items
         WHERE rep_id=$1 AND planned_date >= $2 AND account_id IS NOT NULL`,
       [repId, weekStart]
     )).rows.map(x => x.account_id);
+    const visited = await visitedThisWeek(repId, weekStart, friday);
+    const exclude = Array.from(new Set(planned.concat(visited)));
 
     // Territory fallback for days with no anchor.
     const ures = (await pool.query(
@@ -677,53 +844,62 @@ router.post('/build-week', async (req, res) => {
     )).rows[0] || {};
     const territoryCity = ures.territory && String(ures.territory).trim() ? String(ures.territory).trim() : null;
 
-    // Candidate pool (wide), each annotated with reason/area/commission ranking.
-    const candidates = await gatherCandidates(repId, planned, 250);
+    // Ranked candidate pool: reconnect $ first, then commission run_rate, then leads.
+    const candidates = await gatherRankedCandidates(repId, exclude);
     if (!candidates.length) {
-      return res.json({ rep_id: repId, week_start: weekStart, week_end: friday, suggestions: [], message: 'No candidate accounts found to plan.' });
+      return res.json({ rep_id: repId, week_start: weekStart, week_end: friday, suggestions: [], couldnt_place: [], messages: [], message: 'No candidate accounts found to plan.' });
     }
 
     // Geocode candidate cities once (cached); attach coords for radius math.
-    for (const c of candidates) c.coords = await geocodeCity(c.area);
+    // Accounts with NO city are un-placeable by region — never geocode/guess them.
+    for (const c of candidates) c.coords = c.area ? await geocodeCity(c.area) : null;
 
-    // Resolve each day's anchor (city + coords). No anchor → rep territory city
-    // → home base coords. Days keep gatherCandidates' commission/reconnect order.
+    // Resolve each day's anchor (city + coords): MANUAL → first existing stop →
+    // rep territory city → home base coords.
     const used = new Set();
     const suggestions = [];
+    const messages = [];
     for (const day of dayList) {
       const remaining = goal - (dayCounts[day] || 0);
       if (remaining <= 0) continue;
 
-      const city = anchorCityByDay[day] || territoryCity;
+      const city = manualAnchors[day] || autoCityByDay[day] || territoryCity;
       let coords = city ? await geocodeCity(city) : null;
       if (!coords && ures.home_base_lat && ures.home_base_lng) {
         coords = { lat: parseFloat(ures.home_base_lat), lng: parseFloat(ures.home_base_lng) };
       }
       const anchor = { cityKey: normCity(city), coords };
 
-      // If the day has no anchor city at all, we cannot enforce a region — skip
-      // (rep can drop an account to seed the day, then Build again).
+      // No anchor city at all → cannot enforce a region; skip (rep seeds the day).
       if (!anchor.cityKey && !anchor.coords) continue;
 
       let picked = 0;
       for (const c of candidates) {
         if (picked >= remaining) break;
         if (used.has(c.account_id)) continue;
+        if (!c.area) continue;                            // no location → couldn't place
         if (!withinRadius(anchor, c, radius)) continue;   // GEOGRAPHIC SANITY
         used.add(c.account_id);
         picked++;
         suggestions.push({
-          account_id: c.account_id,
-          day,
-          name: c.name,
-          area: c.area,
-          reason: c.reason_hint,
-          prep: c.crosssell ? c.crosssell.reason : (c.next_step || null)
+          account_id: c.account_id, day, name: c.name, area: c.area,
+          reason: c.reason_hint, prep: c.prep || null
         });
+      }
+      // Geographic honesty: if we couldn't reach the goal in radius, say so.
+      if (picked < remaining && city) {
+        messages.push('Only ' + picked + ' good ' + (picked === 1 ? 'stop' : 'stops') +
+          ' within ' + radius + 'mi of ' + city + ' on ' + day + '.');
       }
     }
 
-    res.json({ rep_id: repId, week_start: weekStart, week_end: friday, goal, radius, suggestions });
+    // Candidates with no usable location — surfaced so the rep can drag manually.
+    const couldnt_place = candidates
+      .filter(c => !c.area && !used.has(c.account_id))
+      .slice(0, 25)
+      .map(c => ({ account_id: c.account_id, name: c.name, reason: c.reason_hint }));
+
+    res.json({ rep_id: repId, week_start: weekStart, week_end: friday, goal, radius, suggestions, couldnt_place, messages });
   } catch (e) {
     console.error('[planner/build-week]', e.message);
     res.status(500).json({ error: e.message });
@@ -752,42 +928,59 @@ router.post('/fill-day', async (req, res) => {
       [repId, date]
     )).rows;
     const anchorRow = dayItems.find(d => d.account_id);
+    const friday = addDays(weekStart, 4);
     const remaining = Math.max(1, goal - dayItems.length);
 
-    // DEDUP across this week + future weeks (same rule as build-week).
+    // DEDUP across this week + future weeks (same rule as build-week) + visited.
     const planned = (await pool.query(
       `SELECT DISTINCT account_id FROM planner_items
         WHERE rep_id=$1 AND planned_date >= $2 AND account_id IS NOT NULL`,
       [repId, weekStart]
     )).rows.map(x => x.account_id);
+    const visited = await visitedThisWeek(repId, weekStart, friday);
+    const exclude = Array.from(new Set(planned.concat(visited)));
 
     const ures = (await pool.query(
       `SELECT territory, home_base_lat, home_base_lng FROM users WHERE id=$1`, [repId]
     )).rows[0] || {};
-    const city = anchorRow ? areaOf(anchorRow)
-      : (ures.territory && String(ures.territory).trim() ? String(ures.territory).trim() : null);
+    // Anchor: MANUAL → day's first existing stop → rep territory city.
+    const manualAnchors = await loadManualAnchors(repId, date, date);
+    const city = manualAnchors[date] || (anchorRow ? areaOf(anchorRow)
+      : (ures.territory && String(ures.territory).trim() ? String(ures.territory).trim() : null));
     let coords = city ? await geocodeCity(city) : null;
     if (!coords && ures.home_base_lat && ures.home_base_lng) {
       coords = { lat: parseFloat(ures.home_base_lat), lng: parseFloat(ures.home_base_lng) };
     }
     const anchor = { cityKey: normCity(city), coords };
     if (!anchor.cityKey && !anchor.coords) {
-      return res.json({ rep_id: repId, date, suggestions: [], message: 'No anchor for this day — drop an account or set a territory first.' });
+      return res.json({ rep_id: repId, date, suggestions: [], couldnt_place: [], messages: [], message: 'No anchor for this day — drop an account or set a territory first.' });
     }
 
-    const candidates = await gatherCandidates(repId, planned, 250);
-    for (const c of candidates) c.coords = await geocodeCity(c.area);
+    const candidates = await gatherRankedCandidates(repId, exclude);
+    for (const c of candidates) c.coords = c.area ? await geocodeCity(c.area) : null;
 
+    const used = new Set();
     const suggestions = [];
     for (const c of candidates) {
       if (suggestions.length >= remaining) break;
+      if (!c.area) continue;
       if (!withinRadius(anchor, c, radius)) continue;
+      used.add(c.account_id);
       suggestions.push({
         account_id: c.account_id, day: date, name: c.name, area: c.area,
-        reason: c.reason_hint, prep: c.crosssell ? c.crosssell.reason : (c.next_step || null)
+        reason: c.reason_hint, prep: c.prep || null
       });
     }
-    res.json({ rep_id: repId, date, goal: remaining, radius, suggestions });
+    const messages = [];
+    if (suggestions.length < remaining && city) {
+      messages.push('Only ' + suggestions.length + ' good ' + (suggestions.length === 1 ? 'stop' : 'stops') +
+        ' within ' + radius + 'mi of ' + city + '.');
+    }
+    const couldnt_place = candidates
+      .filter(c => !c.area && !used.has(c.account_id))
+      .slice(0, 25)
+      .map(c => ({ account_id: c.account_id, name: c.name, reason: c.reason_hint }));
+    res.json({ rep_id: repId, date, goal: remaining, radius, suggestions, couldnt_place, messages });
   } catch (e) {
     console.error('[planner/fill-day]', e.message);
     res.status(500).json({ error: e.message });
@@ -917,7 +1110,13 @@ router.get('/today', async (req, res) => {
       )).rows;
     }
 
-    res.json({ date: today, rep_id: repId, goal, progress, stops, carried_over, nearby });
+    // Today's working city = MANUAL anchor for today if set, else the day's first
+    // stop city (cockpit + Lead Finder default). Frontend falls back to territory.
+    const manualToday = await loadManualAnchors(repId, today, today);
+    const firstStopCity = (stops.find(s => s.city) || {}).city || null;
+    const anchor_city = manualToday[today] || firstStopCity || null;
+
+    res.json({ date: today, rep_id: repId, goal, progress, stops, carried_over, nearby, anchor_city });
   } catch (e) {
     console.error('[planner/today]', e.message);
     res.status(500).json({ error: e.message });
