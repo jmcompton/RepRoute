@@ -289,6 +289,12 @@ async function initDB() {
     -- queue instead of being retried forever. Re-eligible after ~30 days.
     ALTER TABLE prospects ADD COLUMN IF NOT EXISTS enrich_attempted_at TIMESTAMPTZ;
 
+    -- Reconnect tab: per-account re-engagement controls. snoozed_until hides an
+    -- account from the lapsed list until that moment (then it returns); dismissed
+    -- removes it from tracking entirely ("not a real account"). Both additive.
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS reconnect_snoozed_until TIMESTAMPTZ;
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS reconnect_dismissed BOOLEAN DEFAULT FALSE;
+
     CREATE TABLE IF NOT EXISTS import_history (
       id SERIAL PRIMARY KEY,
       user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,

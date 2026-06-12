@@ -33,6 +33,12 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 .sb-search input{background:transparent;border:none;outline:none;font-size:12px;color:#fff;width:100%}
 .sb-search input::placeholder{color:rgba(255,255,255,.35)}
 .sb-section{padding:8px 0 2px}
+.rc-seg-btn{padding:8px 14px;font-size:13px;font-weight:600;font-family:inherit;color:var(--text2);background:#fff;border:none;cursor:pointer}
+.rc-seg-btn+.rc-seg-btn{border-left:1px solid var(--border)}
+.rc-seg-btn.active{background:var(--navy);color:#fff}
+.rc-card{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px}
+.rc-act{flex:1;min-width:64px;padding:9px 6px;border-radius:8px;border:1px solid var(--border);background:#fff;font-size:12px;font-weight:700;font-family:inherit;color:var(--navy);cursor:pointer;text-align:center;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:4px}
+.rc-act:active{background:#f1f5f9}
 .sb-sec-label{font-size:10px;font-weight:600;color:rgba(255,255,255,.34);letter-spacing:.09em;text-transform:uppercase;padding:8px 16px 4px}
 .sb-item{display:flex;align-items:center;gap:9px;padding:8px 16px;cursor:pointer;color:rgba(255,255,255,.65);font-size:13px;border:none;background:transparent;width:100%;text-align:left;transition:all .12s;border-left:3px solid transparent}
 .sb-item:hover{background:rgba(255,255,255,.07);color:#fff}
@@ -1480,9 +1486,9 @@ window.addEventListener('load', function() {
     <svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.58 3.38 2 2 0 0 1 3.55 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.5a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
     <span>Calls</span>
   </button>
-  <button class="bn-item" id="bn-deals" data-roles="rep intern manager" onclick="go('deals');setActiveNav('bn-deals')">
-    <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-    <span>Pipeline</span>
+  <button class="bn-item" id="bn-reconnect" data-roles="rep intern manager" onclick="go('reconnect');setActiveNav('bn-reconnect')">
+    <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 0115.5-6M21 12a9 9 0 01-15.5 6"/><polyline points="18 2 18 6 14 6"/><polyline points="6 22 6 18 10 18"/></svg>
+    <span>Reconnect</span>
   </button>
   <button class="bn-item" id="bn-more" data-roles="rep intern manager" onclick="openMobileMenu()">
     <svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
@@ -1500,6 +1506,7 @@ window.addEventListener('load', function() {
   </div>
   <div class="sb-section" data-roles="rep intern manager">
     <div class="sb-sec-label">Sales</div>
+    <button class="sb-item" data-roles="rep intern manager" onclick="go('reconnect')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 8a6 6 0 0110.5-4M14 8a6 6 0 01-10.5 4"/><path d="M12.5 1.5V4h-2.5M3.5 14.5V12h2.5"/></svg>Reconnect</button>
     <button class="sb-item" data-roles="rep intern manager" onclick="go('today')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><rect x="2" y="3" width="12" height="11" rx="1"/><path d="M2 7h12M11 1.5v2M5 1.5v2"/><path d="M6.5 10.5l1.25 1.25L10 9"/></svg>Today</button>
     <button class="sb-item" data-roles="rep intern manager" onclick="go('contacts')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg>Accounts</button>
 
@@ -2579,6 +2586,33 @@ window.addEventListener('load', function() {
         <div onclick="closeManufacturer()" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--accent);cursor:pointer;margin-bottom:12px">&larr; All manufacturers</div>
         <div id="mfr-detail"></div>
       </div>
+    </div>
+  </div>
+
+  <!-- RECONNECT PAGE — lapsed accounts, value-ranked -->
+  <div class="page" id="page-reconnect" style="overflow-y:auto;padding-bottom:90px">
+    <div style="max-width:760px;margin:0 auto;padding:14px 14px 40px">
+      <div style="margin-bottom:12px">
+        <div style="font-size:17px;font-weight:800;color:var(--navy);letter-spacing:-.3px">Reconnect</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:2px">Accounts going quiet, ranked by money at risk. Bigger commission, longer silence — reach out first.</div>
+      </div>
+
+      <!-- Summary strip -->
+      <div id="rc-summary" style="display:flex;gap:10px;margin-bottom:12px"></div>
+
+      <!-- Filters -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
+        <div id="rc-seg" style="display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+          <button class="rc-seg-btn" data-seg="customers" onclick="rcSetSeg('customers')">Customers</button>
+          <button class="rc-seg-btn" data-seg="leads" onclick="rcSetSeg('leads')">Leads</button>
+          <button class="rc-seg-btn" data-seg="all" onclick="rcSetSeg('all')">All</button>
+        </div>
+        <select id="rc-rep" onchange="loadReconnect()" style="display:none;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;color:var(--navy);background:#fff">
+          <option value="">All reps</option>
+        </select>
+      </div>
+
+      <div id="rc-list"></div>
     </div>
   </div>
 
@@ -3705,7 +3739,8 @@ var pageTitles = {
   'weekly-report': 'Weekly Report',
   'weekly-planner': 'Weekly Planner',
   commissions: 'Commissions',
-  manufacturers: 'Manufacturers'
+  manufacturers: 'Manufacturers',
+  reconnect: 'Reconnect'
 };
 
 // Role-based nav visibility. Returns the normalized role used.
@@ -3849,6 +3884,7 @@ function go(id) {
   if (id === 'weekly-planner') loadPlanner();
   if (id === 'commissions') loadCommissions();
   if (id === 'manufacturers') loadManufacturers();
+  if (id === 'reconnect') loadReconnect();
   // Refresh route panel whenever user navigates to home/dashboard
   if (id === 'dashboard' || id === 'home') {
     if (typeof window._renderRoutePanel === 'function') {
@@ -10675,6 +10711,12 @@ fetch('/api/notifications/evaluate', { method: 'POST' }).then(function(r){ retur
       <svg class="mm-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg>
     </button>
 
+    <button onclick="goAndCloseMenu('deals')" class="mm-item">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#1d6aff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 11 16 11 13 19 9 3 6 11 1 11"/></svg>
+      <span>Pipeline</span>
+      <svg class="mm-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg>
+    </button>
+
     <button onclick="goAndCloseMenu('command')" class="mm-item">
       <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#1d6aff" stroke-width="1.6" stroke-linecap="round"><path d="M12 2L10 20M3 7l-2 4 2 4M19 7l2 4-2 4"/></svg>
       <span>AI Command</span>
@@ -15300,6 +15342,134 @@ function cpdfCommit() {
     })
     .catch(function(e){ if (btn) { btn.disabled = false; btn.textContent = 'Confirm import'; }
       showToast(e.message || 'Import failed.', 4000); });
+}
+
+// ── Reconnect: lapsed accounts, value-ranked ─────────────────────────────────
+// Reads /api/reconnect (server flags + sorts). Customers default. Manager gets a
+// per-rep filter; a rep sees only their own. Actions hit the POST endpoints and
+// then refresh so a touched/snoozed/dismissed account drops off immediately.
+window.__rcSeg = 'customers';
+window.__rcRepsLoaded = false;
+
+function rcMoney(n){ return '$' + Math.round(Number(n)||0).toLocaleString('en-US'); }
+function rcWindowLabel(m){ m = Number(m)||0; return m <= 1 ? '1 mo' : (m + ' mo'); }
+
+function rcSetSeg(seg) {
+  window.__rcSeg = seg;
+  document.querySelectorAll('#rc-seg .rc-seg-btn').forEach(function(b){
+    b.classList.toggle('active', b.getAttribute('data-seg') === seg);
+  });
+  loadReconnect();
+}
+
+function loadReconnect() {
+  // Reflect the active segment button.
+  document.querySelectorAll('#rc-seg .rc-seg-btn').forEach(function(b){
+    b.classList.toggle('active', b.getAttribute('data-seg') === window.__rcSeg);
+  });
+
+  var isMgr = window.currentUser && window.currentUser.role === 'manager';
+  var repSel = document.getElementById('rc-rep');
+  if (isMgr && repSel) {
+    repSel.style.display = '';
+    if (!window.__rcRepsLoaded) {
+      window.__rcRepsLoaded = true;
+      fetch('/api/manager/reps').then(function(r){ return r.json(); }).then(function(reps){
+        if (Array.isArray(reps)) reps.forEach(function(rp){
+          var o = document.createElement('option'); o.value = rp.id; o.textContent = rp.name; repSel.appendChild(o);
+        });
+      }).catch(function(){});
+    }
+  } else if (repSel) {
+    repSel.style.display = 'none';
+  }
+
+  var list = document.getElementById('rc-list');
+  var sumEl = document.getElementById('rc-summary');
+  list.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:8px 2px">Loading…</div>';
+  sumEl.innerHTML = '';
+
+  var qs = '?filter=' + encodeURIComponent(window.__rcSeg);
+  if (isMgr && repSel && repSel.value) qs += '&rep_id=' + encodeURIComponent(repSel.value);
+
+  fetch('/api/reconnect' + qs).then(function(r){ return r.json(); }).then(function(data){
+    if (!data || !Array.isArray(data.accounts)) { list.innerHTML = '<div style="color:#b91c1c;font-size:13px">'+cEsc((data&&data.error)||'Could not load.')+'</div>'; return; }
+    rcRenderSummary(sumEl, data.summary);
+    if (!data.accounts.length) {
+      list.innerHTML = '<div style="text-align:center;padding:40px 16px;color:var(--text3);font-size:13px">🎉 Nobody’s gone quiet. Every tracked account is within cadence.</div>';
+      return;
+    }
+    list.innerHTML = data.accounts.map(rcCard).join('');
+  }).catch(function(e){ list.innerHTML = '<div style="color:#b91c1c;font-size:13px">'+cEsc(e.message||'Load failed.')+'</div>'; });
+}
+
+function rcRenderSummary(el, s) {
+  s = s || {};
+  el.innerHTML =
+    '<div style="flex:1;background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 14px">'
+      + '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px">Commission at risk</div>'
+      + '<div style="font-size:22px;font-weight:800;color:#b91c1c;margin-top:2px">'+rcMoney(s.total_at_risk)+'</div>'
+    + '</div>'
+    + '<div style="flex:1;background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 14px">'
+      + '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px">Flagged accounts</div>'
+      + '<div style="font-size:22px;font-weight:800;color:var(--navy);margin-top:2px">'+(s.count||0)+'</div>'
+    + '</div>';
+}
+
+function rcCard(a) {
+  var phone = a.phone ? String(a.phone).replace(/[^0-9+]/g, '') : '';
+  var dest = encodeURIComponent([a.address, a.company, a.city, a.state].filter(Boolean).join(', '));
+  var meta = [a.category, a.city].filter(Boolean).join(' · ');
+  var badge = '<span style="font-size:11px;font-weight:800;padding:3px 9px;border-radius:10px;color:#fff;background:'+(a.tier_color||'#a16207')+'">'+a.days_quiet+' days</span>';
+  var commLine = a.has_commission
+    ? '<div style="font-size:13px;font-weight:700;color:var(--navy)">'+rcMoney(a.trailing_commission)+' <span style="font-weight:500;color:var(--text3)">· '+rcWindowLabel(a.months_loaded)+'</span></div>'
+    : '<div style="font-size:12px;color:var(--text3)">No commission history (lead)</div>';
+  var lines = a.lines ? '<div style="font-size:11.5px;color:var(--text2);margin-top:4px">'+cEsc(a.lines)+'</div>' : '';
+  var repTag = (window.currentUser && window.currentUser.role === 'manager' && a.rep_name)
+    ? '<div style="font-size:11px;color:var(--text3);margin-top:2px">Rep: '+cEsc(a.rep_name)+'</div>' : '';
+
+  var callBtn = phone
+    ? '<a class="rc-act" href="tel:'+phone+'">📞 Call</a>'
+    : '<span class="rc-act" style="opacity:.4">📞 Call</span>';
+  var textBtn = phone
+    ? '<a class="rc-act" href="sms:'+phone+'">💬 Text</a>'
+    : '<span class="rc-act" style="opacity:.4">💬 Text</span>';
+  var routeBtn = '<a class="rc-act" href="https://www.google.com/maps/dir/?api=1&destination='+dest+'" target="_blank" rel="noopener">🧭 Route</a>';
+
+  return '<div class="rc-card" id="rc-card-'+a.id+'">'
+    + '<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">'
+      + '<div style="min-width:0">'
+        + '<div style="font-size:14.5px;font-weight:800;color:var(--navy);line-height:1.25">'+cEsc(a.company)+'</div>'
+        + (meta ? '<div style="font-size:12px;color:var(--text3);margin-top:1px">'+cEsc(meta)+'</div>' : '')
+        + repTag
+      + '</div>'
+      + '<div style="text-align:right;flex-shrink:0">'+badge+'<div style="margin-top:6px">'+commLine+'</div></div>'
+    + '</div>'
+    + lines
+    + '<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
+      + callBtn + textBtn + routeBtn
+    + '</div>'
+    + '<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">'
+      + '<button class="rc-act" onclick="rcAction('+a.id+',\'touch\')">✓ Log touch</button>'
+      + '<button class="rc-act" onclick="rcAction('+a.id+',\'snooze\')">😴 Snooze</button>'
+      + '<button class="rc-act" onclick="rcAction('+a.id+',\'dismiss\')">✕ Dismiss</button>'
+    + '</div>'
+  + '</div>';
+}
+
+function rcAction(id, kind) {
+  if (kind === 'dismiss' && !confirm('Stop tracking this account in Reconnect? (Use this for entries that aren’t real accounts.)')) return;
+  var card = document.getElementById('rc-card-' + id);
+  if (card) card.style.opacity = '.5';
+  fetch('/api/reconnect/' + id + '/' + kind, { method: 'POST' })
+    .then(function(r){ return r.json().then(function(j){ return { ok:r.ok, j:j }; }); })
+    .then(function(res){
+      if (!res.ok) { if (card) card.style.opacity = '1'; showToast(res.j.error || 'Action failed.'); return; }
+      var msg = kind === 'touch' ? 'Logged — back on cadence.' : (kind === 'snooze' ? 'Snoozed 14 days.' : 'Dismissed.');
+      showToast(msg);
+      loadReconnect();
+    })
+    .catch(function(e){ if (card) card.style.opacity = '1'; showToast(e.message || 'Action failed.'); });
 }
 
 // ── Manufacturers view: lines → territory ────────────────────────────────────
