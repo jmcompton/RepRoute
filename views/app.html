@@ -1368,11 +1368,41 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
 
 <script>
-// Register service worker for PWA
+// Register service worker for PWA — hardened auto-update so stale builds can't
+// freeze users (esp. the iPhone PWA foreground case).
 if ('serviceWorker' in navigator) {
+  // Reload exactly once when a new SW takes control. Guard against loops.
+  var _swReloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', function() {
+    if (_swReloaded) return;
+    _swReloaded = true;
+    window.location.reload();
+  });
+
   window.addEventListener('load', function() {
     navigator.serviceWorker.register('/sw.js').then(function(reg) {
       console.log('SW registered');
+      // Force an immediate update check.
+      reg.update();
+
+      // When a new worker is found, tell it to skip waiting once installed —
+      // but only if a controller already exists (i.e. this is an UPDATE, not
+      // the very first install, which would needlessly reload).
+      reg.addEventListener('updatefound', function() {
+        var nw = reg.installing;
+        if (!nw) return;
+        nw.addEventListener('statechange', function() {
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+            nw.postMessage({ type: 'SKIP_WAITING' });
+          }
+        });
+      });
+
+      // Re-check for updates whenever the app returns to the foreground. This
+      // is what fixes the iPhone PWA case where load fires only once.
+      document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible') reg.update();
+      });
     }).catch(function(err) { console.log('SW failed', err); });
   });
 }
@@ -3412,7 +3442,7 @@ window.addEventListener('load', function() {
 <div class="mo" id="modal-add-prospect">
   <div class="mb">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
-      <h2 style="margin:0">New Contact</h2>
+      <h2 style="margin:0">New Account</h2>
       <button id="ap-ai-btn" onclick="aiLookupContact()" style="display:flex;align-items:center;gap:6px;padding:7px 14px;background:linear-gradient(135deg,#0a1628,#1a3a5c);color:#00FF87;border:1px solid #00FF87;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.3px">
         ✦ AI Lookup
       </button>
@@ -3435,6 +3465,7 @@ window.addEventListener('load', function() {
           <option value="Cornice Contractor">Cornice Contractor</option>
           <option value="Construction Fasteners">Construction Fasteners</option>
         </optgroup>
+        <option value="Architect">Architect</option>
       </select></div>
       <div class="fg"><label>City</label><input type="text" id="ap-city" placeholder="Atlanta" /></div>
     </div>
@@ -3481,12 +3512,12 @@ window.addEventListener('load', function() {
 
 <div class="mo" id="modal-edit-prospect">
   <div class="mb">
-    <h2>Edit Contact</h2>
+    <h2>Edit Account</h2>
     <input type="hidden" id="ep-id" />
     <div class="fg"><label>Company Name *</label><input type="text" id="ep-name" /></div>
     <div class="g2">
       <div class="fg"><label>Category</label><select id="ep-cat"><option value="Deck Contractor">Deck Contractor</option><option value="Window & Door Installer">Window/Door</option><option value="Commercial Roofing Contractor">Roofing</option><option value="Building Material Dealer">Dealer</option><option value="Building Products Distributor">Distributor</option>
-                <option value="Construction Equipment Supplier">Construction Equipment Supplier</option></select></div>
+                <option value="Construction Equipment Supplier">Construction Equipment Supplier</option><option value="Architect">Architect</option></select></div>
       <div class="fg"><label>City</label><input type="text" id="ep-city" /></div>
     </div>
     <div class="g2">
