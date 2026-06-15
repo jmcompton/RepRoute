@@ -3594,12 +3594,10 @@ window.addEventListener('load', function() {
     </div>
     <div class="g2">
       <div class="fg"><label>State</label><input type="text" id="ap-state" placeholder="GA" maxlength="2" /></div>
-      <div class="fg"><label>Phone</label><input type="text" id="ap-phone" /></div>
+      <div class="fg"><label>Business Phone</label><input type="text" id="ap-phone" /></div>
     </div>
-    <div class="g2">
-      <div class="fg"><label>Contact Name</label><input type="text" id="ap-contact" /></div>
-      <div class="fg"><label>Email</label><input type="email" id="ap-email" /></div>
-    </div>
+    <!-- People (contact name/email) are added later via the account's Contacts tab,
+         not on this business-only form. -->
     <div class="fg"><label>Website</label><input type="text" id="ap-website" /></div>
     <div class="fg"><label>Products / Notes</label><input type="text" id="ap-products" placeholder="e.g. Boss Products, ShurTape" /></div>
     <div class="g2">
@@ -3617,7 +3615,7 @@ window.addEventListener('load', function() {
     <div class="fg"><label>Notes</label><textarea id="ap-notes" rows="2"></textarea></div>
     <div class="mfoot">
       <button class="btn btn-secondary" onclick="closeModal('add-prospect')">Cancel</button>
-      <button class="btn btn-primary" onclick="addProspect()">Save Contact</button>
+      <button class="btn btn-primary" onclick="addProspect()">Save Account</button>
     </div>
   </div>
 </div>
@@ -4822,11 +4820,13 @@ function viewRecord(id) {
                  (o === 'Verified CRM Data' ? 'Verified' : o) + '</option>';
         }).join('') + '</select>';
       var verifyBtn = dsSelect;
+      // People (contact name/title/email/mobile) now live in the Contacts tab,
+      // sourced from the contacts table — they are NOT repeated in this business
+      // grid so the same person isn't shown twice. Business facts stay here.
       var fields = [
         ['Contact Owner','You'],['Company Type',ctRecBadge],
-        ['Contact Name',p.contact||'—'],['Account Name',p.company],
-        ['Job Title',p.title||'—'],['Email',p.email ? '<a href="mailto:' + p.email + '">' + p.email + '</a>' : '—'],
-        ['Phone',p.phone||'—'],['Mobile',p.mobile||'—'],
+        ['Account Name',p.company],
+        ['Business Phone',p.phone||'—'],
         ['City',p.city||'—'],['State',p.state||'GA'],
         ['Address',p.address||'—'],['Zip',p.zip||'—'],
         ['Website',p.website ? '<a href="' + p.website + '" target="_blank">Website</a>' : '—'],
@@ -6102,9 +6102,7 @@ function addProspect() {
       category: document.getElementById('ap-cat').value,
       city: document.getElementById('ap-city').value,
       state: (document.getElementById('ap-state') || {value:''}).value || 'GA',
-      contact: document.getElementById('ap-contact').value,
       phone: document.getElementById('ap-phone').value,
-      email: document.getElementById('ap-email').value,
       website: document.getElementById('ap-website').value,
       products: document.getElementById('ap-products').value,
       status: document.getElementById('ap-status').value,
@@ -6115,8 +6113,8 @@ function addProspect() {
       source: 'Manual'
     })
   }).then(function() {
-    closeModal('add-prospect'); loadProspects(); loadDashboard(); showToast('Contact saved!');
-    ['ap-name','ap-city','ap-state','ap-contact','ap-phone','ap-email','ap-website','ap-products','ap-notes','ap-mfr'].forEach(function(id) {
+    closeModal('add-prospect'); loadProspects(); loadDashboard(); showToast('Account saved!');
+    ['ap-name','ap-city','ap-state','ap-phone','ap-website','ap-products','ap-notes','ap-mfr'].forEach(function(id) {
       var el = document.getElementById(id); if (el) el.value = '';
     });
     var dsEl = document.getElementById('ap-data-status');
@@ -6126,69 +6124,116 @@ function addProspect() {
   });
 }
 
+// New Account "AI Lookup": verified single-company lookup via Google Places.
+// Fills ONLY business facts (category, city, state, business phone, website) and
+// leaves everything editable (AI proposes, rep disposes). Never products/mfr.
 async function aiLookupContact() {
   var name = document.getElementById('ap-name').value.trim();
   if (!name) { showToast('Enter a company name first'); return; }
+  var city  = (document.getElementById('ap-city')  || {value:''}).value.trim();
+  var state = (document.getElementById('ap-state') || {value:''}).value.trim();
 
   var btn = document.getElementById('ap-ai-btn');
   var statusEl = document.getElementById('ap-ai-status');
   btn.textContent = '⏳ Looking up...';
   btn.disabled = true;
   statusEl.style.display = 'block';
-  statusEl.textContent = 'Searching Google Places for ' + name + '...';
+  statusEl.textContent = 'Searching Google Places for ' + name + '…';
   statusEl.style.background = '#e8f4ff';
   statusEl.style.color = '#1558b0';
 
   try {
-    var res = await fetch('/api/quotes/upsert-prospect', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ account_name: name, contact_name: document.getElementById('ap-contact').value.trim() || null, dry_run: true })
+    var res = await fetch('/api/places/company-lookup', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ company: name, city: city, state: state })
     });
     var data = await res.json();
 
-    var filled = 0;
-    var fill = function(elId, val) {
-      if (!val) return;
-      var el = document.getElementById(elId);
-      if (el && !el.value.trim()) {
-        el.value = val;
-        el.style.background = '#e6f4ec';
-        setTimeout(function(){ el.style.background = ''; }, 1500);
-        filled++;
-      }
-    };
-
-    fill('ap-city', data.city);
-    fill('ap-state', data.state);
-    fill('ap-phone', data.phone);
-    fill('ap-website', data.website);
-    if (data.address) {
-      var notes = document.getElementById('ap-notes');
-      if (notes && !notes.value.trim()) { notes.value = 'Address: ' + data.address; filled++; }
-    }
-
-    if (filled > 0) {
-      statusEl.textContent = '✓ Found ' + name + ' — ' + filled + ' field' + (filled !== 1 ? 's' : '') + ' filled from Google';
+    if (data && data.candidates && data.candidates.length) {
+      renderAiCandidatePicker(data.candidates);   // pick a city, then fill
+    } else if (data && data.result) {
+      var filled = applyAiLookup(data.result);
+      statusEl.textContent = filled > 0
+        ? '✓ Found ' + (data.result.name || name) + ' — ' + filled + ' field' + (filled !== 1 ? 's' : '') + ' filled from Google (editable).'
+        : 'Found ' + (data.result.name || name) + ' — nothing new to fill.';
       statusEl.style.background = '#e6f4ec';
       statusEl.style.color = '#1a7f4b';
-    } else if (data.error) {
-      statusEl.textContent = '⚠ Lookup failed: ' + data.error;
+    } else if (data && data.error) {
+      statusEl.textContent = '⚠ ' + data.error;
       statusEl.style.background = '#fdecea';
       statusEl.style.color = '#c0392b';
     } else {
-      statusEl.textContent = 'No additional info found for "' + name + '" — fill fields manually';
+      statusEl.textContent = 'No verified match for "' + name + '" — fill fields manually.';
       statusEl.style.background = '#fef3c7';
       statusEl.style.color = '#b45309';
     }
   } catch(e) {
-    statusEl.textContent = 'Lookup error — check connection';
+    statusEl.textContent = 'Lookup error — check connection.';
     statusEl.style.background = '#fdecea';
     statusEl.style.color = '#c0392b';
   }
 
   btn.innerHTML = '✦ AI Lookup';
   btn.disabled = false;
+}
+
+// Fill ONLY the verified business fields from a lookup result. Category is set
+// only if it matches a real option in the select. All fields stay editable.
+function applyAiLookup(r) {
+  var filled = 0;
+  var setVal = function(id, val) {
+    if (!val) return;
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.value = val;
+    el.style.background = '#e6f4ec';
+    setTimeout(function(){ el.style.background = ''; }, 1500);
+    filled++;
+  };
+  if (r.category) {
+    var sel = document.getElementById('ap-cat');
+    if (sel && Array.prototype.some.call(sel.options, function(o){ return o.value === r.category; })) {
+      sel.value = r.category;
+      sel.style.background = '#e6f4ec';
+      setTimeout(function(){ sel.style.background = ''; }, 1500);
+      filled++;
+    }
+  }
+  setVal('ap-city', r.city);
+  setVal('ap-state', r.state);
+  setVal('ap-phone', r.phone);     // business phone (formatted)
+  setVal('ap-website', r.website);
+  return filled;
+}
+
+// Multiple strong matches in different cities — let the rep choose, don't guess.
+function renderAiCandidatePicker(cands) {
+  var statusEl = document.getElementById('ap-ai-status');
+  if (!statusEl) return;
+  window._aiCands = cands;
+  var esc = function(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+  statusEl.style.display = 'block';
+  statusEl.style.background = '#e8f4ff';
+  statusEl.style.color = '#1558b0';
+  statusEl.innerHTML = '<div style="font-weight:700;margin-bottom:6px">Multiple matches — pick the right one:</div>' +
+    cands.map(function(c, i){
+      var loc = [c.city, c.state].filter(Boolean).join(', ');
+      return '<button type="button" onclick="pickAiCandidate(' + i + ')" style="display:block;width:100%;text-align:left;margin-bottom:6px;padding:8px 10px;background:#fff;border:1px solid #c7d7ff;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;min-height:44px">' +
+        '<div style="font-weight:700;color:var(--navy)">' + esc(c.name || '—') + '</div>' +
+        '<div style="color:var(--text3)">' + esc(loc || '—') + (c.phone ? ' · ' + esc(c.phone) : '') + '</div>' +
+      '</button>';
+    }).join('');
+}
+function pickAiCandidate(i) {
+  var c = (window._aiCands || [])[i];
+  if (!c) return;
+  var filled = applyAiLookup(c);
+  var statusEl = document.getElementById('ap-ai-status');
+  if (statusEl) {
+    statusEl.innerHTML = '✓ Filled from ' + (c.name || 'selection') + ' — ' + filled + ' field' + (filled !== 1 ? 's' : '') + ' (editable).';
+    statusEl.style.background = '#e6f4ec';
+    statusEl.style.color = '#1a7f4b';
+  }
 }
 
 function findLeads() {

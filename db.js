@@ -539,6 +539,9 @@ async function initDB() {
       created_at  TIMESTAMPTZ DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS idx_contacts_prospect ON contacts(prospect_id);
+    -- is_primary marks the contact backfilled from a prospect's embedded contact
+    -- (the historical single "Contact Information"). Used for idempotency + ordering.
+    ALTER TABLE contacts ADD COLUMN IF NOT EXISTS is_primary BOOLEAN DEFAULT FALSE;
 
     ALTER TABLE commission_lines ADD COLUMN IF NOT EXISTS line_id INTEGER REFERENCES lines(id);
     CREATE INDEX IF NOT EXISTS idx_commission_lines_line ON commission_lines(line_id);
@@ -562,6 +565,43 @@ async function initDB() {
     CREATE INDEX IF NOT EXISTS idx_line_aliases_line ON line_aliases(line_id);
 
   `);
+
+  // ── One-time idempotent backfill: embedded prospect contact → contacts list ──
+  // Every prospect that carries an embedded contact (name/email/title/mobile) gets
+  // ONE primary row in the contacts table, so people live in a single source. The
+  // NOT EXISTS guard (already-primary, or a name/email match) makes this safe to
+  // re-run on every boot — it inserts only what's missing. Embedded columns are
+  // left intact for safety; we just stop relying on them for display/creation.
+  try {
+    const mig = await pool.query(`
+      INSERT INTO contacts (prospect_id, name, title, phone, email, status, created_by, is_primary, created_at)
+      SELECT p.id,
+             COALESCE(NULLIF(TRIM(p.contact), ''), 'Primary Contact'),
+             NULLIF(TRIM(p.title), ''),
+             COALESCE(NULLIF(TRIM(p.mobile), ''), NULLIF(TRIM(p.phone), '')),
+             NULLIF(TRIM(p.email), ''),
+             COALESCE(NULLIF(TRIM(p.status), ''), 'New'),
+             p.user_id,
+             TRUE,
+             COALESCE(p.created_at, NOW())
+        FROM prospects p
+       WHERE (COALESCE(NULLIF(TRIM(p.contact), ''), '') <> ''
+              OR COALESCE(NULLIF(TRIM(p.email),  ''), '') <> ''
+              OR COALESCE(NULLIF(TRIM(p.title),  ''), '') <> ''
+              OR COALESCE(NULLIF(TRIM(p.mobile), ''), '') <> '')
+         AND NOT EXISTS (
+              SELECT 1 FROM contacts c
+               WHERE c.prospect_id = p.id
+                 AND (c.is_primary = TRUE
+                      OR (NULLIF(TRIM(p.contact), '') IS NOT NULL AND LOWER(TRIM(c.name)) = LOWER(TRIM(p.contact)))
+                      OR (NULLIF(TRIM(p.email), '') IS NOT NULL AND c.email IS NOT NULL AND LOWER(TRIM(c.email)) = LOWER(TRIM(p.email))))
+         )
+      RETURNING id`);
+    console.log('[migrate] embedded contacts → contacts list:', mig.rowCount, 'migrated');
+  } catch (e) {
+    console.error('[migrate] embedded-contacts backfill skipped:', e.message);
+  }
+
   console.log('Database initialized');
 }
 

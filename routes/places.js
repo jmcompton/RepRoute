@@ -1946,4 +1946,95 @@ router.post('/bulk-ingest', async (req, res) => {
   }
 });
 
+// ── New Account "AI Lookup": single-company verified lookup ───────────────────
+// Reuses the same Google Places Text Search (v4PlacesFetch + GOOGLE_PLACES_API_KEY)
+// as bulk-ingest. Returns ONLY fields Places actually provides — never fabricates.
+
+// Map a Places result (name + types) to one of the New Account form's exact
+// category option values, or '' when we can't classify confidently (rep picks).
+function classifyAccountCategory(name, types) {
+  const n = String(name || '').toLowerCase();
+  const t = (Array.isArray(types) ? types.join(' ') : '').toLowerCase();
+  const s = n + ' ' + t;
+  const isDistributor = /(distributor|distribution|supply|wholesale|dealer|building material|lumber|home_improvement_store|hardware_store|lumber_yard)/.test(s);
+  if (/roof/.test(s))                                  return isDistributor ? 'Roofing Distributor' : 'Roofing Contractor';
+  if (/deck/.test(s))                                  return isDistributor ? 'Decking Distributor' : 'Decking Contractor';
+  if (/siding|cladding|fiber cement|hardie/.test(s))   return isDistributor ? 'Siding Distributor' : 'Siding Contractor';
+  if (/window|door/.test(s))                           return isDistributor ? 'Window & Door Distributor' : 'Window & Door Installer';
+  if (/fastener|tool|screw|nail/.test(s))              return 'Construction Fasteners';
+  if (/cornice|fascia|gutter/.test(s))                 return 'Cornice Contractor';
+  if (/architect/.test(s))                             return 'Architect';
+  return '';
+}
+
+// Parse "…, City, ST ZIP, USA" → { city, state } from a formatted address.
+function parseCityState(addr) {
+  const parts = String(addr || '').split(',').map(p => p.trim()).filter(Boolean);
+  if (parts.length && /^(usa|united states)$/i.test(parts[parts.length - 1])) parts.pop();
+  const stateZip = parts.length ? parts[parts.length - 1] : '';
+  const m = stateZip.match(/\b([A-Z]{2})\b/);
+  return { city: parts.length >= 2 ? parts[parts.length - 2] : '', state: m ? m[1] : '' };
+}
+
+// POST /api/places/company-lookup  { company, city, state } →
+//   { result: { name, category, city, state, phone, website, address } }  (best)
+//   { candidates: [ {…}, … ] }   (2+ strong matches in different cities — pick)
+//   { result: null }             (nothing found)
+router.post('/company-lookup', async (req, res) => {
+  const apiKey  = process.env.GOOGLE_PLACES_API_KEY;
+  const company = String((req.body && req.body.company) || '').trim();
+  const city    = String((req.body && req.body.city)    || '').trim();
+  const state   = String((req.body && req.body.state)   || '').trim();
+  if (!company) return res.status(400).json({ error: 'company is required' });
+  if (!apiKey)  return res.json({ error: 'Google Places is not configured', result: null });
+
+  const { similarity } = require('../lib/fuzzy');
+  const query = [company, city, state].filter(Boolean).join(' ');
+  try {
+    const places = await v4PlacesFetch(query, apiKey);
+    if (!places.length) return res.json({ result: null });
+
+    const toCand = (pl) => {
+      const cs = parseCityState(pl.address);
+      return {
+        name:     pl.company || '',
+        category: classifyAccountCategory(pl.company, pl.types),
+        city:     cs.city || '',
+        state:    cs.state || '',
+        phone:    pl.phone || '',          // nationalPhoneNumber = formatted national #
+        website:  pl.website || '',
+        address:  pl.address || '',
+        score:    similarity(company, pl.company || ''),
+      };
+    };
+
+    const scored = places.map(toCand).sort((a, b) => b.score - a.score);
+    const strong = scored.filter(c => c.score >= 0.7);
+
+    // Disambiguation: 2+ strong matches in DIFFERENT cities → return candidates.
+    if (strong.length >= 2) {
+      const cityKey = (c) => (c.city || '').toLowerCase().trim();
+      const distinctCities = new Set(strong.map(cityKey).filter(Boolean));
+      if (distinctCities.size >= 2) {
+        const seen = new Set(), candidates = [];
+        for (const c of strong) {
+          const k = cityKey(c) + '|' + c.name.toLowerCase();
+          if (seen.has(k)) continue;
+          seen.add(k);
+          const { score, ...rest } = c;
+          candidates.push(rest);
+          if (candidates.length >= 3) break;
+        }
+        return res.json({ candidates });
+      }
+    }
+
+    const { score, ...result } = strong[0] || scored[0];
+    return res.json({ result });
+  } catch (e) {
+    console.error('[company-lookup]', e.message);
+    return res.status(500).json({ error: e.message, result: null });
+  }
+});
+
 module.exports = router;
