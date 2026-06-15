@@ -4563,6 +4563,28 @@ function renderProspects() {
         ? 'background:#dbeafe;color:#1d4ed8;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px'
         : 'background:#fef9c3;color:#a16207;font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px';
     var dsBadge = '<span style="' + dsStyle + '">' + ds + '</span>';
+    // contact_status badge (commission-import contact lifecycle). Blue "Review
+    // match" wins when a medium-confidence candidate is pending; otherwise the
+    // phone/address state. Amber/blue badges are clickable to resolve.
+    var csBadge = '';
+    var cs = p.contact_status || '';
+    var csBase = 'display:inline-block;margin-left:4px;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;cursor:pointer';
+    if (p.match_review_candidate) {
+      csBadge = '<span title="Possible duplicate of ' + String(p.match_review_candidate).replace(/"/g,'&quot;') + ' — click to confirm or reject" '
+        + 'onclick="event.stopPropagation();resolveReviewMatch(' + p.id + ',' + JSON.stringify(String(p.match_review_candidate)).replace(/"/g,'&quot;') + ')" '
+        + 'style="' + csBase + ';background:#dbeafe;color:#1d4ed8">Review match</span>';
+    } else if (cs === 'verified') {
+      csBadge = '<span style="' + csBase + ';cursor:default;background:#dcfce7;color:#15803d">Verified</span>';
+    } else if (cs === 'ai_found') {
+      csBadge = '<span title="AI-found contact info — click to verify" '
+        + 'onclick="event.stopPropagation();verifyContact(' + p.id + ')" '
+        + 'style="' + csBase + ';background:#fef3c7;color:#b45309">AI-found — verify</span>';
+    } else if (cs === 'needs_review') {
+      csBadge = '<span title="Multiple possible matches — open the record to pick" '
+        + 'style="' + csBase + ';cursor:default;background:#dbeafe;color:#1d4ed8">Review match</span>';
+    } else if (cs === 'needs_info') {
+      csBadge = '<span style="' + csBase + ';cursor:default;background:#e5e7eb;color:#4b5563">Needs info</span>';
+    }
     // Route button — check if already in route
     var stops = window._routeStops || [];
     var inRoute = stops.some(function(s){ return s.id === p.id || s.company === p.company; });
@@ -4582,7 +4604,7 @@ function renderProspects() {
       '<td>' + (p.contact||'—') + '</td>' +
       '<td style="color:var(--text3)">' + (p.phone||'—') + '</td>' +
       '<td><span class="badge b-' + (p.status||'new').toLowerCase() + '">' + (p.status||'New') + '</span></td>' +
-      '<td>' + dsBadge + '</td>' +
+      '<td>' + dsBadge + csBadge + '</td>' +
       '<td>' + routeBtn + '</td>' +
       '</tr>'
     );
@@ -15749,9 +15771,25 @@ function cpdfCommit(scope) {
         return;
       }
       var d = res.j;
+      var matched = d.matched || 0, needInfo = d.needs_info || 0, review = d.review || 0;
       showToast('Imported '+d.accounts+' accounts across '+d.lines+' lines for '+(d.rep||'rep')+' ('+d.period+').', 4000);
       var out = document.getElementById(scope + '-result');
-      if (out) out.innerHTML = '<div style="border:1px solid #a7f3d0;border-radius:8px;padding:14px;background:#ecfdf5;color:#065f46;font-size:13px;font-weight:600">✓ Imported '+d.accounts+' accounts · '+d.lines+' lines · '+cEsc(d.rep||'')+' · '+cEsc(d.period||'')+'</div>';
+      if (out) {
+        // Summary: matched-to-existing (complete) vs new accounts that need contact info.
+        var reviewLine = review > 0
+          ? '<div style="font-size:12px;color:#1d4ed8;margin-top:4px">'+review+' need a quick match review</div>'
+          : '';
+        var findBtn = needInfo > 0
+          ? '<button id="'+scope+'-findinfo-btn" onclick="cpdfFindMissingInfo(\''+scope+'\','+(d.rep_id||'null')+')" '
+            + 'style="margin-top:10px;padding:9px 16px;border:none;border-radius:7px;font-size:13px;font-weight:800;font-family:inherit;color:#fff;background:linear-gradient(135deg,#2563eb,#3b82f6);cursor:pointer">🔍 Find missing info</button>'
+          : '';
+        out.innerHTML = '<div style="border:1px solid #a7f3d0;border-radius:8px;padding:14px;background:#ecfdf5">'
+          + '<div style="color:#065f46;font-size:13px;font-weight:700">✓ Imported '+d.accounts+' accounts · '+d.lines+' lines · '+cEsc(d.rep||'')+' · '+cEsc(d.period||'')+'</div>'
+          + '<div style="margin-top:8px;font-size:13px;color:var(--navy);font-weight:600">'+matched+' matched &amp; complete · '+needInfo+' need contact info</div>'
+          + reviewLine
+          + '<div id="'+scope+'-findinfo-status" style="margin-top:6px;font-size:12px;color:var(--text3)"></div>'
+          + findBtn + '</div>';
+      }
       window.__cpdfFiles[scope] = null;
       var input = document.getElementById(scope + '-file'); if (input) input.value = '';
       if (typeof loadProspects === 'function') loadProspects();
@@ -15759,6 +15797,76 @@ function cpdfCommit(scope) {
     })
     .catch(function(e){ if (btn) { btn.disabled = false; btn.textContent = 'Confirm import'; }
       showToast(e.message || 'Import failed.', 4000); });
+}
+
+// ── Commission "Find missing info" (Google Places enrichment) ────────────────
+// Drains the needs_info queue via POST /api/commission-pdf/enrich-missing in
+// bounded batches (each call stamps + drops attempted accounts, so it terminates).
+// Reports how many got a single clear result (ai_found) vs. need the user to pick
+// among different cities (needs_review). Refreshes the accounts list at the end.
+function cpdfFindMissingInfo(scope, repId) {
+  scope = scope || 'cpdf';
+  var btn = document.getElementById(scope + '-findinfo-btn');
+  var status = document.getElementById(scope + '-findinfo-status');
+  if (btn) { btn.disabled = true; btn.textContent = 'Looking up…'; }
+  var found = 0, review = 0, processed = 0, prevRemaining = Infinity;
+
+  function setStatus(t){ if (status) status.textContent = t; }
+
+  function finish() {
+    if (btn) { btn.style.display = 'none'; }
+    if (processed === 0) { setStatus('No accounts need contact info right now.'); }
+    else {
+      var msg = found + ' filled (verify) · ' + review + ' need a pick';
+      var couldnt = processed - found - review;
+      if (couldnt > 0) msg += ' · ' + couldnt + " not found";
+      setStatus('✓ ' + msg);
+    }
+    if (typeof loadProspects === 'function') loadProspects();
+  }
+
+  function step() {
+    fetch('/api/commission-pdf/enrich-missing', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(repId ? { rep_id: repId } : {})
+    }).then(function(r){ return r.json(); }).then(function(j){
+      if (!j || j.error) { finish(); return; }
+      found += (j.ai_found || 0);
+      review += (j.needs_review || 0);
+      processed += (j.processed || 0);
+      var rem = j.remaining || 0;
+      if (rem === 0 || j.processed === 0 || rem >= prevRemaining) { finish(); return; }
+      prevRemaining = rem;
+      setStatus('Looking up contact info… ' + rem + ' to go');
+      setTimeout(step, 500);
+    }).catch(function(){ finish(); });
+  }
+  step();
+}
+
+// Confirm an AI-found contact (amber badge → green "Verified").
+function verifyContact(accountId) {
+  fetch('/api/commission-pdf/verify-contact', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ account_id: accountId })
+  }).then(function(r){ return r.json(); }).then(function(j){
+    if (j && j.ok) { showToast('Contact verified.'); if (typeof loadProspects === 'function') loadProspects(); }
+    else { showToast((j && j.error) || 'Verify failed.'); }
+  }).catch(function(){ showToast('Verify failed.'); });
+}
+
+// Resolve a medium-confidence "Review match": confirm merges this account into the
+// candidate existing account; reject keeps it separate.
+function resolveReviewMatch(accountId, candidateName) {
+  var confirmMerge = confirm('This account looks like a duplicate of "' + candidateName + '".\n\nOK = merge into "' + candidateName + '".\nCancel = keep it as a separate account.');
+  var action = confirmMerge ? 'confirm' : 'reject';
+  fetch('/api/commission-pdf/review-match', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ account_id: accountId, action: action })
+  }).then(function(r){ return r.json(); }).then(function(j){
+    if (j && j.ok) { showToast(action === 'confirm' ? 'Merged into ' + candidateName + '.' : 'Kept as a separate account.'); if (typeof loadProspects === 'function') loadProspects(); }
+    else { showToast((j && j.error) || 'Could not resolve match.'); }
+  }).catch(function(){ showToast('Could not resolve match.'); });
 }
 
 // ── Reconnect: lapsed accounts, value-ranked ─────────────────────────────────

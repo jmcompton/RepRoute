@@ -289,6 +289,23 @@ async function initDB() {
     -- queue instead of being retried forever. Re-eligible after ~30 days.
     ALTER TABLE prospects ADD COLUMN IF NOT EXISTS enrich_attempted_at TIMESTAMPTZ;
 
+    -- Commission-import contact lifecycle. Drives the account badge + the
+    -- "Find missing info" enrichment queue:
+    --   needs_info    – new account from an import, no phone/address yet (grey badge)
+    --   ai_found      – Google Places returned a single clear result (amber "verify")
+    --   needs_review  – Places found plausible results in DIFFERENT cities; user picks
+    --   verified      – a human confirmed the contact info (green badge)
+    -- NULL = not part of this flow (manual/legacy accounts are unaffected).
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS contact_status TEXT;
+    -- Top Places candidates stashed when contact_status='needs_review' so the UI
+    -- can let the user choose the right city without re-querying Places.
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS enrich_candidates JSONB;
+    -- Medium-confidence import match ("review match"): the candidate EXISTING
+    -- account this new account MIGHT be a duplicate of. Set means the blue
+    -- "Review match" badge shows so the user confirms (merge) or rejects (keep new).
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS match_review_candidate TEXT;
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS match_review_candidate_id INTEGER;
+
     -- Reconnect tab: per-account re-engagement controls. snoozed_until hides an
     -- account from the lapsed list until that moment (then it returns); dismissed
     -- removes it from tracking entirely ("not a real account"). Both additive.
@@ -506,6 +523,14 @@ async function initDB() {
 
     ALTER TABLE commission_lines ADD COLUMN IF NOT EXISTS line_id INTEGER REFERENCES lines(id);
     CREATE INDEX IF NOT EXISTS idx_commission_lines_line ON commission_lines(line_id);
+
+    -- Import-time account match outcome per commission line:
+    --   matched – attached to a high-confidence existing account
+    --   review  – medium confidence; account created NEW but flagged for the user
+    --             to confirm/reject a merge into match_candidate_name
+    --   new     – no confident match; brand-new account
+    ALTER TABLE commission_lines ADD COLUMN IF NOT EXISTS match_status TEXT;
+    ALTER TABLE commission_lines ADD COLUMN IF NOT EXISTS match_candidate_name TEXT;
 
     -- line_aliases makes manual merges durable: a normalized manufacturer string
     -- is pinned to a line_id so re-resolution / backfill never re-splits a merge.
