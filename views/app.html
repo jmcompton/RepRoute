@@ -77,6 +77,13 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 .ltable tbody tr:last-child td{border-bottom:none}
 .rec-link{color:var(--blue);font-weight:600;cursor:pointer}
 .badge{display:inline-block;font-size:11px;font-weight:500;padding:2px 8px;border-radius:4px;white-space:nowrap;letter-spacing:.01em}
+/* Keep-on-my-leads: "Called — follow up" badge + sticky toggle. Badge lives in a
+   flex-wrap row so on a narrow iPhone it wraps to its own line instead of
+   overflowing the card. */
+.kol-badge{display:inline-flex;align-items:center;gap:4px;background:#fef3c7;color:#b45309;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;white-space:nowrap;max-width:100%;line-height:1.4}
+.kol-toggle{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--text2);cursor:pointer;-webkit-user-select:none;user-select:none;line-height:1.3}
+.kol-toggle input{width:18px;height:18px;flex-shrink:0;margin:0;accent-color:#1e3a5f}
+.kol-toggle-dark{color:rgba(255,255,255,.85)}
 .b-deck{background:var(--purple-lt);color:var(--purple)}
 .b-window{background:#e8f0fe;color:#1558b0}
 .b-roofing{background:var(--green-lt);color:var(--green)}
@@ -3741,6 +3748,8 @@ window.addEventListener('load', function() {
         </div>
       </div>
 
+      <label class="kol-toggle" style="margin:2px 0 12px"><input type="checkbox" id="qcl-keep" onchange="KOL.setPref(this.checked)"> Keep on my leads (follow up)</label>
+
       <div class="mfoot" style="display:flex;gap:10px;justify-content:flex-end;padding-top:12px;border-top:1px solid var(--border);margin-top:4px">
         <button onclick="closeQuickCallLog()" style="padding:9px 20px;background:transparent;border:1px solid var(--border);border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text2)">Cancel</button>
         <button id="qcl-save-btn" onclick="saveQuickCall()" style="padding:9px 22px;background:var(--navy);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Save Call</button>
@@ -3751,6 +3760,79 @@ window.addEventListener('load', function() {
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- ── Keep-on-my-leads: sticky pref + persistent "kept" lead store ──────────────
+     A rep can log a call WITHOUT the business dropping off the Lead Finder. The
+     pref is sticky per rep (localStorage); kept leads persist across the finder's
+     localStorage re-renders and fresh searches until removed/converted. -->
+<script>
+window.KOL = (function () {
+  var PREF_KEY = 'repRoute_keepOnLeads';   // '1' | '0' — sticky toggle, default OFF
+  var KEPT_KEY = 'repRoute_keptLeads';     // { key: leadObj + {kept,called,last_call_date} }
+  function lsGet(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }
+  function lsSet(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
+  function norm(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim(); }
+  function keyOf(lead){ if(!lead) return ''; return lead.place_id || norm(lead.company); }
+  function today(){ return new Date().toISOString().split('T')[0]; }
+
+  function pref(){ return lsGet(PREF_KEY) === '1'; }
+  function setPref(on){ lsSet(PREF_KEY, on ? '1' : '0'); }
+  // Reflect the sticky pref onto a checkbox element id (call when a modal opens).
+  function sync(id){ var el = document.getElementById(id); if (el) el.checked = pref(); }
+
+  function load(){ try { return JSON.parse(lsGet(KEPT_KEY) || '{}') || {}; } catch(e){ return {}; } }
+  function save(m){ lsSet(KEPT_KEY, JSON.stringify(m)); }
+
+  // Record a lead as kept/called so it survives finder re-renders + fresh searches.
+  function keep(lead, meta){
+    var k = keyOf(lead); if (!k) return;
+    var m = load();
+    var base = {}; for (var p in lead) if (Object.prototype.hasOwnProperty.call(lead,p)) base[p] = lead[p];
+    base.kept = true; base.called = true;
+    base.last_call_date = (meta && meta.date) || (m[k] && m[k].last_call_date) || today();
+    m[k] = base; save(m);
+  }
+  function isKept(lead){ var m = load(); var e = m[keyOf(lead)]; return e || null; }
+  function remove(lead){ var m = load(); delete m[keyOf(lead)]; save(m); }
+  function all(){ var m = load(); return Object.keys(m).map(function(k){ return m[k]; }); }
+
+  // "Called — follow up" badge HTML for a lead (empty unless kept/called).
+  function badgeHtml(lead){
+    var e = isKept(lead);
+    var called = e || (lead && (lead.kept || lead.called));
+    if (!called) return '';
+    var d = (e && e.last_call_date) || (lead && lead.last_call_date) || '';
+    var dStr = '';
+    if (d) { try { dStr = ' · ' + new Date(d + 'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}); } catch(_){} }
+    return '<span class="kol-badge">Called — follow up' + dStr + '</span>';
+  }
+
+  // After a call is logged from a modal (mic / manual): if a current finder lead
+  // matches this company, keep it on the list (badge + persist). Otherwise stash a
+  // minimal kept record so it surfaces on the next finder render.
+  function applyKeepForCompany(company, placeId, extra){
+    var leadLike = { company: company || '', place_id: placeId || '' };
+    if (extra) for (var p in extra) if (extra[p]) leadLike[p] = extra[p];
+    var list = window._dailyLeads || [];
+    var wantKey = keyOf(leadLike);
+    var idx = -1;
+    for (var i=0;i<list.length;i++){ if (keyOf(list[i]) === wantKey) { idx = i; break; } }
+    if (idx >= 0){
+      list[idx].kept = true; list[idx].called = true; list[idx].last_call_date = today();
+      keep(list[idx], { date: today() });
+      var slot = document.getElementById('kol-badge-' + idx);
+      if (slot){ slot.outerHTML = badgeHtml(list[idx]).replace('class="kol-badge"', 'id="kol-badge-'+idx+'" class="kol-badge"'); }
+      if (typeof window.saveLeadCache === 'function') window.saveLeadCache();
+    } else {
+      keep(leadLike, { date: today() });
+    }
+  }
+
+  return { pref: pref, setPref: setPref, sync: sync, keep: keep, isKept: isKept,
+           remove: remove, all: all, keyOf: keyOf, norm: norm, badgeHtml: badgeHtml,
+           applyKeepForCompany: applyKeepForCompany };
+})();
+</script>
 
 <script>
 var allProspects = [];
@@ -9531,16 +9613,43 @@ window.leadLogAndAdd = function(i, e) {
     var card = document.getElementById('lead-card-' + i);
     var check = document.getElementById('lead-check-' + i);
     var log = document.getElementById('leadlog-' + i);
-    card.dataset.done = '1';
-    card.style.opacity = '0.5';
-    card.style.borderColor = '#059669';
-    if (check) { check.style.background = '#059669'; check.style.borderColor = '#059669'; check.innerHTML = '<svg width="10" height="10" viewBox="0 0 10 10"><path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>'; }
+    // Sticky toggle: when ON, keep this lead on the finder instead of dropping it.
+    var keepOn = !!(document.getElementById('kol-cb-' + i) || {}).checked;
     if (log) log.style.display = 'none';
+
+    // Activity ALWAYS counts — the call was logged regardless of the toggle.
     var made = parseInt((document.getElementById('progress-count')?.textContent||'0').split('/')[0]) + 1;
     var goal = parseInt(((document.getElementById('progress-count')?.textContent||'/ 10').split('/')[1]||'10').trim()) || 10;
     if (document.getElementById('progress-fill')) document.getElementById('progress-fill').style.width = Math.min(100, Math.round(made/goal*100)) + '%';
     if (document.getElementById('progress-count')) document.getElementById('progress-count').textContent = made + ' / ' + goal + ' calls';
-    showToast('Visit logged & added to CRM');
+
+    if (keepOn) {
+      // Keep on the finder: tag already-touched, show the badge, persist so it
+      // survives re-renders and fresh searches. No drop-off, no dimming.
+      var today = new Date().toISOString().split('T')[0];
+      if (window._dailyLeads && window._dailyLeads[i]) {
+        window._dailyLeads[i].kept = true;
+        window._dailyLeads[i].called = true;
+        window._dailyLeads[i].last_call_date = today;
+        if (window.KOL) KOL.keep(window._dailyLeads[i], { date: today });
+      }
+      var slot = document.getElementById('kol-badge-' + i);
+      if (slot) {
+        slot.style.display = '';
+        var dStr = '';
+        try { dStr = ' · ' + new Date(today + 'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}); } catch(e){}
+        slot.textContent = 'Called — follow up' + dStr;
+      }
+      if (card) card.style.borderColor = '#f59e0b';
+      if (check) { check.style.background = '#f59e0b'; check.style.borderColor = '#f59e0b'; check.innerHTML = '<svg width="10" height="10" viewBox="0 0 10 10"><path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>'; }
+      if (typeof window.saveLeadCache === 'function') window.saveLeadCache();
+      showToast('Logged — kept on your leads for follow-up');
+    } else {
+      // Default: log + drop off (card dims; next search excludes it as CRM).
+      if (card) { card.dataset.done = '1'; card.style.opacity = '0.5'; card.style.borderColor = '#059669'; }
+      if (check) { check.style.background = '#059669'; check.style.borderColor = '#059669'; check.innerHTML = '<svg width="10" height="10" viewBox="0 0 10 10"><path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>'; }
+      showToast('Visit logged & added to CRM');
+    }
   });
 };
 
@@ -10308,6 +10417,20 @@ window.runDailyLeads = function() {
     // Merge: clean first, flagged at the bottom
     var leads = cleanLeads.concat(flaggedLeads);
 
+    // Re-add any "kept" leads (logged with Keep-on-my-leads ON) that the server now
+    // excludes as CRM — they stay on the finder with their "Called — follow up"
+    // badge until the rep removes/converts them.
+    if (window.KOL) {
+      var kept = KOL.all();
+      if (kept.length) {
+        var present = {};
+        leads.forEach(function(l){ present[KOL.keyOf(l)] = true; });
+        kept.forEach(function(k){
+          if (!present[KOL.keyOf(k)]) { k.kept = true; k.called = true; leads.push(k); }
+        });
+      }
+    }
+
     if (!leads.length) {
       if (results) results.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;background:var(--surface);border-radius:8px;color:var(--text3);font-size:13px">No new leads found in this area. Try a different city or different segments.</div>';
       return;
@@ -10343,6 +10466,15 @@ window.runDailyLeads = function() {
         var addressLine = lead.address || (lead.city ? lead.city + ', GA' : '');
         var mapsLink = addressLine ? '<a href="https://maps.google.com/?q=' + encodeURIComponent((lead.company||'') + ' ' + addressLine) + '" target="_blank" onclick="event.stopPropagation()" style="font-size:11px;color:var(--accent);text-decoration:none">' + addressLine + '</a>' : '';
 
+        // Keep-on-my-leads "Called — follow up" slot. Rendered (possibly hidden) in
+        // the flex-wrap name row so it survives persistence and wraps cleanly on iPhone.
+        var kolKept = (window.KOL ? KOL.isKept(lead) : null);
+        var kolCalled = kolKept || lead.kept || lead.called;
+        var kolDate = (kolKept && kolKept.last_call_date) || lead.last_call_date || '';
+        var kolDateStr = '';
+        if (kolDate) { try { kolDateStr = ' · ' + new Date(kolDate + 'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}); } catch(e){} }
+        var kolSlot = '<span id="kol-badge-' + i + '" class="kol-badge"' + (kolCalled ? '' : ' style="display:none"') + '>Called — follow up' + kolDateStr + '</span>';
+
         if (lead.already_contacted) {
           var ownerName = lead.contacted_by || 'a teammate';
           return '<div id="lead-card-' + i + '" style="background:#fafafa;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;opacity:0.8">' +
@@ -10353,7 +10485,7 @@ window.runDailyLeads = function() {
               '<div style="flex:1;min-width:0">' +
                 '<div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;flex-wrap:wrap">' +
                   '<span style="font-size:13px;font-weight:700;color:#64748b">' + (lead.company||'') + '</span>' +
-                  segBadge +
+                  segBadge + kolSlot +
                 '</div>' +
                 (mapsLink ? '<div style="margin-top:2px">' + mapsLink + '</div>' : '') +
                 (rating ? '<div style="margin-top:3px">' + rating + '</div>' : '') +
@@ -10394,7 +10526,7 @@ window.runDailyLeads = function() {
             '<div style="flex:1;min-width:0">' +
               '<div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;flex-wrap:wrap">' +
                 '<span style="font-size:13.5px;font-weight:700;color:var(--navy)">' + (lead.company||'') + '</span>' +
-                segBadge +
+                segBadge + kolSlot +
               '</div>' +
               '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:3px">' +
                 distBadge + reachBadge + sizeBadge + homeBasedBadge +
@@ -10442,6 +10574,7 @@ window.runDailyLeads = function() {
             '<div style="margin-bottom:12px">' +
               '<textarea id="lead-notes-' + i + '" placeholder="Visit notes (saved to contact record)" rows="3" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;resize:vertical"></textarea>' +
             '</div>' +
+            '<label class="kol-toggle" style="margin-bottom:12px"><input type="checkbox" id="kol-cb-' + i + '"' + ((window.KOL && KOL.pref()) ? ' checked' : '') + ' onchange="KOL.setPref(this.checked)"> Keep on my leads (follow up)</label>' +
             '<button onclick="leadLogAndAdd(' + i + ',event)" style="padding:7px 18px;background:var(--navy);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Save to Contacts</button>' +
           '</div>' +
         '</div>';
@@ -12320,6 +12453,7 @@ window.openQuickCallLog = function() {
   document.getElementById('qcl-dup-warn').style.display = 'none';
   document.getElementById('qcl-form').style.display = 'none';
   document.getElementById('qcl-selected-banner').style.display = 'none';
+  if (window.KOL) KOL.sync('qcl-keep'); // reflect the sticky toggle
 
   // Pre-load CRM prospects for fast local search
   if (!window._qclAllProspects) {
@@ -12631,8 +12765,10 @@ window.saveQuickCall = function() {
         if (result.error) throw new Error(result.error);
         saveBtn.textContent = 'Save Call';
         saveBtn.disabled = false;
+        var qclName = document.getElementById('qcl-sel-name').textContent;
+        if (window.KOL && KOL.pref()) KOL.applyKeepForCompany(qclName, null);
         closeQuickCallLog();
-        showToast('Call logged for ' + document.getElementById('qcl-sel-name').textContent);
+        showToast('Call logged for ' + qclName);
         // Refresh call list + dashboard counts
         if (typeof loadCalls === 'function') loadCalls();
         if (typeof loadDashboard === 'function') loadDashboard();
@@ -12676,6 +12812,7 @@ window.saveQuickCall = function() {
       if (result && result.error) throw new Error(result.error);
       saveBtn.textContent = 'Save Call';
       saveBtn.disabled = false;
+      if (window.KOL && KOL.pref()) KOL.applyKeepForCompany(gp.company, gp.place_id, { phone: gp.phone, city: gp.city, address: gp.address });
       closeQuickCallLog();
       showToast(gp.company + ' added to CRM & call logged');
       if (typeof loadProspects === 'function') loadProspects();
@@ -13258,6 +13395,10 @@ document.addEventListener('click', function(e) {
         <div id="vcl-confirm-body"></div>
       </div>
 
+      <div style="padding:0 20px 6px">
+        <label class="kol-toggle kol-toggle-dark"><input type="checkbox" id="vcl-keep" onchange="KOL.setPref(this.checked)"> Keep on my leads (follow up)</label>
+      </div>
+
       <!-- Footer buttons -->
       <div style="padding:16px 20px;border-top:1px solid rgba(255,255,255,.08);display:flex;gap:10px;flex-shrink:0;background:#0d1520">
         <button onclick="VCL_close()" style="flex:1;padding:13px;background:rgba(255,255,255,.08);color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.15);border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">Cancel</button>
@@ -13746,6 +13887,7 @@ window.BCS = (function() {
     if (confirmEl && name === 'confirm') {
       confirmEl.style.display = 'flex';
       confirmEl.style.flexDirection = 'column';
+      if (window.KOL) KOL.sync('vcl-keep'); // reflect the sticky toggle
     }
   }
 
@@ -14540,6 +14682,7 @@ window.BCS = (function() {
         closeModal();
         VCL.state = 'idle';
         syncFloatBtn();
+        if (window.KOL && KOL.pref()) KOL.applyKeepForCompany(account, (acct && acct.place_id) || null);
         if (typeof showToast === 'function') showToast('Call logged for ' + account);
         // Refresh data in the background
         if (typeof loadCalls === 'function') loadCalls();
