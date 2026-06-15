@@ -1952,19 +1952,74 @@ router.post('/bulk-ingest', async (req, res) => {
 
 // Map a Places result (name + types) to one of the New Account form's exact
 // category option values, or '' when we can't classify confidently (rep picks).
+// The exact category list the New Account form offers (the only valid outputs).
+const ACCOUNT_CATEGORIES = [
+  'Roofing Distributor', 'Decking Distributor', 'Siding Distributor', 'Window & Door Distributor',
+  'Building Materials Distributor',
+  'Roofing Contractor', 'Decking Contractor', 'Siding Contractor', 'Window & Door Installer',
+  'Cornice Contractor', 'Construction Fasteners', 'Architect',
+];
+
 function classifyAccountCategory(name, types) {
   const n = String(name || '').toLowerCase();
   const t = (Array.isArray(types) ? types.join(' ') : '').toLowerCase();
   const s = n + ' ' + t;
-  const isDistributor = /(distributor|distribution|supply|wholesale|dealer|building material|lumber|home_improvement_store|hardware_store|lumber_yard)/.test(s);
-  if (/roof/.test(s))                                  return isDistributor ? 'Roofing Distributor' : 'Roofing Contractor';
-  if (/deck/.test(s))                                  return isDistributor ? 'Decking Distributor' : 'Decking Contractor';
-  if (/siding|cladding|fiber cement|hardie/.test(s))   return isDistributor ? 'Siding Distributor' : 'Siding Contractor';
-  if (/window|door/.test(s))                           return isDistributor ? 'Window & Door Distributor' : 'Window & Door Installer';
-  if (/fastener|tool|screw|nail/.test(s))              return 'Construction Fasteners';
+
+  // Distributor / supply-house / dealer signal — from the name OR a Places type
+  // (home_improvement_store, hardware_store, building_materials, wholesaler, …).
+  const distSignal = /(distributor|distribution|wholesale|wholesaler|supply|supplies|supply house|dealer|building material|building_materials|home_improvement_store|hardware_store|lumber_yard|\bstore\b)/.test(s);
+
+  // Product-family branches first — work for both contractors and distributors.
+  if (/roof/.test(s))                                  return distSignal ? 'Roofing Distributor' : 'Roofing Contractor';
+  if (/deck/.test(s))                                  return distSignal ? 'Decking Distributor' : 'Decking Contractor';
+  if (/siding|cladding|fiber cement|hardie/.test(s))   return distSignal ? 'Siding Distributor' : 'Siding Contractor';
+  if (/window|door/.test(s))                           return distSignal ? 'Window & Door Distributor' : 'Window & Door Installer';
+  if (/fastener|screw|nail|\btool\b|\btools\b/.test(s)) return 'Construction Fasteners';
   if (/cornice|fascia|gutter/.test(s))                 return 'Cornice Contractor';
   if (/architect/.test(s))                             return 'Architect';
+
+  // No product family. Lumber / building materials / hardware-home-improvement
+  // stores → Building Materials Distributor. A generic supply/distribution/
+  // wholesale house with no product cue also lands in that general bucket.
+  if (/lumber|building material|building_materials|home_improvement_store|hardware_store|lumber_yard/.test(s)) {
+    return 'Building Materials Distributor';
+  }
+  if (distSignal) return 'Building Materials Distributor';
+
   return '';
+}
+
+// Claude fallback — ONE short call when the rules can't classify. Returns EXACTLY
+// one category from ACCOUNT_CATEGORIES, or '' if Claude is unsure / unavailable.
+// Never invents a category outside the list (output is validated).
+async function classifyCategoryWithClaude(name, types, website) {
+  if (!process.env.ANTHROPIC_API_KEY) return '';
+  const fetch = require('node-fetch');
+  const typeStr = (Array.isArray(types) ? types.join(', ') : '') || '(none)';
+  const prompt =
+    'Classify this building-products business into ONE category for a manufacturer\'s-rep CRM.\n' +
+    'Company: ' + (name || '(unknown)') + '\n' +
+    'Google Places types: ' + typeStr + '\n' +
+    'Website: ' + (website || '(none)') + '\n\n' +
+    'Choose EXACTLY ONE of these categories (copy it verbatim), or reply with an empty string if genuinely unsure:\n' +
+    ACCOUNT_CATEGORIES.join('\n') + '\n\n' +
+    'Guidance: distributors / supply houses / wholesalers / dealers → a "… Distributor" (or "Building Materials Distributor"); ' +
+    'installers / contractors → a "… Contractor" or "Installer". ' +
+    'Reply with ONLY the category text (or empty). No quotes, no explanation.';
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 30, messages: [{ role: 'user', content: prompt }] }),
+    });
+    const data = await res.json();
+    const text = ((data.content || []).filter(b => b.type === 'text').map(b => b.text || '').join('') || '').trim();
+    const match = ACCOUNT_CATEGORIES.find(c => c.toLowerCase() === text.toLowerCase());
+    return match || '';
+  } catch (e) {
+    console.error('[classify/claude]', e.message);
+    return '';
+  }
 }
 
 // Parse "…, City, ST ZIP, USA" → { city, state } from a formatted address.
@@ -2004,6 +2059,7 @@ router.post('/company-lookup', async (req, res) => {
         phone:    pl.phone || '',          // nationalPhoneNumber = formatted national #
         website:  pl.website || '',
         address:  pl.address || '',
+        types:    pl.types || [],          // internal — for the Claude fallback; stripped before responding
         score:    similarity(company, pl.company || ''),
       };
     };
@@ -2021,7 +2077,7 @@ router.post('/company-lookup', async (req, res) => {
           const k = cityKey(c) + '|' + c.name.toLowerCase();
           if (seen.has(k)) continue;
           seen.add(k);
-          const { score, ...rest } = c;
+          const { score, types, ...rest } = c;
           candidates.push(rest);
           if (candidates.length >= 3) break;
         }
@@ -2029,7 +2085,13 @@ router.post('/company-lookup', async (req, res) => {
       }
     }
 
-    const { score, ...result } = strong[0] || scored[0];
+    const best = strong[0] || scored[0];
+    // Rules came back empty → ONE short Claude classification call (verified-only,
+    // validated against the category list; stays '' if Claude is unsure).
+    if (!best.category) {
+      best.category = await classifyCategoryWithClaude(best.name, best.types, best.website);
+    }
+    const { score, types, ...result } = best;
     return res.json({ result });
   } catch (e) {
     console.error('[company-lookup]', e.message);
@@ -2038,3 +2100,6 @@ router.post('/company-lookup', async (req, res) => {
 });
 
 module.exports = router;
+// Additive exports — pure helpers reused/tested outside the router.
+module.exports.classifyAccountCategory = classifyAccountCategory;
+module.exports.ACCOUNT_CATEGORIES = ACCOUNT_CATEGORIES;
