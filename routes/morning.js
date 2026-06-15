@@ -704,10 +704,16 @@ router.post('/log-call', async (req, res) => {
   const { prospect_id, outcome, contact_name, next_step, next_step_date, notes } = req.body;
   if (!prospect_id) return res.status(400).json({ error: 'prospect_id required' });
   try {
-    const today = new Date().toISOString().split('T')[0];
+    // Write exactly one calls row (same shape as POST /api/calls) so a Lead Finder
+    // log counts toward "calls logged today" and shows in the calls list. Use the
+    // DB's CURRENT_DATE for call_date — the SAME basis the today-counter queries
+    // (callsMadeToday / /api/calls/today both filter call_date = CURRENT_DATE) — so
+    // a call logged now always lands on today regardless of app/DB timezone skew
+    // (the previous app-side UTC date could miss the DB's current day).
     await pool.query(
-      'INSERT INTO calls (user_id, prospect_id, call_date, call_type, outcome, next_step, next_step_date, notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
-      [uid, prospect_id, today, 'In-Person Visit', outcome || '', next_step || '', next_step_date || null, notes || null]
+      `INSERT INTO calls (user_id, prospect_id, call_date, call_type, outcome, next_step, next_step_date, notes)
+       VALUES ($1,$2,CURRENT_DATE,$3,$4,$5,$6,$7)`,
+      [uid, prospect_id, 'In-Person Visit', outcome || '', next_step || '', next_step_date || null, notes || null]
     );
     // Sync notes to prospect record if provided
     if (notes && notes.trim()) {
