@@ -602,6 +602,33 @@ async function initDB() {
     console.error('[migrate] embedded-contacts backfill skipped:', e.message);
   }
 
+  // ── One-time idempotent backfill: realign TODAY's mis-dated calls ───────────
+  // Calls inserted earlier today with an app-side UTC call_date can land on the
+  // wrong day vs the DB's CURRENT_DATE — the basis the "calls logged today"
+  // counter filters on — so they don't count. For rows CREATED today
+  // (created_at::date = CURRENT_DATE) whose call_date <> CURRENT_DATE, set
+  // call_date = CURRENT_DATE. Touches ONLY today's rows and ONLY call_date;
+  // idempotent (after a run the WHERE matches nothing). Conservative guard: if
+  // the candidate set is unexpectedly large, skip and warn rather than mass-update.
+  try {
+    const MISDATED_WHERE = `created_at::date = CURRENT_DATE AND call_date <> CURRENT_DATE`;
+    const candR = await pool.query(`SELECT COUNT(*)::int AS n FROM calls WHERE ${MISDATED_WHERE}`);
+    const n = candR.rows[0].n;
+    if (n === 0) {
+      console.log('[migrate] today mis-dated calls: 0 to fix');
+    } else if (n > 500) {
+      console.warn(`[migrate] today mis-dated calls: ${n} candidates — unexpectedly large; ABORTING backfill, review manually`);
+    } else {
+      const sample = await pool.query(
+        `SELECT id, user_id, call_date, created_at FROM calls WHERE ${MISDATED_WHERE} ORDER BY id LIMIT 5`);
+      console.log(`[migrate] today mis-dated calls: ${n} would change; sample:`, JSON.stringify(sample.rows));
+      const upd = await pool.query(`UPDATE calls SET call_date = CURRENT_DATE WHERE ${MISDATED_WHERE}`);
+      console.log(`[migrate] today mis-dated calls: ${upd.rowCount} updated`);
+    }
+  } catch (e) {
+    console.error('[migrate] today mis-dated calls backfill skipped:', e.message);
+  }
+
   console.log('Database initialized');
 }
 

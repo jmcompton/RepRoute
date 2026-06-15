@@ -1139,16 +1139,19 @@ router.post('/items/:id/done', async (req, res) => {
     const upd = await pool.query('UPDATE planner_items SET completed_at = NOW() WHERE id=$1 RETURNING *', [id]);
 
     if (acctId) {
-      const today = ymd(new Date());
+      // Stamp call_date with the DB's CURRENT_DATE (the same basis the
+      // "calls logged today" counter filters on), so a stop marked done always
+      // counts for today. The same-day dedup also keys off CURRENT_DATE, so a
+      // stop done twice today still yields exactly one Visit call (no double-count).
       const existing = await pool.query(
-        'SELECT 1 FROM calls WHERE user_id=$1 AND prospect_id=$2 AND call_date=$3 LIMIT 1',
-        [repId, acctId, today]
+        'SELECT 1 FROM calls WHERE user_id=$1 AND prospect_id=$2 AND call_date=CURRENT_DATE LIMIT 1',
+        [repId, acctId]
       );
       if (!existing.rows.length) {
         await pool.query(
           `INSERT INTO calls (user_id, prospect_id, call_date, call_type, outcome)
-           VALUES ($1,$2,$3,'Visit','Visited')`,
-          [repId, acctId, today]
+           VALUES ($1,$2,CURRENT_DATE,'Visit','Visited')`,
+          [repId, acctId]
         );
         await pool.query(
           `UPDATE prospects
