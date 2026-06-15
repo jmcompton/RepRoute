@@ -453,6 +453,58 @@ router.post('/enrich-missing', async (req, res) => {
   }
 });
 
+// ── Account contacts (one-to-many people under an account) ───────────────────
+// Distinct from the single embedded contact on the prospect row. Scoped exactly
+// like prospects: a rep sees/creates contacts only on their own accounts; a
+// manager may act on any account. Both sides use /api/prospects/:id/contacts.
+
+// Confirm the account belongs to this user (or user is a manager). Returns the
+// prospect id when allowed, else null.
+async function ownAccount(req, pid) {
+  const id = parseInt(pid);
+  if (!Number.isFinite(id)) return null;
+  const isMgr = req.session.user.role === 'manager';
+  const r = isMgr
+    ? await pool.query('SELECT id FROM prospects WHERE id=$1', [id])
+    : await pool.query('SELECT id FROM prospects WHERE id=$1 AND user_id=$2', [id, req.session.user.id]);
+  return r.rows.length ? id : null;
+}
+
+// GET /api/prospects/:id/contacts — list contacts for an account.
+router.get('/:id/contacts', async (req, res) => {
+  try {
+    const pid = await ownAccount(req, req.params.id);
+    if (!pid) return res.status(404).json({ error: 'Account not found' });
+    const r = await pool.query(
+      `SELECT id, prospect_id, name, title, phone, email, status, created_at
+         FROM contacts WHERE prospect_id=$1 ORDER BY created_at ASC, id ASC`, [pid]);
+    res.json(r.rows);
+  } catch (e) {
+    console.error('GET contacts error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/prospects/:id/contacts — add a contact under an account.
+router.post('/:id/contacts', async (req, res) => {
+  try {
+    const pid = await ownAccount(req, req.params.id);
+    if (!pid) return res.status(404).json({ error: 'Account not found' });
+    const { name, title, phone, email, status } = req.body || {};
+    if (!name || !String(name).trim()) return res.status(400).json({ error: 'Contact name is required' });
+    const r = await pool.query(
+      `INSERT INTO contacts (prospect_id, name, title, phone, email, status, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
+       RETURNING id, prospect_id, name, title, phone, email, status, created_at`,
+      [pid, String(name).trim(), (title||'').trim()||null, (phone||'').trim()||null,
+       (email||'').trim()||null, (status||'New').trim()||'New', req.session.user.id]);
+    res.json(r.rows[0]);
+  } catch (e) {
+    console.error('POST contacts error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;
 // Reused by the commission import engine (account creation) so commission-created
 // accounts classify identically to manually/AI-created ones. Additive export.

@@ -2062,7 +2062,36 @@ window.addEventListener('load', function() {
 <div id="rec-tab-notes" style="display:none"><div style="padding:16px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-size:12px;font-weight:700;color:var(--navy)">Notes</div><button onclick="saveNote()" style="padding:6px 14px;background:var(--blue);color:#fff;border:none;border-radius:40px;font-size:11px;font-weight:700;cursor:pointer">+ Add Note</button></div><textarea id="note-input" placeholder="Write a note..." style="width:100%;height:80px;padding:10px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:12px;font-family:inherit;resize:vertical;margin-bottom:12px;box-sizing:border-box"></textarea><div id="notes-list"></div></div></div>
 <div id="rec-tab-deals" style="display:none"><div style="padding:16px"><div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:12px">Deals</div><div id="rec-deals-list"><div style="font-size:12px;color:var(--text3);text-align:center;padding:20px">No deals linked yet</div></div></div></div>
 <div id="rec-tab-quotes" style="display:none"><div style="padding:16px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="font-size:12px;font-weight:700;color:var(--navy)">Quotes</div><div style="font-size:11px;color:var(--text3)" id="rec-quotes-summary"></div></div><div id="rec-quotes-list"><div style="font-size:12px;color:var(--text3);text-align:center;padding:20px">Loading quotes...</div></div></div></div>
-<div id="rec-tab-contacts" style="display:none"><div style="padding:16px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="font-size:12px;font-weight:700;color:var(--navy)">Contacts at this Account</div><div style="font-size:11px;color:var(--text3)" id="rec-contacts-summary"></div></div><div id="rec-contacts-list"><div style="font-size:12px;color:var(--text3);text-align:center;padding:20px">Loading...</div></div></div></div>
+<div id="rec-tab-contacts" style="display:none"><div style="padding:16px">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+    <div style="font-size:12px;font-weight:700;color:var(--navy)">Contacts at this Account</div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="font-size:11px;color:var(--text3)" id="rec-contacts-summary"></div>
+      <button id="rec-add-contact-btn" onclick="toggleAddContactForm()" style="padding:6px 12px;background:var(--navy);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;min-height:36px;white-space:nowrap">+ Add Contact</button>
+    </div>
+  </div>
+  <div id="rec-add-contact-form" style="display:none;background:var(--surface,#f8fafc);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <input id="rec-ct-name" type="text" placeholder="Contact name *" autocomplete="off" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:16px;font-family:inherit;outline:none">
+      <input id="rec-ct-title" type="text" placeholder="Title (e.g. Owner, GM)" autocomplete="off" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:16px;font-family:inherit;outline:none">
+      <input id="rec-ct-phone" type="tel" placeholder="Phone" autocomplete="off" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:16px;font-family:inherit;outline:none">
+      <input id="rec-ct-email" type="email" placeholder="Email" autocomplete="off" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:16px;font-family:inherit;outline:none">
+      <select id="rec-ct-status" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:16px;font-family:inherit;background:#fff">
+        <option value="New">New</option>
+        <option value="Contacted">Contacted</option>
+        <option value="Active">Active</option>
+        <option value="Hot">Hot</option>
+        <option value="Warm">Warm</option>
+        <option value="Cold">Cold</option>
+      </select>
+      <div style="display:flex;gap:8px;margin-top:2px">
+        <button id="rec-ct-save" onclick="submitAccountContact()" style="flex:1;min-height:44px;background:var(--navy);color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Save Contact</button>
+        <button onclick="toggleAddContactForm(false)" style="min-height:44px;padding:0 16px;background:transparent;border:1px solid var(--border);border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text2)">Cancel</button>
+      </div>
+    </div>
+  </div>
+  <div id="rec-contacts-list"><div style="font-size:12px;color:var(--text3);text-align:center;padding:20px">Loading...</div></div>
+</div></div>
           <div id="rec-tab-ai" style="display:none">
             <div class="ai-panel">
               <div class="ai-phdr"><span class="ai-badge">AI</span><span class="ai-ptitle">Contact Intelligence</span></div>
@@ -4903,49 +4932,100 @@ function viewRecord(id) {
         })
         .catch(function(){}); // silent
 
-      // Load contacts (other prospects at same company) — Fix 7
-      var companyName = p.company;
-      var contactsListEl = document.getElementById('rec-contacts-list');
-      var contactsCountEl = document.getElementById('rec-contacts-count');
-      var contactsSummaryEl = document.getElementById('rec-contacts-summary');
-      if (contactsListEl) contactsListEl.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:20px">Loading...</div>';
-      fetch('/api/prospects')
-        .then(function(r) { return r.json(); })
-        .then(function(all) {
-          var contacts = all.filter(function(x) {
-            return (x.company||'').trim().toLowerCase() === (companyName||'').trim().toLowerCase();
-          });
-          if (contactsCountEl) contactsCountEl.textContent = contacts.length;
-          if (contactsSummaryEl) contactsSummaryEl.textContent = contacts.length + ' contact' + (contacts.length !== 1 ? 's' : '');
-          if (!contactsListEl) return;
-          if (!contacts.length) {
-            contactsListEl.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:20px">No contacts found.</div>';
-            return;
-          }
-          contactsListEl.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:12px">' +
-            '<thead><tr style="border-bottom:2px solid var(--border)">' +
-            '<th style="padding:6px 8px;text-align:left;font-weight:600;color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:.04em">Name</th>' +
-            '<th style="padding:6px 8px;text-align:left;font-weight:600;color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:.04em">Phone</th>' +
-            '<th style="padding:6px 8px;text-align:left;font-weight:600;color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:.04em">Email</th>' +
-            '<th style="padding:6px 8px;text-align:left;font-weight:600;color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:.04em">Status</th>' +
-            '</tr></thead><tbody>' +
-            contacts.map(function(c) {
-              var isCurrent = c.id === p.id;
-              return '<tr onclick="' + (isCurrent ? '' : 'viewRecordFromContacts(' + c.id + ')') + '" style="cursor:' + (isCurrent ? 'default' : 'pointer') + ';border-bottom:1px solid var(--border);' + (isCurrent ? 'background:#f8fafc;' : '') + '" ' + (isCurrent ? '' : 'onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'\'"') + '>' +
-                '<td style="padding:8px;font-weight:600;color:var(--navy)">' + (c.contact || '—') + (isCurrent ? ' <span style="font-size:10px;color:var(--text3)">(this)</span>' : '') + '</td>' +
-                '<td style="padding:8px;color:var(--text2)">' + (c.phone || '—') + '</td>' +
-                '<td style="padding:8px;color:var(--text2)">' + (c.email || '—') + '</td>' +
-                '<td style="padding:8px"><span class="badge b-' + (c.status||'new').toLowerCase() + '">' + (c.status||'New') + '</span></td>' +
-                '</tr>';
-            }).join('') +
-            '</tbody></table>';
-        })
-        .catch(function(){});
+      // Load this account's one-to-many contacts list from the contacts table.
+      window._recAccountId = p.id;
+      toggleAddContactForm(false);          // ensure the add form starts collapsed
+      loadAccountContacts(p.id);
 
       // Respect pending tab (e.g. returning from a drill-in)
       var pendingTab = window._pendingRecTab || 'overview';
       window._pendingRecTab = null;
       setRecTab(pendingTab, null);
+    });
+}
+
+// ── Account contacts related-list (one-to-many people under an account) ──────
+// GET /api/prospects/:id/contacts. Never hangs: empty → "No contacts yet";
+// error → short message + Retry.
+function loadAccountContacts(accountId) {
+  var listEl = document.getElementById('rec-contacts-list');
+  var sumEl  = document.getElementById('rec-contacts-summary');
+  if (!listEl) return;
+  listEl.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:20px">Loading…</div>';
+  fetch('/api/prospects/' + accountId + '/contacts')
+    .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(rows){
+      if (!Array.isArray(rows)) rows = [];
+      if (sumEl) sumEl.textContent = rows.length + ' contact' + (rows.length !== 1 ? 's' : '');
+      if (!rows.length) {
+        listEl.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:20px">No contacts yet. Tap “+ Add Contact” to add one.</div>';
+        return;
+      }
+      var esc = function(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+      listEl.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:12px">' +
+        '<thead><tr style="border-bottom:2px solid var(--border)">' +
+        ['Name','Title','Phone','Email','Status'].map(function(h){ return '<th style="padding:6px 8px;text-align:left;font-weight:600;color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:.04em">'+h+'</th>'; }).join('') +
+        '</tr></thead><tbody>' +
+        rows.map(function(c){
+          var phone = c.phone ? '<a href="tel:'+esc(c.phone)+'" onclick="event.stopPropagation()" style="color:var(--accent);text-decoration:none">'+esc(c.phone)+'</a>' : '—';
+          var email = c.email ? '<a href="mailto:'+esc(c.email)+'" onclick="event.stopPropagation()" style="color:var(--accent);text-decoration:none">'+esc(c.email)+'</a>' : '—';
+          return '<tr style="border-bottom:1px solid var(--border)">' +
+            '<td style="padding:8px;font-weight:600;color:var(--navy)">'+esc(c.name||'—')+'</td>' +
+            '<td style="padding:8px;color:var(--text2)">'+esc(c.title||'—')+'</td>' +
+            '<td style="padding:8px;color:var(--text2)">'+phone+'</td>' +
+            '<td style="padding:8px;color:var(--text2)">'+email+'</td>' +
+            '<td style="padding:8px"><span class="badge b-'+esc((c.status||'new').toLowerCase())+'">'+esc(c.status||'New')+'</span></td>' +
+          '</tr>';
+        }).join('') +
+        '</tbody></table>';
+    })
+    .catch(function(){
+      if (sumEl) sumEl.textContent = '';
+      listEl.innerHTML = '<div style="text-align:center;padding:20px;font-size:12px;color:var(--text3)">Couldn’t load contacts.' +
+        '<button onclick="loadAccountContacts(window._recAccountId)" style="margin-left:8px;padding:5px 12px;background:var(--navy);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Retry</button></div>';
+    });
+}
+
+// Show/hide the inline add-contact form. Pass false to force-collapse.
+function toggleAddContactForm(show) {
+  var form = document.getElementById('rec-add-contact-form');
+  var btn  = document.getElementById('rec-add-contact-btn');
+  if (!form) return;
+  var willShow = (show === undefined) ? (form.style.display === 'none') : !!show;
+  form.style.display = willShow ? 'block' : 'none';
+  if (btn) btn.textContent = willShow ? '× Cancel' : '+ Add Contact';
+  if (willShow) {
+    ['rec-ct-name','rec-ct-title','rec-ct-phone','rec-ct-email'].forEach(function(id){ var e=document.getElementById(id); if(e) e.value=''; });
+    var st = document.getElementById('rec-ct-status'); if (st) st.value = 'New';
+    var nm = document.getElementById('rec-ct-name'); if (nm) setTimeout(function(){ try{ nm.focus(); }catch(e){} }, 50);
+  }
+}
+
+// POST a new contact under the current account, then refresh the list.
+function submitAccountContact() {
+  var accountId = window._recAccountId;
+  if (!accountId) { showToast('No account selected'); return; }
+  var nameEl = document.getElementById('rec-ct-name');
+  var name = (nameEl && nameEl.value || '').trim();
+  if (!name) { showToast('Contact name is required'); if (nameEl) nameEl.focus(); return; }
+  var saveBtn = document.getElementById('rec-ct-save');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
+  function val(id){ var e=document.getElementById(id); return (e && e.value || '').trim(); }
+  fetch('/api/prospects/' + accountId + '/contacts', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: name, title: val('rec-ct-title'), phone: val('rec-ct-phone'), email: val('rec-ct-email'), status: val('rec-ct-status') || 'New' })
+  })
+    .then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
+    .then(function(res){
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Contact'; }
+      if (!res.ok) { showToast((res.j && res.j.error) || 'Could not save contact'); return; }
+      toggleAddContactForm(false);
+      showToast('Contact added');
+      loadAccountContacts(accountId);
+    })
+    .catch(function(){
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Contact'; }
+      showToast('Could not save contact');
     });
 }
 

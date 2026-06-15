@@ -521,6 +521,25 @@ async function initDB() {
     CREATE INDEX IF NOT EXISTS idx_account_lines_account ON account_lines(account_id);
     CREATE INDEX IF NOT EXISTS idx_account_lines_line ON account_lines(line_id);
 
+    -- ════════════════════════════════════════════════════════════
+    -- Account contacts — the one-to-many people list under an account
+    -- (prospect). Distinct from the single embedded "Contact Information"
+    -- stored on the prospect row itself; this powers the Contacts
+    -- related-list + "+ Add Contact" on the account detail page.
+    -- ════════════════════════════════════════════════════════════
+    CREATE TABLE IF NOT EXISTS contacts (
+      id          SERIAL PRIMARY KEY,
+      prospect_id INTEGER NOT NULL REFERENCES prospects(id) ON DELETE CASCADE,
+      name        TEXT NOT NULL,
+      title       TEXT,
+      phone       TEXT,
+      email       TEXT,
+      status      TEXT DEFAULT 'New',
+      created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at  TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_contacts_prospect ON contacts(prospect_id);
+
     ALTER TABLE commission_lines ADD COLUMN IF NOT EXISTS line_id INTEGER REFERENCES lines(id);
     CREATE INDEX IF NOT EXISTS idx_commission_lines_line ON commission_lines(line_id);
 
