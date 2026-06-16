@@ -1,9 +1,35 @@
 const { Pool } = require('pg');
+const fs = require('fs');
+const path = require('path');
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
+
+// Minimal RFC-4180 CSV parser (handles quoted fields with embedded commas /
+// newlines / doubled quotes). Returns an array of objects keyed by header name.
+function parseCsv(text) {
+  const out = [];
+  let field = '', row = [], inQ = false;
+  text = String(text || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQ = false; }
+      else field += c;
+    } else if (c === '"') { inQ = true; }
+    else if (c === ',') { row.push(field); field = ''; }
+    else if (c === '\n') { row.push(field); out.push(row); row = []; field = ''; }
+    else field += c;
+  }
+  if (field.length || row.length) { row.push(field); out.push(row); }
+  if (!out.length) return [];
+  const headers = out[0].map(h => h.trim());
+  return out.slice(1)
+    .filter(r => r.some(c => (c || '').trim() !== ''))
+    .map(r => { const o = {}; headers.forEach((h, idx) => { o[h] = (r[idx] != null ? r[idx] : '').trim(); }); return o; });
+}
 
 async function initDB() {
   await pool.query(`
@@ -564,6 +590,34 @@ async function initDB() {
     );
     CREATE INDEX IF NOT EXISTS idx_line_aliases_line ON line_aliases(line_id);
 
+    -- ════════════════════════════════════════════════════════════
+    -- Fortress Railing Promo — a self-contained, pre-routed dealer-visit
+    -- campaign (separate from the main Accounts list). Stops are seeded once
+    -- from fortress_promo_routes.csv; reps log visits against them.
+    -- UNIQUE(rep, company, address) makes the seed idempotent.
+    -- ════════════════════════════════════════════════════════════
+    CREATE TABLE IF NOT EXISTS fortress_promo_stops (
+      id          SERIAL PRIMARY KEY,
+      rep         TEXT,
+      day         TEXT,
+      stop_order  INTEGER,
+      company     TEXT,
+      address     TEXT,
+      city        TEXT,
+      zip         TEXT,
+      phone       TEXT,
+      status      TEXT,
+      source      TEXT,
+      lat         DOUBLE PRECISION,
+      lng         DOUBLE PRECISION,
+      visited_at  TIMESTAMPTZ,
+      outcome     TEXT,
+      notes       TEXT,
+      created_at  TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (rep, company, address)
+    );
+    CREATE INDEX IF NOT EXISTS idx_fortress_rep_day ON fortress_promo_stops(rep, day, stop_order);
+
   `);
 
   // ── One-time idempotent backfill: embedded prospect contact → contacts list ──
@@ -629,7 +683,44 @@ async function initDB() {
     console.error('[migrate] today mis-dated calls backfill skipped:', e.message);
   }
 
+  // ── One-time idempotent seed: Fortress Railing Promo stops from CSV ──────────
+  // Loads fortress_promo_routes.csv (repo root) into fortress_promo_stops. The
+  // route is already optimized/ordered in the CSV — we only load it verbatim.
+  // ON CONFLICT (rep, company, address) DO NOTHING makes re-runs duplicate-free.
+  // If the CSV isn't committed yet, this logs and skips (never blocks startup).
+  try {
+    const csvPath = path.join(__dirname, 'fortress_promo_routes.csv');
+    if (fs.existsSync(csvPath)) {
+      const rows = parseCsv(fs.readFileSync(csvPath, 'utf8'));
+      let inserted = 0;
+      for (const r of rows) {
+        const company = r.Company || '';
+        const address = r.Address || '';
+        if (!company && !address) continue;
+        const res = await pool.query(
+          `INSERT INTO fortress_promo_stops
+             (rep, day, stop_order, company, address, city, zip, phone, status, source, lat, lng)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+           ON CONFLICT (rep, company, address) DO NOTHING
+           RETURNING id`,
+          [r.Rep || null, r.Day || null,
+           Number.isFinite(parseInt(r.Stop, 10)) ? parseInt(r.Stop, 10) : null,
+           company, address, r.City || null, r.ZIP || null, r.Phone || null,
+           r.Status || null, r.Source || null,
+           r.lat !== '' && r.lat != null && !isNaN(parseFloat(r.lat)) ? parseFloat(r.lat) : null,
+           r.lng !== '' && r.lng != null && !isNaN(parseFloat(r.lng)) ? parseFloat(r.lng) : null]
+        );
+        if (res.rowCount) inserted++;
+      }
+      console.log('[migrate] fortress promo stops seeded:', inserted, 'inserted of', rows.length, 'CSV rows');
+    } else {
+      console.log('[migrate] fortress_promo_routes.csv not in repo root — promo seed skipped');
+    }
+  } catch (e) {
+    console.error('[migrate] fortress promo seed skipped:', e.message);
+  }
+
   console.log('Database initialized');
 }
 
-module.exports = { pool, initDB };
+module.exports = { pool, initDB, parseCsv };

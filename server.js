@@ -35,6 +35,7 @@ const commissionsRoutes = require('./routes/commissions');
 const linesRoutes = require('./routes/lines');
 const manufacturersRoutes = require('./routes/manufacturers');
 const crosssellRoutes = require('./routes/crosssell');
+const fortressRoutes = require('./routes/fortress');
 
 const app = express();
 app.use(express.json({ limit: '25mb' }));
@@ -168,6 +169,7 @@ app.use('/api/admin/demo-data', requireAuthAPI, requireManagerAPI, demoDataRoute
 app.use('/api/commission-pdf', requireAuthAPI, commissionPdfRoutes);
 app.use('/api/reconnect', requireAuthAPI, reconnectRoutes);
 app.use('/api/crosssell', requireAuth, crosssellRoutes);
+app.use('/api/fortress', requireAuth, fortressRoutes);
 app.get('/zoho-import', requireAuth, (req, res) =>
   res.sendFile(path.join(__dirname, 'views', 'zoho-import.html'))
 );

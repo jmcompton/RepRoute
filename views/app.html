@@ -1527,6 +1527,7 @@ window.addEventListener('load', function() {
     <button class="sb-item" data-roles="rep manager" onclick="go('quotes')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><path d="M3 2h10a1 1 0 011 1v11a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1zM5 7h6M5 9.5h4"/></svg>Quotes</button>
     <button class="sb-item" data-roles="rep manager" onclick="go('opportunities')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M8 1l2 4.5 4.9.4-3.7 3.2 1.1 4.8L8 11.5 3.7 13.9l1.1-4.8L1.1 5.9 6 5.5z"/></svg>Opportunities</button>
     <button class="sb-item" data-roles="rep intern manager" onclick="go('manufacturers')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 14V6l4-2v3l4-2v3l4-2v8z"/><path d="M2 14h12"/></svg>Manufacturers</button>
+    <button class="sb-item" data-roles="rep intern manager" onclick="go('fortress')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 14V5l3-2 3 2 3-2 3 2v9z"/><path d="M5 14V8M11 14V8M2 11h12"/></svg>Fortress Promo</button>
   </div>
   <div class="sb-section" data-roles="rep manager">
     <div class="sb-sec-label">Activities</div>
@@ -2660,6 +2661,22 @@ window.addEventListener('load', function() {
       </div>
 
       <div id="rc-list"></div>
+    </div>
+  </div>
+
+  <!-- FORTRESS RAILING PROMO PAGE -->
+  <div class="page" id="page-fortress" style="overflow-y:auto;padding-bottom:90px">
+    <div style="max-width:760px;margin:0 auto;padding:14px 14px 40px">
+      <div style="margin-bottom:12px">
+        <div style="font-size:17px;font-weight:800;color:var(--navy);letter-spacing:-.3px">Fortress Railing Promo</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:2px">Pre-routed dealer-visit campaign. Tap a stop's phone to call, then mark it visited with an outcome.</div>
+      </div>
+      <!-- Rep toggle -->
+      <div id="fortress-reptoggle" style="display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:12px"></div>
+      <!-- Progress -->
+      <div id="fortress-progress" style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:12px"></div>
+      <!-- Day-grouped stop list -->
+      <div id="fortress-list"><div style="font-size:13px;color:var(--text3);text-align:center;padding:24px">Loading…</div></div>
     </div>
   </div>
 
@@ -3934,7 +3951,8 @@ var pageTitles = {
   'weekly-planner': 'Weekly Planner',
   commissions: 'Commissions',
   manufacturers: 'Manufacturers',
-  reconnect: 'Reconnect'
+  reconnect: 'Reconnect',
+  fortress: 'Fortress Railing Promo'
 };
 
 // Role-based nav visibility. Returns the normalized role used.
@@ -4091,6 +4109,7 @@ function go(id) {
   if (id === 'commissions') loadCommissions();
   if (id === 'manufacturers') loadManufacturers();
   if (id === 'reconnect') loadReconnect();
+  if (id === 'fortress') loadFortress();
   // Refresh route panel whenever user navigates to home/dashboard
   if (id === 'dashboard' || id === 'home') {
     if (typeof window._renderRoutePanel === 'function') {
@@ -16392,6 +16411,177 @@ function rcAction(id, kind) {
 // accounts grouped by state). Scope is enforced server-side (manager = all, rep =
 // own). Reuses cMoney/cEsc. Money shown whole-dollar for compactness.
 function mfrMoney(n){ return '$' + (Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0}); }
+
+// ── Fortress Railing Promo — pre-routed dealer campaign ──────────────────────
+// Display + visit tracking only; the route order in the data is authoritative.
+window._fortressRep = null;      // 'Kody' | 'Jack' | 'all'
+window._fortressStops = [];      // all stops from the server (both reps)
+
+function fortressEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fortressIsManager(){ return !!(window.currentUser && window.currentUser.role === 'manager'); }
+
+// Default the rep toggle to the logged-in rep; managers see both.
+function fortressDefaultRep(){
+  var u = window.currentUser || {};
+  var name = (u.name || '').toLowerCase();
+  if (fortressIsManager()) return 'all';
+  if (name.indexOf('kody') !== -1) return 'Kody';
+  if (name.indexOf('jack') !== -1) return 'Jack';
+  return 'all';
+}
+
+function loadFortress(){
+  if (!window._fortressRep) window._fortressRep = fortressDefaultRep();
+  var listEl = document.getElementById('fortress-list');
+  if (listEl) listEl.innerHTML = '<div style="font-size:13px;color:var(--text3);text-align:center;padding:24px">Loading…</div>';
+  fetch('/api/fortress/stops')
+    .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(stops){
+      window._fortressStops = Array.isArray(stops) ? stops : [];
+      renderFortress();
+    })
+    .catch(function(){
+      if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:24px;font-size:13px;color:var(--text3)">Couldn’t load the promo route.' +
+        '<button onclick="loadFortress()" style="margin-left:8px;padding:6px 12px;background:var(--navy);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;min-height:36px">Retry</button></div>';
+    });
+}
+
+function fortressSetRep(rep){ window._fortressRep = rep; renderFortress(); }
+
+// Build Google Maps directions URL(s) for an ordered list of stops, capped at
+// ~10 points per link (Maps' practical waypoint limit) — split when a day is longer.
+function fortressMapsLinks(stops){
+  var pts = stops.filter(function(s){ return s.lat != null && s.lng != null; });
+  if (!pts.length) return [];
+  function buildUrl(group){
+    var coords = group.map(function(s){ return s.lat + ',' + s.lng; });
+    var dest = coords[coords.length - 1];
+    var wps = coords.slice(0, coords.length - 1);
+    var url = 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=' + encodeURIComponent(dest);
+    if (wps.length) url += '&waypoints=' + wps.map(encodeURIComponent).join('|');
+    return url;
+  }
+  var CAP = 10;
+  if (pts.length <= CAP) return [{ label: 'Navigate this day', url: buildUrl(pts) }];
+  // Split into chunks of <=10; label first/second half for the common 2-chunk case.
+  var chunks = [];
+  for (var i = 0; i < pts.length; i += CAP) chunks.push(pts.slice(i, i + CAP));
+  return chunks.map(function(g, idx){
+    var label = chunks.length === 2 ? (idx === 0 ? 'Navigate (first half)' : 'Navigate (second half)')
+                                    : 'Navigate (part ' + (idx + 1) + ')';
+    return { label: label, url: buildUrl(g) };
+  });
+}
+
+function renderFortress(){
+  var toggle = document.getElementById('fortress-reptoggle');
+  var progEl = document.getElementById('fortress-progress');
+  var listEl = document.getElementById('fortress-list');
+  if (!listEl) return;
+
+  // Rep toggle buttons (managers also get an "All" option).
+  var reps = [{k:'Kody',l:'Kody'}, {k:'Jack',l:'Jack'}];
+  if (fortressIsManager()) reps.push({k:'all', l:'Both'});
+  if (toggle) toggle.innerHTML = reps.map(function(r){
+    var active = window._fortressRep === r.k;
+    return '<button onclick="fortressSetRep(\'' + r.k + '\')" style="min-height:40px;padding:0 16px;border:none;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;' +
+      (active ? 'background:var(--navy);color:#fff' : 'background:#fff;color:var(--navy)') + '">' + r.l + '</button>';
+  }).join('');
+
+  var all = window._fortressStops || [];
+  var stops = (window._fortressRep && window._fortressRep !== 'all')
+    ? all.filter(function(s){ return s.rep === window._fortressRep; })
+    : all;
+
+  if (!stops.length){
+    if (progEl) progEl.textContent = '';
+    listEl.innerHTML = '<div style="font-size:13px;color:var(--text3);text-align:center;padding:24px">No promo stops loaded yet.</div>';
+    return;
+  }
+
+  // Overall progress for the selected rep(s).
+  var doneAll = stops.filter(function(s){ return s.visited_at; }).length;
+  if (progEl) progEl.textContent = doneAll + ' of ' + stops.length + ' visited';
+
+  // Group by day, preserving first-seen day order; stops already arrive in stop_order.
+  var dayOrder = [], byDay = {};
+  stops.forEach(function(s){
+    var d = s.day || '—';
+    if (!byDay[d]) { byDay[d] = []; dayOrder.push(d); }
+    byDay[d].push(s);
+  });
+
+  var html = dayOrder.map(function(day){
+    var dayStops = byDay[day].slice().sort(function(a,b){ return (a.stop_order||0) - (b.stop_order||0); });
+    var dayDone = dayStops.filter(function(s){ return s.visited_at; }).length;
+    // When showing both reps, label which rep this day belongs to.
+    var repTag = (window._fortressRep === 'all') ? (' · ' + fortressEsc(dayStops[0].rep || '')) : '';
+    var navLinks = fortressMapsLinks(dayStops).map(function(n){
+      return '<a href="' + n.url + '" target="_blank" rel="noopener" style="display:inline-block;min-height:40px;line-height:40px;padding:0 14px;background:#00863c;color:#fff;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;font-family:inherit;white-space:nowrap">🧭 ' + n.label + '</a>';
+    }).join(' ');
+
+    var rows = dayStops.map(function(s){
+      var visited = !!s.visited_at;
+      var phone = s.phone ? '<a href="tel:' + fortressEsc(String(s.phone).replace(/[^0-9+]/g,'')) + '" onclick="event.stopPropagation()" style="color:var(--accent);text-decoration:none;font-weight:600">' + fortressEsc(s.phone) + '</a>' : '<span style="color:var(--text3)">no phone</span>';
+      var addr = [s.address, s.city, s.zip].filter(Boolean).map(fortressEsc).join(', ');
+      var outcomes = ['Interested','Not interested','Follow-up'];
+      var sel = '<select id="fps-outcome-' + s.id + '" style="flex:1;min-width:120px;min-height:44px;padding:0 10px;border:1px solid var(--border);border-radius:8px;font-size:16px;font-family:inherit;background:#fff">' +
+        '<option value="">Outcome…</option>' +
+        outcomes.map(function(o){ return '<option value="' + o + '"' + (s.outcome === o ? ' selected' : '') + '>' + o + '</option>'; }).join('') +
+        '</select>';
+      var note = '<input id="fps-note-' + s.id + '" type="text" placeholder="Note (optional)" value="' + fortressEsc(s.notes || '') + '" style="flex:2;min-width:140px;min-height:44px;box-sizing:border-box;padding:0 10px;border:1px solid var(--border);border-radius:8px;font-size:16px;font-family:inherit">';
+      var btn = visited
+        ? '<button onclick="fortressMarkVisited(' + s.id + ',this)" style="min-height:44px;padding:0 14px;background:#dcfce7;color:#15803d;border:1px solid #86efac;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">✓ Visited — update</button>'
+        : '<button onclick="fortressMarkVisited(' + s.id + ',this)" style="min-height:44px;padding:0 16px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">Mark visited</button>';
+      var statusBadge = s.status ? '<span style="font-size:11px;font-weight:700;color:var(--text3);background:#f1f5f9;padding:2px 8px;border-radius:10px">' + fortressEsc(s.status) + '</span>' : '';
+
+      return '<div style="border:1px solid ' + (visited ? '#bbf7d0' : 'var(--border)') + ';border-radius:10px;padding:12px 14px;margin-bottom:10px;background:' + (visited ? '#f0fdf4' : '#fff') + '">' +
+        '<div style="display:flex;align-items:flex-start;gap:10px;justify-content:space-between">' +
+          '<div style="min-width:0">' +
+            '<div style="font-size:11px;font-weight:800;color:var(--accent)">#' + (s.stop_order != null ? s.stop_order : '–') + ' · ' + fortressEsc(s.city || '') + '</div>' +
+            '<div style="font-size:15px;font-weight:700;color:var(--navy);margin-top:1px">' + fortressEsc(s.company || '') + '</div>' +
+            '<div style="font-size:13px;color:var(--text2);margin-top:2px">' + addr + '</div>' +
+            '<div style="font-size:13px;margin-top:4px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">' + phone + statusBadge + '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">' + sel + note + '</div>' +
+        '<div style="margin-top:8px">' + btn + (visited && s.outcome ? '<span style="margin-left:10px;font-size:12px;color:#15803d;font-weight:700">' + fortressEsc(s.outcome) + '</span>' : '') + '</div>' +
+      '</div>';
+    }).join('');
+
+    return '<div style="margin-bottom:18px">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px">' +
+        '<div style="font-size:15px;font-weight:800;color:var(--navy)">' + fortressEsc(day) + repTag +
+          ' <span style="font-size:12px;font-weight:600;color:var(--text3)">(' + dayDone + ' of ' + dayStops.length + ' visited)</span></div>' +
+        '<div style="display:flex;gap:6px;flex-wrap:wrap">' + navLinks + '</div>' +
+      '</div>' + rows +
+    '</div>';
+  }).join('');
+
+  listEl.innerHTML = html;
+}
+
+function fortressMarkVisited(id, btn){
+  var outcomeEl = document.getElementById('fps-outcome-' + id);
+  var noteEl = document.getElementById('fps-note-' + id);
+  var outcome = outcomeEl ? outcomeEl.value : '';
+  var notes = noteEl ? noteEl.value.trim() : '';
+  if (!outcome) { showToast('Pick an outcome first'); if (outcomeEl) outcomeEl.focus(); return; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  fetch('/api/fortress/stops/' + id + '/visit', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ outcome: outcome, notes: notes })
+  })
+    .then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
+    .then(function(res){
+      if (!res.ok || !res.j || res.j.error) { if (btn) { btn.disabled = false; btn.textContent = 'Mark visited'; } showToast((res.j && res.j.error) || 'Save failed'); return; }
+      var s = (window._fortressStops || []).find(function(x){ return x.id === id; });
+      if (s) { s.visited_at = res.j.visited_at; s.outcome = res.j.outcome; s.notes = res.j.notes; }
+      showToast('Visit logged');
+      renderFortress();
+    })
+    .catch(function(){ if (btn) { btn.disabled = false; btn.textContent = 'Mark visited'; } showToast('Save failed'); });
+}
 
 function loadManufacturers() {
   // Always return to the list view on (re)entry.
