@@ -3743,6 +3743,8 @@ window.addEventListener('load', function() {
           </optgroup>
           <option value="Architect">Architect</option>
         </select>
+        <input id="qcl-m-address" type="text" placeholder="Address (optional)" autocomplete="off"
+          style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:16px;font-family:inherit;outline:none">
         <input id="qcl-m-city" type="text" placeholder="City" autocomplete="off"
           style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:16px;font-family:inherit;outline:none">
         <input id="qcl-m-phone" type="tel" placeholder="Business phone" autocomplete="off"
@@ -12896,7 +12898,7 @@ window.qclShowManualAdd = function() {
   var nameEl = document.getElementById('qcl-m-name');
   if (nameEl) nameEl.value = typed;
   var cat = document.getElementById('qcl-m-cat'); if (cat) cat.value = 'Unknown';
-  ['qcl-m-city', 'qcl-m-phone'].forEach(function(id){ var e = document.getElementById(id); if (e) e.value = ''; });
+  ['qcl-m-address', 'qcl-m-city', 'qcl-m-phone'].forEach(function(id){ var e = document.getElementById(id); if (e) e.value = ''; });
   document.getElementById('qcl-manual').style.display = 'block';
   if (nameEl) setTimeout(function(){ try { nameEl.focus(); } catch(e){} }, 50);
 };
@@ -12915,12 +12917,13 @@ window.qclManualAddAccount = function() {
   var saveBtn = document.getElementById('qcl-m-save');
   if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Adding…'; }
   var category = (document.getElementById('qcl-m-cat') || {value:''}).value || 'Unknown';
+  var address = (document.getElementById('qcl-m-address') || {value:''}).value.trim();
   var city  = (document.getElementById('qcl-m-city')  || {value:''}).value.trim();
   var phone = (document.getElementById('qcl-m-phone') || {value:''}).value.trim();
   fetch('/api/prospects', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      company: name, category: category, city: city, state: 'GA',
+      company: name, category: category, address: address, city: city, state: 'GA',
       phone: phone, status: 'New', priority: 'Medium', source: 'Quick Call',
       data_status: 'Unvetted'
     })
