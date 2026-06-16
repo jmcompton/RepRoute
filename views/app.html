@@ -3703,12 +3703,57 @@ window.addEventListener('load', function() {
       <div id="qcl-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:9999;max-height:220px;overflow-y:auto;margin-top:4px"></div>
     </div>
 
-    <!-- Google Places fallback -->
+    <!-- No CRM match: primary = manual add; Google Places demoted to a small link -->
     <div id="qcl-gp-row" style="display:none;margin-bottom:14px">
-      <button onclick="qclSearchGoogle()" id="qcl-gp-btn"
-        style="width:100%;padding:8px;background:var(--surface);border:1px dashed var(--border);border-radius:6px;font-size:12px;color:var(--text3);cursor:pointer;font-family:inherit;font-weight:500">
-        🔍 No match in CRM — Search Google Places
+      <button onclick="qclShowManualAdd()" id="qcl-addnew-btn"
+        style="width:100%;min-height:44px;padding:0 14px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;text-align:left">
+        + Add this company as a new account
       </button>
+      <div style="text-align:center;margin-top:8px">
+        <span onclick="qclSearchGoogle()" id="qcl-gp-btn"
+          style="display:inline-block;font-size:12px;color:var(--text3);cursor:pointer;text-decoration:underline;padding:8px;min-height:44px;box-sizing:border-box;line-height:28px">
+          Search Google Places instead
+        </span>
+      </div>
+    </div>
+
+    <!-- Lightweight inline add form (field-fast: company + a few quick fields) -->
+    <div id="qcl-manual" style="display:none;margin-bottom:14px;background:var(--surface,#f8fafc);border:1px solid var(--border);border-radius:8px;padding:12px">
+      <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:8px">New account</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <input id="qcl-m-name" type="text" placeholder="Company name *" autocomplete="off"
+          style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:16px;font-family:inherit;outline:none">
+        <select id="qcl-m-cat"
+          style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:16px;font-family:inherit;background:#fff">
+          <option value="Unknown">Category (optional)</option>
+          <optgroup label="── Distributors ──">
+            <option value="Roofing Distributor">Roofing Distributor</option>
+            <option value="Decking Distributor">Decking Distributor</option>
+            <option value="Siding Distributor">Siding Distributor</option>
+            <option value="Window &amp; Door Distributor">Window &amp; Door Distributor</option>
+            <option value="Building Materials Distributor">Building Materials Distributor</option>
+          </optgroup>
+          <optgroup label="── Contractors ──">
+            <option value="Roofing Contractor">Roofing Contractor</option>
+            <option value="Decking Contractor">Decking Contractor</option>
+            <option value="Siding Contractor">Siding Contractor</option>
+            <option value="Window &amp; Door Installer">Window &amp; Door Installer</option>
+            <option value="Cornice Contractor">Cornice Contractor</option>
+            <option value="Construction Fasteners">Construction Fasteners</option>
+          </optgroup>
+          <option value="Architect">Architect</option>
+        </select>
+        <input id="qcl-m-city" type="text" placeholder="City" autocomplete="off"
+          style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:16px;font-family:inherit;outline:none">
+        <input id="qcl-m-phone" type="tel" placeholder="Business phone" autocomplete="off"
+          style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:16px;font-family:inherit;outline:none">
+        <div style="display:flex;gap:8px;margin-top:2px">
+          <button id="qcl-m-save" onclick="qclManualAddAccount()"
+            style="flex:1;min-height:44px;background:var(--navy);color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Add account &amp; log call</button>
+          <button onclick="qclHideManualAdd()"
+            style="min-height:44px;padding:0 16px;background:transparent;border:1px solid var(--border);border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text2)">Cancel</button>
+        </div>
+      </div>
     </div>
 
     <!-- Selected company banner -->
@@ -12576,6 +12621,7 @@ window.openQuickCallLog = function() {
   if (qclType) qclType.value = 'In-Person Visit';
   document.getElementById('qcl-dropdown').style.display = 'none';
   document.getElementById('qcl-gp-row').style.display = 'none';
+  var qclManual = document.getElementById('qcl-manual'); if (qclManual) qclManual.style.display = 'none';
   document.getElementById('qcl-dup-warn').style.display = 'none';
   document.getElementById('qcl-form').style.display = 'none';
   document.getElementById('qcl-selected-banner').style.display = 'none';
@@ -12649,11 +12695,17 @@ function qclRenderDropdown(results, query) {
 
   if (!results.length) {
     dd.style.display = 'none';
+    var addBtn = document.getElementById('qcl-addnew-btn');
+    if (addBtn) addBtn.textContent = '+ Add "' + query + '" as a new account';
+    var manual = document.getElementById('qcl-manual');
+    if (manual) manual.style.display = 'none';   // collapse the inline form between searches
     gpRow.style.display = 'block';
     return;
   }
 
   gpRow.style.display = 'none';
+  var manualEl = document.getElementById('qcl-manual');
+  if (manualEl) manualEl.style.display = 'none';
 
   // Build using DOM to avoid all quote-escaping issues
   dd.innerHTML = '';
@@ -12781,7 +12833,7 @@ window.qclSearchGoogle = function() {
   fetch('/api/places/company-search?q=' + encodeURIComponent(q))
     .then(function(r) { return r.json(); })
     .then(function(results) {
-      if (btn) { btn.textContent = 'No match in CRM \u2014 Search Google Places'; btn.disabled = false; }
+      if (btn) { btn.textContent = 'Search Google Places instead'; btn.disabled = false; }
       dd.innerHTML = '';
 
       var hdr = document.createElement('div');
@@ -12814,7 +12866,7 @@ window.qclSearchGoogle = function() {
       dd.style.display = 'block';
     })
     .catch(function() {
-      if (btn) { btn.textContent = 'No match in CRM \u2014 Search Google Places'; btn.disabled = false; }
+      if (btn) { btn.textContent = 'Search Google Places instead'; btn.disabled = false; }
       showToast('Google Places search failed');
     });
 };
@@ -12835,11 +12887,77 @@ window.qclSelectGoogleCompany = function(placeId, company, city, state, phone, a
   document.getElementById('qcl-form').style.display = 'block';
 };
 
+// No CRM match → open the lightweight inline add form, prefilled with the typed
+// company name. Keeps Google Places available as a demoted link.
+window.qclShowManualAdd = function() {
+  var typed = (document.getElementById('qcl-search').value || '').trim();
+  document.getElementById('qcl-dropdown').style.display = 'none';
+  document.getElementById('qcl-gp-row').style.display = 'none';
+  var nameEl = document.getElementById('qcl-m-name');
+  if (nameEl) nameEl.value = typed;
+  var cat = document.getElementById('qcl-m-cat'); if (cat) cat.value = 'Unknown';
+  ['qcl-m-city', 'qcl-m-phone'].forEach(function(id){ var e = document.getElementById(id); if (e) e.value = ''; });
+  document.getElementById('qcl-manual').style.display = 'block';
+  if (nameEl) setTimeout(function(){ try { nameEl.focus(); } catch(e){} }, 50);
+};
+
+window.qclHideManualAdd = function() {
+  document.getElementById('qcl-manual').style.display = 'none';
+  document.getElementById('qcl-gp-row').style.display = 'block';
+};
+
+// Create the account via the EXISTING prospects POST, then continue straight into
+// logging the call outcome against it (saveQuickCall handles the call insert).
+window.qclManualAddAccount = function() {
+  var name = (document.getElementById('qcl-m-name').value || '').trim() ||
+             (document.getElementById('qcl-search').value || '').trim();
+  if (!name) { showToast('Company name required'); var n = document.getElementById('qcl-m-name'); if (n) n.focus(); return; }
+  var saveBtn = document.getElementById('qcl-m-save');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Adding…'; }
+  var category = (document.getElementById('qcl-m-cat') || {value:''}).value || 'Unknown';
+  var city  = (document.getElementById('qcl-m-city')  || {value:''}).value.trim();
+  var phone = (document.getElementById('qcl-m-phone') || {value:''}).value.trim();
+  fetch('/api/prospects', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      company: name, category: category, city: city, state: 'GA',
+      phone: phone, status: 'New', priority: 'Medium', source: 'Quick Call',
+      data_status: 'Unvetted'
+    })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(prospect) {
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Add account & log call'; }
+      if (!prospect || !prospect.id) { showToast('Could not create account'); return; }
+      // Brand-new account is now the selected target for the call.
+      window._qclProspectId = prospect.id;
+      window._qclGpData = null;
+      if (Array.isArray(window._qclAllProspects)) window._qclAllProspects.unshift(prospect);
+      document.getElementById('qcl-search').value = name;
+      document.getElementById('qcl-dropdown').style.display = 'none';
+      document.getElementById('qcl-gp-row').style.display = 'none';
+      document.getElementById('qcl-manual').style.display = 'none';
+      document.getElementById('qcl-dup-warn').style.display = 'none';
+      var banner = document.getElementById('qcl-selected-banner');
+      document.getElementById('qcl-sel-name').textContent = name;
+      document.getElementById('qcl-sel-meta').textContent =
+        ([category !== 'Unknown' ? category : '', city, phone].filter(Boolean).join(' · ') || 'New account') + ' (New — added to CRM)';
+      banner.style.display = 'flex';
+      document.getElementById('qcl-form').style.display = 'block';
+      showToast(name + ' added — pick an outcome and Save Call');
+    })
+    .catch(function() {
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Add account & log call'; }
+      showToast('Could not create account');
+    });
+};
+
 window.qclClearSelection = function() {
   window._qclProspectId = null;
   window._qclGpData = null;
   document.getElementById('qcl-selected-banner').style.display = 'none';
   document.getElementById('qcl-form').style.display = 'none';
+  document.getElementById('qcl-manual').style.display = 'none';
   document.getElementById('qcl-dup-warn').style.display = 'none';
   var inp = document.getElementById('qcl-search');
   inp.value = '';
