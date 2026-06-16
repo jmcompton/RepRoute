@@ -1,0 +1,103 @@
+Rep,Day,Stop,Company,Address,City,ZIP,Phone,Status,Source,lat,lng
+Kody,1,1,Reeves Hardware - Dillard,24 Franklin St,Dillard,30537,,Needs review,GSW,34.9777,-83.3199
+Kody,1,2,Reeves Hardware - Clayton,46 Rickman St,Clayton,30525,,Needs review,GSW,34.8826,-83.4065
+Kody,1,3,Supply Mart,777 Highway 441 S,Clayton,30525,,Needs review,GSW,34.8826,-83.4065
+Kody,1,4,Habersham Hardware & Home Center,5926 GA-115,Clarkesville,30523,706-754-9090,Verified,Dixie,34.645,-83.5243
+Kody,1,5,Habersham Hardware & Home Center,5926 Highway 115,Clarkesville,30523,,Verified,GSW,34.645,-83.5243
+Kody,1,6,17 Lumber Company,5960 Highway 17 North,Clarkesville,30523,,Verified,GSW,34.645,-83.5243
+Kody,1,7,Mitchell Hardware & Building Supply,305 Oak St,Cornelia,30531,,Needs review,Dixie,34.5209,-83.5453
+Kody,1,8,Adams Building Supply - Toccoa,2545 Big A Road,Toccoa,30577,,Verified,GSW,34.5665,-83.3114
+Kody,1,9,Superior Distribution - Eastanollee,73 Maplewood Lane,Eastanollee,30538,,Needs review,GSW,34.5037,-83.2587
+Kody,1,10,GPC Poultry Supply & Hardware,9036 Athens Rd,Carnesville,30521,706-356-0304,Verified,Dixie,34.3631,-83.2547
+Kody,1,11,Harbin Lumber - Lavonia,12150 Augusta Road,Lavonia,30553,,Needs review,GSW,34.4528,-83.113
+Kody,2,1,Lake Russell Building Supply,575 Harmony Drive,Elberton,30635,706-283-0992,Verified,Dixie,34.1082,-82.8448
+Kody,2,2,Harbin Lumber - Athens,4365 Atlanta Hwy,Athens,30606,,Needs review,GSW,33.9461,-83.418
+Kody,2,3,Power Building Products,130 Trade St,Bogart,30622,,Needs review,GSW,33.934,-83.5055
+Kody,2,4,Magbee Contractors Supply,1065 Bankhead Hwy,Winder,30680,678-425-2600,Verified,Dixie,33.9985,-83.7115
+Kody,2,5,Hill's Ace Hardware - Winder,186 W Athens St,Winder,30680,,Needs review,GSW,33.9985,-83.7115
+Kody,2,6,Magbee Contractors Supply,414 Cedar Creek Road,Winder,30680,,Verified,Dixie,33.9985,-83.7115
+Kody,2,7,Carter Lumber - Winder,770 Bankhead Hwy,Winder,30680,,Needs review,GSW,33.9985,-83.7115
+Kody,2,8,84 Lumber,775 Bankhead Hwy,Winder,30680,770-868-0392,Verified,Dixie,33.9985,-83.7115
+Kody,2,9,Hill's Ace Hardware - Loganville,275 Main St,Loganville,30052,,Needs review,GSW,33.8769,-83.8968
+Kody,2,10,Still Lumber Co. Inc.,950 Highway 138 NE,Conyers,30012,,Needs review,GSW,33.7192,-84.0021
+Kody,2,11,Master Halco,3316 Colonial Pkwy,Decatur,30034,404-766-0063,Verified,Dixie,33.6954,-84.2489
+Kody,3,1,Master Halco - Decatur,3316 Colonial Parkway,Decatur,30034,,Verified,GSW,33.6954,-84.2489
+Kody,3,2,Carter Lumber - Stockbridge,860 Rock Quarry Road,Stockbridge,30281,,Needs review,GSW,33.5633,-84.2165
+Kody,3,3,Builders FirstSource - Morrow,1100 Commerce Rd,Morrow,30260,,Verified,GSW,33.5849,-84.3247
+Kody,3,4,Builders FirstSource / BMC - Fairburn,205 Bohannon Road,Fairburn,30213,,Verified,GSW,33.5648,-84.5809
+Kody,3,5,Lummus Supply,1554 Bolton Road,Atlanta,30331,404-794-1501,Verified,Dixie,33.7224,-84.5205
+Kody,3,6,Lummus Supply - Atlanta/Bolton Road,1554 Bolton Road NW,Atlanta,30331,,Verified,GSW,33.7224,-84.5205
+Kody,3,7,Carter Lumber - Powder Springs,4215 Florence Road,Powder Springs,30127,,Needs review,GSW,33.9135,-84.6859
+Kody,3,8,The Carruth Company,482 Industrial Way North,Dallas,30132,770-779-8988,Verified,Dixie,33.9163,-84.8278
+Kody,3,9,Builders FirstSource,2600 Summers St,Kennesaw,30144,770-428-2604,Verified,Both,34.0287,-84.6047
+Kody,3,10,Lummus Supply,5539 Highway 92,Acworth,30102,770-974-5090,Verified,Both,34.0707,-84.5894
+Kody,3,11,Builders FirstSource,399 Northpoint Parkway SE,Acworth,30102,678-439-3300,Verified,Both,34.0707,-84.5894
+Kody,4,1,Randall Brothers,2009 Dorsey Rd Bldg A,Marietta,30066,,Verified,Both,34.0378,-84.5038
+Kody,4,2,"Circle A Fences, Inc.",1589 Canton Road NE,Marietta,30066,770-424-7862,Verified,Dixie,34.0378,-84.5038
+Kody,4,3,TimberTown Atlanta,1137 Atlanta Industrial Dr,Marietta,30066,404-476-3747,Verified,Both,34.0378,-84.5038
+Kody,4,4,Metro Building Products Inc.,789 Pickens Industrial Drive,Marietta,30062,,Needs review,GSW,34.0025,-84.4633
+Kody,4,5,Builders FirstSource / Robert Bowden - Marietta Millwork,850 White Circle Court,Marietta,30060,,Verified,GSW,33.9382,-84.5403
+Kody,4,6,Randall Brothers,3151 Elizabeth Lane SE,Atlanta,30339,404-892-6666,Verified,Both,33.8713,-84.4629
+Kody,4,7,Carolina Lumber & Supply Co.,2290 Marietta Rd NW,Atlanta,30318,404-794-7991,Verified,Dixie,33.7865,-84.4454
+Kody,4,8,Carolina Lumber & Supply Co.,504 Plasters Ave NE,Atlanta,30324,404-873-2676,Verified,Both,33.8206,-84.3549
+Kody,4,9,The Home Depot,2525 Piedmont Road NE,Atlanta,30324,404-841-5608,Verified,Dixie,33.8206,-84.3549
+Kody,4,10,Brand Vaughan Lumber,3602 Lawrenceville Hwy,Tucker,30084,770-414-9876,Verified,Dixie,33.857,-84.216
+Kody,4,11,Brand Vaughan Lumber,3602 Lawrenceville Highway,Tucker,30084,,Verified,GSW,33.857,-84.216
+Kody,4,12,Builders FirstSource,3386 Lawrenceville Highway,Tucker,30084,770-934-1400,Verified,Both,33.857,-84.216
+Kody,5,1,Cofer Brothers Inc.,2300 Main St,Tucker,30084,,Needs review,GSW,33.857,-84.216
+Kody,5,2,Decks & Docks Lumber Company,3835 Presidential Pkwy,Atlanta,30340,,Needs review,Dixie,33.8989,-84.254
+Kody,5,3,Builders FirstSource / BMC,4094 Blue Ridge Industrial Pkwy NW,Norcross,30071,770-813-2200,Needs review,Dixie,33.9381,-84.1972
+Kody,5,4,Norcross Supply Company,4955 Buford Highway,Peachtree Corners,30071,770-448-2128,Verified,Dixie,33.9381,-84.1972
+Kody,5,5,Builders FirstSource - Duluth,3236 Summit Ridge Parkway,Duluth,30096,,Verified,GSW,33.9845,-84.1529
+Kody,5,6,Lummus Supply,"1880 McFarland Parkway, Suite 150",Alpharetta,30005,770-772-1651,Verified,Dixie,34.0782,-84.2281
+Kody,5,7,Lummus Supply - Roswell,160 Mansell Place,Roswell,30076,,Needs review,GSW,34.0213,-84.3104
+Kody,5,8,Barnett & Cheeves,5075 Atlanta Hwy,Alpharetta,30004,,Needs review,Dixie,34.1124,-84.302
+Kody,5,9,Midway Building Supply,4865 Atlanta Hwy,Alpharetta,30004,770-475-7067,Verified,Both,34.1124,-84.302
+Kody,5,10,J.P. Haynes Lumber Company,2838 Ball Ground Hwy,Canton,30114,770-479-3223,Verified,Both,34.2505,-84.4909
+Kody,5,11,Watkins Lumber,195 Mountain City Business Park,Jasper,30143,,Needs review,GSW,34.462,-84.4759
+Kody,5,12,Magbee Contractors Supply,7380 Ball Ground Hwy,Ball Ground,30107,,Verified,Both,34.3393,-84.3758
+Kody,6,1,Five Oaks Fence Supply Inc.,3680 Browns Bridge Road,Cumming,30028,,Needs review,GSW,34.2897,-84.1796
+Kody,6,2,BMC Stock Holdings / Builders FirstSource - Cumming,240 Castleberry Rd,Cumming,30040,,Verified,GSW,34.2321,-84.158
+Kody,6,3,Artistic Builders Supply Ace Hardware,963 Buford Dr,Lawrenceville,30043,770-963-5222,Verified,Both,34.0031,-84.0126
+Jack,1,1,Randall Brothers,175 Buford Dr,Lawrenceville,30046,,Verified,Both,33.9496,-83.9942
+Jack,1,2,North Georgia Building Supply,4675 S Lee St,Buford,30518,,Needs review,GSW,34.1124,-83.9965
+Jack,1,3,Lanier Outdoor Equipment,4900 Bryant Rd,Buford,30518,678-482-4405,Verified,Dixie,34.1124,-83.9965
+Jack,1,4,Lummus Supply,3749 Old Oakwood Rd,Oakwood,30566,770-531-4370,Verified,Both,34.2372,-83.894
+Jack,1,5,Patriot Building Supply Inc.,1267 W Ridge Rd,Gainesville,30501,,Verified,GSW,34.3073,-83.8256
+Jack,1,6,Builders FirstSource,1285 W Ridge Road,Gainesville,30501,770-536-1237,Verified,Both,34.3073,-83.8256
+Jack,1,7,Shoal Creek Supply,95 Whitmire Dr W,Dawsonville,30534,,Needs review,GSW,34.4537,-84.155
+Jack,1,8,Moore's Hardware / Dahlonega,81 Crown Mountain Place,Dahlonega,30533,,Needs review,GSW,34.5299,-83.9798
+Jack,1,9,Parks Lumber & Building Supply,8177 S Chestatee St,Dahlonega,30533,678-450-4961,Verified,Both,34.5299,-83.9798
+Jack,1,10,Hiawassee Hardware,139 Main St N,Hiawassee,30546,706-896-3617,Verified,Both,34.9063,-83.7274
+Jack,2,1,Builders FirstSource - Blairsville,57 Cleveland Street,Blairsville,30512,,Verified,GSW,34.8763,-83.992
+Jack,2,2,Mountain Building Supply,1993 Highway 515 E,Blairsville,30512,706-745-5200,Verified,Dixie,34.8763,-83.992
+Jack,2,3,Adams Building Supplies,7820 Appalachian Hwy,Blue Ridge,30513,,Needs review,Dixie,34.8555,-84.3281
+Jack,2,4,Sisson Log Homes,7155 Appalachian Hwy,Blue Ridge,30513,,Needs review,GSW,34.8555,-84.3281
+Jack,2,5,Ace Hardware / Blue Ridge,4344 E 1st St,Blue Ridge,30513,,Needs review,GSW,34.8555,-84.3281
+Jack,2,6,Appalachian Supply Company,9224 Appalachian Hwy 515 South,Ellijay,30536,,Verified,GSW,34.655,-84.3554
+Jack,2,7,515 Lumber & Millwork,430 Talona Road,Ellijay,30540,706-276-0515,Verified,Dixie,34.6775,-84.4812
+Jack,2,8,John's Lumber & Building Supply,2651 Cleveland Hwy,Dalton,30721,,Needs review,GSW,34.7792,-84.9339
+Jack,2,9,"Doors & Windows of Dalton, Inc.",302 Bryant Ave,Dalton,30721,706-529-7667,Verified,Dixie,34.7792,-84.9339
+Jack,2,10,Junior's Building Materials,70 Gateway Business Park Dr,Ringgold,30736,,Needs review,GSW,34.9205,-85.1549
+Jack,3,1,Mathis Builders Hardware & Supply Co. Inc.,145 John Davenport Dr,Rome,30165,706-291-1240,Verified,Dixie,34.2837,-85.2231
+Jack,3,2,Ace Home Center,7450 Adairsville Hwy,Adairsville,30103,,Needs review,GSW,34.3595,-84.9176
+Jack,3,3,Hometown True Value Hardware,7419 Adairsville Hwy,Adairsville,30103,,Needs review,GSW,34.3595,-84.9176
+Jack,3,4,Kingston Scandlyn Lumber Co.,116 E Race St,Kingston,30145,,Needs review,GSW,34.2501,-84.9973
+Jack,3,5,Plywood Case Company,1611 N Hwy 27,Carrollton,30117,770-832-2414,Verified,Dixie,33.5798,-85.0812
+Jack,3,6,Barnett & Cheeves Inc.,1189 Highway 16 E,Newnan,30263,,Verified,GSW,33.3696,-84.8194
+Jack,3,7,Carl E. Smith & Sons Building Materials,48 Longstreet Ave,Senoia,30276,770-599-8304,Verified,Both,33.2845,-84.5918
+Jack,3,8,Griffin Lumber & Hardware,1111 Memorial Drive,Griffin,30223,770-228-1444,Verified,Both,33.2549,-84.2728
+Jack,4,1,RAM Lumber Inc.,6325 Highway 19 S,Zebulon,30295,770-567-5580,Verified,Dixie,33.1002,-84.3108
+Jack,4,2,Woodall Lumber LLC,75 Main St,Milner,30257,,Needs review,GSW,33.141,-84.1759
+Jack,4,3,Bankston Lumber,941 Veterans Pkwy,Barnesville,30204,770-358-2800,Verified,Both,33.0457,-84.1515
+Jack,4,4,Griffin Lumber & Hardware - Forsyth,68 N Lee St,Forsyth,31029,,Needs review,GSW,33.0508,-83.9362
+Jack,4,5,Builders FirstSource - Macon,1641 Eisenhower Pkwy,Macon,31206,,Verified,GSW,32.7914,-83.679
+Jack,4,6,Hamrick Building Supply,3094 Gray Hwy,Gray,31032,,Needs review,GSW,33.0172,-83.54
+Jack,4,7,Farm & Home Supply,202 N Cherokee Road,Social Circle,30025,,Needs review,GSW,33.6791,-83.6835
+Jack,5,1,Builders FirstSource - Lake Oconee / Greensboro,1028 Richland Connector,Greensboro,30642,,Verified,GSW,33.5637,-83.1702
+Jack,5,2,Webb Brothers Supply,2511 Penfield Road,Greensboro,30642,,Needs review,GSW,33.5637,-83.1702
+Jack,5,3,Harbin Lumber - Eatonton,1010 Greensboro Road,Eatonton,31024,,Needs review,GSW,33.3127,-83.3628
+Jack,5,4,Best Builders Supply LLC,886 Milledgeville Road,Eatonton,31024,,Verified,GSW,33.3127,-83.3628
+Jack,5,5,Griffin Lumber & Hardware - Milledgeville,700 N Jefferson St NE,Milledgeville,31061,,Needs review,GSW,33.08,-83.2379
+Jack,5,6,Southern Builders Supply / Sandersville Builders Supply,206 West Haynes Street,Sandersville,31082,478-552-2537,Verified,Dixie,32.975,-82.8406
+Jack,5,7,Builders FirstSource,2835 Hwy 257,Dublin,31021,478-272-7421,Verified,Dixie,32.4593,-82.9381
