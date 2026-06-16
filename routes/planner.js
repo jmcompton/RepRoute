@@ -8,7 +8,7 @@ const { getReconnect } = require('../lib/reconnect-store');
 // ── Anthropic helper — reuses the SAME client/model/key pattern as
 //    routes/ai.js & routes/weekly_report.js (no new AI dependency) ──
 const CLAUDE_API = 'https://api.anthropic.com/v1/messages';
-const MODEL = 'claude-sonnet-4-20250514';
+const MODEL = 'claude-sonnet-4-6';
 async function callClaude(prompt, maxTokens) {
   const res = await fetch(CLAUDE_API, {
     method: 'POST',

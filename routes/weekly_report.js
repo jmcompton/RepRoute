@@ -15,7 +15,7 @@ const router = express.Router();
 
 // ── Anthropic helper (self-contained, mirrors routes/ai.js pattern) ──
 const CLAUDE_API = 'https://api.anthropic.com/v1/messages';
-const MODEL = 'claude-sonnet-4-20250514';
+const MODEL = 'claude-sonnet-4-6';
 async function callClaude(prompt) {
   const res = await fetch(CLAUDE_API, {
     method: 'POST',
