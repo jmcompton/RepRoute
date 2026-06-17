@@ -19,7 +19,12 @@ Hard rules:
 - No emoji.
 - Do not use AI-tell words or phrases (delve, leverage, robust, furthermore, moreover, additionally, streamline, foster, navigate, underscore, testament, 'in today's landscape', 'it's worth noting', 'I hope this email finds you well').
 - No throat-clearing intro and no rule-of-three cadence.
-Structure: one short opening line, then a concise rundown by account of who you spoke with, what happened, and the next step, then a brief sign off with the rep's name. Use only the real names and details from the notes. If a note is thin, keep that account to one line. Never invent details that aren't in the notes.`;
+Structure:
+- The first line is the date on its own clean line, written exactly as "Recap for <DATE>." using the date provided in the data. Put nothing before it.
+- Then a concise rundown, one account at a time. Lead each entry with the company/account name as a natural lead-in, not a label. For example write "Smith Lumber Supply. Spoke with Mike, he wants ShurTape samples, sending them Thursday." Do not write "Company:" or "Account:" or any templated label before the name. After the name, say who you spoke with, what happened, and the next step, using only the notes.
+- If an entry has no company/account name, lead with the contact's name instead. Never print an empty name, a placeholder, "Unknown", or a dangling label.
+- End with a brief sign off using the rep's name.
+Use only the real names and details from the data. If a note is thin, keep that account to one line. Never invent details that aren't in the notes.`;
 
 async function callClaudeWithSystem(system, userMessage) {
   const res = await fetch(CLAUDE_API, {
@@ -88,10 +93,13 @@ async function gatherTodayActivity(user) {
     [uid]
   );
   for (const r of calls.rows) {
+    const company = (r.name || '').trim();
+    const contact = (r.contact || '').trim();
     items.push({
       source: 'call',
-      name: r.name || 'Unknown account',
-      contact: r.contact || '',
+      company: company,                                  // raw account name (may be blank)
+      name: company || contact || 'Unknown account',     // display / group key (contact fallback)
+      contact: contact,
       time: r.time || '',
       outcome: r.outcome || '',
       note: r.note || ''
@@ -118,9 +126,11 @@ async function gatherTodayActivity(user) {
           [repToken]
         );
         for (const r of fr.rows) {
+          const company = (r.name || '').trim();
           items.push({
             source: 'fortress',
-            name: r.name || 'Unknown dealer',
+            company: company,
+            name: company || 'Unknown dealer',
             contact: '',
             time: r.time || '',
             outcome: r.outcome || '',
@@ -135,6 +145,14 @@ async function gatherTodayActivity(user) {
   }
 
   return items;
+}
+
+// Today's date, formatted like "Wednesday, June 17, 2026", from the DB so it
+// uses the same CURRENT_DATE basis as the rest of the recap (and the calls
+// counter the reps already see).
+async function todayFormatted() {
+  const r = await pool.query("SELECT to_char(CURRENT_DATE, 'FMDay, FMMonth FMDD, YYYY') AS d");
+  return r.rows[0] ? r.rows[0].d : '';
 }
 
 // Group activity items by account/dealer name, preserving first-seen order.
@@ -152,10 +170,10 @@ function groupByName(items) {
 router.get('/today', async (req, res) => {
   try {
     const items = await gatherTodayActivity(req.session.user);
-    const dateRow = await pool.query("SELECT to_char(CURRENT_DATE, 'FMDay, FMMonth FMDD, YYYY') AS d");
+    const date = await todayFormatted();
     res.json({
       rep: req.session.user.name || 'Rep',
-      date: dateRow.rows[0] ? dateRow.rows[0].d : '',
+      date: date,
       call_count: items.filter(i => i.source === 'call').length,
       visit_count: items.filter(i => i.source === 'fortress').length,
       groups: groupByName(items)
@@ -177,27 +195,41 @@ router.post('/generate-email', async (req, res) => {
       return res.json({ email: '' });
     }
 
-    // Build the structured list the model writes from.
+    const date = await todayFormatted();
+    const repName = user.name || 'Rep';
+
+    // Build the structured list the model writes from. Each entry carries the
+    // company/account name explicitly (the customer called on, NOT the product
+    // brands) so the model can lead the line with it. We still group by account
+    // so repeated calls on the same account consolidate. The account name is a
+    // natural lead-in for the email; the system prompt forbids a templated label.
     const groups = groupByName(items);
-    const lines = [];
+    const blocks = [];
     for (const g of groups) {
-      lines.push(`Account: ${g.name}`);
       for (const it of g.items) {
-        const meta = [];
-        if (it.contact) meta.push(`spoke with ${it.contact}`);
-        if (it.outcome) meta.push(`outcome: ${it.outcome}`);
-        if (it.time) meta.push(`time: ${it.time}`);
-        const kind = it.source === 'fortress' ? 'Fortress visit' : 'Call';
-        const metaStr = meta.length ? ` (${meta.join(', ')})` : '';
-        lines.push(`  ${kind}${metaStr}: ${it.note && it.note.trim() ? it.note.trim() : '(no note recorded)'}`);
+        // Lead-in = company/account name; fall back to the contact when there is
+        // no company. Empty only if truly unknown (prompt tells the model to skip
+        // a placeholder rather than print one). Uses the RAW company, never the
+        // display placeholder, so "Unknown account" can't leak into the email.
+        const company = (it.company || '').trim();
+        const lead = company || (it.contact ? it.contact.trim() : '');
+        const fields = [];
+        fields.push(`Company/account (lead the line with this name): ${lead || '(none on record, do not invent a name)'}`);
+        if (it.contact) fields.push(`Spoke with: ${it.contact}`);
+        if (it.outcome) fields.push(`Outcome: ${it.outcome}`);
+        fields.push(`Type: ${it.source === 'fortress' ? 'Fortress promo visit' : 'Sales call'}`);
+        fields.push(`What happened (from the note): ${it.note && it.note.trim() ? it.note.trim() : '(no note recorded)'}`);
+        blocks.push(fields.join('\n'));
       }
     }
 
-    const repName = user.name || 'Rep';
     const userMessage =
-      `Rep name: ${repName}\n` +
-      `This is the activity to recap (today). Group the email by account.\n\n` +
-      lines.join('\n');
+      `Date: ${date}\n` +
+      `Rep name: ${repName}\n\n` +
+      `Write the recap email. Open with "Recap for ${date}." on its own first line, ` +
+      `then cover each entry below, leading every entry with its company/account name.\n\n` +
+      `Entries to recap (today):\n\n` +
+      blocks.join('\n\n');
 
     const raw = await callClaudeWithSystem(RECAP_SYSTEM_PROMPT, userMessage);
     res.json({ email: sanitizeEmail(raw) });
