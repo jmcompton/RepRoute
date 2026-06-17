@@ -1521,6 +1521,7 @@ window.addEventListener('load', function() {
     <div class="sb-sec-label">Sales</div>
     <button class="sb-item" data-roles="rep intern manager" onclick="go('reconnect')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 8a6 6 0 0110.5-4M14 8a6 6 0 01-10.5 4"/><path d="M12.5 1.5V4h-2.5M3.5 14.5V12h2.5"/></svg>Reconnect</button>
     <button class="sb-item" data-roles="rep intern manager" onclick="go('today')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><rect x="2" y="3" width="12" height="11" rx="1"/><path d="M2 7h12M11 1.5v2M5 1.5v2"/><path d="M6.5 10.5l1.25 1.25L10 9"/></svg>Today</button>
+    <button class="sb-item" data-roles="rep intern manager" onclick="go('recap')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M4 1.5h6l3 3V14a.5.5 0 01-.5.5h-9A.5.5 0 013 14V2a.5.5 0 01.5-.5z"/><path d="M9.5 1.5V5h3.5M5.5 8h5M5.5 10.5h5"/></svg>Daily Recap</button>
     <button class="sb-item" data-roles="rep intern manager" onclick="go('contacts')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg>Accounts</button>
 
     <button class="sb-item" data-roles="rep intern manager" onclick="go('deals')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 4h12M2 8h9M2 12h6"/></svg>Deal Pipeline</button>
@@ -2605,6 +2606,39 @@ window.addEventListener('load', function() {
       <div id="today-header" style="order:1"></div>
       <div id="today-content" style="order:2"></div>
       <div id="today-finder-slot" style="order:3;display:none"></div>
+    </div>
+  </div>
+
+  <!-- DAILY RECAP PAGE -->
+  <div class="page" id="page-recap" style="overflow-y:auto;padding-bottom:90px">
+    <div style="padding:16px;max-width:760px;margin:0 auto">
+      <!-- Header -->
+      <div style="margin-bottom:14px">
+        <div id="recap-date" style="font-size:13px;color:var(--text3);font-weight:600">Loading…</div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:3px">
+          <div id="recap-rep" style="font-size:18px;font-weight:700;color:var(--navy)"></div>
+          <span id="recap-counts" style="background:var(--surface);border:1px solid var(--border);color:var(--text2);font-size:12px;font-weight:600;padding:3px 10px;border-radius:20px"></span>
+        </div>
+      </div>
+
+      <!-- Working view: today's activity grouped by account (raw notes) -->
+      <div id="recap-activity"></div>
+
+      <!-- Empty state -->
+      <div id="recap-empty" style="display:none;text-align:center;padding:36px 16px;background:var(--surface);border:1px solid var(--border);border-radius:10px;color:var(--text3);font-size:14px">
+        No calls or visits logged today yet. Log some activity and it will show up here.
+      </div>
+
+      <!-- Email generation -->
+      <div id="recap-email-wrap" style="margin-top:18px;display:none">
+        <button id="recap-generate-btn" onclick="generateRecapEmail()" style="width:100%;min-height:48px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;-webkit-tap-highlight-color:transparent">Generate email</button>
+
+        <div id="recap-email-result" style="display:none;margin-top:14px">
+          <label for="recap-email-text" style="display:block;font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Recap email (editable)</label>
+          <textarea id="recap-email-text" rows="16" style="width:100%;box-sizing:border-box;padding:14px;border:1px solid var(--border);border-radius:10px;font-size:16px;line-height:1.5;font-family:inherit;resize:vertical;min-height:320px;background:var(--surface);color:var(--navy)"></textarea>
+          <button id="recap-copy-btn" onclick="copyRecapEmail()" style="width:100%;min-height:48px;margin-top:10px;background:var(--surface);color:var(--navy);border:1.5px solid var(--border);border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;-webkit-tap-highlight-color:transparent">Copy email</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -3952,7 +3986,8 @@ var pageTitles = {
   commissions: 'Commissions',
   manufacturers: 'Manufacturers',
   reconnect: 'Reconnect',
-  fortress: 'Fortress Railing Promo'
+  fortress: 'Fortress Railing Promo',
+  recap: 'Daily Recap'
 };
 
 // Role-based nav visibility. Returns the normalized role used.
@@ -4110,6 +4145,7 @@ function go(id) {
   if (id === 'manufacturers') loadManufacturers();
   if (id === 'reconnect') loadReconnect();
   if (id === 'fortress') loadFortress();
+  if (id === 'recap') loadRecap();
   // Refresh route panel whenever user navigates to home/dashboard
   if (id === 'dashboard' || id === 'home') {
     if (typeof window._renderRoutePanel === 'function') {
@@ -11369,6 +11405,14 @@ fetch('/api/notifications/evaluate', { method: 'POST' }).then(function(r){ retur
 
   <!-- Menu items -->
   <div style="flex:1;overflow-y:auto;padding:8px 0">
+    <div style="font-size:11px;font-weight:700;color:#8a95a3;text-transform:uppercase;letter-spacing:.06em;padding:14px 20px 8px">Daily</div>
+
+    <button onclick="goAndCloseMenu('recap')" class="mm-item">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#1d6aff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2h8l4 4v13a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z"/><path d="M13 2v5h5M8 11h6M8 14.5h6"/></svg>
+      <span>Daily Recap</span>
+      <svg class="mm-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg>
+    </button>
+
     <div style="font-size:11px;font-weight:700;color:#8a95a3;text-transform:uppercase;letter-spacing:.06em;padding:14px 20px 8px">Communication</div>
 
     <button onclick="goAndCloseMenu('email')" class="mm-item">
@@ -12206,6 +12250,110 @@ window.goAndCloseMenu = function(page) {
   setTimeout(function() {
     if (typeof go === 'function') go(page);
   }, 50);
+};
+
+// ─── DAILY RECAP ────────────────────────────────────────────────────────────
+function _recapEscape(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+window.loadRecap = function() {
+  var dateEl   = document.getElementById('recap-date');
+  var repEl    = document.getElementById('recap-rep');
+  var countsEl = document.getElementById('recap-counts');
+  var actEl    = document.getElementById('recap-activity');
+  var emptyEl  = document.getElementById('recap-empty');
+  var emailWrap= document.getElementById('recap-email-wrap');
+  var resultEl = document.getElementById('recap-email-result');
+  if (dateEl) dateEl.textContent = 'Loading…';
+  if (actEl) actEl.innerHTML = '';
+  if (resultEl) resultEl.style.display = 'none';
+
+  fetch('/api/recap/today')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (dateEl)   dateEl.textContent = d.date || '';
+      if (repEl)    repEl.textContent = d.rep || '';
+      var calls = d.call_count || 0, visits = d.visit_count || 0;
+      if (countsEl) countsEl.textContent = calls + (calls === 1 ? ' call' : ' calls') + ' / ' + visits + (visits === 1 ? ' visit' : ' visits') + ' today';
+
+      var groups = d.groups || [];
+      if (!groups.length) {
+        if (emptyEl) emptyEl.style.display = 'block';
+        if (emailWrap) emailWrap.style.display = 'none';
+        return;
+      }
+      if (emptyEl) emptyEl.style.display = 'none';
+      if (emailWrap) emailWrap.style.display = 'block';
+
+      actEl.innerHTML = groups.map(function(g) {
+        var rows = (g.items || []).map(function(it) {
+          var tag = it.source === 'fortress' ? 'Fortress visit' : 'Call';
+          var meta = [];
+          if (it.contact) meta.push(_recapEscape(it.contact));
+          if (it.outcome) meta.push(_recapEscape(it.outcome));
+          if (it.time) meta.push(_recapEscape(it.time));
+          var metaLine = meta.length
+            ? '<div style="font-size:11px;color:var(--text3);margin-bottom:4px">' + meta.join(' · ') + '</div>' : '';
+          var note = (it.note && it.note.trim())
+            ? '<div style="font-size:14px;color:var(--navy);white-space:pre-wrap;line-height:1.45">' + _recapEscape(it.note) + '</div>'
+            : '<div style="font-size:13px;color:var(--text3);font-style:italic">No note recorded.</div>';
+          return '<div style="padding:10px 0;border-top:1px solid var(--border)">' +
+                   '<div style="display:inline-block;font-size:10px;font-weight:700;color:#0369a1;background:#f0f9ff;border:1px solid #bae6fd;padding:1px 7px;border-radius:20px;margin-bottom:5px">' + tag + '</div>' +
+                   metaLine + note +
+                 '</div>';
+        }).join('');
+        return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:12px">' +
+                 '<div style="font-size:15px;font-weight:700;color:var(--navy)">' + _recapEscape(g.name) + '</div>' +
+                 rows +
+               '</div>';
+      }).join('');
+    })
+    .catch(function() {
+      if (dateEl) dateEl.textContent = '';
+      if (actEl) actEl.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text3);font-size:14px">Could not load today\'s activity. Please try again.</div>';
+    });
+};
+
+window.generateRecapEmail = function() {
+  var btn = document.getElementById('recap-generate-btn');
+  var result = document.getElementById('recap-email-result');
+  var ta = document.getElementById('recap-email-text');
+  if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; btn.style.opacity = '0.7'; }
+
+  fetch('/api/recap/generate-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Regenerate email'; btn.style.opacity = ''; }
+      if (d.error) { showToast('Could not generate email'); return; }
+      if (!d.email) { showToast('No activity to recap today'); return; }
+      if (ta) ta.value = d.email;
+      if (result) result.style.display = 'block';
+      if (ta) setTimeout(function() { ta.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 80);
+    })
+    .catch(function() {
+      if (btn) { btn.disabled = false; btn.textContent = 'Generate email'; btn.style.opacity = ''; }
+      showToast('Could not generate email — try again');
+    });
+};
+
+window.copyRecapEmail = function() {
+  var ta = document.getElementById('recap-email-text');
+  var btn = document.getElementById('recap-copy-btn');
+  if (!ta || !ta.value) { showToast('Nothing to copy yet'); return; }
+  function done() {
+    if (btn) { var orig = 'Copy email'; btn.textContent = 'Copied ✓'; btn.style.borderColor = '#059669'; btn.style.color = '#059669';
+      setTimeout(function() { btn.textContent = orig; btn.style.borderColor = 'var(--border)'; btn.style.color = 'var(--navy)'; }, 1600); }
+    showToast('Copied');
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(ta.value).then(done).catch(function() {
+      ta.select(); try { document.execCommand('copy'); done(); } catch(_) { showToast('Copy failed'); }
+    });
+  } else {
+    ta.select(); try { document.execCommand('copy'); done(); } catch(_) { showToast('Copy failed'); }
+  }
 };
 
 window.openMobileSettings = function() {
