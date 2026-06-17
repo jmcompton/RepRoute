@@ -16530,6 +16530,17 @@ function renderFortress(){
       var visited = !!s.visited_at;
       var phone = s.phone ? '<a href="tel:' + fortressEsc(String(s.phone).replace(/[^0-9+]/g,'')) + '" onclick="event.stopPropagation()" style="color:var(--accent);text-decoration:none;font-weight:600">' + fortressEsc(s.phone) + '</a>' : '<span style="color:var(--text3)">no phone</span>';
       var addr = [s.address, s.city, s.zip].filter(Boolean).map(fortressEsc).join(', ');
+      // Per-stop nav links built from the STREET ADDRESS (lat/lng are ZIP-centroid
+      // approximations). Apple Maps = single destination only; Google for parity.
+      var navRow = '';
+      if (s.address) {
+        var dest = encodeURIComponent(s.address + ', ' + (s.city || '') + ', GA ' + (s.zip || ''));
+        var navStyle = 'display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:44px;padding:0 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;font-family:inherit;background:#fff;color:var(--navy);white-space:nowrap';
+        navRow = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">' +
+          '<a href="https://maps.apple.com/?daddr=' + dest + '&dirflg=d" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="' + navStyle + '">📍 Apple Maps</a>' +
+          '<a href="https://www.google.com/maps/dir/?api=1&destination=' + dest + '&travelmode=driving" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="' + navStyle + '">🗺️ Google Maps</a>' +
+        '</div>';
+      }
       var outcomes = ['Interested','Not interested','Follow-up'];
       var sel = '<select id="fps-outcome-' + s.id + '" style="flex:1;min-width:120px;min-height:44px;padding:0 10px;border:1px solid var(--border);border-radius:8px;font-size:16px;font-family:inherit;background:#fff">' +
         '<option value="">Outcome…</option>' +
@@ -16547,6 +16558,7 @@ function renderFortress(){
             '<div style="font-size:11px;font-weight:800;color:var(--accent)">#' + (s.stop_order != null ? s.stop_order : '–') + ' · ' + fortressEsc(s.city || '') + '</div>' +
             '<div style="font-size:15px;font-weight:700;color:var(--navy);margin-top:1px">' + fortressEsc(s.company || '') + '</div>' +
             '<div style="font-size:13px;color:var(--text2);margin-top:2px">' + addr + '</div>' +
+            navRow +
             '<div style="font-size:13px;margin-top:4px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">' + phone + statusBadge + '</div>' +
           '</div>' +
         '</div>' +
