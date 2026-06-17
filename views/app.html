@@ -16456,27 +16456,21 @@ function fortressSetRep(rep){ window._fortressRep = rep; renderFortress(); }
 
 // Build Google Maps directions URL(s) for an ordered list of stops, capped at
 // ~10 points per link (Maps' practical waypoint limit) — split when a day is longer.
-function fortressMapsLinks(stops){
-  var pts = stops.filter(function(s){ return s.lat != null && s.lng != null; });
-  if (!pts.length) return [];
-  function buildUrl(group){
-    var coords = group.map(function(s){ return s.lat + ',' + s.lng; });
-    var dest = coords[coords.length - 1];
-    var wps = coords.slice(0, coords.length - 1);
-    var url = 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=' + encodeURIComponent(dest);
-    if (wps.length) url += '&waypoints=' + wps.map(encodeURIComponent).join('|');
-    return url;
-  }
-  var CAP = 10;
-  if (pts.length <= CAP) return [{ label: 'Navigate this day', url: buildUrl(pts) }];
-  // Split into chunks of <=10; label first/second half for the common 2-chunk case.
-  var chunks = [];
-  for (var i = 0; i < pts.length; i += CAP) chunks.push(pts.slice(i, i + CAP));
-  return chunks.map(function(g, idx){
-    var label = chunks.length === 2 ? (idx === 0 ? 'Navigate (first half)' : 'Navigate (second half)')
-                                    : 'Navigate (part ' + (idx + 1) + ')';
-    return { label: label, url: buildUrl(g) };
-  });
+// Apple-first day navigation. Apple Maps URLs support only ONE destination (no
+// multi-stop URL), so instead of the old Google "first/second half" split we
+// open the day's NEXT unvisited stop. Computed AT CLICK TIME from current state,
+// so it advances automatically after a rep taps "Mark visited" (no refresh).
+function fortressNextStop(day){
+  var all = window._fortressStops || [];
+  var rep = window._fortressRep;
+  var inScope = (rep && rep !== 'all') ? all.filter(function(s){ return s.rep === rep; }) : all;
+  var dayStops = inScope.filter(function(s){ return (s.day || '—') === day; })
+                        .sort(function(a,b){ return (a.stop_order||0) - (b.stop_order||0); });
+  var next = dayStops.filter(function(s){ return !s.visited_at; })[0];
+  if (!next){ showToast('Day complete — every stop visited'); return; }
+  if (!next.address){ showToast('No address on the next stop'); return; }
+  var dest = encodeURIComponent(next.address + ', ' + (next.city || '') + ', GA ' + (next.zip || ''));
+  window.open('https://maps.apple.com/?daddr=' + dest + '&dirflg=d', '_blank', 'noopener');
 }
 
 function renderFortress(){
@@ -16522,9 +16516,12 @@ function renderFortress(){
     var dayDone = dayStops.filter(function(s){ return s.visited_at; }).length;
     // When showing both reps, label which rep this day belongs to.
     var repTag = (window._fortressRep === 'all') ? (' · ' + fortressEsc(dayStops[0].rep || '')) : '';
-    var navLinks = fortressMapsLinks(dayStops).map(function(n){
-      return '<a href="' + n.url + '" target="_blank" rel="noopener" style="display:inline-block;min-height:40px;line-height:40px;padding:0 14px;background:#00863c;color:#fff;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;font-family:inherit;white-space:nowrap">🧭 ' + n.label + '</a>';
-    }).join(' ');
+    // One Apple-first "Next stop" button per day (next-unvisited computed on click),
+    // or a disabled "Day complete ✓" when the whole day is done.
+    var dayComplete = dayStops.every(function(s){ return s.visited_at; });
+    var dayNav = dayComplete
+      ? '<button disabled style="min-height:44px;padding:0 16px;background:#f1f5f9;color:#94a3b8;border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:700;font-family:inherit;white-space:nowrap;cursor:default">Day complete ✓</button>'
+      : '<button onclick="fortressNextStop(' + JSON.stringify(day).replace(/"/g,'&quot;') + ')" style="min-height:44px;padding:0 16px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">📍 Next stop (Apple Maps)</button>';
 
     var rows = dayStops.map(function(s){
       var visited = !!s.visited_at;
@@ -16571,7 +16568,7 @@ function renderFortress(){
       '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px">' +
         '<div style="font-size:15px;font-weight:800;color:var(--navy)">' + fortressEsc(day) + repTag +
           ' <span style="font-size:12px;font-weight:600;color:var(--text3)">(' + dayDone + ' of ' + dayStops.length + ' visited)</span></div>' +
-        '<div style="display:flex;gap:6px;flex-wrap:wrap">' + navLinks + '</div>' +
+        '<div style="display:flex;gap:6px;flex-wrap:wrap">' + dayNav + '</div>' +
       '</div>' + rows +
     '</div>';
   }).join('');
