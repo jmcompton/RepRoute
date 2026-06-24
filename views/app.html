@@ -1064,6 +1064,15 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 
 /* ── QUOTES PAGE ─────────────────────────────────────────────────── */
 @media(max-width:768px){
+  /* ROOT CAUSE FIX: .page.active is a fixed-height flex column. On mobile the
+     stacked rows are taller than the viewport, so a flex child can be crushed
+     (status tabs overlap the filters) and the flex:1 list container collapses to
+     ~0 height (cards render but are clipped → invisible). Stop the rows flexing
+     and let the PAGE scroll: every row keeps its natural height, nothing overlaps,
+     and the list/cards container flows at content height. */
+  #page-quotes.page.active { display:block !important; }
+  #page-quotes > div { flex-shrink:0 !important; }
+
   /* Top bar — stack title above buttons, hide secondary controls */
   #page-quotes > div:first-child {
     flex-wrap:wrap !important;
@@ -1131,12 +1140,13 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
   #quote-analytics-panel > div[style*="repeat(3,1fr)"],
   #qa-mfr-breakdown { grid-template-columns:repeat(2,1fr) !important; }
 
-  /* Quotes table — horizontal scroll */
+  /* Quotes list container: on mobile the table is hidden and cards are shown.
+     Size to content and flow in the page's own scroll instead of being a nested
+     flex:1 / overflow:auto box (which collapsed to ~0 height and hid the cards). */
   #page-quotes > div[style*="flex:1"][style*="overflow:auto"] {
-    overflow-x:auto !important;
-    -webkit-overflow-scrolling:touch !important;
+    flex:0 0 auto !important;
+    overflow:visible !important;
   }
-  #quotes-table { min-width:640px; }
 
   /* Quote detail modal — full screen on mobile */
   #quote-detail-modal {
