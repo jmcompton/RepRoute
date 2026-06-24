@@ -2905,7 +2905,8 @@ window.addEventListener('load', function() {
       <div style="padding:0 20px 16px">
         <div style="font-size:11px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;padding-bottom:7px;border-bottom:1px solid var(--border)">Quote Details</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div><label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Quote Number</label><input id="qd-quote-num" placeholder="e.g. QT-001" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px;background:var(--bg)"></div>
+          <div><label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Quote Number <span style="text-transform:none;font-weight:500;color:var(--text3)">(optional)</span></label><input id="qd-quote-num" placeholder="e.g. QT-001" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px;background:var(--bg)"></div>
+          <div><label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Customer Number</label><input id="qd-customer-num" placeholder="e.g. ACME-100" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px;background:var(--bg)"></div>
           <div><label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Status</label><select id="qd-status" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px;background:var(--bg)"><option value="Draft">Draft</option><option value="Sent">Sent</option><option value="Follow-Up">Follow-Up</option><option value="Won">Won</option><option value="Lost">Lost</option></select></div>
           <div>
   <label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Account Name *</label>
@@ -9038,7 +9039,7 @@ function openNewQuoteModal() {
   document.getElementById('qd-status-badge').style.cssText = 'background:#f1f5f9;color:#475569;font-size:11px;padding:3px 10px;border-radius:12px;font-weight:600';
   document.getElementById('qd-account').textContent = '—';
   document.getElementById('qd-contact').textContent = '—';
-  ['qd-quote-num','qd-acct','qd-cont','qd-amount','qd-products','qd-comments'].forEach(function(id){ document.getElementById(id).value=''; });
+  ['qd-quote-num','qd-customer-num','qd-acct','qd-cont','qd-amount','qd-products','qd-comments'].forEach(function(id){ document.getElementById(id).value=''; });
   // Reset rep select first, then auto-populate with logged-in user's name
   var repSel = document.getElementById('qd-rep-select');
   if (repSel) repSel.value = '';
@@ -9074,6 +9075,7 @@ function openQuoteDetail(id) {
   document.getElementById('qd-contact').textContent = q.contact_name||'—';
   qSetRepValue(q.rep_name||'');
   document.getElementById('qd-quote-num').value = q.quote_number||'';
+  document.getElementById('qd-customer-num').value = q.customer_number||'';
   document.getElementById('qd-status').value = q.status||'Draft';
   document.getElementById('qd-acct').value = q.account_name||'';
   document.getElementById('qd-cont').value = q.contact_name||'';
@@ -9312,6 +9314,7 @@ async function saveQuote() {
   if (!acct) { alert('Account name is required'); btn.textContent='Save Quote'; btn.disabled=false; return; }
   var payload = {
     quote_number: document.getElementById('qd-quote-num').value.trim() || null,
+    customer_number: document.getElementById('qd-customer-num').value.trim() || null,
     status: document.getElementById('qd-status').value,
     account_name: acct,
     contact_name: cont,

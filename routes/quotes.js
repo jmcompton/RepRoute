@@ -133,7 +133,7 @@ router.post('/', async (req, res) => {
     }
     const userId = req.session.user.id;
     const {
-      quote_number, status, account_name, contact_name,
+      quote_number, customer_number, status, account_name, contact_name,
       amount, products, comments, quote_date, follow_up_date,
       pdf_data, pdf_filename, rep_name, force_override
     } = req.body;
@@ -144,37 +144,72 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Account name is required' });
     }
 
-    // ── Duplicate check — PER-REP only ──────────────────────────────────────────
-    // Manufacturer quote numbers legitimately repeat across reps and revisions, so
-    // a different rep using the same number is NEVER a conflict (allowed silently).
-    // Only a same-rep collision warns, and even then `force:true` saves anyway.
-    if (!force && quote_number && quote_number.trim()) {
+    // Quote number is OPTIONAL; customer number is a wholly separate field and is
+    // NEVER read into or compared against the quote number.
+    const qnum = quote_number && quote_number.trim() ? quote_number.trim() : null;
+    const cnum = customer_number && String(customer_number).trim() ? String(customer_number).trim() : null;
+
+    // ── Duplicate check — PER-REP, QUOTE-NUMBER ONLY ────────────────────────────
+    // Runs ONLY when a non-empty quote_number is present (no number → just save).
+    // Customer number is intentionally absent here. Manufacturer quote numbers
+    // legitimately repeat across reps, so a different rep is never a conflict.
+    let existingDup = null;
+    if (qnum) {
       const dupNum = await pool.query(
         `SELECT id, account_name, amount, quote_date FROM quotes
           WHERE rep_id = $1 AND LOWER(TRIM(quote_number)) = LOWER($2)
           ORDER BY id DESC LIMIT 1`,
-        [userId, quote_number.trim()]
+        [userId, qnum]
       );
-      if (dupNum.rows.length > 0) {
-        const ex = dupNum.rows[0];
-        return res.status(409).json({
-          error: 'duplicate',
-          message: 'A quote with number "' + quote_number.trim() + '" already exists.',
-          existing_id: ex.id,
-          existing: { account_name: ex.account_name, amount: ex.amount, quote_date: ex.quote_date }
-        });
-      }
+      if (dupNum.rows.length > 0) existingDup = dupNum.rows[0];
+    }
+
+    // Same-rep collision and no override → warn (the UI offers "Save anyway").
+    if (existingDup && !force) {
+      return res.status(409).json({
+        error: 'duplicate',
+        message: 'A quote with number "' + qnum + '" already exists.',
+        existing_id: existingDup.id,
+        existing: { account_name: existingDup.account_name, amount: existingDup.amount, quote_date: existingDup.quote_date }
+      });
+    }
+
+    // Override confirmed on a real duplicate → UPSERT: update the existing row in
+    // place (one saved record) rather than inserting a second duplicate.
+    if (existingDup && force) {
+      const upd = await pool.query(
+        `UPDATE quotes SET
+           quote_number = $2, customer_number = $3, status = $4, account_name = $5,
+           contact_name = $6, amount = $7, products = $8, comments = $9,
+           quote_date = $10, follow_up_date = $11,
+           pdf_filename = COALESCE($12, pdf_filename),
+           pdf_data = COALESCE($13, pdf_data),
+           rep_name = COALESCE($14, rep_name),
+           updated_at = NOW()
+         WHERE id = $1
+         RETURNING *`,
+        [
+          existingDup.id, qnum, cnum, status || 'Draft', account_name.trim(),
+          contact_name || null, amount ? parseFloat(amount) : null, products || null,
+          comments || null, quote_date || null, follow_up_date || null,
+          pdf_filename || null, pdf_data || null, rep_name || null
+        ]
+      );
+      const savedQuote = upd.rows[0];
+      console.log('[quotes] POST override → updated existing quote id=' + savedQuote.id + ' account=' + savedQuote.account_name);
+      return res.json({ success: true, quote: savedQuote, updated_existing: true });
     }
 
     const result = await pool.query(
       `INSERT INTO quotes
-       (user_id, rep_id, quote_number, status, account_name, contact_name,
+       (user_id, rep_id, quote_number, customer_number, status, account_name, contact_name,
         amount, products, comments, quote_date, follow_up_date, pdf_filename, pdf_data, rep_name)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
        RETURNING *`,
       [
         userId, userId,
-        quote_number ? quote_number.trim() : null,
+        qnum,
+        cnum,
         status || 'Draft',
         account_name.trim(),
         contact_name || null,
@@ -205,11 +240,12 @@ router.put('/:id', async (req, res) => {
       return res.status(401).json({ error: 'Session expired. Please log in again.' });
     }
     const {
-      quote_number, status, account_name, contact_name,
+      quote_number, customer_number, status, account_name, contact_name,
       amount, products, comments, quote_date, follow_up_date,
       pdf_data, pdf_filename, rep_name, force_override
     } = req.body;
     const force = req.body.force === true || force_override === true;
+    const cnum = customer_number && String(customer_number).trim() ? String(customer_number).trim() : null;
 
     // ── Duplicate check (PER-REP) — never collides with the quote's OWN id ──
     // Scoped to the same rep as the quote being edited and excludes this id, so
@@ -248,6 +284,7 @@ router.put('/:id', async (req, res) => {
         pdf_filename = COALESCE($11, pdf_filename),
         pdf_data = COALESCE($12, pdf_data),
         rep_name = COALESCE($13, rep_name),
+        customer_number = $14,
         updated_at = NOW()
        WHERE id = $1
        RETURNING *`,
@@ -264,7 +301,8 @@ router.put('/:id', async (req, res) => {
         follow_up_date || null,
         pdf_filename || null,
         pdf_data || null,
-        rep_name || null
+        rep_name || null,
+        cnum
       ]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Quote not found' });

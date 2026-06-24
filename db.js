@@ -230,6 +230,13 @@ async function initDB() {
     CREATE INDEX IF NOT EXISTS idx_quotes_followup ON quotes(follow_up_date);
     ALTER TABLE quotes ADD COLUMN IF NOT EXISTS rep_name TEXT;
 
+    -- ── Customer number is a SEPARATE field from quote_number. Reps reuse the
+    --    same customer number across every quote for a given customer, so it must
+    --    NEVER feed the duplicate-quote-number check. quote_number stays nullable
+    --    (many quotes legitimately have none); the dup check keys on quote_number
+    --    ONLY. This column is additive/idempotent — safe to re-run on prod.
+    ALTER TABLE quotes ADD COLUMN IF NOT EXISTS customer_number TEXT;
+
     -- ── Duplicate quote numbers are LEGITIMATE (revisions, different customers,
     --    manufacturer-specific numbering). Relax any historical UNIQUE constraint
     --    or unique index on quote_number so the "Save anyway" override can persist
