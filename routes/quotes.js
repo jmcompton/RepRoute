@@ -315,6 +315,41 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+// POST /:id/pdf — attach (or clear) a quote's PDF as a SEPARATE step from the
+// quote-field save. The base64 PDF is a multi-MB body; keeping it out of the
+// main save JSON means a large/slow/truncated PDF body can never turn the quote
+// save itself into a body-parse 400. This endpoint is best-effort: if it fails,
+// the quote row is already saved and the client tells the rep to retry the PDF.
+router.post('/:id/pdf', async (req, res) => {
+  try {
+    if (!req.session || !req.session.user || !req.session.user.id) {
+      return res.status(401).json({ error: 'Session expired. Please log in again.' });
+    }
+    const { pdf_data, pdf_filename, remove } = req.body;
+    if (remove) {
+      const r = await pool.query(
+        `UPDATE quotes SET pdf_data = NULL, pdf_filename = NULL, updated_at = NOW()
+          WHERE id = $1 RETURNING id, pdf_filename`,
+        [req.params.id]
+      );
+      if (!r.rows.length) return res.status(404).json({ error: 'Quote not found' });
+      return res.json({ success: true, quote: r.rows[0] });
+    }
+    if (!pdf_data) return res.status(400).json({ error: 'No PDF data provided' });
+    const r = await pool.query(
+      `UPDATE quotes SET pdf_data = $2, pdf_filename = $3, updated_at = NOW()
+        WHERE id = $1 RETURNING id, pdf_filename`,
+      [req.params.id, pdf_data, pdf_filename || null]
+    );
+    if (!r.rows.length) return res.status(404).json({ error: 'Quote not found' });
+    console.log('[quotes] POST /:id/pdf attached pdf to quote id=' + req.params.id);
+    res.json({ success: true, quote: r.rows[0] });
+  } catch (e) {
+    console.error('[quotes] POST /api/quotes/:id/pdf error:', e.message);
+    res.status(500).json({ error: e.message || 'Failed to attach PDF' });
+  }
+});
+
 // DELETE quote — team-wide
 router.delete('/:id', async (req, res) => {
   try {
@@ -357,7 +392,7 @@ router.post('/parse-pdf', async (req, res) => {
             },
             {
               type: 'text',
-              text: 'Extract fields from this sales quote or proposal PDF. Respond ONLY with a valid JSON object, no markdown or explanation:\n{\n  "quote_number": "quote/proposal/estimate number or null",\n  "account_name": "customer/client/bill-to company name or null",\n  "contact_name": "contact person full name or null",\n  "amount": "total dollar amount as number string like \\"1234.56\\" with no dollar sign, or null",\n  "products": "concise summary of all products or line items, max 150 chars, or null",\n  "quote_date": "quote date in YYYY-MM-DD format or null",\n  "follow_up_date": "follow-up or expiry date in YYYY-MM-DD format or null",\n  "comments": "relevant notes, terms, or special instructions max 200 chars or null"\n}\nRules: use null for any field you cannot find with confidence. For amount use the GRAND TOTAL only. Return ONLY the JSON object.'
+              text: 'Extract fields from this sales quote or proposal PDF. Respond ONLY with a valid JSON object, no markdown or explanation:\n{\n  "quote_number": "the QUOTE/PROPOSAL/ESTIMATE number (the seller\'s number for THIS document) or null",\n  "customer_number": "the CUSTOMER/ACCOUNT number (the buyer\'s account/customer ID, often labeled Customer #, Account #, Cust No) or null",\n  "account_name": "customer/client/bill-to company name or null",\n  "contact_name": "contact person full name or null",\n  "amount": "total dollar amount as number string like \\"1234.56\\" with no dollar sign, or null",\n  "products": "concise summary of all products or line items, max 150 chars, or null",\n  "quote_date": "quote date in YYYY-MM-DD format or null",\n  "follow_up_date": "follow-up or expiry date in YYYY-MM-DD format or null",\n  "comments": "relevant notes, terms, or special instructions max 200 chars or null"\n}\nRules: use null for any field you cannot find with confidence. For amount use the GRAND TOTAL only. quote_number and customer_number are DIFFERENT fields — never put the same value in both. If the document shows only ONE number and you cannot tell which kind it is, put it in customer_number and leave quote_number null. Return ONLY the JSON object.'
             }
           ]
         }]

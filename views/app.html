@@ -9306,6 +9306,44 @@ document.addEventListener('mousedown', function(e) {
   if (name) selectQuoteAccount(name);
 });
 
+// Attach (or clear) the quote's PDF in a SEPARATE request, after the quote row
+// is already saved. Best-effort and fully decoupled: a failure here never undoes
+// the saved quote — the caller surfaces a "PDF didn't attach, retry" message.
+// Returns { ok:true } when there was nothing to do or the upload succeeded;
+// { ok:false, msg } (msg 'session' for 401) otherwise.
+async function uploadQuotePdf(quoteId) {
+  if (!quoteId) return { ok: true };
+  var body = null;
+  if (quotePdfName === 'REMOVED') body = { remove: true };
+  else if (quotePdfData) body = { pdf_data: quotePdfData, pdf_filename: quotePdfName || null };
+  else return { ok: true };               // no new PDF and no removal → nothing to do
+  try {
+    var res = await fetch('/api/quotes/' + quoteId + '/pdf', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    if (res.status === 401) return { ok: false, msg: 'session' };
+    if (res.status === 413) return { ok: false, msg: 'PDF too large to attach' };
+    if (!res.ok) return { ok: false, msg: 'upload failed (status ' + res.status + ')' };
+    var data;
+    try { data = await res.json(); }
+    catch (parseErr) { return { ok: false, msg: 'upload returned an invalid response' }; }
+    if (data && data.error) return { ok: false, msg: data.error };
+    return { ok: true, quote: data && data.quote };
+  } catch (e) {
+    return { ok: false, msg: e.message || 'upload failed' };
+  }
+}
+
+// Toast wording for a successful quote save, factoring in the separate PDF step.
+function quoteSavedToast(pdfRes) {
+  if (!pdfRes || pdfRes.ok) { showToast('Quote saved!'); return; }
+  if (pdfRes.msg === 'session') {
+    showToast('Quote saved — but your session expired before the PDF attached. Refresh and re-upload the PDF.');
+  } else {
+    showToast('Quote saved — PDF didn’t attach (' + pdfRes.msg + '). Open the quote and retry the upload.');
+  }
+}
+
 async function saveQuote() {
   var btn = document.getElementById('qd-save-btn');
   btn.textContent = 'Saving...'; btn.disabled = true;
@@ -9323,10 +9361,11 @@ async function saveQuote() {
     products: document.getElementById('qd-products').value.trim() || null,
     comments: document.getElementById('qd-comments').value.trim() || null,
     quote_date: document.getElementById('qd-date').value || null,
-    follow_up_date: document.getElementById('qd-followup').value || null,
-    pdf_filename: quotePdfData ? quotePdfName : (quotePdfName === 'REMOVED' ? null : undefined)
+    follow_up_date: document.getElementById('qd-followup').value || null
   };
-  if (quotePdfData && !currentQuoteId) payload.pdf_data = quotePdfData;
+  // NOTE: the PDF (multi-MB base64) is intentionally NOT part of this JSON. It is
+  // uploaded separately via uploadQuotePdf() AFTER the quote row saves, so a large
+  // or truncated PDF body can never turn the quote save into a body-parse 400.
   try {
     var url = currentQuoteId ? '/api/quotes/'+currentQuoteId : '/api/quotes';
     var method = currentQuoteId ? 'PUT' : 'POST';
@@ -9357,6 +9396,11 @@ async function saveQuote() {
 
     // Support both { success: true, quote: {...} } and raw quote object (backward compat)
     var savedQuote = (resData.success && resData.quote) ? resData.quote : resData;
+
+    // ── Attach the PDF as a SEPARATE step now that we have the saved quote id.
+    //    Quote is already persisted; a PDF failure only changes the toast wording.
+    var pdfRes = await uploadQuotePdf(savedQuote.id);
+    if (pdfRes.ok && pdfRes.quote) savedQuote.pdf_filename = pdfRes.quote.pdf_filename;
 
     // Upsert account + contact into prospects (Google Places lookup for address/phone)
     // This runs async in background — doesn't block the quote save
@@ -9392,7 +9436,7 @@ async function saveQuote() {
     closeQuoteDetail();
     _afterQuoteSaveFromRecord();
     if (!_wasFromRecord) loadQuotes();
-    showToast('Quote saved!');
+    quoteSavedToast(pdfRes);
   } catch(e) {
     console.error('[saveQuote] error:', e.message);
     showToast('Save failed: ' + e.message);
@@ -9454,16 +9498,33 @@ async function saveQuoteForceOverride() {
   if (!_dupPayload || !_dupUrl || !_dupMethod) return;
   closeDupModal();
   // Re-submit the SAME payload with the force flag the server honors.
+  // The override payload carries ONLY quote fields — never the PDF (that goes via
+  // uploadQuotePdf after the save, same as the normal path).
   var payload = Object.assign({}, _dupPayload, { force: true, force_override: true });
   var btn = document.getElementById('qd-save-btn');
   if (btn) { btn.textContent = 'Saving...'; btn.disabled = true; }
   try {
     var res = await fetch(_dupUrl, { method: _dupMethod, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    // Match saveQuote's status handling so a parser/auth failure gives a clear message.
+    if (!res.ok && res.status === 413) throw new Error('PDF too large to attach. Try removing the PDF and saving again.');
+    if (!res.ok && res.status === 401) {
+      showToast('Your session expired — please refresh the page and log in again.');
+      if (btn) { btn.textContent = 'Save Quote'; btn.disabled = false; }
+      return;
+    }
     var resData;
     try { resData = await res.json(); }
-    catch (parseErr) { throw new Error('Server returned an invalid response (status ' + res.status + '). Please try again.'); }
+    catch (parseErr) {
+      console.error('[saveQuoteForceOverride] Could not parse server response:', parseErr.message, 'status:', res.status);
+      throw new Error('Server returned an invalid response (status ' + res.status + '). Please try again.');
+    }
     if (resData.error) throw new Error(resData.error);
     var savedQuote = (resData.success && resData.quote) ? resData.quote : resData;
+
+    // Attach the PDF separately now that the (upserted) quote row exists.
+    var pdfRes = await uploadQuotePdf(savedQuote.id);
+    if (pdfRes.ok && pdfRes.quote) savedQuote.pdf_filename = pdfRes.quote.pdf_filename;
+
     if (currentQuoteId) {
       allQuotes = allQuotes.map(function(q){ return q.id === savedQuote.id ? savedQuote : q; });
     } else {
@@ -9473,7 +9534,7 @@ async function saveQuoteForceOverride() {
     closeQuoteDetail();
     _afterQuoteSaveFromRecord();
     if (!_wasFromRecord2) loadQuotes();
-    showToast('Quote saved!');
+    quoteSavedToast(pdfRes);
   } catch(e) {
     console.error('[saveQuoteForceOverride] error:', e.message);
     showToast('Save failed: ' + e.message);
@@ -9525,6 +9586,7 @@ function processQuotePDF(file) {
       };
 
       fill('qd-quote-num', data.quote_number);
+      fill('qd-customer-num', data.customer_number);
       fill('qd-acct', data.account_name);
       fill('qd-cont', data.contact_name);
       fill('qd-amount', data.amount);
