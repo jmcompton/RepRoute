@@ -270,12 +270,27 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
   .mob-menu{display:flex}
   .bottom-nav{display:flex}
   .topbar{padding:0 12px}
+  /* Quotes: stacked cards replace the wide table on phones */
+  #quotes-table{display:none}
+  #quotes-cards{display:block}
 }
 @media(min-width:769px){
   .mob-menu{display:none}
   .bottom-nav{display:none}
   .sidebar-overlay{display:none}
+  /* Desktop shows the table only; cards stay hidden */
+  #quotes-cards{display:none}
 }
+/* Quotes cards are mobile-only; the desktop table view is unchanged */
+#quotes-cards{padding:10px 12px 16px;background:var(--white)}
+.q-card{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:13px 14px;margin-bottom:10px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.q-card:active{background:#f8fafc}
+.q-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.q-card-acct{font-size:15px;font-weight:700;color:var(--navy);line-height:1.25;word-break:break-word}
+.q-card-amt{font-size:22px;font-weight:800;color:var(--navy);margin-top:8px;letter-spacing:-.01em}
+.q-card-meta{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:8px;font-size:12px;color:var(--text2)}
+.q-card-meta b{color:var(--text);font-weight:600}
+.q-card-dates{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:6px;font-size:12px;color:var(--text3)}
 .mob-menu{align-items:center;justify-content:center;width:36px;height:36px;cursor:pointer;flex-shrink:0;border:none;background:none;padding:0}
 .mob-menu span{display:block;width:20px;height:2px;background:var(--navy);border-radius:2px;margin:4px 0}
 .bottom-nav{position:fixed;bottom:0;left:0;right:0;height:58px;background:var(--white);border-top:1px solid var(--border);z-index:150;justify-content:space-around;align-items:center;padding:0 8px}
@@ -2861,6 +2876,8 @@ window.addEventListener('load', function() {
           <tr><td colspan="10" style="text-align:center;color:var(--text3);padding:40px 20px;font-size:13px">No quotes yet — click <strong>+ New Quote</strong> or drop a PDF to get started</td></tr>
         </tbody>
       </table>
+      <!-- Mobile-only stacked cards (same filtered/sorted, team-wide set as the table) -->
+      <div id="quotes-cards"></div>
     </div>
   </div>
 
@@ -4014,6 +4031,11 @@ function applyRoleNav(role) {
   });
   // Mobile bottom nav
   document.querySelectorAll('.bottom-nav .bn-item[data-roles]').forEach(function(el) {
+    el.style.display = allowed(el) ? '' : 'none';
+  });
+  // Mobile "More" menu items that opt into role-gating (e.g. Quotes = rep/manager).
+  // Items without data-roles are left untouched (unchanged behavior).
+  document.querySelectorAll('#mobile-menu .mm-item[data-roles]').forEach(function(el) {
     el.style.display = allowed(el) ? '' : 'none';
   });
   return role;
@@ -8826,9 +8848,11 @@ function renderQuotesTable(quotes) {
   }
 
   var tbody = document.getElementById('quotes-tbody');
+  var cardsEl = document.getElementById('quotes-cards');
   if (!tbody) return;
   if (!filtered.length) {
     tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:40px;font-size:13px">No quotes found</td></tr>';
+    if (cardsEl) cardsEl.innerHTML = '<div style="text-align:center;color:var(--text3);padding:40px 20px;font-size:13px">No quotes found</div>';
     return;
   }
 
@@ -8870,6 +8894,35 @@ function renderQuotesTable(quotes) {
       '<td><button onclick="event.stopPropagation();openQuoteDetail('+q.id+')" style="padding:3px 10px;font-size:11px;background:transparent;border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--text2)">Edit</button></td>'+
       '</tr>';
   }).join('');
+
+  // ── Mobile cards — same `filtered` (team-wide, all filters + sort applied) ──
+  // Desktop table is untouched; CSS shows cards only at <=768px. Tapping a card
+  // opens/edits the quote, identical to the desktop row click.
+  if (cardsEl) {
+    var esc = function(v){ var d=document.createElement('div'); d.textContent=(v==null?'':String(v)); return d.innerHTML; };
+    cardsEl.innerHTML = filtered.map(function(q){
+      var s = sc[q.status] || sc['Draft'];
+      var fdate = q.follow_up_date ? q.follow_up_date.split('T')[0] : null;
+      var qdate = q.quote_date ? q.quote_date.split('T')[0] : null;
+      var isOverdue = fdate && fdate < today && q.status !== 'Won' && q.status !== 'Lost';
+      var isDueToday = fdate && fdate === today && q.status !== 'Won' && q.status !== 'Lost';
+      var fuStyle = isOverdue ? 'color:#c0392b;font-weight:700' : (isDueToday ? 'color:#e67e22;font-weight:700' : 'color:var(--text3)');
+      var fuText = fdate ? (fmtDate(fdate) + (isOverdue ? ' ⚠' : (isDueToday ? ' ●' : ''))) : '—';
+      var badgeStyle = 'background:'+s.bg+';color:'+s.col+';padding:3px 10px;border-radius:12px;font-weight:600;font-size:11px;white-space:nowrap;flex-shrink:0';
+      if ((isOverdue || isDueToday) && q.status !== 'Won' && q.status !== 'Lost') badgeStyle += ';outline:2px solid #c0392b;outline-offset:1px';
+      var amt = q.amount ? '$'+parseFloat(q.amount).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—';
+      var qnum = q.quote_number || ('QT-'+String(q.id).padStart(3,'0'));
+      return '<div class="q-card" onclick="openQuoteDetail('+q.id+')">'+
+        '<div class="q-card-top">'+
+          '<div class="q-card-acct">'+(q.pdf_filename?'📎 ':'')+esc(q.account_name||'—')+'</div>'+
+          '<span style="'+badgeStyle+'">'+esc(q.status)+'</span>'+
+        '</div>'+
+        '<div class="q-card-amt">'+amt+'</div>'+
+        '<div class="q-card-meta"><span><b>'+esc(qnum)+'</b></span>'+(q.contact_name?'<span>'+esc(q.contact_name)+'</span>':'')+'</div>'+
+        '<div class="q-card-dates"><span>Quoted '+(qdate?fmtDate(qdate):'—')+'</span><span style="'+fuStyle+'">Follow-up '+fuText+'</span></div>'+
+      '</div>';
+    }).join('');
+  }
 }
 
 function setQuoteFilter(status, el) {
@@ -11503,6 +11556,12 @@ fetch('/api/notifications/evaluate', { method: 'POST' }).then(function(r){ retur
     <button onclick="goAndCloseMenu('deals')" class="mm-item">
       <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#1d6aff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 11 16 11 13 19 9 3 6 11 1 11"/></svg>
       <span>Pipeline</span>
+      <svg class="mm-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg>
+    </button>
+
+    <button onclick="goAndCloseMenu('quotes')" class="mm-item" data-roles="rep manager">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#1d6aff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h10l4 4v14a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z"/><path d="M14 2v4h4M7 11h8M7 14.5h6"/></svg>
+      <span>Quotes</span>
       <svg class="mm-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg>
     </button>
 

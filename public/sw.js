@@ -8,7 +8,7 @@
 //   • On activate: delete every cache whose name !== current version, then claim.
 //   • skipWaiting + clients.claim so a new SW takes over existing clients on
 //     their next visit instead of waiting for all tabs to close.
-const CACHE_VERSION = 'reproute-v2';
+const CACHE_VERSION = 'reproute-v3';
 const NAV_TIMEOUT_MS = 3000;
 
 self.addEventListener('install', (event) => {
