@@ -6,13 +6,23 @@ const { pool } = require('../db');
 router.get('/', async (req, res) => {
   try {
     const { range } = req.query;
+    // PERIOD filter keys on quote_date (the quote's own date), NOT created_at, so
+    // a quote belongs to the calendar month of its quote_date only. Boundaries are
+    // computed in America/New_York (the app's standard tz — see WEEKLY_REPORT_TZ)
+    // so there is no UTC off-by-one at month edges: a Jun 30 quote counts as June,
+    // a Jul 1 quote counts as July. quote_date is a DATE, so we compare date-to-date
+    // against NY-local month/year boundaries and NY "today" for rolling windows.
+    const NY_NOW = `(NOW() AT TIME ZONE 'America/New_York')`;               // naive NY wall-clock time
+    const NY_MONTH = `date_trunc('month', ${NY_NOW})`;                       // 1st of current NY month
+    const NY_YEAR = `date_trunc('year', ${NY_NOW})`;                         // Jan 1 of current NY year
+    const NY_TODAY = `(${NY_NOW})::date`;                                    // current NY calendar date
     const rangeFilters = {
-      'this_month':    `q.created_at >= date_trunc('month', NOW())`,
-      'last_month':    `q.created_at >= date_trunc('month', NOW() - INTERVAL '1 month') AND q.created_at < date_trunc('month', NOW())`,
-      'last_30':       `q.created_at >= NOW() - INTERVAL '30 days'`,
-      'last_90':       `q.created_at >= NOW() - INTERVAL '90 days'`,
-      'last_6_months': `q.created_at >= NOW() - INTERVAL '180 days'`,
-      'this_year':     `q.created_at >= date_trunc('year', NOW())`
+      'this_month':    `q.quote_date >= ${NY_MONTH}::date AND q.quote_date < (${NY_MONTH} + INTERVAL '1 month')::date`,
+      'last_month':    `q.quote_date >= (${NY_MONTH} - INTERVAL '1 month')::date AND q.quote_date < ${NY_MONTH}::date`,
+      'last_30':       `q.quote_date >= ${NY_TODAY} - 30  AND q.quote_date <= ${NY_TODAY}`,
+      'last_90':       `q.quote_date >= ${NY_TODAY} - 90  AND q.quote_date <= ${NY_TODAY}`,
+      'last_6_months': `q.quote_date >= ${NY_TODAY} - 180 AND q.quote_date <= ${NY_TODAY}`,
+      'this_year':     `q.quote_date >= ${NY_YEAR}::date AND q.quote_date < (${NY_YEAR} + INTERVAL '1 year')::date`
     };
     const whereClause = (range && rangeFilters[range]) ? `WHERE ${rangeFilters[range]}` : '';
     const result = await pool.query(
