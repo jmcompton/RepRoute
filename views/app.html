@@ -306,6 +306,17 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 @media(min-width:769px){
   /* Cap + center the main content so no view sprawls into dead white space */
   .page.active{max-width:1100px;margin-left:auto;margin-right:auto}
+  /* Accounts category tab bar (#mod-tabs) is shown only on the Accounts page and
+     sits in .main's flow with NO sidebar offset — unlike .topbar (margin-left)
+     and .page.active (left:var(--sw)). Without it, the bar's leading tabs render
+     under the fixed sidebar and get clipped on the left. Give it the same offset
+     so the tab row starts at the content's left edge. */
+  #mod-tabs{margin-left:var(--sw)}
+  /* Accounts is a wide data view: let it fill the width from the sidebar to the
+     right edge instead of the shared 1100px centered cap (which stranded it with
+     dead white space on the right). Scoped to #page-contacts only — every other
+     page keeps the cap. */
+  #page-contacts.page.active{max-width:none;margin-left:0;margin-right:0}
 }
 /* Today + Accounts split panes: single column by default (mobile), two-pane on wide screens */
 .today-split,.contacts-split{display:block}
