@@ -315,8 +315,13 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
   /* Accounts is a wide data view: let it fill the width from the sidebar to the
      right edge instead of the shared 1100px centered cap (which stranded it with
      dead white space on the right). Scoped to #page-contacts only — every other
-     page keeps the cap. */
-  #page-contacts.page.active{max-width:none;margin-left:0;margin-right:0}
+     page keeps the cap.
+     ALSO: #page-contacts is position:absolute at top:50px, the SAME band as the
+     in-flow #mod-tabs category bar (All Accounts / Deck / Window-Door / …), so
+     the page was painting OVER the tab row and hiding it. Push the page down by
+     the ~40px tab-bar height (50px topbar + 40px tabs) so the tabs are visible
+     above the list. Desktop + Accounts only; #mod-tabs shows only here. */
+  #page-contacts.page.active{max-width:none;margin-left:0;margin-right:0;top:90px}
 }
 /* Today + Accounts split panes: single column by default (mobile), two-pane on wide screens */
 .today-split,.contacts-split{display:block}
