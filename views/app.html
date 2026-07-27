@@ -2749,6 +2749,14 @@ window.addEventListener('load', function() {
       <div id="fortress-reptoggle" style="display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:12px"></div>
       <!-- Progress -->
       <div id="fortress-progress" style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:12px"></div>
+      <!-- Distributor report (collapsed by default; reps mostly want the stop list) -->
+      <div style="margin-bottom:12px">
+        <button id="fortress-report-toggle" onclick="fortressToggleReport()"
+          style="min-height:40px;padding:0 14px;background:var(--white);border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:700;color:var(--navy);cursor:pointer;font-family:inherit">
+          Show distributor report
+        </button>
+        <div id="fortress-report" style="display:none;margin-top:12px"></div>
+      </div>
       <!-- Day-grouped stop list -->
       <div id="fortress-list"><div style="font-size:13px;color:var(--text3);text-align:center;padding:24px">Loading…</div></div>
     </div>
@@ -16770,6 +16778,143 @@ function fortressNextStop(day){
   window.open('https://maps.apple.com/?daddr=' + dest + '&dirflg=d', '_blank', 'noopener');
 }
 
+// ── Distributor report ───────────────────────────────────────────────────────
+// Splits promo activity by the distributor each stop came from (the `source`
+// column seeded from fortress_promo_routes.csv). Purely a read of stops already
+// loaded by loadFortress() — no extra API call, no schema change.
+//
+// A handful of seeded rows carry junk in `source` (e.g. "Verified" landed in the
+// distributor column), so anything unrecognised is bucketed as "Unspecified"
+// rather than silently dropped — otherwise the totals stop reconciling.
+window._fortressReportOpen = false;
+
+var FORTRESS_DISTRIBUTORS = [
+  { key: 'Dixie',  label: 'Dixie' },
+  { key: 'GSW',    label: 'Great Southern' },
+  { key: 'Both',   label: 'Both' },
+  { key: 'Other',  label: 'Unspecified' }
+];
+
+function fortressDistributorKey(src){
+  var s = String(src == null ? '' : src).trim().toLowerCase();
+  if (s === 'dixie') return 'Dixie';
+  if (s === 'gsw' || s === 'great southern' || s === 'gs') return 'GSW';
+  if (s === 'both') return 'Both';
+  return 'Other';
+}
+
+function fortressToggleReport(){
+  window._fortressReportOpen = !window._fortressReportOpen;
+  var btn = document.getElementById('fortress-report-toggle');
+  var box = document.getElementById('fortress-report');
+  if (btn) btn.textContent = window._fortressReportOpen ? 'Hide distributor report' : 'Show distributor report';
+  if (box) box.style.display = window._fortressReportOpen ? 'block' : 'none';
+  renderFortressReport();
+}
+
+// Tally one set of stops into per-distributor counts.
+function fortressTally(stops){
+  var rows = {};
+  FORTRESS_DISTRIBUTORS.forEach(function(d){
+    rows[d.key] = { label: d.label, total: 0, visited: 0, outcomes: {} };
+  });
+  stops.forEach(function(s){
+    var r = rows[fortressDistributorKey(s.source)];
+    r.total++;
+    if (s.visited_at) {
+      r.visited++;
+      var oc = String(s.outcome == null ? '' : s.outcome).trim() || 'No outcome recorded';
+      r.outcomes[oc] = (r.outcomes[oc] || 0) + 1;
+    }
+  });
+  return rows;
+}
+
+function fortressPct(done, total){
+  if (!total) return '—';
+  return Math.round((done / total) * 100) + '%';
+}
+
+function fortressReportTable(title, stops){
+  var rows = fortressTally(stops);
+  var shown = FORTRESS_DISTRIBUTORS.filter(function(d){ return rows[d.key].total > 0; });
+  if (!shown.length) return '';
+
+  var gTotal = stops.length;
+  var gVisited = stops.filter(function(s){ return s.visited_at; }).length;
+
+  var html = '<div style="background:var(--white);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:12px">' +
+    '<div style="font-size:13px;font-weight:800;color:var(--navy);margin-bottom:10px">' + fortressEsc(title) + '</div>' +
+    '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">' +
+    '<thead><tr>' +
+      '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--border);font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text3)">Distributor</th>' +
+      '<th style="text-align:right;padding:6px 8px;border-bottom:1px solid var(--border);font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text3)">Stops</th>' +
+      '<th style="text-align:right;padding:6px 8px;border-bottom:1px solid var(--border);font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text3)">Visited</th>' +
+      '<th style="text-align:right;padding:6px 8px;border-bottom:1px solid var(--border);font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text3)">Remaining</th>' +
+      '<th style="text-align:right;padding:6px 8px;border-bottom:1px solid var(--border);font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text3)">Complete</th>' +
+    '</tr></thead><tbody>';
+
+  shown.forEach(function(d){
+    var r = rows[d.key];
+    html += '<tr>' +
+      '<td style="padding:7px 8px;border-bottom:1px solid var(--border);font-weight:700;color:var(--navy)">' + fortressEsc(r.label) + '</td>' +
+      '<td style="padding:7px 8px;border-bottom:1px solid var(--border);text-align:right">' + r.total + '</td>' +
+      '<td style="padding:7px 8px;border-bottom:1px solid var(--border);text-align:right;color:var(--green);font-weight:700">' + r.visited + '</td>' +
+      '<td style="padding:7px 8px;border-bottom:1px solid var(--border);text-align:right">' + (r.total - r.visited) + '</td>' +
+      '<td style="padding:7px 8px;border-bottom:1px solid var(--border);text-align:right;font-weight:700">' + fortressPct(r.visited, r.total) + '</td>' +
+    '</tr>';
+  });
+
+  html += '<tr>' +
+    '<td style="padding:8px;font-weight:800;color:var(--navy)">Total</td>' +
+    '<td style="padding:8px;text-align:right;font-weight:800">' + gTotal + '</td>' +
+    '<td style="padding:8px;text-align:right;font-weight:800;color:var(--green)">' + gVisited + '</td>' +
+    '<td style="padding:8px;text-align:right;font-weight:800">' + (gTotal - gVisited) + '</td>' +
+    '<td style="padding:8px;text-align:right;font-weight:800">' + fortressPct(gVisited, gTotal) + '</td>' +
+  '</tr></tbody></table></div>';
+
+  // Outcome breakdown per distributor — only where visits have been logged.
+  var oc = shown.filter(function(d){ return Object.keys(rows[d.key].outcomes).length; });
+  if (oc.length){
+    html += '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">' +
+      '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);font-weight:700;margin-bottom:6px">Outcomes logged</div>';
+    oc.forEach(function(d){
+      var r = rows[d.key];
+      var parts = Object.keys(r.outcomes).sort(function(a,b){ return r.outcomes[b] - r.outcomes[a]; })
+        .map(function(k){ return fortressEsc(k) + ' (' + r.outcomes[k] + ')'; });
+      html += '<div style="font-size:12px;color:var(--text2,var(--navy));margin-bottom:4px">' +
+        '<span style="font-weight:700">' + fortressEsc(r.label) + ':</span> ' + parts.join(', ') + '</div>';
+    });
+    html += '</div>';
+  }
+
+  return html + '</div>';
+}
+
+function renderFortressReport(){
+  var box = document.getElementById('fortress-report');
+  if (!box || !window._fortressReportOpen) return;
+
+  var all = window._fortressStops || [];
+  if (!all.length){ box.innerHTML = ''; return; }
+
+  var sel = window._fortressRep;
+  var html = '';
+
+  if (sel && sel !== 'all') {
+    html = fortressReportTable(sel, all.filter(function(s){ return s.rep === sel; }));
+  } else {
+    // Combined view: overall first, then each rep so Cody can read them separately.
+    html = fortressReportTable('All reps', all);
+    var reps = [];
+    all.forEach(function(s){ if (s.rep && reps.indexOf(s.rep) === -1) reps.push(s.rep); });
+    reps.sort().forEach(function(rep){
+      html += fortressReportTable(rep, all.filter(function(s){ return s.rep === rep; }));
+    });
+  }
+  box.innerHTML = html;
+}
+
 function renderFortress(){
   var toggle = document.getElementById('fortress-reptoggle');
   var progEl = document.getElementById('fortress-progress');
@@ -16799,6 +16944,9 @@ function renderFortress(){
   // Overall progress for the selected rep(s).
   var doneAll = stops.filter(function(s){ return s.visited_at; }).length;
   if (progEl) progEl.textContent = doneAll + ' of ' + stops.length + ' visited';
+
+  // Keep the distributor report in step with the rep toggle.
+  renderFortressReport();
 
   // Group by day, preserving first-seen day order; stops already arrive in stop_order.
   var dayOrder = [], byDay = {};
