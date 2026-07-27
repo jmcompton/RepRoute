@@ -108,19 +108,81 @@ function safeSheetName(name, used){
   return out;
 }
 
-const DETAIL_HEADER = ['Rep', 'Day', 'Stop #', 'Company', 'Address', 'City', 'ZIP',
-  'Phone', 'Distributor', 'Visited', 'Visited Date', 'Outcome', 'Notes'];
+// ── Linking promo stops to Accounts ──────────────────────────────────────────
+// The promo table is self-contained, so the rich voice-logged notes live on the
+// matching Account (prospects), not on the stop. Company names differ between the
+// two ("Circle A Fences, Inc." vs "Circle A Fence"), so phone is the primary key
+// and normalised name + city is the fallback. Every row reports whether it matched
+// so blank note columns can be told apart from genuine misses.
+function normPhone(v){
+  const d = String(v == null ? '' : v).replace(/\D/g, '');
+  return d.length >= 10 ? d.slice(-10) : '';
+}
+function normName(v){
+  return String(v == null ? '' : v)
+    .toLowerCase()
+    .replace(/[.,'"&]/g, ' ')
+    .replace(/\b(inc|llc|l l c|co|company|corp|corporation|the|of|and)\b/g, ' ')
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+function normCity(v){ return String(v == null ? '' : v).toLowerCase().trim(); }
 
-function detailRow(s){
+function buildAccountIndex(prospects){
+  const byPhone = new Map();
+  const byNameCity = new Map();
+  const byName = new Map();
+  for (const p of prospects) {
+    const ph = normPhone(p.phone);
+    if (ph && !byPhone.has(ph)) byPhone.set(ph, p);
+    const n = normName(p.company);
+    if (!n) continue;
+    const nc = n + '|' + normCity(p.city);
+    if (!byNameCity.has(nc)) byNameCity.set(nc, p);
+    if (!byName.has(n)) byName.set(n, p);
+  }
+  return { byPhone, byNameCity, byName };
+}
+
+// Returns { account, how } — how is why it matched, for auditing bad joins.
+function matchAccount(stop, idx){
+  const ph = normPhone(stop.phone);
+  if (ph && idx.byPhone.has(ph)) return { account: idx.byPhone.get(ph), how: 'Phone' };
+  const n = normName(stop.company);
+  if (n) {
+    const nc = n + '|' + normCity(stop.city);
+    if (idx.byNameCity.has(nc)) return { account: idx.byNameCity.get(nc), how: 'Name + city' };
+    if (idx.byName.has(n)) return { account: idx.byName.get(n), how: 'Name' };
+  }
+  return { account: null, how: 'No match' };
+}
+
+const DETAIL_HEADER = ['Rep', 'Day', 'Stop #', 'Company', 'Address', 'City', 'ZIP',
+  'Phone', 'Distributor', 'Visited', 'Visited Date', 'Outcome', 'Stop Note',
+  'Matched', 'Matched On', 'Account Name', 'Contact Name', 'Account Email',
+  'Account Phone', 'Account City', 'Account State', 'Account Status',
+  'Lead Source', 'Priority', 'Pipeline Stage', 'Products', 'Account Notes'];
+
+function detailRow(s, idx){
+  const m = matchAccount(s, idx);
+  const a = m.account || {};
   return [
     s.rep || '', s.day || '', s.stop_order == null ? '' : s.stop_order,
     s.company || '', s.address || '', s.city || '', s.zip || '', s.phone || '',
     distLabel(distKey(s.source)),
     s.visited_at ? 'Yes' : 'No',
     fmtDate(s.visited_at),
-    s.outcome || '', s.notes || ''
+    s.outcome || '', s.notes || '',
+    m.account ? 'Yes' : 'No', m.how,
+    a.company || '', a.contact || '', a.email || '', a.phone || '',
+    a.city || '', a.state || '', a.status || '', a.source || '',
+    a.priority || '', a.pipeline_stage || '', a.products || '', a.notes || ''
   ];
 }
+
+const CALL_HEADER = ['Rep', 'Stop Company', 'Account Name', 'Call Date', 'Call Type',
+  'Outcome', 'Products Discussed', 'Next Step', 'Next Step Date', 'Call Notes'];
 
 router.get('/report.xlsx', async (req, res) => {
   try {
@@ -130,6 +192,25 @@ router.get('/report.xlsx', async (req, res) => {
          FROM fortress_promo_stops
         ORDER BY rep ASC, day ASC, stop_order ASC, id ASC`);
     const stops = r.rows;
+
+    // Accounts carry the voice-logged notes and contact detail the promo table lacks.
+    const pr = await pool.query(
+      `SELECT id, company, contact, email, phone, city, state, status, priority,
+              pipeline_stage, source, products, notes
+         FROM prospects`);
+    const idx = buildAccountIndex(pr.rows);
+
+    const cl = await pool.query(
+      `SELECT c.prospect_id, c.call_date, c.call_type, c.outcome, c.products_discussed,
+              c.next_step, c.next_step_date, c.notes, p.company AS account_company
+         FROM calls c
+         JOIN prospects p ON p.id = c.prospect_id
+        ORDER BY c.call_date DESC, c.id DESC`);
+    const callsByProspect = new Map();
+    for (const c of cl.rows) {
+      if (!callsByProspect.has(c.prospect_id)) callsByProspect.set(c.prospect_id, []);
+      callsByProspect.get(c.prospect_id).push(c);
+    }
 
     const wb = XLSX.utils.book_new();
     const used = new Set();
@@ -157,6 +238,19 @@ router.get('/report.xlsx', async (req, res) => {
       summary.push([]);
     }
 
+    // Match rate up top: blank note columns should be explainable, not mysterious.
+    const matches = stops.map(st => matchAccount(st, idx));
+    const matched = matches.filter(m => m.account).length;
+    const withNotes = matches.filter(m => m.account && String(m.account.notes || '').trim()).length;
+    summary.push(['Account matching']);
+    summary.push(['Stops linked to an Account', matched + ' of ' + stops.length]);
+    summary.push(['Linked accounts carrying notes', withNotes]);
+    summary.push(['Matched by phone', matches.filter(m => m.how === 'Phone').length]);
+    summary.push(['Matched by name + city', matches.filter(m => m.how === 'Name + city').length]);
+    summary.push(['Matched by name only', matches.filter(m => m.how === 'Name').length]);
+    summary.push(['No match found', matches.filter(m => m.how === 'No match').length]);
+    summary.push([]);
+
     summaryBlock('All reps', stops);
     reps.forEach(rep => summaryBlock(rep, stops.filter(s => s.rep === rep)));
 
@@ -167,11 +261,14 @@ router.get('/report.xlsx', async (req, res) => {
     // ── One tab per rep + distributor ──
     const COLS = [{ wch: 8 }, { wch: 6 }, { wch: 7 }, { wch: 34 }, { wch: 30 },
       { wch: 16 }, { wch: 8 }, { wch: 15 }, { wch: 15 }, { wch: 9 },
-      { wch: 13 }, { wch: 18 }, { wch: 60 }];
+      { wch: 13 }, { wch: 18 }, { wch: 30 }, { wch: 9 }, { wch: 14 },
+      { wch: 34 }, { wch: 22 }, { wch: 30 }, { wch: 15 }, { wch: 16 },
+      { wch: 8 }, { wch: 14 }, { wch: 16 }, { wch: 10 }, { wch: 16 },
+      { wch: 24 }, { wch: 90 }];
 
     function addDetailTab(name, set){
       if (!set.length) return;
-      const aoa = [DETAIL_HEADER].concat(set.map(detailRow));
+      const aoa = [DETAIL_HEADER].concat(set.map(st => detailRow(st, idx)));
       const ws = XLSX.utils.aoa_to_sheet(aoa);
       ws['!cols'] = COLS;
       ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 },
@@ -188,6 +285,28 @@ router.get('/report.xlsx', async (req, res) => {
 
     // ── All stops tab ──
     addDetailTab('All Stops', stops);
+
+    // ── Call Log: one row per logged call on a matched account ──
+    const callRows = [];
+    for (const st of stops) {
+      const m = matchAccount(st, idx);
+      if (!m.account) continue;
+      for (const c of (callsByProspect.get(m.account.id) || [])) {
+        callRows.push([st.rep || '', st.company || '', c.account_company || '',
+          fmtDate(c.call_date), c.call_type || '', c.outcome || '',
+          c.products_discussed || '', c.next_step || '', fmtDate(c.next_step_date),
+          c.notes || '']);
+      }
+    }
+    if (callRows.length) {
+      const aoa = [CALL_HEADER].concat(callRows);
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      ws['!cols'] = [{ wch: 8 }, { wch: 34 }, { wch: 34 }, { wch: 12 }, { wch: 18 },
+        { wch: 16 }, { wch: 26 }, { wch: 26 }, { wch: 14 }, { wch: 90 }];
+      ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 },
+        e: { r: aoa.length - 1, c: CALL_HEADER.length - 1 } }) };
+      XLSX.utils.book_append_sheet(wb, ws, safeSheetName('Call Log', used));
+    }
 
     const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
     const fname = 'fortress-promo-report-' + fmtDate(new Date()) + '.xlsx';
