@@ -16792,12 +16792,24 @@ function fortressNextStop(day){
 // rather than silently dropped — otherwise the totals stop reconciling.
 window._fortressReportOpen = false;
 
+// Reporting distributors. A stop seeded as "Both" carries BOTH lines, so it is
+// counted under Dixie AND under Great Southern — a dealer that stocks Dixie is a
+// Dixie dealer regardless of what else they stock. Columns therefore overlap and
+// will not sum to the stop count; the Total row is unique stops, and the caption
+// spells the overlap out so nobody reads it as a double count.
 var FORTRESS_DISTRIBUTORS = [
   { key: 'Dixie',  label: 'Dixie' },
   { key: 'GSW',    label: 'Great Southern' },
-  { key: 'Both',   label: 'Both' },
   { key: 'Other',  label: 'Unspecified' }
 ];
+
+// Does this stop carry the given line?
+function fortressCarries(stop, key){
+  var k = fortressDistributorKey(stop.source);
+  if (key === 'Dixie') return k === 'Dixie' || k === 'Both';
+  if (key === 'GSW')   return k === 'GSW'   || k === 'Both';
+  return k === 'Other';
+}
 
 function fortressDistributorKey(src){
   var s = String(src == null ? '' : src).trim().toLowerCase();
@@ -16820,18 +16832,22 @@ function fortressToggleReport(){
 function fortressTally(stops){
   var rows = {};
   FORTRESS_DISTRIBUTORS.forEach(function(d){
-    rows[d.key] = { label: d.label, total: 0, visited: 0, outcomes: {} };
-  });
-  stops.forEach(function(s){
-    var r = rows[fortressDistributorKey(s.source)];
-    r.total++;
-    if (s.visited_at) {
+    var set = stops.filter(function(s){ return fortressCarries(s, d.key); });
+    var r = { label: d.label, total: set.length, visited: 0, outcomes: {} };
+    set.forEach(function(s){
+      if (!s.visited_at) return;
       r.visited++;
       var oc = String(s.outcome == null ? '' : s.outcome).trim() || 'No outcome recorded';
       r.outcomes[oc] = (r.outcomes[oc] || 0) + 1;
-    }
+    });
+    rows[d.key] = r;
   });
   return rows;
+}
+
+// How many stops in this set carry both lines (the source of the overlap).
+function fortressDualCount(stops){
+  return stops.filter(function(s){ return fortressDistributorKey(s.source) === 'Both'; }).length;
 }
 
 function fortressPct(done, total){
@@ -16870,12 +16886,19 @@ function fortressReportTable(title, stops){
   });
 
   html += '<tr>' +
-    '<td style="padding:8px;font-weight:800;color:var(--navy)">Total</td>' +
+    '<td style="padding:8px;font-weight:800;color:var(--navy)">Total (unique stops)</td>' +
     '<td style="padding:8px;text-align:right;font-weight:800">' + gTotal + '</td>' +
     '<td style="padding:8px;text-align:right;font-weight:800;color:var(--green)">' + gVisited + '</td>' +
     '<td style="padding:8px;text-align:right;font-weight:800">' + (gTotal - gVisited) + '</td>' +
     '<td style="padding:8px;text-align:right;font-weight:800">' + fortressPct(gVisited, gTotal) + '</td>' +
   '</tr></tbody></table></div>';
+
+  var dual = fortressDualCount(stops);
+  if (dual) {
+    html += '<div style="font-size:11px;color:var(--text3);margin-top:8px;line-height:1.5">' +
+      dual + ' of these dealers carry both lines, so they are counted under Dixie and under ' +
+      'Great Southern. The rows overlap on purpose and will not add up to ' + gTotal + '.</div>';
+  }
 
   // Outcome breakdown per distributor — only where visits have been logged.
   var oc = shown.filter(function(d){ return Object.keys(rows[d.key].outcomes).length; });
@@ -16927,7 +16950,7 @@ function renderFortress(){
 
   // Rep toggle buttons (managers also get an "All" option).
   var reps = [{k:'Kody',l:'Kody'}, {k:'Jack',l:'Jack'}];
-  if (fortressIsManager()) reps.push({k:'all', l:'Both'});
+  if (fortressIsManager()) reps.push({k:'all', l:'All reps'});
   if (toggle) toggle.innerHTML = reps.map(function(r){
     var active = window._fortressRep === r.k;
     return '<button onclick="fortressSetRep(\'' + r.k + '\')" style="min-height:40px;padding:0 16px;border:none;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;' +

@@ -66,12 +66,21 @@ router.post('/stops/:id/visit', async (req, res) => {
 // column; anything unrecognised buckets to "Unspecified" so totals reconcile.
 const XLSX = require('xlsx');
 
+// A stop seeded as "Both" carries both lines, so it is reported under Dixie AND
+// under Great Southern. Per-line tabs therefore overlap and will not sum to the
+// rep's total; the All Calls tab is the unique list.
 const DIST_ORDER = [
   { key: 'Dixie', label: 'Dixie' },
   { key: 'GSW',   label: 'Great Southern' },
-  { key: 'Both',  label: 'Both' },
   { key: 'Other', label: 'Unspecified' }
 ];
+
+function carries(stop, key){
+  const k = distKey(stop.source);
+  if (key === 'Dixie') return k === 'Dixie' || k === 'Both';
+  if (key === 'GSW')   return k === 'GSW'   || k === 'Both';
+  return k === 'Other';
+}
 
 function distKey(src){
   const s = String(src == null ? '' : src).trim().toLowerCase();
@@ -134,14 +143,17 @@ router.get('/report.xlsx', async (req, res) => {
       summary.push([title]);
       summary.push(['Distributor', 'Stops', 'Visited', 'Remaining', 'Complete %']);
       DIST_ORDER.forEach(d => {
-        const g = set.filter(s => distKey(s.source) === d.key);
+        const g = set.filter(s => carries(s, d.key));
         if (!g.length) return;
         const v = g.filter(s => s.visited_at).length;
         summary.push([d.label, g.length, v, g.length - v, Math.round((v / g.length) * 100) + '%']);
       });
       const v = set.filter(s => s.visited_at).length;
-      summary.push(['Total', set.length, v, set.length - v,
+      summary.push(['Total (unique stops)', set.length, v, set.length - v,
         set.length ? Math.round((v / set.length) * 100) + '%' : '']);
+      const dual = set.filter(s => distKey(s.source) === 'Both').length;
+      if (dual) summary.push([dual + ' of these dealers carry both lines and are counted under ' +
+        'Dixie and Great Southern, so the rows above overlap and will not add up to ' + set.length + '.']);
       summary.push([]);
     }
 
@@ -153,30 +165,29 @@ router.get('/report.xlsx', async (req, res) => {
     XLSX.utils.book_append_sheet(wb, wsSum, safeSheetName('Summary', used));
 
     // ── One tab per rep + distributor ──
+    const COLS = [{ wch: 8 }, { wch: 6 }, { wch: 7 }, { wch: 34 }, { wch: 30 },
+      { wch: 16 }, { wch: 8 }, { wch: 15 }, { wch: 15 }, { wch: 9 },
+      { wch: 13 }, { wch: 18 }, { wch: 60 }];
+
+    function addDetailTab(name, set){
+      if (!set.length) return;
+      const aoa = [DETAIL_HEADER].concat(set.map(detailRow));
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      ws['!cols'] = COLS;
+      ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 },
+        e: { r: aoa.length - 1, c: DETAIL_HEADER.length - 1 } }) };
+      XLSX.utils.book_append_sheet(wb, ws, safeSheetName(name, used));
+    }
+
+    // Per rep: one tab per line (inclusive of dual-line dealers), then all calls.
     reps.forEach(rep => {
-      DIST_ORDER.forEach(d => {
-        const set = stops.filter(s => s.rep === rep && distKey(s.source) === d.key);
-        if (!set.length) return;
-        const aoa = [DETAIL_HEADER].concat(set.map(detailRow));
-        const ws = XLSX.utils.aoa_to_sheet(aoa);
-        ws['!cols'] = [{ wch: 8 }, { wch: 6 }, { wch: 7 }, { wch: 34 }, { wch: 30 },
-          { wch: 16 }, { wch: 8 }, { wch: 15 }, { wch: 15 }, { wch: 9 },
-          { wch: 13 }, { wch: 18 }, { wch: 50 }];
-        ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 },
-          e: { r: aoa.length - 1, c: DETAIL_HEADER.length - 1 } }) };
-        XLSX.utils.book_append_sheet(wb, ws, safeSheetName(rep + ' - ' + d.label, used));
-      });
+      const mine = stops.filter(s => s.rep === rep);
+      DIST_ORDER.forEach(d => addDetailTab(rep + ' - ' + d.label, mine.filter(s => carries(s, d.key))));
+      addDetailTab(rep + ' - All Calls', mine);
     });
 
     // ── All stops tab ──
-    const allAoa = [DETAIL_HEADER].concat(stops.map(detailRow));
-    const wsAll = XLSX.utils.aoa_to_sheet(allAoa);
-    wsAll['!cols'] = [{ wch: 8 }, { wch: 6 }, { wch: 7 }, { wch: 34 }, { wch: 30 },
-      { wch: 16 }, { wch: 8 }, { wch: 15 }, { wch: 15 }, { wch: 9 },
-      { wch: 13 }, { wch: 18 }, { wch: 50 }];
-    wsAll['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 },
-      e: { r: allAoa.length - 1, c: DETAIL_HEADER.length - 1 } }) };
-    XLSX.utils.book_append_sheet(wb, wsAll, safeSheetName('All Stops', used));
+    addDetailTab('All Stops', stops);
 
     const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
     const fname = 'fortress-promo-report-' + fmtDate(new Date()) + '.xlsx';
