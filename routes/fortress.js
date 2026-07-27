@@ -118,44 +118,130 @@ function normPhone(v){
   const d = String(v == null ? '' : v).replace(/\D/g, '');
   return d.length >= 10 ? d.slice(-10) : '';
 }
+// Space-insensitive so "Builders FirstSource" and "Builders First Source" agree.
 function normName(v){
   return String(v == null ? '' : v)
     .toLowerCase()
-    .replace(/[.,'"&]/g, ' ')
+    .replace(/[.,'"&\/-]/g, ' ')
     .replace(/\b(inc|llc|l l c|co|company|corp|corporation|the|of|and)\b/g, ' ')
     .replace(/[^a-z0-9 ]/g, ' ')
-    .replace(/\s+/g, ' ')
+    .replace(/\s+/g, '')
     .trim();
 }
-function normCity(v){ return String(v == null ? '' : v).toLowerCase().trim(); }
+// A chain stop's branch is often only in its name ("... - Lake Oconee / Greensboro"),
+// while the Account carries it as the city. Keep the full lowercased text of both so
+// either can be searched.
+function normText(v){
+  return String(v == null ? '' : v).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+function normCity(v){ return normText(v); }
+function firstName(v){ return normText(v).split(' ')[0] || ''; }
 
-function buildAccountIndex(prospects){
-  const byPhone = new Map();
-  const byNameCity = new Map();
-  const byName = new Map();
-  for (const p of prospects) {
-    const ph = normPhone(p.phone);
-    if (ph && !byPhone.has(ph)) byPhone.set(ph, p);
-    const n = normName(p.company);
-    if (!n) continue;
-    const nc = n + '|' + normCity(p.city);
-    if (!byNameCity.has(nc)) byNameCity.set(nc, p);
-    if (!byName.has(n)) byName.set(n, p);
-  }
-  return { byPhone, byNameCity, byName };
+// ── Stop ↔ Account assignment ────────────────────────────────────────────────
+// A chain puts many stops behind one Account ("Builders FirstSource" x15 vs a single
+// "Builders First Source" record), so this cannot be a per-stop lookup: matching each
+// stop independently staples one Account's notes onto every branch. Instead every
+// plausible (stop, account) pair is scored on location evidence and the best pairs are
+// assigned one-to-one, greedily, highest score first. An Account is consumed once.
+// Weak pairs are dropped — a blank note beats another store's note.
+const MIN_SCORE = 4;
+
+function nameCandidate(nStop, nAcct){
+  if (!nStop || !nAcct) return false;
+  if (nStop === nAcct) return true;
+  const shorter = nStop.length < nAcct.length ? nStop : nAcct;
+  if (shorter.length < 6) return false;           // too generic to trust
+  return nStop.startsWith(nAcct) || nAcct.startsWith(nStop);
 }
 
-// Returns { account, how } — how is why it matched, for auditing bad joins.
-function matchAccount(stop, idx){
-  const ph = normPhone(stop.phone);
-  if (ph && idx.byPhone.has(ph)) return { account: idx.byPhone.get(ph), how: 'Phone' };
-  const n = normName(stop.company);
-  if (n) {
-    const nc = n + '|' + normCity(stop.city);
-    if (idx.byNameCity.has(nc)) return { account: idx.byNameCity.get(nc), how: 'Name + city' };
-    if (idx.byName.has(n)) return { account: idx.byName.get(n), how: 'Name' };
+function noteDate(notes){
+  const m = String(notes || '').match(/(\d{4}-\d{2}-\d{2})|([A-Z][a-z]{2} \d{1,2}, \d{4})/);
+  if (!m) return null;
+  const t = Date.parse(m[0]);
+  return isNaN(t) ? null : t;
+}
+
+function scorePair(stop, a){
+  let score = 0;
+  const stopCity = normCity(stop.city);
+  const stopText = normText(stop.company) + ' ' + stopCity;
+  const aCity = normCity(a.city);
+  if (aCity) {
+    if (aCity === stopCity) score += 4;
+    else if (stopText.indexOf(aCity) !== -1) score += 4;  // branch named in the stop
   }
-  return { account: null, how: 'No match' };
+  if (firstName(stop.rep) && firstName(a.rep_name) === firstName(stop.rep)) score += 2;
+  const nd = noteDate(a.notes);
+  const vis = stop.visited_at ? new Date(stop.visited_at).getTime() : null;
+  if (nd && vis && Math.abs(nd - vis) <= 1000 * 60 * 60 * 24 * 14) score += 2;
+  return score;
+}
+
+function buildMatches(stops, prospects){
+  const byPhone = new Map();
+  for (const a of prospects) {
+    const ph = normPhone(a.phone);
+    if (ph && !byPhone.has(ph)) byPhone.set(ph, a);
+  }
+
+  const result = new Map();          // stop -> { account, how }
+  const usedAccounts = new Set();
+
+  // Phone is decisive and consumes the account immediately.
+  for (const st of stops) {
+    const ph = normPhone(st.phone);
+    if (ph && byPhone.has(ph)) {
+      const a = byPhone.get(ph);
+      if (!usedAccounts.has(a)) {
+        usedAccounts.add(a);
+        result.set(st, { account: a, how: 'Phone' });
+      }
+    }
+  }
+
+  // Score every remaining plausible pair, then assign best-first, one-to-one.
+  const pairs = [];
+  const nAcct = prospects.map(a => normName(a.company));
+  for (const st of stops) {
+    if (result.has(st)) continue;
+    const nS = normName(st.company);
+    prospects.forEach((a, i) => {
+      if (usedAccounts.has(a)) return;
+      if (!nameCandidate(nS, nAcct[i])) return;
+      pairs.push({ st, a, score: scorePair(st, a), exact: nS === nAcct[i] });
+    });
+  }
+  pairs.sort((x, y) => y.score - x.score);
+
+  const stopCandidateCount = new Map();
+  const acctCandidateCount = new Map();
+  for (const pr of pairs) {
+    stopCandidateCount.set(pr.st, (stopCandidateCount.get(pr.st) || 0) + 1);
+    acctCandidateCount.set(pr.a, (acctCandidateCount.get(pr.a) || 0) + 1);
+  }
+
+  for (const pr of pairs) {
+    if (result.has(pr.st) || usedAccounts.has(pr.a)) continue;
+    // Accept on real location evidence, or when the pairing is unambiguous both ways.
+    const unique = stopCandidateCount.get(pr.st) === 1 && acctCandidateCount.get(pr.a) === 1;
+    if (pr.score >= MIN_SCORE) {
+      usedAccounts.add(pr.a);
+      result.set(pr.st, { account: pr.a, how: 'Name + location' });
+    } else if (unique && pr.exact) {
+      usedAccounts.add(pr.a);
+      result.set(pr.st, { account: pr.a, how: 'Name (unique)' });
+    }
+  }
+
+  // Explain the misses.
+  for (const st of stops) {
+    if (result.has(st)) continue;
+    const n = stopCandidateCount.get(st) || 0;
+    result.set(st, { account: null,
+      how: n ? 'Too weak to trust — ' + n + ' possible account(s), none clearly this branch'
+             : 'No account with a matching name' });
+  }
+  return result;
 }
 
 const DETAIL_HEADER = ['Rep', 'Day', 'Stop #', 'Company', 'Address', 'City', 'ZIP',
@@ -164,8 +250,8 @@ const DETAIL_HEADER = ['Rep', 'Day', 'Stop #', 'Company', 'Address', 'City', 'ZI
 // Notes come from the matched Account (where the voice logger writes the detailed
 // write-up). If a stop has no matching Account, fall back to whatever the rep typed
 // on the stop itself so that text is never silently dropped.
-function detailRow(s, idx){
-  const a = matchAccount(s, idx).account;
+function detailRow(s, matches){
+  const a = (matches.get(s) || {}).account;
   const notes = (a && String(a.notes || '').trim()) || s.notes || '';
   return [
     s.rep || '', s.day || '', s.stop_order == null ? '' : s.stop_order,
@@ -191,10 +277,12 @@ router.get('/report.xlsx', async (req, res) => {
 
     // Accounts carry the voice-logged notes and contact detail the promo table lacks.
     const pr = await pool.query(
-      `SELECT id, company, contact, email, phone, city, state, status, priority,
-              pipeline_stage, source, products, notes
-         FROM prospects`);
-    const idx = buildAccountIndex(pr.rows);
+      `SELECT p.id, p.company, p.contact, p.email, p.phone, p.city, p.state, p.status,
+              p.priority, p.pipeline_stage, p.source, p.products, p.notes,
+              u.name AS rep_name
+         FROM prospects p
+         LEFT JOIN users u ON u.id = p.user_id`);
+    const matches = buildMatches(stops, pr.rows);
 
     const cl = await pool.query(
       `SELECT c.prospect_id, c.call_date, c.call_type, c.outcome, c.products_discussed,
@@ -235,16 +323,16 @@ router.get('/report.xlsx', async (req, res) => {
     }
 
     // Match rate up top: blank note columns should be explainable, not mysterious.
-    const matches = stops.map(st => matchAccount(st, idx));
-    const matched = matches.filter(m => m.account).length;
-    const withNotes = matches.filter(m => m.account && String(m.account.notes || '').trim()).length;
+    const mstats = stops.map(st => matches.get(st) || {});
+    const matched = mstats.filter(m => m.account).length;
+    const withNotes = mstats.filter(m => m.account && String(m.account.notes || '').trim()).length;
     summary.push(['Account matching']);
     summary.push(['Stops linked to an Account', matched + ' of ' + stops.length]);
     summary.push(['Linked accounts carrying notes', withNotes]);
-    summary.push(['Matched by phone', matches.filter(m => m.how === 'Phone').length]);
-    summary.push(['Matched by name + city', matches.filter(m => m.how === 'Name + city').length]);
-    summary.push(['Matched by name only', matches.filter(m => m.how === 'Name').length]);
-    summary.push(['No match found', matches.filter(m => m.how === 'No match').length]);
+    summary.push(['Matched by phone', mstats.filter(m => m.how === 'Phone').length]);
+    summary.push(['Matched by name + location', mstats.filter(m => m.how === 'Name + location').length]);
+    summary.push(['Matched by unique name', mstats.filter(m => m.how === 'Name (unique)').length]);
+    summary.push(['No match found', mstats.filter(m => !m.account).length]);
     summary.push([]);
 
     summaryBlock('All reps', stops);
@@ -261,7 +349,7 @@ router.get('/report.xlsx', async (req, res) => {
 
     function addDetailTab(name, set){
       if (!set.length) return;
-      const aoa = [DETAIL_HEADER].concat(set.map(st => detailRow(st, idx)));
+      const aoa = [DETAIL_HEADER].concat(set.map(st => detailRow(st, matches)));
       const ws = XLSX.utils.aoa_to_sheet(aoa);
       ws['!cols'] = COLS;
       ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 },
@@ -279,10 +367,25 @@ router.get('/report.xlsx', async (req, res) => {
     // ── All stops tab ──
     addDetailTab('All Stops', stops);
 
+    // ── Unmatched tab: every stop with no Account note, and why ──
+    const unmatched = stops.map(st => ({ st, m: matches.get(st) || {} }))
+      .filter(x => !x.m.account || !String(x.m.account.notes || '').trim());
+    if (unmatched.length) {
+      const aoa = [['Rep', 'Day', 'Stop #', 'Company', 'City', 'Phone', 'Reason']]
+        .concat(unmatched.map(x => [x.st.rep || '', x.st.day || '',
+          x.st.stop_order == null ? '' : x.st.stop_order, x.st.company || '',
+          x.st.city || '', x.st.phone || '',
+          x.m.account ? 'Account matched but has no notes' : x.m.how]));
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      ws['!cols'] = [{ wch: 8 }, { wch: 6 }, { wch: 7 }, { wch: 40 }, { wch: 18 },
+        { wch: 15 }, { wch: 46 }];
+      XLSX.utils.book_append_sheet(wb, ws, safeSheetName('Unmatched', used));
+    }
+
     // ── Call Log: one row per logged call on a matched account ──
     const callRows = [];
     for (const st of stops) {
-      const m = matchAccount(st, idx);
+      const m = matches.get(st) || {};
       if (!m.account) continue;
       for (const c of (callsByProspect.get(m.account.id) || [])) {
         callRows.push([st.rep || '', st.company || '', c.account_company || '',
