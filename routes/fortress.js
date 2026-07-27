@@ -159,25 +159,21 @@ function matchAccount(stop, idx){
 }
 
 const DETAIL_HEADER = ['Rep', 'Day', 'Stop #', 'Company', 'Address', 'City', 'ZIP',
-  'Phone', 'Distributor', 'Visited', 'Visited Date', 'Outcome', 'Stop Note',
-  'Matched', 'Matched On', 'Account Name', 'Contact Name', 'Account Email',
-  'Account Phone', 'Account City', 'Account State', 'Account Status',
-  'Lead Source', 'Priority', 'Pipeline Stage', 'Products', 'Account Notes'];
+  'Phone', 'Distributor', 'Visited', 'Visited Date', 'Outcome', 'Notes'];
 
+// Notes come from the matched Account (where the voice logger writes the detailed
+// write-up). If a stop has no matching Account, fall back to whatever the rep typed
+// on the stop itself so that text is never silently dropped.
 function detailRow(s, idx){
-  const m = matchAccount(s, idx);
-  const a = m.account || {};
+  const a = matchAccount(s, idx).account;
+  const notes = (a && String(a.notes || '').trim()) || s.notes || '';
   return [
     s.rep || '', s.day || '', s.stop_order == null ? '' : s.stop_order,
     s.company || '', s.address || '', s.city || '', s.zip || '', s.phone || '',
     distLabel(distKey(s.source)),
     s.visited_at ? 'Yes' : 'No',
     fmtDate(s.visited_at),
-    s.outcome || '', s.notes || '',
-    m.account ? 'Yes' : 'No', m.how,
-    a.company || '', a.contact || '', a.email || '', a.phone || '',
-    a.city || '', a.state || '', a.status || '', a.source || '',
-    a.priority || '', a.pipeline_stage || '', a.products || '', a.notes || ''
+    s.outcome || '', notes
   ];
 }
 
@@ -261,10 +257,7 @@ router.get('/report.xlsx', async (req, res) => {
     // ── One tab per rep + distributor ──
     const COLS = [{ wch: 8 }, { wch: 6 }, { wch: 7 }, { wch: 34 }, { wch: 30 },
       { wch: 16 }, { wch: 8 }, { wch: 15 }, { wch: 15 }, { wch: 9 },
-      { wch: 13 }, { wch: 18 }, { wch: 30 }, { wch: 9 }, { wch: 14 },
-      { wch: 34 }, { wch: 22 }, { wch: 30 }, { wch: 15 }, { wch: 16 },
-      { wch: 8 }, { wch: 14 }, { wch: 16 }, { wch: 10 }, { wch: 16 },
-      { wch: 24 }, { wch: 90 }];
+      { wch: 13 }, { wch: 18 }, { wch: 120 }];
 
     function addDetailTab(name, set){
       if (!set.length) return;
