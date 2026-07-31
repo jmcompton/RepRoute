@@ -499,7 +499,16 @@ router.get('/call-log', async (req, res) => {
 
     const params = [repId];
     let where = 'c.user_id = $1';
-    if (line) { params.push('%' + line + '%'); where += ` AND c.products_discussed ILIKE $${params.length}`; }
+    if (line) {
+      // Reps rarely fill the structured line field; they mention the brand in the
+      // notes, outcome, or next step (typed or dictated). So scan every free-text
+      // field, and match spelling/spacing variants: "ShurTape", "Shurtape",
+      // "shur tape" all match a normalized query.
+      const blob = "LOWER(COALESCE(c.products_discussed,'')||' '||COALESCE(c.notes,'')||' '||COALESCE(c.outcome,'')||' '||COALESCE(c.next_step,''))";
+      params.push('%' + line.toLowerCase() + '%'); const pRaw = params.length;
+      params.push('%' + line.toLowerCase().replace(/\s+/g, '') + '%'); const pNoSpace = params.length;
+      where += ` AND ( ${blob} LIKE $${pRaw} OR REPLACE(${blob}, ' ', '') LIKE $${pNoSpace} )`;
+    }
     if (from) { params.push(from); where += ` AND c.call_date >= $${params.length}`; }
     if (to)   { params.push(to);   where += ` AND c.call_date <= $${params.length}`; }
 
