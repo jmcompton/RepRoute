@@ -3312,7 +3312,10 @@ window.addEventListener('load', function() {
           <div><div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">To</div><input id="cl-to" type="date" style="padding:7px 10px;font-size:13px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text);font-family:inherit"></div>
           <button class="btn btn-primary btn-sm" onclick="clDownload()" style="height:34px">⬇ Download Excel</button>
         </div>
-        <div style="font-size:10.5px;color:var(--text3);margin-top:8px">Enter one or more terms separated by commas (brand and product names) — a call matches if any term appears in the notes, outcome, or next step. Leave blank for every call, dates blank for all time.</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:12px">
+          <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text2);cursor:pointer;font-weight:600"><input type="checkbox" id="cl-ai" style="width:15px;height:15px;cursor:pointer"> Use AI to find the calls (reads the notes, catches calls even when the brand name isn't written)</label>
+        </div>
+        <div style="font-size:10.5px;color:var(--text3);margin-top:8px">Without AI: enter terms (brand and product names, comma-separated) and it matches the exact words. With AI: enter the brand (e.g. ShurTape) and it reads each call to decide. Leave blank for every call, dates blank for all time.</div>
       </div>
 
       <!-- Manager roster (managers/admins only) -->
@@ -15714,12 +15717,38 @@ function clDownload() {
   var line = ((document.getElementById('cl-line') || {}).value || '').trim();
   var from = (document.getElementById('cl-from') || {}).value || '';
   var to = (document.getElementById('cl-to') || {}).value || '';
+  var ai = document.getElementById('cl-ai') && document.getElementById('cl-ai').checked;
   var parts = [];
   if (rep) parts.push('rep_id=' + encodeURIComponent(rep));
   if (line) parts.push('line=' + encodeURIComponent(line));
   if (from) parts.push('from=' + encodeURIComponent(from));
   if (to) parts.push('to=' + encodeURIComponent(to));
-  window.location.href = '/api/weekly-report/call-log' + (parts.length ? ('?' + parts.join('&')) : '');
+  var url = '/api/weekly-report/call-log' + (parts.length ? ('?' + parts.join('&')) : '');
+
+  if (ai && line) {
+    // AI reads every call, so it takes a few seconds — fetch with a spinner,
+    // then trigger the download from the returned file.
+    parts.push('ai=1');
+    url = '/api/weekly-report/call-log?' + parts.join('&');
+    var btns = document.querySelectorAll('[onclick="clDownload()"]');
+    var btn = btns && btns[0];
+    var label = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = 'AI reading calls…'; }
+    fetch(url).then(function (r) { return r.blob(); }).then(function (blob) {
+      var a = document.createElement('a');
+      var href = window.URL.createObjectURL(blob);
+      a.href = href;
+      a.download = (line.replace(/[^a-z0-9]+/gi, '_') + '_call_log.xlsx');
+      document.body.appendChild(a); a.click(); a.remove();
+      window.URL.revokeObjectURL(href);
+      if (btn) { btn.disabled = false; btn.textContent = label; }
+    }).catch(function () {
+      if (btn) { btn.disabled = false; btn.textContent = label; }
+      alert('Could not build the AI report. Try again, or uncheck AI and use exact terms.');
+    });
+  } else {
+    window.location.href = url;
+  }
 }
 function loadWeeklyReport() {
   wrState.can_manage = wrIsManager();

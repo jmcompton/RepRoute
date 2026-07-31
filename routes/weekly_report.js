@@ -481,6 +481,39 @@ router.post('/email', async (req, res) => {
   }
 });
 
+// Use Claude to decide which calls involve a given brand — for the common case
+// where reps write product names, SKUs, or just "tape" instead of the brand
+// name. Classifies in parallel batches; returns a Set of matching call ids.
+async function classifyCallsByBrand(rows, brand) {
+  const keep = new Set();
+  if (!rows.length || !process.env.ANTHROPIC_API_KEY) return keep;
+  const BATCH = 35;
+  const batches = [];
+  for (let i = 0; i < rows.length; i += BATCH) batches.push(rows.slice(i, i + BATCH));
+  await Promise.all(batches.map(async function (batch) {
+    const list = batch.map(function (r, idx) {
+      const txt = [r.products_discussed, r.outcome, r.next_step, r.notes]
+        .filter(Boolean).join(' | ').replace(/\s+/g, ' ').slice(0, 400);
+      return (idx + 1) + '. ' + (r.company || '') + ': ' + txt;
+    }).join('\n');
+    const prompt = 'You help a building-products manufacturers rep firm tag sales calls by brand. '
+      + 'The brand is "' + brand + '". Reps usually write product names, SKUs, or just generic words '
+      + '(like "tape") instead of the brand name. Below are numbered call summaries. Return ONLY a JSON '
+      + 'array of the numbers of calls that involve ' + brand + ' products or the ' + brand + ' brand '
+      + '(include calls discussing the kinds of products ' + brand + ' makes that this rep would sell for them). '
+      + 'EXCLUDE calls clearly about a competitor brand or unrelated product categories. If genuinely unsure, exclude.\n\n'
+      + 'Calls:\n' + list + '\n\nRespond with a JSON array of numbers only, e.g. [1,3,7]. If none, respond [].';
+    try {
+      const out = await callClaude(prompt);
+      const m = out.match(/\[[\d,\s]*\]/);
+      if (m) {
+        JSON.parse(m[0]).forEach(function (n) { const r = batch[n - 1]; if (r) keep.add(r.id); });
+      }
+    } catch (e) { /* skip this batch on error */ }
+  }));
+  return keep;
+}
+
 // GET /api/weekly-report/call-log — Excel (.xlsx) export of a rep's calls for a
 // given product line, matched on the products_discussed field. A manager can pull
 // any rep; a rep can only pull their own. Line + date range are optional.
@@ -517,24 +550,42 @@ router.get('/call-log', async (req, res) => {
     if (from) { params.push(from); where += ` AND c.call_date >= $${params.length}`; }
     if (to)   { params.push(to);   where += ` AND c.call_date <= $${params.length}`; }
 
-    const q = await pool.query(
-      `SELECT c.call_date, p.company, p.city, p.state, p.contact,
-              c.call_type, c.products_discussed, c.outcome, c.next_step, c.next_step_date, c.notes
-         FROM calls c JOIN prospects p ON c.prospect_id = p.id
-        WHERE ${where}
-        ORDER BY c.call_date DESC, p.company ASC`, params);
+    // AI mode: pull ALL calls in range and let the model decide which involve the
+    // brand (handles reps who never write the brand name). Otherwise keyword match.
+    const useAI = req.query.ai === '1' && terms.length > 0;
+    let rows;
+    if (useAI) {
+      const aip = [repId]; let aw = 'c.user_id = $1';
+      if (from) { aip.push(from); aw += ` AND c.call_date >= $${aip.length}`; }
+      if (to)   { aip.push(to);   aw += ` AND c.call_date <= $${aip.length}`; }
+      const allq = await pool.query(
+        `SELECT c.id, c.call_date, p.company, p.city, p.state, p.contact,
+                c.call_type, c.products_discussed, c.outcome, c.next_step, c.next_step_date, c.notes
+           FROM calls c JOIN prospects p ON c.prospect_id = p.id
+          WHERE ${aw} ORDER BY c.call_date DESC, p.company ASC`, aip);
+      const keep = await classifyCallsByBrand(allq.rows, line);
+      rows = allq.rows.filter(r => keep.has(r.id));
+    } else {
+      const q = await pool.query(
+        `SELECT c.call_date, p.company, p.city, p.state, p.contact,
+                c.call_type, c.products_discussed, c.outcome, c.next_step, c.next_step_date, c.notes
+           FROM calls c JOIN prospects p ON c.prospect_id = p.id
+          WHERE ${where}
+          ORDER BY c.call_date DESC, p.company ASC`, params);
+      rows = q.rows;
+    }
 
     const repRow = await pool.query('SELECT name FROM users WHERE id=$1', [repId]);
     const repName = (repRow.rows[0] && repRow.rows[0].name) || ('Rep ' + repId);
 
     const header = ['Date', 'Account', 'City', 'State', 'Contact', 'Call Type', 'Product / Line', 'Outcome', 'Next Step', 'Next Step Date', 'Notes'];
-    const dataRows = q.rows.map(r => [
+    const dataRows = rows.map(r => [
       r.call_date ? toDateStr(new Date(r.call_date)) : '',
       r.company || '', r.city || '', r.state || '', r.contact || '',
       r.call_type || '', r.products_discussed || '', r.outcome || '',
       r.next_step || '', r.next_step_date ? toDateStr(new Date(r.next_step_date)) : '', r.notes || ''
     ]);
-    const title = repName + ' — Call Log' + (line ? (' — ' + line) : '');
+    const title = repName + ' — Call Log' + (line ? (' — ' + line + (useAI ? ' (AI)' : '')) : '');
     const meta = 'Generated ' + toDateStr(new Date())
       + ((from || to) ? ('     Range: ' + (from || '…') + ' to ' + (to || '…')) : '')
       + '     Calls: ' + dataRows.length;
