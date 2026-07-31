@@ -1570,12 +1570,12 @@ window.addEventListener('load', function() {
     <button class="sb-item" data-roles="rep intern manager" onclick="go('manufacturers')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 14V6l4-2v3l4-2v3l4-2v8z"/><path d="M2 14h12"/></svg>Manufacturers</button>
     <button class="sb-item" data-roles="rep intern manager" onclick="go('fortress')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 14V5l3-2 3 2 3-2 3 2v9z"/><path d="M5 14V8M11 14V8M2 11h12"/></svg>Fortress Promo</button>
   </div>
-  <div class="sb-section" data-roles="rep intern manager">
+  <div class="sb-section" data-roles="rep manager">
     <div class="sb-sec-label">Activities</div>
     <button class="sb-item" data-roles="manager" onclick="go('calendar')" style="padding-left:18px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><rect x="2" y="3" width="12" height="11" rx="1"/><path d="M5 2v2M11 2v2M2 7h12"/></svg>Team Calendar</button>
     <button class="sb-item" data-roles="manager" onclick="go('email')" style="padding-left:18px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><rect x="1" y="3" width="14" height="10" rx="1"/><path d="M1 4l7 5 7-5"/></svg>Email</button>
     <button class="sb-item" data-roles="rep manager" onclick="go('weekly-planner')" style="padding-left:18px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><rect x="2" y="3" width="12" height="11" rx="1"/><path d="M2 6h12M6 3v11"/></svg>Weekly Planner</button>
-    <button class="sb-item" data-roles="rep intern manager" onclick="go('weekly-report')" style="padding-left:18px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 14V2M2 14h12M5 11V7M8 11V4M11 11V9"/></svg>Weekly Report</button>
+    <button class="sb-item" data-roles="manager" onclick="go('weekly-report')" style="padding-left:18px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 14V2M2 14h12M5 11V7M8 11V4M11 11V9"/></svg>Weekly Report</button>
     <button class="sb-item" data-roles="manager" onclick="go('command')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><path d="M9 2L7 14M3 6l-2 2 2 2M13 6l2 2-2 2"/></svg>AI Command</button>
     <button class="sb-item" data-roles="manager" onclick="go('bulk')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 2h5v5H2z"/><path d="M9 2h5v5H9z"/><path d="M2 9h5v5H2z"/><path d="M9 9h5v5H9z"/></svg>Bulk Import</button>
     <button class="sb-item" data-roles="manager" onclick="window.location.href='/zoho-import'"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M8 2v8M5 7l3 3 3-3"/><path d="M3 12h10"/></svg>Zoho Import</button>
@@ -2749,18 +2749,6 @@ window.addEventListener('load', function() {
       <div id="fortress-reptoggle" style="display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:12px"></div>
       <!-- Progress -->
       <div id="fortress-progress" style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:12px"></div>
-      <!-- Distributor report (collapsed by default; reps mostly want the stop list) -->
-      <div style="margin-bottom:12px">
-        <button id="fortress-report-toggle" onclick="fortressToggleReport()"
-          style="min-height:40px;padding:0 14px;background:var(--white);border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:700;color:var(--navy);cursor:pointer;font-family:inherit">
-          Show distributor report
-        </button>
-        <a href="/api/fortress/report.xlsx" download
-          style="display:inline-flex;align-items:center;min-height:40px;padding:0 14px;margin-left:8px;background:var(--navy);border:1px solid var(--navy);border-radius:8px;font-size:13px;font-weight:700;color:#fff;text-decoration:none;font-family:inherit">
-          Download Excel
-        </a>
-        <div id="fortress-report" style="display:none;margin-top:12px"></div>
-      </div>
       <!-- Day-grouped stop list -->
       <div id="fortress-list"><div style="font-size:13px;color:var(--text3);text-align:center;padding:24px">Loading…</div></div>
     </div>
@@ -3311,6 +3299,20 @@ window.addEventListener('load', function() {
           <button class="btn btn-secondary btn-sm" onclick="wrExport()">Export to Excel</button>
           <button class="btn btn-primary btn-sm" onclick="wrOpenEmail()">Email report</button>
         </div>
+      </div>
+
+      <!-- Call Log Export by line -->
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r2);padding:14px 16px;margin-bottom:16px">
+        <div style="font-size:13px;font-weight:700;color:var(--navy)">Call Log Export</div>
+        <div style="font-size:11.5px;color:var(--text3);margin:2px 0 12px">Every logged call for a rep, filtered by product line, downloaded as an Excel file.</div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+          <div><div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Rep</div><select id="cl-rep" style="padding:7px 10px;font-size:13px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text);font-family:inherit;min-width:150px"></select></div>
+          <div><div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Line</div><input id="cl-line" value="ShurTape" list="cl-line-list" placeholder="e.g. ShurTape" style="padding:7px 10px;font-size:13px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text);font-family:inherit;width:150px"><datalist id="cl-line-list"><option>ShurTape</option><option>Soudal</option><option>Fortress Railing</option><option>Alum-A-Pole</option><option>Quality Aluminum</option><option>BOSS Sealants</option></datalist></div>
+          <div><div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">From</div><input id="cl-from" type="date" style="padding:7px 10px;font-size:13px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text);font-family:inherit"></div>
+          <div><div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">To</div><input id="cl-to" type="date" style="padding:7px 10px;font-size:13px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text);font-family:inherit"></div>
+          <button class="btn btn-primary btn-sm" onclick="clDownload()" style="height:34px">⬇ Download Excel</button>
+        </div>
+        <div style="font-size:10.5px;color:var(--text3);margin-top:8px">Leave Line blank for every call. Leave dates blank for all time.</div>
       </div>
 
       <!-- Manager roster (managers/admins only) -->
@@ -15696,8 +15698,32 @@ function wrSetPeriodType(t) {
   loadWeeklyReport();
 }
 
+function clInit() {
+  var sel = document.getElementById('cl-rep');
+  if (!sel) return;
+  fetch('/api/manager/reps').then(function(r){ return r.ok ? r.json() : null; }).then(function(reps){
+    if (Array.isArray(reps) && reps.length) {
+      sel.innerHTML = reps.map(function(r){ return '<option value="' + r.id + '">' + ((r.name || ('Rep ' + r.id))) + '</option>'; }).join('');
+    } else {
+      sel.innerHTML = '<option value="">You</option>';
+    }
+  }).catch(function(){ sel.innerHTML = '<option value="">You</option>'; });
+}
+function clDownload() {
+  var rep = (document.getElementById('cl-rep') || {}).value || '';
+  var line = ((document.getElementById('cl-line') || {}).value || '').trim();
+  var from = (document.getElementById('cl-from') || {}).value || '';
+  var to = (document.getElementById('cl-to') || {}).value || '';
+  var parts = [];
+  if (rep) parts.push('rep_id=' + encodeURIComponent(rep));
+  if (line) parts.push('line=' + encodeURIComponent(line));
+  if (from) parts.push('from=' + encodeURIComponent(from));
+  if (to) parts.push('to=' + encodeURIComponent(to));
+  window.location.href = '/api/weekly-report/call-log' + (parts.length ? ('?' + parts.join('&')) : '');
+}
 function loadWeeklyReport() {
   wrState.can_manage = wrIsManager();
+  clInit();
   // Populate the period dropdown, then load.
   fetch('/api/weekly-report/periods?period_type=' + wrState.period_type)
     .then(function(r){ return r.json(); })
@@ -16782,166 +16808,6 @@ function fortressNextStop(day){
   window.open('https://maps.apple.com/?daddr=' + dest + '&dirflg=d', '_blank', 'noopener');
 }
 
-// ── Distributor report ───────────────────────────────────────────────────────
-// Splits promo activity by the distributor each stop came from (the `source`
-// column seeded from fortress_promo_routes.csv). Purely a read of stops already
-// loaded by loadFortress() — no extra API call, no schema change.
-//
-// A handful of seeded rows carry junk in `source` (e.g. "Verified" landed in the
-// distributor column), so anything unrecognised is bucketed as "Unspecified"
-// rather than silently dropped — otherwise the totals stop reconciling.
-window._fortressReportOpen = false;
-
-// Reporting distributors. A stop seeded as "Both" carries BOTH lines, so it is
-// counted under Dixie AND under Great Southern — a dealer that stocks Dixie is a
-// Dixie dealer regardless of what else they stock. Columns therefore overlap and
-// will not sum to the stop count; the Total row is unique stops, and the caption
-// spells the overlap out so nobody reads it as a double count.
-var FORTRESS_DISTRIBUTORS = [
-  { key: 'Dixie',  label: 'Dixie' },
-  { key: 'GSW',    label: 'Great Southern' },
-  { key: 'Other',  label: 'Unspecified' }
-];
-
-// Does this stop carry the given line?
-function fortressCarries(stop, key){
-  var k = fortressDistributorKey(stop.source);
-  if (key === 'Dixie') return k === 'Dixie' || k === 'Both';
-  if (key === 'GSW')   return k === 'GSW'   || k === 'Both';
-  return k === 'Other';
-}
-
-function fortressDistributorKey(src){
-  var s = String(src == null ? '' : src).trim().toLowerCase();
-  if (s === 'dixie') return 'Dixie';
-  if (s === 'gsw' || s === 'great southern' || s === 'gs') return 'GSW';
-  if (s === 'both') return 'Both';
-  return 'Other';
-}
-
-function fortressToggleReport(){
-  window._fortressReportOpen = !window._fortressReportOpen;
-  var btn = document.getElementById('fortress-report-toggle');
-  var box = document.getElementById('fortress-report');
-  if (btn) btn.textContent = window._fortressReportOpen ? 'Hide distributor report' : 'Show distributor report';
-  if (box) box.style.display = window._fortressReportOpen ? 'block' : 'none';
-  renderFortressReport();
-}
-
-// Tally one set of stops into per-distributor counts.
-function fortressTally(stops){
-  var rows = {};
-  FORTRESS_DISTRIBUTORS.forEach(function(d){
-    var set = stops.filter(function(s){ return fortressCarries(s, d.key); });
-    var r = { label: d.label, total: set.length, visited: 0, outcomes: {} };
-    set.forEach(function(s){
-      if (!s.visited_at) return;
-      r.visited++;
-      var oc = String(s.outcome == null ? '' : s.outcome).trim() || 'No outcome recorded';
-      r.outcomes[oc] = (r.outcomes[oc] || 0) + 1;
-    });
-    rows[d.key] = r;
-  });
-  return rows;
-}
-
-// How many stops in this set carry both lines (the source of the overlap).
-function fortressDualCount(stops){
-  return stops.filter(function(s){ return fortressDistributorKey(s.source) === 'Both'; }).length;
-}
-
-function fortressPct(done, total){
-  if (!total) return '—';
-  return Math.round((done / total) * 100) + '%';
-}
-
-function fortressReportTable(title, stops){
-  var rows = fortressTally(stops);
-  var shown = FORTRESS_DISTRIBUTORS.filter(function(d){ return rows[d.key].total > 0; });
-  if (!shown.length) return '';
-
-  var gTotal = stops.length;
-  var gVisited = stops.filter(function(s){ return s.visited_at; }).length;
-
-  var html = '<div style="background:var(--white);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:12px">' +
-    '<div style="font-size:13px;font-weight:800;color:var(--navy);margin-bottom:10px">' + fortressEsc(title) + '</div>' +
-    '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">' +
-    '<thead><tr>' +
-      '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--border);font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text3)">Distributor</th>' +
-      '<th style="text-align:right;padding:6px 8px;border-bottom:1px solid var(--border);font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text3)">Stops</th>' +
-      '<th style="text-align:right;padding:6px 8px;border-bottom:1px solid var(--border);font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text3)">Visited</th>' +
-      '<th style="text-align:right;padding:6px 8px;border-bottom:1px solid var(--border);font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text3)">Remaining</th>' +
-      '<th style="text-align:right;padding:6px 8px;border-bottom:1px solid var(--border);font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text3)">Complete</th>' +
-    '</tr></thead><tbody>';
-
-  shown.forEach(function(d){
-    var r = rows[d.key];
-    html += '<tr>' +
-      '<td style="padding:7px 8px;border-bottom:1px solid var(--border);font-weight:700;color:var(--navy)">' + fortressEsc(r.label) + '</td>' +
-      '<td style="padding:7px 8px;border-bottom:1px solid var(--border);text-align:right">' + r.total + '</td>' +
-      '<td style="padding:7px 8px;border-bottom:1px solid var(--border);text-align:right;color:var(--green);font-weight:700">' + r.visited + '</td>' +
-      '<td style="padding:7px 8px;border-bottom:1px solid var(--border);text-align:right">' + (r.total - r.visited) + '</td>' +
-      '<td style="padding:7px 8px;border-bottom:1px solid var(--border);text-align:right;font-weight:700">' + fortressPct(r.visited, r.total) + '</td>' +
-    '</tr>';
-  });
-
-  html += '<tr>' +
-    '<td style="padding:8px;font-weight:800;color:var(--navy)">Total (unique stops)</td>' +
-    '<td style="padding:8px;text-align:right;font-weight:800">' + gTotal + '</td>' +
-    '<td style="padding:8px;text-align:right;font-weight:800;color:var(--green)">' + gVisited + '</td>' +
-    '<td style="padding:8px;text-align:right;font-weight:800">' + (gTotal - gVisited) + '</td>' +
-    '<td style="padding:8px;text-align:right;font-weight:800">' + fortressPct(gVisited, gTotal) + '</td>' +
-  '</tr></tbody></table></div>';
-
-  var dual = fortressDualCount(stops);
-  if (dual) {
-    html += '<div style="font-size:11px;color:var(--text3);margin-top:8px;line-height:1.5">' +
-      dual + ' of these dealers carry both lines, so they are counted under Dixie and under ' +
-      'Great Southern. The rows overlap on purpose and will not add up to ' + gTotal + '.</div>';
-  }
-
-  // Outcome breakdown per distributor — only where visits have been logged.
-  var oc = shown.filter(function(d){ return Object.keys(rows[d.key].outcomes).length; });
-  if (oc.length){
-    html += '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">' +
-      '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);font-weight:700;margin-bottom:6px">Outcomes logged</div>';
-    oc.forEach(function(d){
-      var r = rows[d.key];
-      var parts = Object.keys(r.outcomes).sort(function(a,b){ return r.outcomes[b] - r.outcomes[a]; })
-        .map(function(k){ return fortressEsc(k) + ' (' + r.outcomes[k] + ')'; });
-      html += '<div style="font-size:12px;color:var(--text2,var(--navy));margin-bottom:4px">' +
-        '<span style="font-weight:700">' + fortressEsc(r.label) + ':</span> ' + parts.join(', ') + '</div>';
-    });
-    html += '</div>';
-  }
-
-  return html + '</div>';
-}
-
-function renderFortressReport(){
-  var box = document.getElementById('fortress-report');
-  if (!box || !window._fortressReportOpen) return;
-
-  var all = window._fortressStops || [];
-  if (!all.length){ box.innerHTML = ''; return; }
-
-  var sel = window._fortressRep;
-  var html = '';
-
-  if (sel && sel !== 'all') {
-    html = fortressReportTable(sel, all.filter(function(s){ return s.rep === sel; }));
-  } else {
-    // Combined view: overall first, then each rep so Cody can read them separately.
-    html = fortressReportTable('All reps', all);
-    var reps = [];
-    all.forEach(function(s){ if (s.rep && reps.indexOf(s.rep) === -1) reps.push(s.rep); });
-    reps.sort().forEach(function(rep){
-      html += fortressReportTable(rep, all.filter(function(s){ return s.rep === rep; }));
-    });
-  }
-  box.innerHTML = html;
-}
-
 function renderFortress(){
   var toggle = document.getElementById('fortress-reptoggle');
   var progEl = document.getElementById('fortress-progress');
@@ -16950,7 +16816,7 @@ function renderFortress(){
 
   // Rep toggle buttons (managers also get an "All" option).
   var reps = [{k:'Kody',l:'Kody'}, {k:'Jack',l:'Jack'}];
-  if (fortressIsManager()) reps.push({k:'all', l:'All reps'});
+  if (fortressIsManager()) reps.push({k:'all', l:'Both'});
   if (toggle) toggle.innerHTML = reps.map(function(r){
     var active = window._fortressRep === r.k;
     return '<button onclick="fortressSetRep(\'' + r.k + '\')" style="min-height:40px;padding:0 16px;border:none;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;' +
@@ -16971,9 +16837,6 @@ function renderFortress(){
   // Overall progress for the selected rep(s).
   var doneAll = stops.filter(function(s){ return s.visited_at; }).length;
   if (progEl) progEl.textContent = doneAll + ' of ' + stops.length + ' visited';
-
-  // Keep the distributor report in step with the rep toggle.
-  renderFortressReport();
 
   // Group by day, preserving first-seen day order; stops already arrive in stop_order.
   var dayOrder = [], byDay = {};

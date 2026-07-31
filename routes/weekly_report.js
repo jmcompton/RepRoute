@@ -9,6 +9,7 @@
 // ════════════════════════════════════════════════════════════════
 const express = require('express');
 const fetch = require('node-fetch');
+const XLSX = require('xlsx');
 const { pool } = require('../db');
 const { getValidToken } = require('./email');
 const router = express.Router();
@@ -476,6 +477,69 @@ router.post('/email', async (req, res) => {
     if (String(e.message).includes('Not connected')) {
       return res.status(400).json({ error: 'Connect Outlook on the Email tab to send reports.' });
     }
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/weekly-report/call-log — Excel (.xlsx) export of a rep's calls for a
+// given product line, matched on the products_discussed field. A manager can pull
+// any rep; a rep can only pull their own. Line + date range are optional.
+//   query: rep_id, line, from (YYYY-MM-DD), to (YYYY-MM-DD)
+router.get('/call-log', async (req, res) => {
+  try {
+    const me = req.session.user;
+    let repId = me.id;
+    if (req.query.rep_id && parseInt(req.query.rep_id) !== me.id) {
+      if (!isManager(me)) return res.status(403).json({ error: 'Forbidden' });
+      repId = parseInt(req.query.rep_id);
+    }
+    const line = (req.query.line || '').trim();
+    const from = req.query.from ? String(req.query.from).slice(0, 10) : null;
+    const to = req.query.to ? String(req.query.to).slice(0, 10) : null;
+
+    const params = [repId];
+    let where = 'c.user_id = $1';
+    if (line) { params.push('%' + line + '%'); where += ` AND c.products_discussed ILIKE $${params.length}`; }
+    if (from) { params.push(from); where += ` AND c.call_date >= $${params.length}`; }
+    if (to)   { params.push(to);   where += ` AND c.call_date <= $${params.length}`; }
+
+    const q = await pool.query(
+      `SELECT c.call_date, p.company, p.city, p.state, p.contact,
+              c.call_type, c.products_discussed, c.outcome, c.next_step, c.next_step_date, c.notes
+         FROM calls c JOIN prospects p ON c.prospect_id = p.id
+        WHERE ${where}
+        ORDER BY c.call_date DESC, p.company ASC`, params);
+
+    const repRow = await pool.query('SELECT name FROM users WHERE id=$1', [repId]);
+    const repName = (repRow.rows[0] && repRow.rows[0].name) || ('Rep ' + repId);
+
+    const header = ['Date', 'Account', 'City', 'State', 'Contact', 'Call Type', 'Product / Line', 'Outcome', 'Next Step', 'Next Step Date', 'Notes'];
+    const dataRows = q.rows.map(r => [
+      r.call_date ? toDateStr(new Date(r.call_date)) : '',
+      r.company || '', r.city || '', r.state || '', r.contact || '',
+      r.call_type || '', r.products_discussed || '', r.outcome || '',
+      r.next_step || '', r.next_step_date ? toDateStr(new Date(r.next_step_date)) : '', r.notes || ''
+    ]);
+    const title = repName + ' — Call Log' + (line ? (' — ' + line) : '');
+    const meta = 'Generated ' + toDateStr(new Date())
+      + ((from || to) ? ('     Range: ' + (from || '…') + ' to ' + (to || '…')) : '')
+      + '     Calls: ' + dataRows.length;
+    const aoa = [[title], [meta], [], header, ...dataRows];
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{ wch: 12 }, { wch: 28 }, { wch: 14 }, { wch: 6 }, { wch: 18 }, { wch: 12 }, { wch: 18 }, { wch: 16 }, { wch: 24 }, { wch: 14 }, { wch: 44 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Call Log');
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+    const fname = repName.replace(/[^a-z0-9]+/gi, '_')
+      + (line ? ('_' + line.replace(/[^a-z0-9]+/gi, '_')) : '')
+      + '_call_log.xlsx';
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="' + fname + '"');
+    res.send(buf);
+  } catch (e) {
+    console.error('[weekly-report/call-log]', e.message);
     res.status(500).json({ error: e.message });
   }
 });
