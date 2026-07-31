@@ -499,15 +499,20 @@ router.get('/call-log', async (req, res) => {
 
     const params = [repId];
     let where = 'c.user_id = $1';
-    if (line) {
-      // Reps rarely fill the structured line field; they mention the brand in the
-      // notes, outcome, or next step (typed or dictated). So scan every free-text
-      // field, and match spelling/spacing variants: "ShurTape", "Shurtape",
-      // "shur tape" all match a normalized query.
+    // Reps rarely write the brand name; they write product names ("535", "T-Rex")
+    // and "tape". So the caller can pass a comma-separated list of terms (brand +
+    // product names) and a call matches if ANY term appears in any free-text field.
+    // Spelling/spacing variants are handled ("ShurTape" == "shur tape" == "shurtape").
+    const terms = line.split(/[,;]+/).map(t => t.trim()).filter(Boolean);
+    if (terms.length) {
       const blob = "LOWER(COALESCE(c.products_discussed,'')||' '||COALESCE(c.notes,'')||' '||COALESCE(c.outcome,'')||' '||COALESCE(c.next_step,''))";
-      params.push('%' + line.toLowerCase() + '%'); const pRaw = params.length;
-      params.push('%' + line.toLowerCase().replace(/\s+/g, '') + '%'); const pNoSpace = params.length;
-      where += ` AND ( ${blob} LIKE $${pRaw} OR REPLACE(${blob}, ' ', '') LIKE $${pNoSpace} )`;
+      const ors = [];
+      terms.forEach(function (t) {
+        params.push('%' + t.toLowerCase() + '%'); const a = params.length;
+        params.push('%' + t.toLowerCase().replace(/\s+/g, '') + '%'); const b = params.length;
+        ors.push(`(${blob} LIKE $${a} OR REPLACE(${blob}, ' ', '') LIKE $${b})`);
+      });
+      where += ' AND ( ' + ors.join(' OR ') + ' )';
     }
     if (from) { params.push(from); where += ` AND c.call_date >= $${params.length}`; }
     if (to)   { params.push(to);   where += ` AND c.call_date <= $${params.length}`; }
