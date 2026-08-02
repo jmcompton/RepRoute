@@ -19,11 +19,26 @@ router.get('/export', async (req, res) => {
     const rep = (req.query.rep || '').trim();
     const params = [];
     let where = '';
-    if (rep && rep.toLowerCase() !== 'all') { params.push(rep); where = 'WHERE rep = $1'; }
+    if (rep && rep.toLowerCase() !== 'all') { params.push(rep); where = 'WHERE f.rep = $1'; }
     const r = await pool.query(
-      `SELECT rep, day, stop_order, company, address, city, zip, phone, status, visited_at, outcome, notes
-         FROM fortress_promo_stops ${where}
-        ORDER BY rep ASC, day ASC, stop_order ASC, id ASC`, params);
+      `SELECT f.rep, f.day, f.stop_order, f.company, f.address, f.city, f.zip, f.phone, f.status, f.visited_at, f.outcome,
+              COALESCE(NULLIF(btrim(f.notes), ''), cn.call_notes, '') AS notes
+         FROM fortress_promo_stops f
+         LEFT JOIN LATERAL (
+           -- Reps write their real notes in the call log (voice or typed), not on
+           -- the promo stop. Pull them by matching the dealer name (ignoring a
+           -- "- Location" suffix and dash style) and the rep who logged the call.
+           SELECT string_agg(to_char(c.call_date, 'YYYY-MM-DD') || ': ' || c.notes, E'\n') AS call_notes
+             FROM calls c
+             JOIN prospects p ON c.prospect_id = p.id
+             LEFT JOIN users u ON c.user_id = u.id
+            WHERE c.notes IS NOT NULL AND btrim(c.notes) <> ''
+              AND lower(split_part(regexp_replace(p.company, '[–—]', '-', 'g'), ' - ', 1))
+                = lower(split_part(regexp_replace(f.company, '[–—]', '-', 'g'), ' - ', 1))
+              AND (u.name IS NULL OR lower(u.name) LIKE '%' || lower(f.rep) || '%')
+         ) cn ON true
+         ${where}
+        ORDER BY f.rep ASC, f.day ASC, f.stop_order ASC, f.id ASC`, params);
     const header = ['Rep','Day','Stop #','Company','Address','City','Zip','Phone','Status','Visited','Outcome','Notes'];
     const rows = r.rows.map(function(s){ return [
       s.rep||'', s.day||'', s.stop_order||'', s.company||'', s.address||'', s.city||'',
