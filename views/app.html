@@ -2741,9 +2741,12 @@ window.addEventListener('load', function() {
   <!-- FORTRESS RAILING PROMO PAGE -->
   <div class="page" id="page-fortress" style="overflow-y:auto;padding-bottom:90px">
     <div style="max-width:760px;margin:0 auto;padding:14px 14px 40px">
-      <div style="margin-bottom:12px">
-        <div style="font-size:17px;font-weight:800;color:var(--navy);letter-spacing:-.3px">Fortress Railing Promo</div>
-        <div style="font-size:12px;color:var(--text3);margin-top:2px">Pre-routed dealer-visit campaign. Tap a stop's phone to call, then mark it visited with an outcome.</div>
+      <div style="margin-bottom:12px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:17px;font-weight:800;color:var(--navy);letter-spacing:-.3px">Fortress Railing Promo</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px">Pre-routed dealer-visit campaign. Tap a stop's phone to call, then mark it visited with an outcome.</div>
+        </div>
+        <button onclick="fortressExport()" style="flex-shrink:0;display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 16px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">⬇ Export to Excel</button>
       </div>
       <!-- Rep toggle -->
       <div id="fortress-reptoggle" style="display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:12px"></div>
@@ -16839,6 +16842,13 @@ function loadFortress(){
 }
 
 function fortressSetRep(rep){ window._fortressRep = rep; renderFortress(); }
+
+// Download the promo call report as Excel for the currently selected rep (or all).
+function fortressExport(){
+  var rep = window._fortressRep || 'all';
+  var q = (rep && rep !== 'all') ? ('?rep=' + encodeURIComponent(rep)) : '';
+  window.location.href = '/api/fortress/export' + q;
+}
 
 // Build Google Maps directions URL(s) for an ordered list of stops, capped at
 // ~10 points per link (Maps' practical waypoint limit) — split when a day is longer.
