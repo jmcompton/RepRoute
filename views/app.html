@@ -16799,21 +16799,37 @@ function fortressIsManager(){ return !!(window.currentUser && window.currentUser
 // Default the rep toggle to the logged-in rep; managers see both.
 function fortressDefaultRep(){
   var u = window.currentUser || {};
-  var name = (u.name || '').toLowerCase();
   if (fortressIsManager()) return 'all';
-  if (name.indexOf('kody') !== -1) return 'Kody';
-  if (name.indexOf('jack') !== -1) return 'Jack';
-  return 'all';
+  var name = (u.name || '').toLowerCase();
+  // Discover the rep tokens actually present in the loaded stops, then match the
+  // signed-in user to theirs by name. This adds any rep (Maxey included) without
+  // hardcoding, and avoids mismatches when the stop's rep value isn't exactly a
+  // first name.
+  var tokens = fortressRepTokens();
+  for (var i = 0; i < tokens.length; i++) {
+    if (name && String(tokens[i]).toLowerCase().split(/\s+/).some(function(w){ return w && name.indexOf(w) !== -1; })) return tokens[i];
+  }
+  return tokens[0] || 'all';
+}
+
+function fortressRepTokens(){
+  var tokens = [];
+  (window._fortressStops || []).forEach(function(s){
+    if (s.rep && tokens.indexOf(s.rep) === -1) tokens.push(s.rep);
+  });
+  tokens.sort();
+  return tokens;
 }
 
 function loadFortress(){
-  if (!window._fortressRep) window._fortressRep = fortressDefaultRep();
   var listEl = document.getElementById('fortress-list');
   if (listEl) listEl.innerHTML = '<div style="font-size:13px;color:var(--text3);text-align:center;padding:24px">Loading…</div>';
   fetch('/api/fortress/stops')
     .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(function(stops){
       window._fortressStops = Array.isArray(stops) ? stops : [];
+      // Pick the rep AFTER stops are loaded, so we can match against real tokens.
+      if (!window._fortressRep) window._fortressRep = fortressDefaultRep();
       renderFortress();
     })
     .catch(function(){
@@ -16849,9 +16865,15 @@ function renderFortress(){
   var listEl = document.getElementById('fortress-list');
   if (!listEl) return;
 
-  // Rep toggle buttons (managers also get an "All" option).
-  var reps = [{k:'Kody',l:'Kody'}, {k:'Jack',l:'Jack'}];
-  if (fortressIsManager()) reps.push({k:'all', l:'Both'});
+  // Rep toggle buttons derived from the reps present in the data (managers also
+  // get an "All" option). This surfaces every rep with stops — Kody, Jack, Maxey.
+  var tokens = fortressRepTokens();
+  var reps = tokens.map(function(t){ return { k: t, l: t }; });
+  if (fortressIsManager() && tokens.length > 1) reps.push({ k: 'all', l: 'All' });
+  // A rep only sees their own toggle (no switching to other reps).
+  if (!fortressIsManager()) {
+    reps = reps.filter(function(r){ return r.k === window._fortressRep; });
+  }
   if (toggle) toggle.innerHTML = reps.map(function(r){
     var active = window._fortressRep === r.k;
     return '<button onclick="fortressSetRep(\'' + r.k + '\')" style="min-height:40px;padding:0 16px;border:none;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;' +
