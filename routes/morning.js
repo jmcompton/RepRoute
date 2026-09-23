@@ -183,7 +183,48 @@ const SEGMENT_SEARCH_CONFIG = {
     { query: 'roofing nail supplier contractor supply', score: 9, category: 'Construction Fasteners' },
     { query: 'deck screw supplier contractor hardware', score: 9, category: 'Construction Fasteners' },
   ],
+  // Spray foam insulation / SPF roofing installers. Queries lead with "spray foam"
+  // so Google doesn't drift into generic fiberglass/blown-in insulation shops.
+  'Spray Foam Contractor': [
+    { query: 'spray foam insulation contractor', score: 10, category: 'Spray Foam Contractor' },
+    { query: 'spray foam insulation company', score: 10, category: 'Spray Foam Contractor' },
+    { query: 'closed cell spray foam insulation installer', score: 9, category: 'Spray Foam Contractor' },
+    { query: 'commercial spray foam insulation contractor', score: 9, category: 'Spray Foam Contractor' },
+    { query: 'spray foam roofing contractor', score: 8, category: 'Spray Foam Contractor' },
+  ],
+  // Division 10 specialty building products dealers/installers — toilet partitions,
+  // lockers, signage, fire extinguisher cabinets, wall protection, etc. The trade
+  // term + the two anchor products (partitions, lockers) return the actual Div 10
+  // houses; single-product searches ("signs", "fire extinguisher") return sign
+  // shops and fire-service companies, so those only appear inside combined queries.
+  'Division 10 Dealer': [
+    { query: 'division 10 specialties contractor', score: 10, category: 'Division 10 Dealer' },
+    { query: 'toilet partitions and accessories distributor', score: 10, category: 'Division 10 Dealer' },
+    { query: 'building specialties toilet partitions lockers', score: 9, category: 'Division 10 Dealer' },
+    { query: 'commercial toilet partition installer', score: 9, category: 'Division 10 Dealer' },
+    { query: 'commercial lockers supplier installer', score: 8, category: 'Division 10 Dealer' },
+    { query: 'wall protection corner guards fire extinguisher cabinets', score: 8, category: 'Division 10 Dealer' },
+  ],
 };
+
+// Per-segment relevance rules for segments whose Google results are noisy.
+//   block — name patterns that are clearly the wrong business (dropped)
+//   boost — name/type signals that confirm the right business (+1 score)
+const SEGMENT_RELEVANCE = {
+  'Spray Foam Contractor': {
+    block: /pest control|exterminat|termite|foam (fabricat|rubber|packag|cushion)|mattress|upholster|packaging|car wash|\bpool\b/i,
+    boost: /spray ?foam|\bspf\b|foam insulation|polyurethane|insulat/i,
+  },
+  'Division 10 Dealer': {
+    block: /fire (protection|equipment|safety|sprinkler)|fire (&|and) security|koorsen|cintas|sprinkler|extinguisher (service|sales|inspection)|locksmith|self.?storage|storage units?|mini.?storage|public storage|cubesmart|extra space|portable toilet|porta.?(john|potty)|restroom (trailer|rental)|plumb|bath(room)? remodel|shower|kitchen|\bgym\b|fitness|fastsigns|sign.?a.?rama|signarama|\bsign (shop|company)\b|banner|vinyl graphics|print/i,
+    boost: /specialt|division 10|div\.? ?10|partition|locker|toilet accessor|washroom|bath(room)? accessor|wall protection|architectural products|building products/i,
+  },
+};
+
+// Segments exempt from the Google-type Contractor/Dealer soft filter. Div 10
+// dealers mostly furnish-and-install, so Google often types them general_contractor
+// or construction_company — the Dealer filter would wrongly drop real ones.
+const CHANNEL_FILTER_EXEMPT = new Set(['Division 10 Dealer']);
 
 // Legacy PRODUCT_SEARCH_CONFIG kept for backwards compat (not used by current UI)
 const PRODUCT_SEARCH_CONFIG = {
@@ -438,6 +479,8 @@ router.post('/daily-leads', async (req, res) => {
     'Deck Contractor':       'Contractor',
     'Construction Fasteners': 'Dealer',
     'Lumber / Building Supply': 'Dealer',
+    'Spray Foam Contractor': 'Contractor',
+    'Division 10 Dealer':    'Dealer',
     'Contractor':            'Contractor',
     'Dealer':                'Dealer',
   };
@@ -566,6 +609,8 @@ router.post('/daily-leads', async (req, res) => {
           if (isResidentialRooferBlocked(company, rawChannel)) continue;
           // Hard block — never return heavy equipment / construction machinery companies
           if (isHeavyEquipmentBlocked(company, place.types || [])) continue;
+          const relevance = SEGMENT_RELEVANCE[rawChannel];
+          if (relevance && relevance.block.test(company)) continue;
           sessionSeen.add(placeId || companyLower);
 
           // Distance filter — use the rep's actual radius
@@ -589,8 +634,9 @@ router.post('/daily-leads', async (req, res) => {
 
           // Only hard-exclude if Google is very confident it's the WRONG type
           // Allow anything ambiguous (no classification) through — better to include than miss
-          if (channel === 'Dealer' && isClassifiedContractor && !isClassifiedDealer && placeTypes.size > 2) continue;
-          if (channel === 'Contractor' && isClassifiedDealer && !isClassifiedContractor && placeTypes.size > 2) continue;
+          const channelFilterOn = !CHANNEL_FILTER_EXEMPT.has(rawChannel);
+          if (channelFilterOn && channel === 'Dealer' && isClassifiedContractor && !isClassifiedDealer && placeTypes.size > 2) continue;
+          if (channelFilterOn && channel === 'Contractor' && isClassifiedDealer && !isClassifiedContractor && placeTypes.size > 2) continue;
 
           // Count how many product lines this prospect is relevant to
           const matchingBrands = brands.filter(brand => {
@@ -613,6 +659,10 @@ router.post('/daily-leads', async (req, res) => {
           // rep can decide (per the category rules).
           if (rawChannel === 'Lumber / Building Supply') {
             opportunityScore = Math.min(10, opportunityScore + lumberKindBoost(company, place.types || []));
+          }
+          // Specialty segments: +1 when the name/types confirm the right business.
+          if (relevance && relevance.boost.test(company + ' ' + (place.types || []).join(' '))) {
+            opportunityScore = Math.min(10, opportunityScore + 1);
           }
 
           // Home-based business detection — badge + optional score penalty

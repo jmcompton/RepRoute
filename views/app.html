@@ -1742,6 +1742,12 @@ window.addEventListener('load', function() {
             <label style="cursor:pointer;background:#fef9c3;color:#854d0e;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;user-select:none;border:1.5px solid #fde047">
               <input type="checkbox" name="seg" value="Lumber / Building Supply" style="margin:0;accent-color:#854d0e"> Lumber / Building Supply
             </label>
+            <label style="cursor:pointer;background:#fce7f3;color:#9d174d;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;user-select:none;border:1.5px solid #f9a8d4">
+              <input type="checkbox" name="seg" value="Spray Foam Contractor" style="margin:0;accent-color:#9d174d"> Spray Foam Contractors
+            </label>
+            <label style="cursor:pointer;background:#e0e7ff;color:#3730a3;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;user-select:none;border:1.5px solid #a5b4fc">
+              <input type="checkbox" name="seg" value="Division 10 Dealer" style="margin:0;accent-color:#3730a3"> Division 10 Dealers
+            </label>
           </div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -1942,6 +1948,11 @@ window.addEventListener('load', function() {
           <option value="Window &amp; Door Distributor">Window &amp; Door Distributor</option>
           <option value="Cornice Contractor">Cornice Contractor</option>
           <option value="Construction Fasteners">Construction Fasteners</option>
+          <option value="Spray Foam Contractor">Spray Foam Contractor</option>
+          <option value="Spray Foam Distributor">Spray Foam Distributor</option>
+          <option value="Paint Dealer">Paint Dealer</option>
+          <option value="Concrete Company">Concrete Company</option>
+          <option value="Steel Company">Steel Company</option>
         </select>
         <span id="team-showing-count" style="font-size:11px;color:var(--text3)"></span>
       </div>
@@ -1970,7 +1981,12 @@ window.addEventListener('load', function() {
             <div onclick="selectTeamFilterSheet('Siding Distributor')"       class="tfs-opt" style="padding:14px 20px;font-size:14px;cursor:pointer;color:#0f1a2e;border-bottom:1px solid #f9fafb;display:flex;align-items:center;justify-content:space-between">Siding Distributor</div>
             <div onclick="selectTeamFilterSheet('Window &amp; Door Distributor')" class="tfs-opt" style="padding:14px 20px;font-size:14px;cursor:pointer;color:#0f1a2e;border-bottom:1px solid #f9fafb;display:flex;align-items:center;justify-content:space-between">Window &amp; Door Distributor</div>
             <div onclick="selectTeamFilterSheet('Cornice Contractor')"       class="tfs-opt" style="padding:14px 20px;font-size:14px;cursor:pointer;color:#0f1a2e;border-bottom:1px solid #f9fafb;display:flex;align-items:center;justify-content:space-between">Cornice Contractor</div>
-            <div onclick="selectTeamFilterSheet('Construction Fasteners')"   class="tfs-opt" style="padding:14px 20px;font-size:14px;cursor:pointer;color:#0f1a2e;display:flex;align-items:center;justify-content:space-between">Construction Fasteners</div>
+            <div onclick="selectTeamFilterSheet('Construction Fasteners')"   class="tfs-opt" style="padding:14px 20px;font-size:14px;cursor:pointer;color:#0f1a2e;border-bottom:1px solid #f9fafb;display:flex;align-items:center;justify-content:space-between">Construction Fasteners</div>
+            <div onclick="selectTeamFilterSheet('Spray Foam Contractor')" class="tfs-opt" style="padding:14px 20px;font-size:14px;cursor:pointer;color:#0f1a2e;border-bottom:1px solid #f9fafb;display:flex;align-items:center;justify-content:space-between">Spray Foam Contractor</div>
+            <div onclick="selectTeamFilterSheet('Spray Foam Distributor')" class="tfs-opt" style="padding:14px 20px;font-size:14px;cursor:pointer;color:#0f1a2e;border-bottom:1px solid #f9fafb;display:flex;align-items:center;justify-content:space-between">Spray Foam Distributor</div>
+            <div onclick="selectTeamFilterSheet('Paint Dealer')" class="tfs-opt" style="padding:14px 20px;font-size:14px;cursor:pointer;color:#0f1a2e;border-bottom:1px solid #f9fafb;display:flex;align-items:center;justify-content:space-between">Paint Dealer</div>
+            <div onclick="selectTeamFilterSheet('Concrete Company')" class="tfs-opt" style="padding:14px 20px;font-size:14px;cursor:pointer;color:#0f1a2e;border-bottom:1px solid #f9fafb;display:flex;align-items:center;justify-content:space-between">Concrete Company</div>
+            <div onclick="selectTeamFilterSheet('Steel Company')" class="tfs-opt" style="padding:14px 20px;font-size:14px;cursor:pointer;color:#0f1a2e;display:flex;align-items:center;justify-content:space-between">Steel Company</div>
           </div>
         </div>
       </div>
@@ -3703,6 +3719,13 @@ window.addEventListener('load', function() {
           <option value="Cornice Contractor">Cornice Contractor</option>
           <option value="Construction Fasteners">Construction Fasteners</option>
         </optgroup>
+        <optgroup label="── Specialty ──">
+          <option value="Spray Foam Contractor">Spray Foam Contractor</option>
+          <option value="Spray Foam Distributor">Spray Foam Distributor</option>
+          <option value="Paint Dealer">Paint Dealer</option>
+          <option value="Concrete Company">Concrete Company</option>
+          <option value="Steel Company">Steel Company</option>
+        </optgroup>
         <option value="Architect">Architect</option>
       </select></div>
       <div class="fg"><label>City</label><input type="text" id="ap-city" placeholder="Atlanta" /></div>
@@ -3752,7 +3775,7 @@ window.addEventListener('load', function() {
     <input type="hidden" id="ep-id" />
     <div class="fg"><label>Company Name *</label><input type="text" id="ep-name" /></div>
     <div class="g2">
-      <div class="fg"><label>Category</label><select id="ep-cat"><option value="Deck Contractor">Deck Contractor</option><option value="Window & Door Installer">Window/Door</option><option value="Commercial Roofing Contractor">Roofing</option><option value="Building Material Dealer">Dealer</option><option value="Building Products Distributor">Distributor</option>
+      <div class="fg"><label>Category</label><select id="ep-cat"><option value="Deck Contractor">Deck Contractor</option><option value="Window & Door Installer">Window/Door</option><option value="Commercial Roofing Contractor">Roofing</option><option value="Building Material Dealer">Dealer</option><option value="Building Products Distributor">Distributor</option><option value="Spray Foam Contractor">Spray Foam Contractor</option><option value="Spray Foam Distributor">Spray Foam Distributor</option><option value="Paint Dealer">Paint Dealer</option><option value="Concrete Company">Concrete Company</option><option value="Steel Company">Steel Company</option>
                 <option value="Construction Equipment Supplier">Construction Equipment Supplier</option><option value="Architect">Architect</option></select></div>
       <div class="fg"><label>City</label><input type="text" id="ep-city" /></div>
     </div>
@@ -3854,6 +3877,13 @@ window.addEventListener('load', function() {
             <option value="Window &amp; Door Installer">Window &amp; Door Installer</option>
             <option value="Cornice Contractor">Cornice Contractor</option>
             <option value="Construction Fasteners">Construction Fasteners</option>
+          </optgroup>
+          <optgroup label="── Specialty ──">
+            <option value="Spray Foam Contractor">Spray Foam Contractor</option>
+            <option value="Spray Foam Distributor">Spray Foam Distributor</option>
+            <option value="Paint Dealer">Paint Dealer</option>
+            <option value="Concrete Company">Concrete Company</option>
+            <option value="Steel Company">Steel Company</option>
           </optgroup>
           <option value="Architect">Architect</option>
         </select>
@@ -4267,7 +4297,7 @@ function renderCockpit(){
   el.innerHTML = '<div class="ck"><div style="font-size:12px;color:var(--text3);padding:8px">Loading your cockpit…</div></div>';
   Promise.all([
     ckGetJSON('/api/morning'),
-    ckGetJSON('/api/planner/today'),
+    ckGetJSON('/api/planner/today?date=' + (function(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})()),
     ckGetJSON('/api/planner/panel'),
     ckGetJSON('/api/crosssell/opportunities')
   ]).then(function(res){
@@ -5400,7 +5430,7 @@ function loadToday() {
   content.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:30px;text-align:center">Loading today…</div>';
   function okJson(r){ return r && r.ok ? r.json() : null; }
   Promise.all([
-    fetch('/api/planner/today').then(okJson).catch(function(){ return null; }),
+    fetch('/api/planner/today?date=' + (function(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})()).then(okJson).catch(function(){ return null; }),
     fetch('/api/morning').then(okJson).catch(function(){ return null; }),
     fetch('/api/reconnect?filter=all').then(okJson).catch(function(){ return null; }),
     fetch('/api/planner/panel').then(okJson).catch(function(){ return null; })
@@ -7487,8 +7517,15 @@ function openEditContact(p) {
   document.getElementById('ep-products').value = p.products || '';
   document.getElementById('ep-notes').value = p.notes || '';
   var catSel = document.getElementById('ep-cat');
+  var catFound = false;
   for (var i = 0; i < catSel.options.length; i++) {
-    if (catSel.options[i].value === p.category) { catSel.selectedIndex = i; break; }
+    if (catSel.options[i].value === p.category) { catSel.selectedIndex = i; catFound = true; break; }
+  }
+  // Keep the account's current category if it isn't in this list — otherwise
+  // saving would silently overwrite it with the first option.
+  if (!catFound && p.category) {
+    catSel.add(new Option(p.category, p.category));
+    catSel.value = p.category;
   }
   var stSel = document.getElementById('ep-status');
   for (var i = 0; i < stSel.options.length; i++) {
@@ -10849,7 +10886,9 @@ window.runDailyLeads = function() {
           'Siding Contractor':       { bg:'#dbeafe', color:'#1d4ed8' },
           'Siding Distributor':      { bg:'#bfdbfe', color:'#1e40af' },
           'Cornice Contractor':      { bg:'#ccfbf1', color:'#0f766e' },
-          'Construction Fasteners':  { bg:'#d1fae5', color:'#065f46' }
+          'Construction Fasteners':  { bg:'#d1fae5', color:'#065f46' },
+          'Spray Foam Contractor':   { bg:'#fce7f3', color:'#9d174d' },
+          'Division 10 Dealer':      { bg:'#e0e7ff', color:'#3730a3' }
         };
         var sc = segColors[seg] || { bg:'#f1f5f9', color:'#64748b' };
         var segBadge = '<span style="background:' + sc.bg + ';color:' + sc.color + ';font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px">' + (seg || lead.category || '') + '</span>';
@@ -13572,13 +13611,37 @@ document.addEventListener('click', function(e) {
     return true;
   };
 
-  // ── Route stops cache ──────────────────────────────────────────────────────
+  // ── Route stops cache + server sync ───────────────────────────────────────
+  // The route is stored per user on the server (/api/route-stops) so stops added
+  // on desktop show on the phone and vice versa. localStorage is only an offline
+  // cache. ROUTE_DIRTY marks local edits the server hasn't accepted yet.
+  var ROUTE_DIRTY = 'repRoute_routeDirty';
+  var _routeRestored = false;   // ignore renders until the initial restore has run
+  var _routePushTimer = null;
+
+  function pushRouteToServer() {
+    clearTimeout(_routePushTimer);
+    _routePushTimer = setTimeout(function() {
+      var stops = window._routeStops || [];
+      fetch('/api/route-stops', {
+        method: 'PUT', credentials: 'same-origin', cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stops: stops })
+      }).then(function(r) {
+        if (r.ok) safeDel(ROUTE_DIRTY);
+      }).catch(function() { /* offline — stays dirty, retried on next sync */ });
+    }, 400);
+  }
 
   window.saveRouteCache = function() {
+    if (!_routeRestored) return;
     var stops = window._routeStops || [];
-    if (!stops.length) { safeDel(ROUTE_KEY); safeDel(ROUTE_TIME); return; }
-    safeSet(ROUTE_KEY,  JSON.stringify(stops));
-    safeSet(ROUTE_TIME, Date.now().toString());
+    var json  = JSON.stringify(stops);
+    var prev  = safeGet(ROUTE_KEY) || '[]';
+    if (!stops.length) { safeDel(ROUTE_KEY); safeDel(ROUTE_TIME); }
+    else { safeSet(ROUTE_KEY, json); safeSet(ROUTE_TIME, Date.now().toString()); }
+    // Only a real change goes to the server (re-renders of the same list don't).
+    if (json !== prev) { safeSet(ROUTE_DIRTY, '1'); pushRouteToServer(); }
   };
 
   window.restoreRouteCache = function() {
@@ -13597,6 +13660,31 @@ document.addEventListener('click', function(e) {
       if (typeof window._renderRoutePanel === 'function') window._renderRoutePanel();
       return true;
     } catch(e) { return false; }
+  };
+
+  // Pull the route from the server. If this device has unsynced edits, push them
+  // instead (last write wins). Offline → keep whatever is cached locally.
+  window.syncRouteFromServer = function() {
+    return fetch('/api/route-stops', { credentials: 'same-origin', cache: 'no-store' })
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(d) {
+        if (!d) return;
+        var local = window._routeStops || [];
+        // First run after this feature shipped: local-only stops with no server row → upload them.
+        if (!d.updated_at && local.length) safeSet(ROUTE_DIRTY, '1');
+        if (safeGet(ROUTE_DIRTY)) { pushRouteToServer(); return; }
+
+        var fresh = d.updated_at && (Date.now() - Date.parse(d.updated_at)) <= EIGHT_HOURS;
+        var serverStops = fresh ? (d.stops || []) : [];
+        var json = JSON.stringify(serverStops);
+        if (json === JSON.stringify(local)) return;
+        // Write the cache first so the render below doesn't count as a local edit.
+        if (serverStops.length) { safeSet(ROUTE_KEY, json); safeSet(ROUTE_TIME, Date.now().toString()); }
+        else { safeDel(ROUTE_KEY); safeDel(ROUTE_TIME); }
+        window._routeStops = serverStops;
+        if (typeof window._renderRoutePanel === 'function') window._renderRoutePanel();
+      })
+      .catch(function() {});
   };
 
   // Patch _renderRoutePanel to auto-save whenever route changes
@@ -13659,10 +13747,11 @@ document.addEventListener('click', function(e) {
       setTimeout(function() { window.restoreLeadCache(); }, 150);
     }
 
-    // If route was cleared, restore it
-    if (!window._routeStops || window._routeStops.length === 0) {
-      setTimeout(function() { window.restoreRouteCache(); }, 150);
-    }
+    // Restore route from local cache if cleared, then pick up changes made on other devices
+    setTimeout(function() {
+      if (!window._routeStops || window._routeStops.length === 0) window.restoreRouteCache();
+      if (_routeRestored) window.syncRouteFromServer();
+    }, 150);
   });
 
   // ── Initial restore on page load ──────────────────────────────────────────
@@ -13672,6 +13761,8 @@ document.addEventListener('click', function(e) {
     setTimeout(function() {
       window.restoreLeadCache();
       window.restoreRouteCache();
+      _routeRestored = true;
+      window.syncRouteFromServer();
     }, 900);
   });
 

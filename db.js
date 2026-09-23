@@ -431,6 +431,14 @@ async function initDB() {
     );
     CREATE INDEX IF NOT EXISTS idx_weekly_reports_user ON weekly_reports(user_id, period_type, period_start DESC);
 
+    -- ── Route stops (Today's Route / "+ Route") ─────────────────────
+    -- One row per user so the route syncs across desktop and phone.
+    CREATE TABLE IF NOT EXISTS route_stops (
+      user_id    INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      stops      JSONB NOT NULL DEFAULT '[]'::jsonb,
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
     -- ── Weekly Planner ─────────────────────────────────────────────
     -- Forward-looking plan: each rep plans stops + appointments per day.
     -- "visited" is NOT stored here — computed live from the calls table.

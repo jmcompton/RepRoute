@@ -1043,7 +1043,10 @@ router.get('/today', async (req, res) => {
     const r = resolveRepId(req);
     if (r.error) return res.status(403).json({ error: r.error });
     const repId = r.repId;
-    const today = ymd(new Date());
+    // Use the device's local date when given — the server clock is UTC, so after
+    // ~8pm Eastern ymd(new Date()) is already tomorrow and the phone's Today view
+    // showed the wrong day's stops.
+    const today = /^\d{4}-\d{2}-\d{2}$/.test(req.query.date || '') ? req.query.date : ymd(new Date());
     const monday = mondayOf(today);
 
     const goalRow = await pool.query('SELECT daily_call_goal FROM users WHERE id=$1', [repId]);

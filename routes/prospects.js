@@ -10,7 +10,9 @@ const DISTRIBUTOR_CATEGORIES = new Set([
   'Roofing Distributor',
   'Decking Distributor',
   'Siding Distributor',
-  'Window & Door Distributor'
+  'Window & Door Distributor',
+  'Spray Foam Distributor',
+  'Paint Dealer'
 ]);
 
 const CONTRACTOR_CATEGORIES = new Set([
@@ -19,7 +21,10 @@ const CONTRACTOR_CATEGORIES = new Set([
   'Siding Contractor',
   'Window & Door Installer',
   'Cornice Contractor',
-  'Construction Fasteners'
+  'Construction Fasteners',
+  'Spray Foam Contractor',
+  'Concrete Company',
+  'Steel Company'
 ]);
 
 function resolveCompanyType(category) {

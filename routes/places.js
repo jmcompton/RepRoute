@@ -1958,6 +1958,7 @@ const ACCOUNT_CATEGORIES = [
   'Building Materials Distributor',
   'Roofing Contractor', 'Decking Contractor', 'Siding Contractor', 'Window & Door Installer',
   'Cornice Contractor', 'Construction Fasteners', 'Architect',
+  'Spray Foam Contractor', 'Spray Foam Distributor', 'Paint Dealer', 'Concrete Company', 'Steel Company',
 ];
 
 function classifyAccountCategory(name, types) {
@@ -1970,6 +1971,8 @@ function classifyAccountCategory(name, types) {
   const distSignal = /(distributor|distribution|wholesale|wholesaler|supply|supplies|supply house|dealer|building material|building_materials|home_improvement_store|hardware_store|lumber_yard|\bstore\b)/.test(s);
 
   // Product-family branches first — work for both contractors and distributors.
+  // Spray foam before roofing so SPF roofers/insulators land in Spray Foam.
+  if (/spray ?foam|\bspf\b|foam insulation/.test(s)) return distSignal ? 'Spray Foam Distributor' : 'Spray Foam Contractor';
   if (/roof/.test(s))                                  return distSignal ? 'Roofing Distributor' : 'Roofing Contractor';
   if (/deck/.test(s))                                  return distSignal ? 'Decking Distributor' : 'Decking Contractor';
   if (/siding|cladding|fiber cement|hardie/.test(s))   return distSignal ? 'Siding Distributor' : 'Siding Contractor';
@@ -1977,6 +1980,10 @@ function classifyAccountCategory(name, types) {
   if (/fastener|screw|nail|\btool\b|\btools\b/.test(s)) return 'Construction Fasteners';
   if (/cornice|fascia|gutter/.test(s))                 return 'Cornice Contractor';
   if (/architect/.test(s))                             return 'Architect';
+  // "paint"/"paints" only — "painting" is a painting contractor, not a paint dealer.
+  if (/\bpaints?\b|paint_store/.test(s))              return 'Paint Dealer';
+  if (/concrete|ready.?mix/.test(s))                   return 'Concrete Company';
+  if (/\bsteel\b/.test(s))                            return 'Steel Company';
 
   // No product family. Lumber / building materials / hardware-home-improvement
   // stores → Building Materials Distributor. A generic supply/distribution/
