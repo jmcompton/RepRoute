@@ -248,7 +248,7 @@ router.put('/:id', async (req, res) => {
   if (data_status !== undefined) {
     add('data_status', data_status);
     if (data_status === 'Verified CRM Data') {
-      vals.push('NOW()');
+      // NOW() is inlined in SQL — no bound value (an unused $n makes Postgres reject the query).
       fields.push('verified_at=NOW()');
     }
   }
@@ -260,12 +260,17 @@ router.put('/:id', async (req, res) => {
 
   vals.push(id);
   vals.push(uid);
-  const result = await pool.query(
-    'UPDATE prospects SET ' + fields.join(', ') +
-    ' WHERE id=$' + (vals.length - 1) + ' AND user_id=$' + vals.length + ' RETURNING *',
-    vals
-  );
-  res.json(result.rows[0] || { error: 'Not found' });
+  try {
+    const result = await pool.query(
+      'UPDATE prospects SET ' + fields.join(', ') +
+      ' WHERE id=$' + (vals.length - 1) + ' AND user_id=$' + vals.length + ' RETURNING *',
+      vals
+    );
+    res.json(result.rows[0] || { error: 'Not found' });
+  } catch (err) {
+    console.error('[prospects] PUT error:', err.message);
+    res.status(500).json({ error: 'Failed to update account' });
+  }
 });
 
 // ── GET /api/prospects/:id ───────────────────────────────────────
