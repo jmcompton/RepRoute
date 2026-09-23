@@ -14,10 +14,18 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   const uid = req.session.user.id;
   const { prospect_id, call_date, call_type, outcome, products_discussed, next_step, next_step_date, notes } = req.body;
+  // client_ref: optional idempotency key from the offline call queue. A retry of a
+  // call the server already saved returns the saved row instead of logging it twice.
+  const client_ref = typeof req.body.client_ref === 'string' && req.body.client_ref ? req.body.client_ref.slice(0, 100) : null;
+  try {
+  if (client_ref) {
+    const dup = await pool.query('SELECT * FROM calls WHERE user_id=$1 AND client_ref=$2', [uid, client_ref]);
+    if (dup.rows.length) return res.json(dup.rows[0]);
+  }
   const result = await pool.query(
-    `INSERT INTO calls (user_id, prospect_id, call_date, call_type, outcome, products_discussed, next_step, next_step_date, notes)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-    [uid, prospect_id, call_date, call_type, outcome, products_discussed, next_step, next_step_date || null, notes]
+    `INSERT INTO calls (user_id, prospect_id, call_date, call_type, outcome, products_discussed, next_step, next_step_date, notes, client_ref)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+    [uid, prospect_id, call_date, call_type, outcome, products_discussed, next_step, next_step_date || null, notes, client_ref]
   );
   // Update prospect status if outcome provided
   if (outcome) {
@@ -49,6 +57,10 @@ router.post('/', async (req, res) => {
     [prospect_id, uid]
   );
   res.json(result.rows[0]);
+  } catch (err) {
+    console.error('[calls] POST error:', err.message);
+    res.status(500).json({ error: 'Failed to save call' });
+  }
 });
 
 router.get('/today', async (req, res) => {

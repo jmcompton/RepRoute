@@ -439,6 +439,38 @@ async function initDB() {
       updated_at TIMESTAMPTZ DEFAULT NOW()
     );
 
+    -- ── Tasks page ──────────────────────────────────────────────────
+    -- client_id = the task's old browser id, so the one-time upload of
+    -- localStorage tasks can be retried without duplicating.
+    CREATE TABLE IF NOT EXISTS tasks (
+      id         SERIAL PRIMARY KEY,
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      client_id  TEXT,
+      title      TEXT NOT NULL,
+      type       TEXT NOT NULL DEFAULT 'other',
+      contact    TEXT,
+      due        TEXT,
+      done       BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (user_id, client_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id, created_at DESC);
+
+    -- ── Keep-on-my-leads ────────────────────────────────────────────
+    -- Leads a rep kept on the Lead Finder after logging a call ("Called — follow up").
+    CREATE TABLE IF NOT EXISTS kept_leads (
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      lead_key   TEXT NOT NULL,
+      lead       JSONB NOT NULL,
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      PRIMARY KEY (user_id, lead_key)
+    );
+
+    -- Offline call queue idempotency key (route-stop call logging retries).
+    ALTER TABLE calls ADD COLUMN IF NOT EXISTS client_ref TEXT;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_calls_client_ref ON calls(user_id, client_ref) WHERE client_ref IS NOT NULL;
+
     -- ── Weekly Planner ─────────────────────────────────────────────
     -- Forward-looking plan: each rep plans stops + appointments per day.
     -- "visited" is NOT stored here — computed live from the calls table.

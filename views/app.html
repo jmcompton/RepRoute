@@ -4002,6 +4002,63 @@ window.KOL = (function () {
   function load(){ try { return JSON.parse(lsGet(KEPT_KEY) || '{}') || {}; } catch(e){ return {}; } }
   function save(m){ lsSet(KEPT_KEY, JSON.stringify(m)); }
 
+  // ── Server sync ──────────────────────────────────────────────────
+  // Kept leads are stored per user on the server (/api/kept-leads) so the list
+  // and badges show on every device. localStorage (KEPT_KEY) is the local copy
+  // the finder reads synchronously; OUTBOX_KEY holds changes not yet accepted by
+  // the server, flushed now and retried on load / foreground / reconnect.
+  var OUTBOX_KEY = 'repRoute_keptLeadsOutbox';
+  var SYNCED_KEY = 'repRoute_keptLeadsSynced';   // set once this browser's old list is uploaded
+  var _flushing = false;
+  function outbox(){ try { return JSON.parse(lsGet(OUTBOX_KEY) || '[]') || []; } catch(e){ return []; } }
+  function setOutbox(q){ lsSet(OUTBOX_KEY, JSON.stringify(q)); }
+  function enqueue(op){ var q = outbox(); q.push(op); setOutbox(q); flush(); }
+  function flush(){
+    if (_flushing) return Promise.resolve();
+    var q = outbox(); if (!q.length) return Promise.resolve();
+    _flushing = true;
+    return fetch('/api/kept-leads/sync', {
+      method:'POST', credentials:'same-origin', cache:'no-store',
+      headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ops: q })
+    }).then(function(r){
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      // Drop only what was sent — ops queued during the request stay.
+      setOutbox(outbox().slice(q.length));
+      lsSet(SYNCED_KEY, '1');
+    }).catch(function(){ /* stays queued */ })
+      .then(function(){ _flushing = false; });
+  }
+  // Pull the server list, re-apply local changes it hasn't seen yet, refresh badges.
+  function pull(){
+    // First run after this shipped: upload leads kept in this browser only.
+    if (!lsGet(SYNCED_KEY)) {
+      var local = load(), q = outbox();
+      Object.keys(local).forEach(function(k){ q.push({ op:'keep', key:k, lead: local[k] }); });
+      setOutbox(q);
+    }
+    return flush().then(function(){
+      return fetch('/api/kept-leads', { credentials:'same-origin', cache:'no-store' });
+    }).then(function(r){ return r.ok ? r.json() : null; }).then(function(serverMap){
+      if (!serverMap || !lsGet(SYNCED_KEY) && outbox().length) return;
+      var m = serverMap;
+      outbox().forEach(function(o){ if (o.op === 'remove') delete m[o.key]; else if (o.lead) m[o.key] = o.lead; });
+      save(m);
+      refreshBadges();
+    }).catch(function(){});
+  }
+  function refreshBadges(){
+    (window._dailyLeads || []).forEach(function(l, i){
+      var slot = document.getElementById('kol-badge-' + i);
+      if (!slot) return;
+      var e = isKept(l);
+      if (!e) { if (!l.kept && !l.called) slot.style.display = 'none'; return; }
+      var dStr = '';
+      if (e.last_call_date) { try { dStr = ' · ' + new Date(e.last_call_date + 'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}); } catch(_){} }
+      slot.style.display = '';
+      slot.textContent = 'Called — follow up' + dStr;
+    });
+  }
+
   // Record a lead as kept/called so it survives finder re-renders + fresh searches.
   function keep(lead, meta){
     var k = keyOf(lead); if (!k) return;
@@ -4010,9 +4067,10 @@ window.KOL = (function () {
     base.kept = true; base.called = true;
     base.last_call_date = (meta && meta.date) || (m[k] && m[k].last_call_date) || today();
     m[k] = base; save(m);
+    enqueue({ op:'keep', key:k, lead: base });
   }
   function isKept(lead){ var m = load(); var e = m[keyOf(lead)]; return e || null; }
-  function remove(lead){ var m = load(); delete m[keyOf(lead)]; save(m); }
+  function remove(lead){ var k = keyOf(lead); var m = load(); delete m[k]; save(m); if (k) enqueue({ op:'remove', key:k }); }
   function all(){ var m = load(); return Object.keys(m).map(function(k){ return m[k]; }); }
 
   // "Called — follow up" badge HTML for a lead (empty unless kept/called).
@@ -4047,9 +4105,13 @@ window.KOL = (function () {
     }
   }
 
+  window.addEventListener('load', function(){ setTimeout(pull, 1200); });
+  document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'visible') pull(); });
+  window.addEventListener('online', flush);
+
   return { pref: pref, setPref: setPref, sync: sync, keep: keep, isKept: isKept,
            remove: remove, all: all, keyOf: keyOf, norm: norm, badgeHtml: badgeHtml,
-           applyKeepForCompany: applyKeepForCompany };
+           applyKeepForCompany: applyKeepForCompany, pull: pull, flush: flush };
 })();
 </script>
 
@@ -7877,10 +7939,50 @@ async function loadAnalytics() {
 }
 
 // ── TASKS ────────────────────────────────────────────────────
-let tasks = JSON.parse(localStorage.getItem('reproute-tasks') || '[]');
+// Saved per user on the server (/api/tasks) so tasks show on every device.
+// 'reproute-tasks' is the old browser-only store — uploaded once, then removed.
+let tasks = [];
 let taskFilter = 'all';
+var _tasksLoaded = false;
 
-function saveTasks() { localStorage.setItem('reproute-tasks', JSON.stringify(tasks)); }
+function _taskApi(method, url, body) {
+  return fetch(url, {
+    method: method, credentials: 'same-origin', cache: 'no-store',
+    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined
+  }).then(function(r) {
+    return r.json().catch(function(){ return {}; }).then(function(d) {
+      if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+      return d;
+    });
+  });
+}
+
+// Upload tasks that were only ever saved in this browser. Safe to repeat —
+// the server ignores ones it already has (matched on their old id).
+function _migrateLocalTasks() {
+  var raw = null;
+  try { raw = localStorage.getItem('reproute-tasks'); } catch(e) {}
+  var old = [];
+  try { old = JSON.parse(raw || '[]') || []; } catch(e) {}
+  if (!old.length) return Promise.resolve();
+  return _taskApi('POST', '/api/tasks/import', { tasks: old }).then(function(d) {
+    try { localStorage.removeItem('reproute-tasks'); } catch(e) {}
+    if (d.imported) showToast(d.imported + ' task' + (d.imported === 1 ? '' : 's') + ' from this device synced');
+  });
+}
+
+function fetchTasks() {
+  return _migrateLocalTasks()
+    .catch(function(e) { console.warn('[tasks] upload of browser tasks failed, will retry:', e.message); })
+    .then(function() { return _taskApi('GET', '/api/tasks'); })
+    .then(function(list) { tasks = Array.isArray(list) ? list : []; _tasksLoaded = true; renderTasks(); })
+    .catch(function(e) {
+      console.error('[tasks] load failed:', e.message);
+      var el = document.getElementById('tasks-list');
+      if (el && !_tasksLoaded) el.innerHTML = '<div style="color:var(--text2);font-size:12px;padding:20px;text-align:center">Couldn\'t load tasks — check your connection and reopen this page.</div>';
+    });
+}
 
 function openAddTask() { document.getElementById('task-modal').style.display='flex'; }
 function closeTaskModal() { document.getElementById('task-modal').style.display='none'; }
@@ -7888,42 +7990,61 @@ function closeTaskModal() { document.getElementById('task-modal').style.display=
 function saveTask() {
   const title = document.getElementById('task-title').value.trim();
   if (!title) { alert('Task description required'); return; }
-  tasks.unshift({
-    id: Date.now(),
+  _taskApi('POST', '/api/tasks', {
     title,
     type: document.getElementById('task-type').value,
     contact: document.getElementById('task-contact').value.trim(),
     due: document.getElementById('task-due').value,
-    done: false,
-    created: new Date().toISOString()
+    done: false
+  }).then(function(t) {
+    tasks.unshift(t);
+    closeTaskModal();
+    document.getElementById('task-title').value='';
+    document.getElementById('task-contact').value='';
+    document.getElementById('task-due').value='';
+    renderTasks();
+    showToast('Task saved');
+  }).catch(function(e) {
+    showToast('Task not saved — ' + (navigator.onLine ? e.message : 'no connection') + '. Try again.');
   });
-  saveTasks();
-  closeTaskModal();
-  document.getElementById('task-title').value='';
-  document.getElementById('task-contact').value='';
-  document.getElementById('task-due').value='';
-  loadTasks();
 }
 
 function setTaskFilter(f, el) {
   taskFilter = f;
   document.querySelectorAll('#page-tasks .f-chip').forEach(b=>b.classList.remove('active'));
   el.classList.add('active');
-  loadTasks();
+  renderTasks();
 }
 
 function toggleTask(id) {
   const t = tasks.find(t=>t.id===id);
-  if (t) { t.done = !t.done; saveTasks(); loadTasks(); }
+  if (!t) return;
+  t.done = !t.done; renderTasks();
+  _taskApi('PUT', '/api/tasks/' + id, { done: t.done }).catch(function() {
+    t.done = !t.done; renderTasks();
+    showToast('Couldn\'t update task — check your connection');
+  });
 }
 
 function deleteTask(id) {
+  const before = tasks;
   tasks = tasks.filter(t=>t.id!==id);
-  saveTasks();
-  loadTasks();
+  renderTasks();
+  _taskApi('DELETE', '/api/tasks/' + id).catch(function() {
+    tasks = before; renderTasks();
+    showToast('Couldn\'t delete task — check your connection');
+  });
 }
 
+// Opening the Tasks page always pulls the latest from the server.
 function loadTasks() {
+  var el = document.getElementById('tasks-list');
+  if (_tasksLoaded) renderTasks();
+  else if (el) el.innerHTML = '<div style="color:var(--text2);font-size:12px;padding:20px;text-align:center">Loading tasks…</div>';
+  fetchTasks();
+}
+
+function renderTasks() {
   const today = new Date().toISOString().split('T')[0];
   let filtered = tasks;
   if (taskFilter==='due') filtered = tasks.filter(t=>!t.done && t.due===today);
@@ -10503,117 +10624,145 @@ window._saveRouteStopLog = function(stopIdx) {
   if (phone)       stop.phone   = phone;
   if (email)       stop.email   = email;
 
-  // Step 1: If stop has a known CRM id, update the prospect record
-  function logTheCall(prospectId) {
-    var callPayload = {
-      prospect_id:  prospectId,
-      outcome:      outcome,
-      notes:        notes || ('Drive Route call — ' + (stop.company||'')),
-      call_date:    new Date().toISOString().split('T')[0],
-      call_type:    'Outbound'
-    };
-    fetch('/api/calls', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(callPayload)
-    })
-    .then(function(r) { return r.json(); })
-    .then(function() {
-      // Update in-memory allProspects cache
-      if (typeof allProspects !== 'undefined' && prospectId) {
-        allProspects = allProspects.map(function(p) {
-          if (p.id === prospectId || p.id === parseInt(prospectId)) {
-            return Object.assign({}, p, updatePayload);
-          }
-          return p;
-        });
-      }
-      if (typeof loadCrmStats === 'function') loadCrmStats();
-      window._closeStopModal();
-      showToast('✓ Call logged for ' + (stop.company||'account'));
-    })
-    .catch(function(e) {
-      console.error('log call error:', e);
-      window._closeStopModal();
-      showToast('Call logged (CRM sync pending)');
-    });
-  }
-
-  var prospectId = stop.id && typeof stop.id === 'number' ? stop.id : parseInt(stop.id) || null;
-
-  if (prospectId && Object.keys(updatePayload).length > 1) {
-    // Update the prospect contact details first
-    fetch('/api/prospects/' + prospectId, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updatePayload)
-    })
-    .then(function(r) { return r.json(); })
-    .then(function() { logTheCall(prospectId); })
-    .catch(function() { logTheCall(prospectId); });
-  } else if (prospectId) {
-    logTheCall(prospectId);
-  } else {
-    // No CRM id yet — find or create the prospect first
-    fetch('/api/prospects?search=' + encodeURIComponent(stop.company || ''))
-    .then(function(r) { return r.json(); })
-    .then(function(recs) {
-      var match = recs.find(function(r) {
-        return (r.company||'').toLowerCase() === (stop.company||'').toLowerCase();
-      });
-      if (match) {
-        prospectId = match.id;
-        stop.id = match.id;
-        if (Object.keys(updatePayload).length > 1) {
-          return fetch('/api/prospects/' + prospectId, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(updatePayload)
-          }).then(function(){ logTheCall(prospectId); });
-        }
-        logTheCall(prospectId);
-      } else {
-        // Create a new prospect from the route stop data
-        var createPayload = {
-          company:   stop.company || 'Unknown',
-          category:  stop.category || stop.territory || '',
-          city:      stop.city || '',
-          address:   stop.address || '',
-          phone:     phone || stop.phone || null,
-          email:     email || null,
-          contact:   contactName || null,
-          status:    statusMap[outcome] || 'New',
-          data_status: 'Contacted',
-          source:    'Drive Route'
-        };
-        fetch('/api/prospects', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(createPayload)
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(newRec) {
-          stop.id = newRec.id;
-          prospectId = newRec.id;
-          // Add to allProspects cache
-          if (typeof allProspects !== 'undefined') {
-            allProspects.unshift(newRec);
-          }
-          logTheCall(prospectId);
-        })
-        .catch(function() {
-          window._closeStopModal();
-          showToast('Call saved locally — sync when online');
-        });
-      }
-    })
-    .catch(function() {
-      window._closeStopModal();
-      showToast('Call saved — CRM sync pending');
-    });
-  }
+  // Queue the call and try to send it now. Nothing says "saved" until the
+  // server confirms; if it fails the job stays queued and retries on its own.
+  var d = new Date();
+  var job = {
+    ref:   'rsc-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10),
+    queued_at: d.toISOString(),
+    prospectId: stop.id && typeof stop.id === 'number' ? stop.id : parseInt(stop.id) || null,
+    updatePayload: updatePayload,
+    createPayload: {
+      company:   stop.company || 'Unknown',
+      category:  stop.category || stop.territory || '',
+      city:      stop.city || '',
+      address:   stop.address || '',
+      phone:     phone || stop.phone || null,
+      email:     email || null,
+      contact:   contactName || null,
+      status:    statusMap[outcome] || 'New',
+      data_status: 'Contacted',
+      source:    'Drive Route'
+    },
+    call: {
+      outcome:   outcome,
+      notes:     notes || ('Drive Route call — ' + (stop.company||'')),
+      // Local date, fixed at logging time so a retry tomorrow keeps today's date.
+      call_date: d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'),
+      call_type: 'Outbound'
+    }
+  };
+  window.RouteCallQueue.add(job);
+  window.RouteCallQueue.run(job).then(function() {
+    window._closeStopModal();
+    showToast('✓ Call logged for ' + (stop.company||'account'));
+  }).catch(function() {
+    window._closeStopModal();
+    showToast('Not saved yet — no connection. Call is queued and will retry automatically.');
+  });
 };
 
+// ═══════════════════════════════════════════════════════════════════
+// ROUTE-STOP CALL QUEUE — calls logged from a route stop are kept in
+// localStorage until the server confirms them, and retried on load,
+// when the app comes back to the foreground, on reconnect, and every
+// 60s while anything is pending. Each job carries a client_ref so a retry
+// after a lost response never logs the call twice.
+// ═══════════════════════════════════════════════════════════════════
+window.RouteCallQueue = (function() {
+  var KEY = 'repRoute_callQueue';
+  var running = {};
+  function all() { try { return JSON.parse(localStorage.getItem(KEY) || '[]') || []; } catch(e) { return []; } }
+  function setAll(q) { try { localStorage.setItem(KEY, JSON.stringify(q)); } catch(e) {} }
+  function update(job) { setAll(all().map(function(j) { return j.ref === job.ref ? job : j; })); }
+  function drop(ref) { setAll(all().filter(function(j) { return j.ref !== ref; })); }
+  function add(job) { var q = all(); q.push(job); setAll(q); }
+
+  // fetch that rejects on non-2xx, a JSON {error}, or no response in 20s.
+  function req(method, url, body) {
+    var ctl = window.AbortController ? new AbortController() : null;
+    var t = ctl ? setTimeout(function() { ctl.abort(); }, 20000) : null;
+    return fetch(url, {
+      method: method, credentials: 'same-origin', cache: 'no-store', signal: ctl ? ctl.signal : undefined,
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function(r) {
+      if (t) clearTimeout(t);
+      return r.json().catch(function() { return null; }).then(function(data) {
+        if (!r.ok) { var e = new Error((data && data.error) || ('HTTP ' + r.status)); e.status = r.status; throw e; }
+        return data;
+      });
+    }, function(e) { if (t) clearTimeout(t); throw e; });
+  }
+
+  // Each step is saved back to the job, so a retry resumes where it stopped.
+  function steps(job) {
+    var p = Promise.resolve();
+    if (!job.prospectId) {
+      p = req('GET', '/api/prospects?search=' + encodeURIComponent(job.createPayload.company || '')).then(function(recs) {
+        var name = (job.createPayload.company || '').toLowerCase();
+        var match = (Array.isArray(recs) ? recs : []).find(function(r) { return (r.company||'').toLowerCase() === name; });
+        if (match) { job.prospectId = match.id; update(job); return; }
+        return req('POST', '/api/prospects', job.createPayload).then(function(rec) {
+          if (!rec || !rec.id) throw new Error('Account not created');
+          job.prospectId = rec.id; job.created = true; job.updated = true; update(job);
+          if (typeof allProspects !== 'undefined') allProspects.unshift(rec);
+        });
+      });
+    }
+    return p.then(function() {
+      if (job.updated || Object.keys(job.updatePayload || {}).length <= 1) return;
+      return req('PUT', '/api/prospects/' + job.prospectId, job.updatePayload).then(function(rec) {
+        if (rec && rec.error === 'Not found') {   // account was deleted — find/create it again next try
+          job.prospectId = null; update(job); throw new Error('Account not found');
+        }
+        job.updated = true; update(job);
+      });
+    }).then(function() {
+      var body = Object.assign({ prospect_id: job.prospectId, client_ref: job.ref }, job.call);
+      return req('POST', '/api/calls', body);
+    }).then(function() {
+      drop(job.ref);
+      // Reflect in memory: account list + the route stop's CRM id.
+      if (typeof allProspects !== 'undefined') {
+        allProspects = allProspects.map(function(p) {
+          return p.id === job.prospectId ? Object.assign({}, p, job.updatePayload) : p;
+        });
+      }
+      (window._routeStops || []).forEach(function(s) {
+        if (!s.id && (s.company||'').toLowerCase() === (job.createPayload.company||'').toLowerCase()) s.id = job.prospectId;
+      });
+      if (typeof loadCrmStats === 'function') loadCrmStats();
+    });
+  }
+
+  function run(job) {
+    if (running[job.ref]) return running[job.ref];
+    var p = steps(job);
+    running[job.ref] = p;
+    var clear = function() { delete running[job.ref]; };
+    p.then(clear, clear);
+    return p;
+  }
+
+  function retryAll() {
+    var q = all();
+    if (!q.length) return;
+    q.forEach(function(job) {
+      if (running[job.ref]) return;
+      run(job).then(function() {
+        showToast('✓ Queued call saved for ' + (job.createPayload.company || 'account'));
+      }).catch(function(e) { console.warn('[call-queue] retry failed for', job.createPayload.company, '—', e.message); });
+    });
+  }
+
+  window.addEventListener('load', function() { setTimeout(retryAll, 1500); });
+  window.addEventListener('online', retryAll);
+  document.addEventListener('visibilitychange', function() { if (document.visibilityState === 'visible') retryAll(); });
+  setInterval(function() { if (all().length) retryAll(); }, 60000);
+
+  return { add: add, run: run, retryAll: retryAll, pending: function() { return all().length; } };
+})();
 
 window._clearRoute = function() {
   window._routeStops = [];
@@ -13496,7 +13645,11 @@ document.addEventListener('click', function(e) {
   var ROUTE_KEY   = 'repRoute_routeStops';
   var ROUTE_TIME  = 'repRoute_routeTime';
   var TWO_HOURS   = 2 * 60 * 60 * 1000;
-  var EIGHT_HOURS = 8 * 60 * 60 * 1000;
+  // Route stops expire at local midnight (a route is for one day).
+  function isToday(ms) {
+    if (!ms || isNaN(ms)) return false;
+    return new Date(ms).toDateString() === new Date().toDateString();
+  }
 
   function safeGet(k)   { try { return localStorage.getItem(k);    } catch(e) { return null; } }
   function safeSet(k,v) { try { localStorage.setItem(k, v);        } catch(e) {} }
@@ -13646,7 +13799,7 @@ document.addEventListener('click', function(e) {
 
   window.restoreRouteCache = function() {
     var ts = safeGet(ROUTE_TIME);
-    if (!ts || (Date.now() - parseInt(ts)) > EIGHT_HOURS) {
+    if (!ts || !isToday(parseInt(ts))) {
       if (ts) { safeDel(ROUTE_KEY); safeDel(ROUTE_TIME); }
       return false;
     }
@@ -13674,7 +13827,7 @@ document.addEventListener('click', function(e) {
         if (!d.updated_at && local.length) safeSet(ROUTE_DIRTY, '1');
         if (safeGet(ROUTE_DIRTY)) { pushRouteToServer(); return; }
 
-        var fresh = d.updated_at && (Date.now() - Date.parse(d.updated_at)) <= EIGHT_HOURS;
+        var fresh = d.updated_at && isToday(Date.parse(d.updated_at));
         var serverStops = fresh ? (d.stops || []) : [];
         var json = JSON.stringify(serverStops);
         if (json === JSON.stringify(local)) return;

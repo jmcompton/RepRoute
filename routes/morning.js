@@ -193,17 +193,18 @@ const SEGMENT_SEARCH_CONFIG = {
     { query: 'spray foam roofing contractor', score: 8, category: 'Spray Foam Contractor' },
   ],
   // Division 10 specialty building products dealers/installers — toilet partitions,
-  // lockers, signage, fire extinguisher cabinets, wall protection, etc. The trade
-  // term + the two anchor products (partitions, lockers) return the actual Div 10
-  // houses; single-product searches ("signs", "fire extinguisher") return sign
-  // shops and fire-service companies, so those only appear inside combined queries.
+  // lockers, signage, fire extinguisher cabinets, wall protection, etc. Tuned against
+  // live Google results (Atlanta + Charlotte): toilet-partition/accessory terms return
+  // the actual Div 10 houses; "lockers" alone returns warehouse racking, and "fire
+  // extinguisher cabinets"/"signage" return fire-service companies and sign shops, so
+  // those aren't queried directly. "division 10" alone skews to generic GCs → last.
   'Division 10 Dealer': [
-    { query: 'division 10 specialties contractor', score: 10, category: 'Division 10 Dealer' },
     { query: 'toilet partitions and accessories distributor', score: 10, category: 'Division 10 Dealer' },
-    { query: 'building specialties toilet partitions lockers', score: 9, category: 'Division 10 Dealer' },
-    { query: 'commercial toilet partition installer', score: 9, category: 'Division 10 Dealer' },
-    { query: 'commercial lockers supplier installer', score: 8, category: 'Division 10 Dealer' },
-    { query: 'wall protection corner guards fire extinguisher cabinets', score: 8, category: 'Division 10 Dealer' },
+    { query: 'building specialties toilet partitions lockers', score: 10, category: 'Division 10 Dealer' },
+    { query: 'toilet accessories restroom partitions supplier', score: 9, category: 'Division 10 Dealer' },
+    { query: 'bathroom partitions commercial', score: 9, category: 'Division 10 Dealer' },
+    { query: 'commercial toilet partition installer', score: 8, category: 'Division 10 Dealer' },
+    { query: 'division 10 specialties contractor', score: 8, category: 'Division 10 Dealer' },
   ],
 };
 
@@ -216,8 +217,8 @@ const SEGMENT_RELEVANCE = {
     boost: /spray ?foam|\bspf\b|foam insulation|polyurethane|insulat/i,
   },
   'Division 10 Dealer': {
-    block: /fire (protection|equipment|safety|sprinkler)|fire (&|and) security|koorsen|cintas|sprinkler|extinguisher (service|sales|inspection)|locksmith|self.?storage|storage units?|mini.?storage|public storage|cubesmart|extra space|portable toilet|porta.?(john|potty)|restroom (trailer|rental)|plumb|bath(room)? remodel|shower|kitchen|\bgym\b|fitness|fastsigns|sign.?a.?rama|signarama|\bsign (shop|company)\b|banner|vinyl graphics|print/i,
-    boost: /specialt|division 10|div\.? ?10|partition|locker|toilet accessor|washroom|bath(room)? accessor|wall protection|architectural products|building products/i,
+    block: /\bfire\b|koorsen|cintas|sprinkler|extinguisher|locksmith|self.?storage|storage units?|mini.?storage|public storage|cubesmart|extra space|vaults?\b|warehouse|material handling|shelving|racking|\bbins?\b|portable toilet|porta.?(john|potty)|restroom (trailer|rental)|plumb|remodel|bath (fitter|center|planet|solutions)|\bbaths\b|home pros|majestic bath|west shore|home outlet|step through|walk.?in|shower|kitchen|glass|glazing|surplus|builders depot|renovate|general (contractors?|construction)|division (?!10\b)\d+|\bgym\b|fitness|fastsigns|sign.?a.?rama|signarama|\bsign (shop|company)\b|banner|vinyl graphics|print/i,
+    boost: /specialt|division 10|div\.? ?10|section 10|partition|restroom stall|locker|accessor|washroom|wall protection|architectural products|building products/i,
   },
 };
 
@@ -594,7 +595,8 @@ router.post('/daily-leads', async (req, res) => {
           // Basic validity checks
           if (!company) continue;
 
-          if (isResidentialRooferBlocked(place.displayName?.text || place.name || '', place.types || [], rawChannel)) { skippedResidential++; continue; }          if (place.businessStatus === 'CLOSED_PERMANENTLY') continue;
+          if (isResidentialRooferBlocked(company, place.types || [], rawChannel)) continue;
+          if (place.businessStatus === 'CLOSED_PERMANENTLY') continue;
           if (placeId && existingPlaceIds.has(placeId)) continue;
           if (existingNames.has(companyLower)) continue;
           if (sessionSeen.has(placeId || companyLower)) continue;
@@ -606,7 +608,6 @@ router.post('/daily-leads', async (req, res) => {
           if (isPaintBlocked(company, config.brand)) continue;
           // Hard block — never serve garage/overhead door companies for Window/Door segment
           if (isGarageDoorBlocked(company, rawChannel)) continue;
-          if (isResidentialRooferBlocked(company, rawChannel)) continue;
           // Hard block — never return heavy equipment / construction machinery companies
           if (isHeavyEquipmentBlocked(company, place.types || [])) continue;
           const relevance = SEGMENT_RELEVANCE[rawChannel];
