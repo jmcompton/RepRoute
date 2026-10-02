@@ -2,6 +2,7 @@ const express = require('express');
 const fetch = require('node-fetch');
 const { pool } = require('../db');
 const router = express.Router();
+const { resolveCompanyType } = require('./prospects');
 
 const CLAUDE_API = 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-sonnet-4-6';
@@ -441,15 +442,8 @@ router.post('/leads/save', async (req, res) => {
 
       if (isDup) continue; // skip duplicate
 
-      // Resolve company_type from category
-      function resolveType(cat) {
-        const distributorCats = ['Roofing Distributor','Decking Distributor','Siding Distributor','Window & Door Distributor'];
-        if (distributorCats.includes(cat)) return 'Distributor';
-        const lower = (cat||'').toLowerCase();
-        if (lower.includes('distributor')||lower.includes('dealer')||lower.includes('supply')||lower.includes('wholesale')) return 'Distributor';
-        return 'Contractor';
-      }
-      const company_type = resolveType(l.category);
+      // Resolve company_type from category (shared rules — see routes/prospects.js)
+      const company_type = resolveCompanyType(l.category);
       const data_status = l.data_status || 'Unvetted';
       const source_label = l.source || 'AI';
       const result = await pool.query(

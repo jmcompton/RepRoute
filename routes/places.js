@@ -1959,6 +1959,7 @@ const ACCOUNT_CATEGORIES = [
   'Roofing Contractor', 'Decking Contractor', 'Siding Contractor', 'Window & Door Installer',
   'Cornice Contractor', 'Construction Fasteners', 'Architect',
   'Spray Foam Contractor', 'Spray Foam Distributor', 'Paint Dealer', 'Concrete Company', 'Steel Company',
+  'Manufacturer', 'Paint Contractor', 'Paint and Insulation Company', 'Glass Shop',
 ];
 
 function classifyAccountCategory(name, types) {
@@ -1972,7 +1973,13 @@ function classifyAccountCategory(name, types) {
 
   // Product-family branches first — work for both contractors and distributors.
   // Spray foam before roofing so SPF roofers/insulators land in Spray Foam.
+  // Painting + insulation under one roof — before both the paint and spray foam rules.
+  if (/paint/.test(n) && /insulat|spray ?foam/.test(n))     return 'Paint and Insulation Company';
   if (/spray ?foam|\bspf\b|foam insulation/.test(s)) return distSignal ? 'Spray Foam Distributor' : 'Spray Foam Contractor';
+  // Glass/glazing before window/door: "ABC Glass & Mirror", "Metro Glass Windows & Doors".
+  // Auto glass is never a Glass Shop account.
+  if (/auto ?glass|windshield|car glass/.test(s))     return '';
+  if (/\bglass\b|glazing|glazier|mirror/.test(s))   return 'Glass Shop';
   if (/roof/.test(s))                                  return distSignal ? 'Roofing Distributor' : 'Roofing Contractor';
   if (/deck/.test(s))                                  return distSignal ? 'Decking Distributor' : 'Decking Contractor';
   if (/siding|cladding|fiber cement|hardie/.test(s))   return distSignal ? 'Siding Distributor' : 'Siding Contractor';
@@ -1980,8 +1987,10 @@ function classifyAccountCategory(name, types) {
   if (/fastener|screw|nail|\btool\b|\btools\b/.test(s)) return 'Construction Fasteners';
   if (/cornice|fascia|gutter/.test(s))                 return 'Cornice Contractor';
   if (/architect/.test(s))                             return 'Architect';
-  // "paint"/"paints" only — "painting" is a painting contractor, not a paint dealer.
+  // "painting"/"painters" → Paint Contractor; "paint"/"paints" → Paint Dealer.
+  if (/painting|painters?\b|painting_contractor/.test(s)) return 'Paint Contractor';
   if (/\bpaints?\b|paint_store/.test(s))              return 'Paint Dealer';
+  if (/manufactur|\bmfg\b|\bmfr\b/.test(s))          return 'Manufacturer';
   if (/concrete|ready.?mix/.test(s))                   return 'Concrete Company';
   if (/\bsteel\b/.test(s))                            return 'Steel Company';
 

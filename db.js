@@ -317,6 +317,11 @@ async function initDB() {
     ALTER TABLE prospects ADD COLUMN IF NOT EXISTS title  TEXT;
     ALTER TABLE prospects ADD COLUMN IF NOT EXISTS mobile TEXT;
     ALTER TABLE prospects ADD COLUMN IF NOT EXISTS zip    TEXT;
+    -- Street-address geocode (set when an account's address is saved) so the
+    -- planner can place it precisely instead of at its city centroid.
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION;
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION;
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS geocoded_at TIMESTAMPTZ;
     -- Phone-enrichment attempt marker: set whenever Places enrichment runs for an
     -- account (success OR miss) so unmatchable businesses leave the "missing phone"
     -- queue instead of being retried forever. Re-eligible after ~30 days.
@@ -489,7 +494,9 @@ async function initDB() {
     CREATE INDEX IF NOT EXISTS idx_planner_items_rep_date ON planner_items(rep_id, planned_date);
 
     -- Weekly Planner AI assist: provenance + AI annotations (nullable, additive).
-    ALTER TABLE planner_items ADD COLUMN IF NOT EXISTS source    TEXT DEFAULT 'manual';  -- 'manual' | 'ai'
+    ALTER TABLE planner_items ADD COLUMN IF NOT EXISTS source    TEXT DEFAULT 'manual';  -- 'manual' | 'ai' | 'route'
+    -- Today's Route → planner sync: identifies which route stop a 'route' item came from.
+    ALTER TABLE planner_items ADD COLUMN IF NOT EXISTS route_key TEXT;
     ALTER TABLE planner_items ADD COLUMN IF NOT EXISTS ai_reason TEXT;
     ALTER TABLE planner_items ADD COLUMN IF NOT EXISTS ai_prep   TEXT;
 

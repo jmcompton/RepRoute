@@ -1748,6 +1748,9 @@ window.addEventListener('load', function() {
             <label style="cursor:pointer;background:#e0e7ff;color:#3730a3;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;user-select:none;border:1.5px solid #a5b4fc">
               <input type="checkbox" name="seg" value="Division 10 Dealer" style="margin:0;accent-color:#3730a3"> Division 10 Dealers
             </label>
+            <label style="cursor:pointer;background:#cffafe;color:#0e7490;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;user-select:none;border:1.5px solid #67e8f9">
+              <input type="checkbox" name="seg" value="Glass Shop" style="margin:0;accent-color:#0e7490"> Glass Shops
+            </label>
           </div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -1879,6 +1882,7 @@ window.addEventListener('load', function() {
         <option value="All">All Types</option>
         <option value="Distributor">Distributor</option>
         <option value="Contractor">Contractor</option>
+        <option value="Manufacturer">Manufacturer</option>
       </select>
       <select id="filter-data-status" onchange="handleContactSearch()" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:#fff;color:var(--navy)">
         <option value="All">All Data Status</option>
@@ -1953,6 +1957,10 @@ window.addEventListener('load', function() {
           <option value="Paint Dealer">Paint Dealer</option>
           <option value="Concrete Company">Concrete Company</option>
           <option value="Steel Company">Steel Company</option>
+          <option value="Manufacturer">Manufacturer</option>
+          <option value="Paint Contractor">Paint Contractor</option>
+          <option value="Paint and Insulation Company">Paint and Insulation Company</option>
+          <option value="Glass Shop">Glass Shop</option>
         </select>
         <span id="team-showing-count" style="font-size:11px;color:var(--text3)"></span>
       </div>
@@ -1986,7 +1994,11 @@ window.addEventListener('load', function() {
             <div onclick="selectTeamFilterSheet('Spray Foam Distributor')" class="tfs-opt" style="padding:14px 20px;font-size:14px;cursor:pointer;color:#0f1a2e;border-bottom:1px solid #f9fafb;display:flex;align-items:center;justify-content:space-between">Spray Foam Distributor</div>
             <div onclick="selectTeamFilterSheet('Paint Dealer')" class="tfs-opt" style="padding:14px 20px;font-size:14px;cursor:pointer;color:#0f1a2e;border-bottom:1px solid #f9fafb;display:flex;align-items:center;justify-content:space-between">Paint Dealer</div>
             <div onclick="selectTeamFilterSheet('Concrete Company')" class="tfs-opt" style="padding:14px 20px;font-size:14px;cursor:pointer;color:#0f1a2e;border-bottom:1px solid #f9fafb;display:flex;align-items:center;justify-content:space-between">Concrete Company</div>
-            <div onclick="selectTeamFilterSheet('Steel Company')" class="tfs-opt" style="padding:14px 20px;font-size:14px;cursor:pointer;color:#0f1a2e;display:flex;align-items:center;justify-content:space-between">Steel Company</div>
+            <div onclick="selectTeamFilterSheet('Steel Company')" class="tfs-opt" style="padding:14px 20px;font-size:14px;cursor:pointer;color:#0f1a2e;border-bottom:1px solid #f9fafb;display:flex;align-items:center;justify-content:space-between">Steel Company</div>
+            <div onclick="selectTeamFilterSheet('Manufacturer')" class="tfs-opt" style="padding:14px 20px;font-size:14px;cursor:pointer;color:#0f1a2e;border-bottom:1px solid #f9fafb;display:flex;align-items:center;justify-content:space-between">Manufacturer</div>
+            <div onclick="selectTeamFilterSheet('Paint Contractor')" class="tfs-opt" style="padding:14px 20px;font-size:14px;cursor:pointer;color:#0f1a2e;border-bottom:1px solid #f9fafb;display:flex;align-items:center;justify-content:space-between">Paint Contractor</div>
+            <div onclick="selectTeamFilterSheet('Paint and Insulation Company')" class="tfs-opt" style="padding:14px 20px;font-size:14px;cursor:pointer;color:#0f1a2e;border-bottom:1px solid #f9fafb;display:flex;align-items:center;justify-content:space-between">Paint and Insulation Company</div>
+            <div onclick="selectTeamFilterSheet('Glass Shop')" class="tfs-opt" style="padding:14px 20px;font-size:14px;cursor:pointer;color:#0f1a2e;display:flex;align-items:center;justify-content:space-between">Glass Shop</div>
           </div>
         </div>
       </div>
@@ -3725,14 +3737,20 @@ window.addEventListener('load', function() {
           <option value="Paint Dealer">Paint Dealer</option>
           <option value="Concrete Company">Concrete Company</option>
           <option value="Steel Company">Steel Company</option>
+          <option value="Manufacturer">Manufacturer</option>
+          <option value="Paint Contractor">Paint Contractor</option>
+          <option value="Paint and Insulation Company">Paint and Insulation Company</option>
+          <option value="Glass Shop">Glass Shop</option>
         </optgroup>
         <option value="Architect">Architect</option>
       </select></div>
-      <div class="fg"><label>City</label><input type="text" id="ap-city" placeholder="Atlanta" /></div>
-    </div>
-    <div class="g2">
-      <div class="fg"><label>State</label><input type="text" id="ap-state" placeholder="GA" maxlength="2" /></div>
       <div class="fg"><label>Business Phone</label><input type="text" id="ap-phone" /></div>
+    </div>
+    <div class="fg"><label>Street Address</label><input type="text" id="ap-street" placeholder="123 Main St" autocomplete="street-address" /></div>
+    <div class="g3">
+      <div class="fg"><label>City</label><input type="text" id="ap-city" placeholder="Atlanta" /></div>
+      <div class="fg"><label>State</label><input type="text" id="ap-state" placeholder="GA" maxlength="2" /></div>
+      <div class="fg"><label>Zip</label><input type="text" id="ap-zip" placeholder="30303" maxlength="10" inputmode="numeric" /></div>
     </div>
     <!-- People (contact name/email) are added later via the account's Contacts tab,
          not on this business-only form. -->
@@ -3775,9 +3793,14 @@ window.addEventListener('load', function() {
     <input type="hidden" id="ep-id" />
     <div class="fg"><label>Company Name *</label><input type="text" id="ep-name" /></div>
     <div class="g2">
-      <div class="fg"><label>Category</label><select id="ep-cat"><option value="Deck Contractor">Deck Contractor</option><option value="Window & Door Installer">Window/Door</option><option value="Commercial Roofing Contractor">Roofing</option><option value="Building Material Dealer">Dealer</option><option value="Building Products Distributor">Distributor</option><option value="Spray Foam Contractor">Spray Foam Contractor</option><option value="Spray Foam Distributor">Spray Foam Distributor</option><option value="Paint Dealer">Paint Dealer</option><option value="Concrete Company">Concrete Company</option><option value="Steel Company">Steel Company</option>
+      <div class="fg"><label>Category</label><select id="ep-cat"><option value="Deck Contractor">Deck Contractor</option><option value="Window & Door Installer">Window/Door</option><option value="Commercial Roofing Contractor">Roofing</option><option value="Building Material Dealer">Dealer</option><option value="Building Products Distributor">Distributor</option><option value="Spray Foam Contractor">Spray Foam Contractor</option><option value="Spray Foam Distributor">Spray Foam Distributor</option><option value="Paint Dealer">Paint Dealer</option><option value="Concrete Company">Concrete Company</option><option value="Steel Company">Steel Company</option><option value="Manufacturer">Manufacturer</option><option value="Paint Contractor">Paint Contractor</option><option value="Paint and Insulation Company">Paint and Insulation Company</option><option value="Glass Shop">Glass Shop</option>
                 <option value="Construction Equipment Supplier">Construction Equipment Supplier</option><option value="Architect">Architect</option></select></div>
+    </div>
+    <div class="fg"><label>Street Address</label><input type="text" id="ep-street" autocomplete="street-address" /></div>
+    <div class="g3">
       <div class="fg"><label>City</label><input type="text" id="ep-city" /></div>
+      <div class="fg"><label>State</label><input type="text" id="ep-state" maxlength="2" /></div>
+      <div class="fg"><label>Zip</label><input type="text" id="ep-zip" maxlength="10" inputmode="numeric" /></div>
     </div>
     <div class="g2">
       <div class="fg"><label>Contact Name</label><input type="text" id="ep-contact" /></div>
@@ -3884,6 +3907,10 @@ window.addEventListener('load', function() {
             <option value="Paint Dealer">Paint Dealer</option>
             <option value="Concrete Company">Concrete Company</option>
             <option value="Steel Company">Steel Company</option>
+            <option value="Manufacturer">Manufacturer</option>
+            <option value="Paint Contractor">Paint Contractor</option>
+            <option value="Paint and Insulation Company">Paint and Insulation Company</option>
+            <option value="Glass Shop">Glass Shop</option>
           </optgroup>
           <option value="Architect">Architect</option>
         </select>
@@ -5219,6 +5246,7 @@ function loadAccountContacts(accountId) {
     .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(function(rows){
       if (!Array.isArray(rows)) rows = [];
+      window._recContacts = rows;
       if (sumEl) sumEl.textContent = rows.length + ' contact' + (rows.length !== 1 ? 's' : '');
       if (!rows.length) {
         listEl.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:20px">No contacts yet. Tap “+ Add Contact” to add one.</div>';
@@ -5227,7 +5255,7 @@ function loadAccountContacts(accountId) {
       var esc = function(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
       listEl.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:12px">' +
         '<thead><tr style="border-bottom:2px solid var(--border)">' +
-        ['Name','Title','Phone','Email','Status'].map(function(h){ return '<th style="padding:6px 8px;text-align:left;font-weight:600;color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:.04em">'+h+'</th>'; }).join('') +
+        ['Name','Title','Phone','Email','Status',''].map(function(h){ return '<th style="padding:6px 8px;text-align:left;font-weight:600;color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:.04em">'+h+'</th>'; }).join('') +
         '</tr></thead><tbody>' +
         rows.map(function(c){
           var phone = c.phone ? '<a href="tel:'+esc(c.phone)+'" onclick="event.stopPropagation()" style="color:var(--accent);text-decoration:none">'+esc(c.phone)+'</a>' : '—';
@@ -5238,6 +5266,10 @@ function loadAccountContacts(accountId) {
             '<td style="padding:8px;color:var(--text2)">'+phone+'</td>' +
             '<td style="padding:8px;color:var(--text2)">'+email+'</td>' +
             '<td style="padding:8px"><span class="badge b-'+esc((c.status||'new').toLowerCase())+'">'+esc(c.status||'New')+'</span></td>' +
+            '<td style="padding:4px 8px;white-space:nowrap;text-align:right">' +
+              '<button onclick="editAccountContact('+c.id+')" title="Edit contact" style="min-height:32px;padding:4px 10px;background:transparent;border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;color:var(--navy);cursor:pointer;font-family:inherit">Edit</button> ' +
+              '<button onclick="deleteAccountContact('+c.id+')" title="Delete contact" style="min-height:32px;padding:4px 10px;background:transparent;border:1px solid #fecaca;border-radius:6px;font-size:12px;font-weight:600;color:#b91c1c;cursor:pointer;font-family:inherit">Delete</button>' +
+            '</td>' +
           '</tr>';
         }).join('') +
         '</tbody></table>';
@@ -5257,6 +5289,11 @@ function toggleAddContactForm(show) {
   var willShow = (show === undefined) ? (form.style.display === 'none') : !!show;
   form.style.display = willShow ? 'block' : 'none';
   if (btn) btn.textContent = willShow ? '× Cancel' : '+ Add Contact';
+  // Opening/closing the form always returns it to "add" mode; editAccountContact
+  // switches it to edit mode after calling this.
+  window._editingContactId = null;
+  var saveBtnEl = document.getElementById('rec-ct-save');
+  if (saveBtnEl) saveBtnEl.textContent = 'Save Contact';
   if (willShow) {
     ['rec-ct-name','rec-ct-title','rec-ct-phone','rec-ct-email'].forEach(function(id){ var e=document.getElementById(id); if(e) e.value=''; });
     var st = document.getElementById('rec-ct-status'); if (st) st.value = 'New';
@@ -5274,22 +5311,58 @@ function submitAccountContact() {
   var saveBtn = document.getElementById('rec-ct-save');
   if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
   function val(id){ var e=document.getElementById(id); return (e && e.value || '').trim(); }
-  fetch('/api/prospects/' + accountId + '/contacts', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
+  var editingId = window._editingContactId;
+  fetch('/api/prospects/' + accountId + '/contacts' + (editingId ? '/' + editingId : ''), {
+    method: editingId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: name, title: val('rec-ct-title'), phone: val('rec-ct-phone'), email: val('rec-ct-email'), status: val('rec-ct-status') || 'New' })
   })
     .then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
     .then(function(res){
-      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Contact'; }
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = editingId ? 'Save Changes' : 'Save Contact'; }
       if (!res.ok) { showToast((res.j && res.j.error) || 'Could not save contact'); return; }
       toggleAddContactForm(false);
-      showToast('Contact added');
+      showToast(editingId ? 'Contact updated' : 'Contact added');
       loadAccountContacts(accountId);
     })
     .catch(function(){
-      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Contact'; }
-      showToast('Could not save contact');
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = editingId ? 'Save Changes' : 'Save Contact'; }
+      showToast('Could not save contact — check your connection');
     });
+}
+
+// Open the contact form pre-filled to edit an existing contact.
+function editAccountContact(cid) {
+  var c = (window._recContacts || []).find(function(x){ return x.id === cid; });
+  if (!c) return;
+  toggleAddContactForm(true);
+  window._editingContactId = cid;
+  function set(id, v){ var e=document.getElementById(id); if (e) e.value = v || ''; }
+  set('rec-ct-name', c.name); set('rec-ct-title', c.title); set('rec-ct-phone', c.phone); set('rec-ct-email', c.email);
+  var st = document.getElementById('rec-ct-status');
+  if (st) {
+    if (c.status && !Array.prototype.some.call(st.options, function(o){ return o.value === c.status; })) st.add(new Option(c.status, c.status));
+    st.value = c.status || 'New';
+  }
+  var saveBtn = document.getElementById('rec-ct-save'); if (saveBtn) saveBtn.textContent = 'Save Changes';
+  var form = document.getElementById('rec-add-contact-form');
+  if (form && form.scrollIntoView) form.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+// Delete a contact after confirming.
+function deleteAccountContact(cid) {
+  var accountId = window._recAccountId;
+  var c = (window._recContacts || []).find(function(x){ return x.id === cid; });
+  if (!accountId || !c) return;
+  if (!confirm('Delete contact ' + (c.name || '') + '? This can\'t be undone.')) return;
+  fetch('/api/prospects/' + accountId + '/contacts/' + cid, { method: 'DELETE' })
+    .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(j){ return { ok: r.ok, j: j }; }); })
+    .then(function(res){
+      if (!res.ok) { showToast((res.j && res.j.error) || 'Could not delete contact'); return; }
+      if (window._editingContactId === cid) toggleAddContactForm(false);
+      showToast('Contact deleted');
+      loadAccountContacts(accountId);
+    })
+    .catch(function(){ showToast('Could not delete contact — check your connection'); });
 }
 
 // Lines this account buys — built from confirmed commission data (account_lines).
@@ -5433,6 +5506,8 @@ function _todayDateLabel(ymd) {
 function _todayNavUrl(s) {
   if (s.google_place_id) return 'https://www.google.com/maps/place/?q=place_id:' + encodeURIComponent(s.google_place_id);
   var dest = s.address || ((s.company || '') + (s.city ? ', ' + s.city : ''));
+  // Geocoded street address → navigate to the exact point.
+  if (s.lat != null && s.lng != null && !s.address) dest = s.lat + ',' + s.lng;
   return 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(dest);
 }
 function _todayReasonTag(kind, reason) {
@@ -6355,16 +6430,57 @@ function runRecordAI() {
     .then(function(d) { resp.innerHTML = (d.response||d.error||'').replace(/\n/g,'<br/>'); });
 }
 
+// ── Account address helpers ─────────────────────────────────────
+// prospects.address holds the FULL one-line address ("123 Main St, Atlanta, GA 30303")
+// — same shape Lead Finder / Google Places saves — so maps links + the planner work
+// unchanged. city/state/zip also live in their own columns. The forms edit the
+// street on its own and recompose.
+function composeAddress(street, city, state, zip) {
+  street = (street || '').trim(); city = (city || '').trim();
+  state = (state || '').trim().toUpperCase(); zip = (zip || '').trim();
+  if (!street) return '';
+  var tail = [state, zip].filter(Boolean).join(' ');
+  return [street, city, tail].filter(Boolean).join(', ');
+}
+// "123 Main St NW, Atlanta, GA 30318, USA" → { street, city, state, zip }
+function parseAddressParts(full) {
+  var out = { street: '', city: '', state: '', zip: '' };
+  var parts = String(full || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean);
+  if (parts.length && /^(usa|us|united states)$/i.test(parts[parts.length - 1])) parts.pop();
+  if (parts.length >= 3) {
+    var m = parts[parts.length - 1].match(/^([A-Za-z]{2})(?:\s+(\d{5}(?:-\d{4})?))?$/);
+    if (m) {
+      out.state = m[1].toUpperCase(); out.zip = m[2] || '';
+      out.city = parts[parts.length - 2];
+      out.street = parts.slice(0, -2).join(', ');
+      return out;
+    }
+  }
+  // "Marietta, GA" / "Marietta, GA 30060" — city + state only, no street.
+  if (parts.length === 2) {
+    var m2 = parts[1].match(/^([A-Za-z]{2})(?:\s+(\d{5}(?:-\d{4})?))?$/);
+    if (m2) { out.city = parts[0]; out.state = m2[1].toUpperCase(); out.zip = m2[2] || ''; return out; }
+  }
+  out.street = parts.join(', ');
+  return out;
+}
+
 function addProspect() {
   var name = document.getElementById('ap-name').value.trim();
   if (!name) { showToast('Company name required'); return; }
+  var apCity  = document.getElementById('ap-city').value.trim();
+  var apState = ((document.getElementById('ap-state') || {value:''}).value || 'GA').trim().toUpperCase();
+  var apZip   = (document.getElementById('ap-zip') || {value:''}).value.trim();
+  var apStreet = (document.getElementById('ap-street') || {value:''}).value.trim();
   fetch('/api/prospects', {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({
       company: name,
       category: document.getElementById('ap-cat').value,
-      city: document.getElementById('ap-city').value,
-      state: (document.getElementById('ap-state') || {value:''}).value || 'GA',
+      address: composeAddress(apStreet, apCity, apState, apZip) || null,
+      city: apCity,
+      state: apState,
+      zip: apZip || null,
       phone: document.getElementById('ap-phone').value,
       website: document.getElementById('ap-website').value,
       products: document.getElementById('ap-products').value,
@@ -6375,15 +6491,18 @@ function addProspect() {
       manufacturer_assoc: (document.getElementById('ap-mfr') || {value:''}).value || null,
       source: 'Manual'
     })
-  }).then(function() {
+  }).then(function(r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
     closeModal('add-prospect'); loadProspects(); loadDashboard(); showToast('Account saved!');
-    ['ap-name','ap-city','ap-state','ap-phone','ap-website','ap-products','ap-notes','ap-mfr'].forEach(function(id) {
+    ['ap-name','ap-street','ap-city','ap-state','ap-zip','ap-phone','ap-website','ap-products','ap-notes','ap-mfr'].forEach(function(id) {
       var el = document.getElementById(id); if (el) el.value = '';
     });
     var dsEl = document.getElementById('ap-data-status');
     if (dsEl) dsEl.value = 'Unvetted';
     var aiStatus = document.getElementById('ap-ai-status');
     if (aiStatus) { aiStatus.style.display = 'none'; aiStatus.textContent = ''; }
+  }).catch(function() {
+    showToast('Account not saved — check your connection and try again');
   });
 }
 
@@ -6462,8 +6581,11 @@ function applyAiLookup(r) {
       filled++;
     }
   }
-  setVal('ap-city', r.city);
-  setVal('ap-state', r.state);
+  var addr = parseAddressParts(r.address);
+  setVal('ap-street', addr.street);
+  setVal('ap-city', r.city || addr.city);
+  setVal('ap-state', r.state || addr.state);
+  setVal('ap-zip', addr.zip);
   setVal('ap-phone', r.phone);     // business phone (formatted)
   setVal('ap-website', r.website);
   return filled;
@@ -7571,7 +7693,11 @@ function addRep() {
 function openEditContact(p) {
   document.getElementById('ep-id').value = p.id;
   document.getElementById('ep-name').value = p.company || '';
-  document.getElementById('ep-city').value = p.city || '';
+  var epAddr = parseAddressParts(p.address);
+  document.getElementById('ep-street').value = epAddr.street || '';
+  document.getElementById('ep-city').value = p.city || epAddr.city || '';
+  document.getElementById('ep-state').value = p.state || epAddr.state || '';
+  document.getElementById('ep-zip').value = p.zip || epAddr.zip || '';
   document.getElementById('ep-contact').value = p.contact || '';
   document.getElementById('ep-phone').value = p.phone || '';
   document.getElementById('ep-email').value = p.email || '';
@@ -7609,7 +7735,12 @@ function saveEditContact() {
   var data = {
     company: document.getElementById('ep-name').value.trim(),
     category: document.getElementById('ep-cat').value,
-    city: document.getElementById('ep-city').value,
+    city: document.getElementById('ep-city').value.trim(),
+    state: document.getElementById('ep-state').value.trim().toUpperCase(),
+    zip: document.getElementById('ep-zip').value.trim(),
+    address: composeAddress(document.getElementById('ep-street').value,
+      document.getElementById('ep-city').value, document.getElementById('ep-state').value,
+      document.getElementById('ep-zip').value),
     contact: document.getElementById('ep-contact').value,
     phone: document.getElementById('ep-phone').value,
     email: document.getElementById('ep-email').value,
@@ -10635,7 +10766,9 @@ window._saveRouteStopLog = function(stopIdx) {
     createPayload: {
       company:   stop.company || 'Unknown',
       category:  stop.category || stop.territory || '',
-      city:      stop.city || '',
+      city:      stop.city || parseAddressParts(stop.address).city || '',
+      state:     stop.state || parseAddressParts(stop.address).state || '',
+      zip:       parseAddressParts(stop.address).zip || '',
       address:   stop.address || '',
       phone:     phone || stop.phone || null,
       email:     email || null,
@@ -10652,14 +10785,53 @@ window._saveRouteStopLog = function(stopIdx) {
       call_type: 'Outbound'
     }
   };
-  window.RouteCallQueue.add(job);
-  window.RouteCallQueue.run(job).then(function() {
-    window._closeStopModal();
-    showToast('✓ Call logged for ' + (stop.company||'account'));
-  }).catch(function() {
-    window._closeStopModal();
-    showToast('Not saved yet — no connection. Call is queued and will retry automatically.');
-  });
+  function resetSaveBtn() { if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save to CRM'; } }
+  function queueAndRun() {
+    window.RouteCallQueue.add(job);
+    window.RouteCallQueue.run(job).then(function() {
+      window._closeStopModal();
+      showToast('✓ Call logged for ' + (stop.company||'account') + (job.created ? ' — new account created' : ''));
+    }).catch(function() {
+      window._closeStopModal();
+      showToast('Not saved yet — no connection. Call is queued and will retry automatically.');
+    });
+  }
+
+  if (job.prospectId) { queueAndRun(); return; }
+
+  // No CRM id on this stop — look for an existing account (phone, then name +
+  // city) before logging. Only create one if the rep says so.
+  var cp = job.createPayload;
+  fetch('/api/prospects/match?phone=' + encodeURIComponent(cp.phone || '') +
+        '&company=' + encodeURIComponent(cp.company || '') + '&city=' + encodeURIComponent(cp.city || ''),
+        { credentials: 'same-origin', cache: 'no-store' })
+    .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(m) {
+      if (m && m.account && m.account.id) {
+        job.prospectId = m.account.id;
+        stop.id = m.account.id;
+        queueAndRun();
+        return;
+      }
+      if (!confirm('No account found for ' + cp.company + '. Create one?')) {
+        resetSaveBtn();
+        showToast('Call not logged — no account created');
+        return;
+      }
+      job.createIfMissing = true;
+      queueAndRun();
+    })
+    .catch(function() {
+      // Offline: can't check yet. The queue matches first when it sends, so
+      // this only creates an account if none exists by then.
+      if (!confirm('No connection — can\'t check for an existing account for ' + cp.company +
+                   '.\n\nLog the call anyway? It will attach to a matching account when you\'re back online, or create a new one if none exists.')) {
+        resetSaveBtn();
+        return;
+      }
+      job.createIfMissing = true;
+      queueAndRun();
+    });
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -10699,15 +10871,17 @@ window.RouteCallQueue = (function() {
   function steps(job) {
     var p = Promise.resolve();
     if (!job.prospectId) {
-      p = req('GET', '/api/prospects?search=' + encodeURIComponent(job.createPayload.company || '')).then(function(recs) {
-        var name = (job.createPayload.company || '').toLowerCase();
-        var match = (Array.isArray(recs) ? recs : []).find(function(r) { return (r.company||'').toLowerCase() === name; });
-        if (match) { job.prospectId = match.id; update(job); return; }
-        return req('POST', '/api/prospects', job.createPayload).then(function(rec) {
-          if (!rec || !rec.id) throw new Error('Account not created');
-          job.prospectId = rec.id; job.created = true; job.updated = true; update(job);
+      // Server matches on phone, then name + city, and only creates when nothing
+      // matches — so a retry after a lost response finds the account it made.
+      p = req('POST', '/api/prospects/match-or-create', job.createPayload).then(function(d) {
+        var rec = d && d.account;
+        if (!rec || !rec.id) throw new Error('Account not created');
+        job.prospectId = rec.id;
+        if (d.created) {
+          job.created = true; job.updated = true;   // created with the latest contact info
           if (typeof allProspects !== 'undefined') allProspects.unshift(rec);
-        });
+        }
+        update(job);
       });
     }
     return p.then(function() {
@@ -11037,7 +11211,8 @@ window.runDailyLeads = function() {
           'Cornice Contractor':      { bg:'#ccfbf1', color:'#0f766e' },
           'Construction Fasteners':  { bg:'#d1fae5', color:'#065f46' },
           'Spray Foam Contractor':   { bg:'#fce7f3', color:'#9d174d' },
-          'Division 10 Dealer':      { bg:'#e0e7ff', color:'#3730a3' }
+          'Division 10 Dealer':      { bg:'#e0e7ff', color:'#3730a3' },
+          'Glass Shop':              { bg:'#cffafe', color:'#0e7490' }
         };
         var sc = segColors[seg] || { bg:'#f1f5f9', color:'#64748b' };
         var segBadge = '<span style="background:' + sc.bg + ';color:' + sc.color + ';font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px">' + (seg || lead.category || '') + '</span>';
@@ -13779,7 +13954,8 @@ document.addEventListener('click', function(e) {
       fetch('/api/route-stops', {
         method: 'PUT', credentials: 'same-origin', cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stops: stops })
+        // planner_date: the server mirrors the route into today's Weekly Planner.
+        body: JSON.stringify({ stops: stops, planner_date: (function(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); })(new Date()) })
       }).then(function(r) {
         if (r.ok) safeDel(ROUTE_DIRTY);
       }).catch(function() { /* offline — stays dirty, retried on next sync */ });

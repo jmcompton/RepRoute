@@ -548,6 +548,14 @@ async function geocodeCity(city) {
   return coords;
 }
 
+// Best coords for an account: its geocoded street address when saved, else its
+// city centroid. Accepts rows/candidates with lat/lng and/or area|city.
+async function coordsFor(x) {
+  if (x && x.lat != null && x.lng != null) return { lat: Number(x.lat), lng: Number(x.lng) };
+  const city = x && (x.area || x.city);
+  return city ? await geocodeCity(city) : null;
+}
+
 // Is `cand` (with .area = its city) within `radiusMi` of an anchor?
 // Strict same-city fallback when either side has no geocode.
 function withinRadius(anchor, cand, radiusMi) {
@@ -613,7 +621,7 @@ async function gatherRankedCandidates(repId, excludeAccountIds) {
   // Tier 1 (commission, by run_rate) + Tier 2 (leads). One pass over the rep's
   // open prospects with a commission rollup; reconnect ids already captured above.
   const rows = (await pool.query(
-    `SELECT p.id, p.company, p.city, p.address,
+    `SELECT p.id, p.company, p.city, p.address, p.lat, p.lng,
             COALESCE(SUM(al.total_commission), 0) AS commission,
             COUNT(DISTINCT cl.period_start)        AS months_loaded
        FROM prospects p
@@ -621,7 +629,7 @@ async function gatherRankedCandidates(repId, excludeAccountIds) {
        LEFT JOIN commission_lines cl ON cl.account_id = p.id
       WHERE p.user_id = $1
         AND COALESCE(p.pipeline_stage,'') NOT IN ('Closed Won','Closed Lost')
-      GROUP BY p.id, p.company, p.city, p.address`,
+      GROUP BY p.id, p.company, p.city, p.address, p.lat, p.lng`,
     [repId]
   )).rows;
   for (const p of rows) {
@@ -634,12 +642,12 @@ async function gatherRankedCandidates(repId, excludeAccountIds) {
     if (commission > 0) {
       const runRate = months > 0 ? (commission / months) * 12 : commission;
       out.push({
-        account_id: p.id, name: p.company, area, tier: 1, sortKey: runRate,
+        account_id: p.id, name: p.company, area, tier: 1, sortKey: runRate, lat: p.lat, lng: p.lng,
         reason_hint: 'Customer · $' + fmtDollars(commission) + ' trailing', prep: null
       });
     } else {
       out.push({
-        account_id: p.id, name: p.company, area, tier: 2, sortKey: 0,
+        account_id: p.id, name: p.company, area, tier: 2, sortKey: 0, lat: p.lat, lng: p.lng,
         reason_hint: 'Prospect — new opportunity', prep: null
       });
     }
@@ -808,7 +816,7 @@ router.post('/build-week', async (req, res) => {
     // ── Existing stops this week, ordered so the EARLIEST stop on each day
     //    becomes that day's ANCHOR (its city/coords define the day's region).
     const existing = (await pool.query(
-      `SELECT pi.planned_date, pi.account_id, pi.id, p.city, p.address
+      `SELECT pi.planned_date, pi.account_id, pi.id, p.city, p.address, p.lat, p.lng
          FROM planner_items pi
          LEFT JOIN prospects p ON p.id = pi.account_id
         WHERE pi.rep_id=$1 AND pi.planned_date BETWEEN $2 AND $3 AND pi.item_type='stop'
@@ -819,11 +827,12 @@ router.post('/build-week', async (req, res) => {
     // Auto anchor = the EARLIEST existing stop's city on a day. MANUAL anchor
     // (set by the rep) wins and is never overwritten by auto behavior.
     const autoCityByDay = {};     // date → auto (first-stop) city string
+    const autoRowByDay = {};      // date → that first stop's row (for its street coords)
     const dayCounts = {};         // date → existing stop count
     for (const row of existing) {
       const d = ymd(row.planned_date);
       dayCounts[d] = (dayCounts[d] || 0) + 1;
-      if (!autoCityByDay[d] && row.account_id) autoCityByDay[d] = areaOf(row);
+      if (!autoCityByDay[d] && row.account_id) { autoCityByDay[d] = areaOf(row); autoRowByDay[d] = row; }
     }
     const manualAnchors = await loadManualAnchors(repId, weekStart, friday);
 
@@ -852,7 +861,7 @@ router.post('/build-week', async (req, res) => {
 
     // Geocode candidate cities once (cached); attach coords for radius math.
     // Accounts with NO city are un-placeable by region — never geocode/guess them.
-    for (const c of candidates) c.coords = c.area ? await geocodeCity(c.area) : null;
+    for (const c of candidates) c.coords = await coordsFor(c);
 
     // Resolve each day's anchor (city + coords): MANUAL → first existing stop →
     // rep territory city → home base coords.
@@ -864,7 +873,9 @@ router.post('/build-week', async (req, res) => {
       if (remaining <= 0) continue;
 
       const city = manualAnchors[day] || autoCityByDay[day] || territoryCity;
-      let coords = city ? await geocodeCity(city) : null;
+      let coords = (!manualAnchors[day] && autoRowByDay[day] && autoRowByDay[day].lat != null)
+        ? await coordsFor(autoRowByDay[day])
+        : (city ? await geocodeCity(city) : null);
       if (!coords && ures.home_base_lat && ures.home_base_lng) {
         coords = { lat: parseFloat(ures.home_base_lat), lng: parseFloat(ures.home_base_lng) };
       }
@@ -921,7 +932,7 @@ router.post('/fill-day', async (req, res) => {
 
     // That day's existing stops: earliest is the day's ANCHOR city.
     const dayItems = (await pool.query(
-      `SELECT pi.account_id, pi.id, p.city, p.address
+      `SELECT pi.account_id, pi.id, p.city, p.address, p.lat, p.lng
          FROM planner_items pi LEFT JOIN prospects p ON p.id = pi.account_id
         WHERE pi.rep_id=$1 AND pi.planned_date=$2 AND pi.item_type='stop'
         ORDER BY pi.id`,
@@ -947,7 +958,9 @@ router.post('/fill-day', async (req, res) => {
     const manualAnchors = await loadManualAnchors(repId, date, date);
     const city = manualAnchors[date] || (anchorRow ? areaOf(anchorRow)
       : (ures.territory && String(ures.territory).trim() ? String(ures.territory).trim() : null));
-    let coords = city ? await geocodeCity(city) : null;
+    let coords = (!manualAnchors[date] && anchorRow && anchorRow.lat != null)
+      ? await coordsFor(anchorRow)
+      : (city ? await geocodeCity(city) : null);
     if (!coords && ures.home_base_lat && ures.home_base_lng) {
       coords = { lat: parseFloat(ures.home_base_lat), lng: parseFloat(ures.home_base_lng) };
     }
@@ -957,7 +970,7 @@ router.post('/fill-day', async (req, res) => {
     }
 
     const candidates = await gatherRankedCandidates(repId, exclude);
-    for (const c of candidates) c.coords = c.area ? await geocodeCity(c.area) : null;
+    for (const c of candidates) c.coords = await coordsFor(c);
 
     const used = new Set();
     const suggestions = [];
@@ -1028,6 +1041,8 @@ function shapeStop(row, model) {
     city: row.city,
     phone: row.phone,
     address: row.address,
+    lat: row.lat,
+    lng: row.lng,
     google_place_id: row.google_place_id,
     reason,
     reason_kind,
@@ -1057,7 +1072,7 @@ router.get('/today', async (req, res) => {
 
     // Shared SELECT shape for stops: item + account + latest-call signals.
     const stopSelect = `
-      SELECT pi.*, p.company, p.city, p.phone, p.address, p.google_place_id, p.pipeline_stage,
+      SELECT pi.*, p.company, p.city, p.phone, p.address, p.google_place_id, p.pipeline_stage, p.lat, p.lng,
              lc.next_step, lc.next_step_date, lc.call_date AS last_call_date, lc.notes AS last_notes
         FROM planner_items pi
         LEFT JOIN prospects p ON p.id = pi.account_id

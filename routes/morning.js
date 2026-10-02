@@ -206,6 +206,17 @@ const SEGMENT_SEARCH_CONFIG = {
     { query: 'commercial toilet partition installer', score: 8, category: 'Division 10 Dealer' },
     { query: 'division 10 specialties contractor', score: 8, category: 'Division 10 Dealer' },
   ],
+  // Commercial + residential glass and glazing companies — storefront, shower doors,
+  // mirrors, window glass. Auto glass / windshield shops flood these searches and are
+  // filtered in SEGMENT_RELEVANCE below.
+  'Glass Shop': [
+    { query: 'commercial glass and glazing contractor', score: 10, category: 'Glass Shop' },
+    { query: 'storefront glass installation company', score: 10, category: 'Glass Shop' },
+    { query: 'glass shop shower doors mirrors', score: 9, category: 'Glass Shop' },
+    { query: 'residential glass company windows mirrors', score: 9, category: 'Glass Shop' },
+    { query: 'frameless shower door installer', score: 8, category: 'Glass Shop' },
+    { query: 'window glass replacement company', score: 8, category: 'Glass Shop' },
+  ],
 };
 
 // Per-segment relevance rules for segments whose Google results are noisy.
@@ -216,6 +227,11 @@ const SEGMENT_RELEVANCE = {
     block: /pest control|exterminat|termite|foam (fabricat|rubber|packag|cushion)|mattress|upholster|packaging|car wash|\bpool\b/i,
     boost: /spray ?foam|\bspf\b|foam insulation|polyurethane|insulat/i,
   },
+  'Glass Shop': {
+    block: /auto ?glass|windshield|windscreen|safelite|car glass|vehicle|\bauto\b|automotive|collision|tint|smoke|vape|hookah|head shop|\bpipes?\b|bong|glass ?blow|art glass|stained glass|glass art|studio|eyeglass|optical|eyewear|vision|bottle|recycl/i,
+    boost: /\bglass\b|glazing|glazier|mirror|storefront|shower door|window/i,
+    blockTypes: /car_repair|car_dealer|car_wash|auto_parts/,   // auto glass shops Google types as car repair
+  },
   'Division 10 Dealer': {
     block: /\bfire\b|koorsen|cintas|sprinkler|extinguisher|locksmith|self.?storage|storage units?|mini.?storage|public storage|cubesmart|extra space|vaults?\b|warehouse|material handling|shelving|racking|\bbins?\b|portable toilet|porta.?(john|potty)|restroom (trailer|rental)|plumb|remodel|bath (fitter|center|planet|solutions)|\bbaths\b|home pros|majestic bath|west shore|home outlet|step through|walk.?in|shower|kitchen|glass|glazing|surplus|builders depot|renovate|general (contractors?|construction)|division (?!10\b)\d+|\bgym\b|fitness|fastsigns|sign.?a.?rama|signarama|\bsign (shop|company)\b|banner|vinyl graphics|print/i,
     boost: /specialt|division 10|div\.? ?10|section 10|partition|restroom stall|locker|accessor|washroom|wall protection|architectural products|building products/i,
@@ -225,7 +241,8 @@ const SEGMENT_RELEVANCE = {
 // Segments exempt from the Google-type Contractor/Dealer soft filter. Div 10
 // dealers mostly furnish-and-install, so Google often types them general_contractor
 // or construction_company — the Dealer filter would wrongly drop real ones.
-const CHANNEL_FILTER_EXEMPT = new Set(['Division 10 Dealer']);
+// Glass shops: Google types many as building_materials_store, which the Contractor filter would drop.
+const CHANNEL_FILTER_EXEMPT = new Set(['Division 10 Dealer', 'Glass Shop']);
 
 // Legacy PRODUCT_SEARCH_CONFIG kept for backwards compat (not used by current UI)
 const PRODUCT_SEARCH_CONFIG = {
@@ -482,6 +499,7 @@ router.post('/daily-leads', async (req, res) => {
     'Lumber / Building Supply': 'Dealer',
     'Spray Foam Contractor': 'Contractor',
     'Division 10 Dealer':    'Dealer',
+    'Glass Shop':            'Contractor',
     'Contractor':            'Contractor',
     'Dealer':                'Dealer',
   };
@@ -612,6 +630,7 @@ router.post('/daily-leads', async (req, res) => {
           if (isHeavyEquipmentBlocked(company, place.types || [])) continue;
           const relevance = SEGMENT_RELEVANCE[rawChannel];
           if (relevance && relevance.block.test(company)) continue;
+          if (relevance && relevance.blockTypes && relevance.blockTypes.test((place.types || []).join(' '))) continue;
           sessionSeen.add(placeId || companyLower);
 
           // Distance filter — use the rep's actual radius

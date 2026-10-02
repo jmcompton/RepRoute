@@ -2,6 +2,7 @@ const express = require('express');
 const XLSX    = require('xlsx');
 const { pool } = require('../db');
 const router  = express.Router();
+const { resolveCompanyType } = require('./prospects');
 
 // ── Column helper: case-insensitive, whitespace-tolerant cell lookup ──
 function col(row, ...names) {
@@ -269,16 +270,8 @@ router.post('/import', async (req, res) => {
     return repLookup[ownerName.trim().toLowerCase()] || defaultUid;
   }
 
-  // Resolve company_type from category
-  function resolveType(cat) {
-    const lower = (cat || '').toLowerCase();
-    if (lower.includes('distributor') || lower.includes('supply') ||
-        lower.includes('wholesale') || lower.includes('dealer') ||
-        lower.includes('lumber') || lower.includes('building material')) {
-      return 'Distributor';
-    }
-    return 'Contractor';
-  }
+  // Resolve company_type from category (shared rules — see routes/prospects.js)
+  const resolveType = resolveCompanyType;
 
   const importDate = new Date().toLocaleDateString('en-US', {
     month: 'long', day: 'numeric', year: 'numeric'

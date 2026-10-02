@@ -1,5 +1,6 @@
 const express = require('express');
 const { pool } = require('../db');
+const { geocodeProspect } = require('../lib/geocode');
 const router = express.Router();
 
 // ════════════════════════════════════════════════════════════════
@@ -24,12 +25,23 @@ const CONTRACTOR_CATEGORIES = new Set([
   'Construction Fasteners',
   'Spray Foam Contractor',
   'Concrete Company',
-  'Steel Company'
+  'Steel Company',
+  'Paint Contractor',
+  'Paint and Insulation Company',
+  'Glass Shop'
+]);
+
+// Manufacturers are neither — counted in their own bucket, not in the
+// Distributor or Contractor totals.
+const MANUFACTURER_CATEGORIES = new Set([
+  'Manufacturer'
 ]);
 
 function resolveCompanyType(category) {
   if (!category) return 'Contractor';
   const cat = category.trim();
+  if (MANUFACTURER_CATEGORIES.has(cat)) return 'Manufacturer';
+  if (CONTRACTOR_CATEGORIES.has(cat)) return 'Contractor';
   if (DISTRIBUTOR_CATEGORIES.has(cat)) return 'Distributor';
   // Fuzzy fallback for legacy/imported data
   const lower = cat.toLowerCase();
@@ -171,14 +183,14 @@ router.get('/', async (req, res) => {
 });
 
 // ── POST /api/prospects ──────────────────────────────────────────
-router.post('/', async (req, res) => {
-  const uid = req.session.user.id;
+// Insert one account for a user. Shared by POST / and POST /match-or-create.
+async function insertProspect(uid, body) {
   const {
     company, category, city, state, phone, contact, website, products,
     status, priority, notes, source, address, google_place_id,
     data_status, manufacturer_assoc, email,
     title, mobile, zip
-  } = req.body;
+  } = body;
 
   const company_type = resolveCompanyType(category);
   const ds = data_status || 'Unvetted';
@@ -198,7 +210,76 @@ router.post('/', async (req, res) => {
      address || null, google_place_id || null, ds, manufacturer_assoc || null,
      title || null, mobile || null, zip || null]
   );
-  res.json(result.rows[0]);
+  // Geocode the street address in the background so the planner can route to it.
+  if (address) geocodeProspect(pool, result.rows[0].id, address);
+  return result.rows[0];
+}
+
+// Find a rep's existing account for a lead: phone first (last 10 digits of the
+// business or mobile number), then normalized name + city (name alone when the
+// lead has no city). Returns { account, match_by } or null.
+async function findMatchingAccount(uid, { phone, company, city }) {
+  const digits = String(phone || '').replace(/\D/g, '').slice(-10);
+  if (digits.length >= 7) {
+    const r = await pool.query(
+      `SELECT * FROM prospects
+        WHERE user_id=$1
+          AND (RIGHT(REGEXP_REPLACE(COALESCE(phone,''),  '\\D', '', 'g'), 10) = $2
+            OR RIGHT(REGEXP_REPLACE(COALESCE(mobile,''), '\\D', '', 'g'), 10) = $2)
+        ORDER BY last_activity_at DESC NULLS LAST, id ASC LIMIT 1`,
+      [uid, digits]);
+    if (r.rows.length) return { account: r.rows[0], match_by: 'phone' };
+  }
+  const nameKey = String(company || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!nameKey) return null;
+  const cityKey = String(city || '').trim().toLowerCase();
+  const r = await pool.query(
+    `SELECT * FROM prospects
+      WHERE user_id=$1
+        AND LOWER(REGEXP_REPLACE(company, '[^a-zA-Z0-9]', '', 'g')) = $2
+        AND ($3 = '' OR LOWER(TRIM(COALESCE(city,''))) = $3)
+      ORDER BY last_activity_at DESC NULLS LAST, id ASC LIMIT 1`,
+    [uid, nameKey, cityKey]);
+  return r.rows.length ? { account: r.rows[0], match_by: 'name_city' } : null;
+}
+
+// ── GET /api/prospects/match?phone=&company=&city= ───────────────
+// Does this lead already have an account? → { account, match_by } | { account: null }
+router.get('/match', async (req, res) => {
+  try {
+    const m = await findMatchingAccount(req.session.user.id, req.query || {});
+    res.json(m || { account: null, match_by: null });
+  } catch (err) {
+    console.error('[prospects] match error:', err.message);
+    res.status(500).json({ error: 'Failed to check for an existing account' });
+  }
+});
+
+// ── POST /api/prospects/match-or-create ──────────────────────────
+// Returns the matching account, or creates one from the body. Safe to retry
+// (the offline call queue does) — a retry finds the account it created.
+router.post('/match-or-create', async (req, res) => {
+  const uid = req.session.user.id;
+  const body = req.body || {};
+  if (!String(body.company || '').trim()) return res.status(400).json({ error: 'Company name required' });
+  try {
+    const m = await findMatchingAccount(uid, body);
+    if (m) return res.json({ account: m.account, match_by: m.match_by, created: false });
+    const account = await insertProspect(uid, body);
+    res.json({ account, match_by: null, created: true });
+  } catch (err) {
+    console.error('[prospects] match-or-create error:', err.message);
+    res.status(500).json({ error: 'Failed to find or create account' });
+  }
+});
+
+router.post('/', async (req, res) => {
+  try {
+    res.json(await insertProspect(req.session.user.id, req.body || {}));
+  } catch (err) {
+    console.error('[prospects] POST error:', err.message);
+    res.status(500).json({ error: 'Failed to save account' });
+  }
 });
 
 // ── PUT /api/prospects/:id ───────────────────────────────────────
@@ -267,6 +348,8 @@ router.put('/:id', async (req, res) => {
       vals
     );
     res.json(result.rows[0] || { error: 'Not found' });
+    // Address changed → re-geocode in the background (clears lat/lng if emptied).
+    if (address !== undefined && result.rows[0]) geocodeProspect(pool, result.rows[0].id, address);
   } catch (err) {
     console.error('[prospects] PUT error:', err.message);
     res.status(500).json({ error: 'Failed to update account' });
@@ -486,7 +569,7 @@ router.get('/:id/contacts', async (req, res) => {
     const pid = await ownAccount(req, req.params.id);
     if (!pid) return res.status(404).json({ error: 'Account not found' });
     const r = await pool.query(
-      `SELECT id, prospect_id, name, title, phone, email, status, created_at
+      `SELECT id, prospect_id, name, title, phone, email, status, created_at, is_primary
          FROM contacts WHERE prospect_id=$1 ORDER BY created_at ASC, id ASC`, [pid]);
     res.json(r.rows);
   } catch (e) {
@@ -515,7 +598,72 @@ router.post('/:id/contacts', async (req, res) => {
   }
 });
 
+// PUT /api/prospects/:id/contacts/:cid — edit a contact under an account.
+// The primary contact mirrors the account's embedded contact fields, so those
+// are kept in step (the boot-time backfill reads them).
+router.put('/:id/contacts/:cid', async (req, res) => {
+  try {
+    const pid = await ownAccount(req, req.params.id);
+    if (!pid) return res.status(404).json({ error: 'Account not found' });
+    const cid = parseInt(req.params.cid);
+    const { name, title, phone, email, status } = req.body || {};
+    if (!name || !String(name).trim()) return res.status(400).json({ error: 'Contact name is required' });
+    const clean = v => (v == null ? '' : String(v)).trim() || null;
+    const r = await pool.query(
+      `UPDATE contacts SET name=$1, title=$2, phone=$3, email=$4, status=$5
+        WHERE id=$6 AND prospect_id=$7
+        RETURNING id, prospect_id, name, title, phone, email, status, created_at, is_primary`,
+      [String(name).trim(), clean(title), clean(phone), clean(email), clean(status) || 'New', cid, pid]);
+    if (!r.rows.length) return res.status(404).json({ error: 'Contact not found' });
+    const c = r.rows[0];
+    if (c.is_primary) {
+      await pool.query(
+        'UPDATE prospects SET contact=$1, title=$2, mobile=$3, email=$4 WHERE id=$5',
+        [c.name, c.title, c.phone, c.email, pid]);
+    }
+    res.json(c);
+  } catch (e) {
+    console.error('PUT contacts error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// DELETE /api/prospects/:id/contacts/:cid — remove a contact from an account.
+// If the boot-time backfill would recreate the deleted person from the account's
+// embedded contact fields on the next deploy, those fields are cleared too.
+router.delete('/:id/contacts/:cid', async (req, res) => {
+  try {
+    const pid = await ownAccount(req, req.params.id);
+    if (!pid) return res.status(404).json({ error: 'Account not found' });
+    const r = await pool.query(
+      'DELETE FROM contacts WHERE id=$1 AND prospect_id=$2 RETURNING is_primary',
+      [parseInt(req.params.cid), pid]);
+    if (!r.rows.length) return res.status(404).json({ error: 'Contact not found' });
+    // Same guard as the db.js embedded-contacts backfill: if it would re-insert a
+    // contact for this account on the next boot, clear the embedded fields it reads.
+    await pool.query(
+      `UPDATE prospects p SET contact=NULL, title=NULL, mobile=NULL, email=NULL
+        WHERE p.id=$1
+          AND (COALESCE(NULLIF(TRIM(p.contact), ''), '') <> ''
+               OR COALESCE(NULLIF(TRIM(p.email),  ''), '') <> ''
+               OR COALESCE(NULLIF(TRIM(p.title),  ''), '') <> ''
+               OR COALESCE(NULLIF(TRIM(p.mobile), ''), '') <> '')
+          AND NOT EXISTS (
+               SELECT 1 FROM contacts c
+                WHERE c.prospect_id = p.id
+                  AND (c.is_primary = TRUE
+                       OR (NULLIF(TRIM(p.contact), '') IS NOT NULL AND LOWER(TRIM(c.name)) = LOWER(TRIM(p.contact)))
+                       OR (NULLIF(TRIM(p.email), '') IS NOT NULL AND c.email IS NOT NULL AND LOWER(TRIM(c.email)) = LOWER(TRIM(p.email)))))`,
+      [pid]);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('DELETE contacts error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;
 // Reused by the commission import engine (account creation) so commission-created
 // accounts classify identically to manually/AI-created ones. Additive export.
 module.exports.resolveCompanyType = resolveCompanyType;
+module.exports.findMatchingAccount = findMatchingAccount;
