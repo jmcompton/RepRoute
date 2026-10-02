@@ -1116,7 +1116,8 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
   .qrange-pill { flex-shrink:0 !important; white-space:nowrap !important; min-height:34px !important; }
 
   /* Stats — 2×2 grid */
-  #page-quotes > div[style*="grid-template-columns:repeat(4"] {
+  #page-quotes > div[style*="grid-template-columns:repeat(4"],
+  #quote-stats {
     grid-template-columns:repeat(2,1fr) !important;
     gap:8px !important;
     padding:10px 12px !important;
@@ -1877,6 +1878,7 @@ window.addEventListener('load', function() {
     </div>
     <div class="list-bar" style="flex-wrap:wrap;gap:6px">
       <span class="list-count" id="list-count">0 records</span>
+      <button class="btn btn-sm" onclick="openDupesModal()" title="Review accounts that look like duplicates" style="white-space:nowrap">Duplicates</button>
       <div class="sb-in"><span style="font-size:12px;color:var(--text3)">&#128269;</span><input id="p-search" placeholder="Search accounts..." oninput="handleContactSearch()" onkeydown="if(event.key==='Enter'){event.preventDefault();handleContactSearch();}" /></div>
       <select id="filter-company-type" onchange="handleContactSearch()" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:#fff;color:var(--navy)">
         <option value="All">All Types</option>
@@ -2795,6 +2797,7 @@ window.addEventListener('load', function() {
       </div>
       <div style="display:flex;gap:8px;align-items:center">
         <input id="quote-search" placeholder="Search quotes..." oninput="filterQuotes(this.value)" style="padding:7px 12px;font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);width:200px">
+        <button class="btn btn-sm" onclick="openDupesModal()" title="Review accounts that look like duplicates">Duplicate accounts</button>
         <button class="btn btn-primary btn-sm" onclick="openNewQuoteModal()">+ New Quote</button>
       </div>
     </div>
@@ -2810,7 +2813,7 @@ window.addEventListener('load', function() {
       <button onclick="setQuoteDateRange('all')" class="qrange-pill" id="rpill-all">All Time</button>
     </div>
     <!-- Stats -->
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:14px 16px;background:var(--bg);border-bottom:1px solid var(--border)">
+    <div id="quote-stats" style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px;padding:14px 16px;background:var(--bg);border-bottom:1px solid var(--border)">
       <div style="background:var(--white);border:1px solid var(--border);border-radius:6px;padding:12px 14px">
         <div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.05em">Total Quotes</div>
         <div style="font-size:22px;font-weight:700;color:var(--navy);margin-top:4px" id="q-stat-total">—</div>
@@ -2820,12 +2823,22 @@ window.addEventListener('load', function() {
         <div style="font-size:22px;font-weight:700;color:var(--navy);margin-top:4px" id="q-stat-value">$0</div>
       </div>
       <div style="background:var(--white);border:1px solid var(--border);border-radius:6px;padding:12px 14px">
-        <div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.05em">Follow-Ups Due</div>
-        <div style="font-size:22px;font-weight:700;color:var(--red);margin-top:4px" id="q-stat-due">—</div>
+        <div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.05em">Won</div>
+        <div style="font-size:22px;font-weight:700;color:var(--green);margin-top:4px" id="q-stat-won">—</div>
       </div>
       <div style="background:var(--white);border:1px solid var(--border);border-radius:6px;padding:12px 14px">
-        <div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.05em">Won / Closed</div>
-        <div style="font-size:22px;font-weight:700;color:var(--green);margin-top:4px" id="q-stat-won">—</div>
+        <div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.05em">Won Value</div>
+        <div style="font-size:22px;font-weight:700;color:var(--green);margin-top:4px" id="q-stat-won-value">$0</div>
+      </div>
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:6px;padding:12px 14px">
+        <div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.05em">Win Rate</div>
+        <div style="font-size:22px;font-weight:700;color:var(--green);margin-top:4px" id="q-stat-win-rate">—</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">won ÷ quoted</div>
+      </div>
+      <div id="q-stat-due-tile" onclick="openFollowupsModal()" role="button" tabindex="0" onkeydown="if(event.key==='Enter')openFollowupsModal()" title="See all open follow-ups" style="background:var(--white);border:1px solid var(--border);border-radius:6px;padding:12px 14px;cursor:pointer">
+        <div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.05em">My Follow-Ups Due</div>
+        <div style="font-size:22px;font-weight:700;color:var(--red);margin-top:4px" id="q-stat-due">—</div>
+        <div style="font-size:10px;color:var(--blue);margin-top:2px;font-weight:600" id="q-stat-due-sub">View all →</div>
       </div>
     </div>
     <!-- Filter tabs -->
@@ -3042,7 +3055,7 @@ window.addEventListener('load', function() {
     style="display:none;width:100%;margin-top:6px;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px;box-sizing:border-box">
 </div>
           <div><label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Quote Amount ($)</label><input id="qd-amount" type="number" placeholder="0.00" step="0.01" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px"></div>
-          <div><label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Follow-Up Date</label><input id="qd-followup" type="date" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px"></div>
+          <div><label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px"><span>Follow-Up Date</span><span style="display:inline-flex;align-items:center;gap:5px;text-transform:none;letter-spacing:0;font-weight:600;color:var(--navy);cursor:pointer" onclick="event.preventDefault();qdToggleFollowup()"><input id="qd-followup-on" type="checkbox" style="margin:0;cursor:pointer;accent-color:var(--blue)" onclick="event.stopPropagation();qdToggleFollowup(this.checked)"> Follow up</span></label><input id="qd-followup" type="date" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px"><div id="qd-followup-hint" style="display:none;font-size:11px;color:var(--text3);margin-top:4px;line-height:1.35"></div></div>
           <div><label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Quote Date</label><input id="qd-date" type="date" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px"></div>
           <div><label style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px">Products / Description</label><input id="qd-products" placeholder="e.g. Boss NP1 — 12 cases" style="width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:5px;font-size:13px"></div>
         </div>
@@ -5577,9 +5590,33 @@ function loadToday() {
     var calls = (res[1] && res[1].stats && res[1].stats.callsMadeToday) || 0;
     var recon = (res[2] && res[2].accounts) || [];
     var commissionCount = (res[3] && res[3].revenue && res[3].revenue.length) || 0;
-    renderTodayCockpit(d, { calls: calls, recon: recon, commissionCount: commissionCount });
+    window._todayExtra = { calls: calls, recon: recon, commissionCount: commissionCount };
+    renderTodayCockpit(d, window._todayExtra);
   });
 }
+
+// Re-fetch just today's plan and re-render it in place (no "Loading today…"
+// flash, Lead Finder untouched). Called when Today's Route changes the planner.
+// Keeps the selected stop open when it still exists.
+window.refreshTodayPlan = function() {
+  var content = document.getElementById('today-content');
+  if (!content || !window._todayData) return;            // Today never loaded yet
+  var page = document.getElementById('page-today');
+  if (page && !page.classList.contains('active')) { window._todayStale = true; return; }
+  var sel = window._todaySelectedId;
+  fetch('/api/planner/today?date=' + (function(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})(),
+        { credentials: 'same-origin', cache: 'no-store' })
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){
+      if (!d) return;
+      window._todayData = d;
+      var y = window.scrollY;
+      renderTodayCockpit(d, window._todayExtra || {});
+      window.scrollTo(0, y);
+      if (sel && window._todayStops && window._todayStops[sel] && typeof todaySelectStop === 'function') todaySelectStop(sel);
+    })
+    .catch(function(){});
+};
 
 function renderTodayCockpit(d, extra) {
   var hdr = document.getElementById('today-header');
@@ -5784,6 +5821,7 @@ function todaySelectStop(id) {
   var pane = document.getElementById('today-detail-pane');
   var s = window._todayStops && window._todayStops[id];
   if (!pane || !s) return;
+  window._todaySelectedId = id;
   // Highlight the selected card
   document.querySelectorAll('.today-list .today-card').forEach(function(c){
     c.style.boxShadow = ''; c.style.borderColor = 'var(--border)';
@@ -9057,6 +9095,8 @@ function initQuoteRangePills() {
 
 function loadQuotes() {
   var rangeParam = quoteDateRange && quoteDateRange !== 'all' ? '?range=' + quoteDateRange : '';
+  loadQuoteSettings();
+  loadOpenFollowups();
   fetch('/api/quotes' + rangeParam)
     .then(function(r){ return r.json(); })
     .then(function(data) {
@@ -9067,17 +9107,114 @@ function loadQuotes() {
     .catch(function(e){ console.error('loadQuotes error',e); renderQuotesTable([]); });
 }
 
+function _qMoney(n) { return '$' + (Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function _qEsc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function _qLocalYmd(d) { d = d || new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+
+// Totals + won tracking for the quotes in view. Win rate = won ÷ total quoted.
+// (Follow-ups due comes from loadOpenFollowups — it ignores the period.)
 function renderQuotesStats(quotes) {
   var total = quotes.length;
   var totalVal = quotes.reduce(function(s,q){ return s + (parseFloat(q.amount)||0); }, 0);
-  var today = new Date().toISOString().split('T')[0];
-  var due = quotes.filter(function(q){ return q.follow_up_date && q.follow_up_date.split('T')[0] <= today && q.status !== 'Won' && q.status !== 'Lost'; }).length;
-  var won = quotes.filter(function(q){ return q.status === 'Won'; }).length;
+  var wonList = quotes.filter(function(q){ return q.status === 'Won'; });
+  var wonVal = wonList.reduce(function(s,q){ return s + (parseFloat(q.amount)||0); }, 0);
   document.getElementById('q-stat-total').textContent = total;
-  document.getElementById('q-stat-value').textContent = '$' + totalVal.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-  document.getElementById('q-stat-due').textContent = due;
-  document.getElementById('q-stat-won').textContent = won;
+  document.getElementById('q-stat-value').textContent = _qMoney(totalVal);
+  document.getElementById('q-stat-won').textContent = wonList.length;
+  var wv = document.getElementById('q-stat-won-value'); if (wv) wv.textContent = _qMoney(wonVal);
+  var wr = document.getElementById('q-stat-win-rate');
+  if (wr) wr.textContent = total ? (Math.round(wonList.length / total * 1000) / 10) + '%' : '—';
 }
+
+// ── Open follow-ups (every month) ─────────────────────────────────────────
+// mine → the "My Follow-Ups Due" tile + the follow-ups list; all → Follow-Up tab.
+window._qFollowups = { mine: [], all: [], min: 5000 };
+function loadOpenFollowups() {
+  function get(scope) {
+    return fetch('/api/quotes/followups?scope=' + scope, { cache: 'no-store' })
+      .then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; });
+  }
+  return Promise.all([get('mine'), get('all')]).then(function(res) {
+    if (res[0]) { window._qFollowups.mine = res[0].followups || []; window._qFollowups.min = res[0].min_amount; }
+    if (res[1]) window._qFollowups.all = res[1].followups || [];
+    var today = _qLocalYmd();
+    var mine = window._qFollowups.mine;
+    var due = mine.filter(function(q){ return String(q.follow_up_date).split('T')[0] <= today; }).length;
+    var el = document.getElementById('q-stat-due'); if (el) el.textContent = due;
+    var sub = document.getElementById('q-stat-due-sub');
+    if (sub) sub.textContent = mine.length + ' open · View all →';
+    if (quoteFilter === 'Follow-Up') renderQuotesTable(allQuotes);
+    var modal = document.getElementById('qfu-modal');
+    if (modal && modal.style.display !== 'none') renderFollowupsModal();
+  });
+}
+
+// ── Quote follow-up threshold setting (no automatic follow-up under $X) ────
+var _qSettingsLoaded = false;
+function loadQuoteSettings() {
+  if (_qSettingsLoaded) return;
+  fetch('/api/quotes/settings').then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
+    if (d && d.followup_min_amount != null) { window._qFollowups.min = Number(d.followup_min_amount); _qSettingsLoaded = true; }
+  }).catch(function(){});
+}
+function saveFollowupMin(val) {
+  var v = Number(String(val).replace(/[^0-9.]/g, ''));
+  if (!isFinite(v) || v < 0) { showToast('Enter a dollar amount'); return; }
+  fetch('/api/quotes/settings', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ followup_min_amount: v }) })
+    .then(function(r){ return r.json().then(function(d){ if (!r.ok) throw new Error(d.error || 'Save failed'); return d; }); })
+    .then(function(){ window._qFollowups.min = v; showToast('Quotes under ' + _qMoney(v).replace('.00','') + ' won\'t get an automatic follow-up'); })
+    .catch(function(e){ showToast(e.message); });
+}
+
+// ── Quote form: "Follow up" toggle ─────────────────────────────────────────
+// Untouched: on when the amount is blank or ≥ the threshold, off under it.
+// Once the rep clicks it, their choice sticks for this quote.
+var _qdFollowupTouched = false;
+function qdFollowupUI() {
+  var cb = document.getElementById('qd-followup-on');
+  var date = document.getElementById('qd-followup');
+  var hint = document.getElementById('qd-followup-hint');
+  if (!cb || !date) return;
+  var on = cb.checked;
+  date.disabled = !on;
+  date.style.opacity = on ? '' : '.45';
+  if (!hint) return;
+  var amt = parseFloat((document.getElementById('qd-amount') || {}).value) || 0;
+  var min = window._qFollowups.min;
+  if (!on && amt > 0 && amt < min) {
+    hint.textContent = 'Under ' + _qMoney(min).replace('.00','') + ' — no automatic follow-up. Check “Follow up” to add one.';
+    hint.style.display = 'block';
+  } else if (!on) {
+    hint.textContent = 'No follow-up for this quote.';
+    hint.style.display = 'block';
+  } else {
+    hint.style.display = 'none';
+  }
+}
+function qdApplyFollowupRule() {
+  if (_qdFollowupTouched) { qdFollowupUI(); return; }
+  var cb = document.getElementById('qd-followup-on');
+  if (!cb) return;
+  var amt = parseFloat((document.getElementById('qd-amount') || {}).value) || 0;
+  cb.checked = !(amt > 0 && amt < window._qFollowups.min);
+  qdFollowupUI();
+}
+function qdToggleFollowup(val) {
+  var cb = document.getElementById('qd-followup-on');
+  if (!cb) return;
+  cb.checked = (val === undefined) ? !cb.checked : !!val;
+  _qdFollowupTouched = true;
+  var date = document.getElementById('qd-followup');
+  // Turned on with no date yet → suggest two weeks out (editable).
+  if (cb.checked && date && !date.value) {
+    var d = new Date(); d.setDate(d.getDate() + 14); date.value = _qLocalYmd(d);
+  }
+  qdFollowupUI();
+}
+document.addEventListener('DOMContentLoaded', function() {
+  var amt = document.getElementById('qd-amount');
+  if (amt) amt.addEventListener('input', qdApplyFollowupRule);
+});
 
 function sortQuotes(field) {
   if (quoteSortField === field) {
@@ -9094,11 +9231,15 @@ function sortQuotes(field) {
 }
 
 function renderQuotesTable(quotes) {
-  var today = new Date().toISOString().split('T')[0];
+  var today = _qLocalYmd();
+  // Follow-Up tab: every open follow-up for the team, whatever month the quote
+  // was entered in (period + date-range filters don't apply).
+  var followTab = quoteFilter === 'Follow-Up';
+  if (followTab) quotes = (window._qFollowups && window._qFollowups.all) || [];
 
   // Filter
   var filtered = quotes.filter(function(q){
-    if (quoteFilter !== 'all' && q.status !== quoteFilter) return false;
+    if (quoteFilter !== 'all' && !followTab && q.status !== quoteFilter) return false;
     if (quoteManufacturerFilter && quoteManufacturerFilter !== 'all') {
       if (!(q.products||'').toLowerCase().includes(quoteManufacturerFilter.toLowerCase())) return false;
     }
@@ -9119,7 +9260,7 @@ function renderQuotesTable(quotes) {
   });
 
   // Date range filter
-  if (quoteDateFilter && quoteDateFilter !== 'all') {
+  if (!followTab && quoteDateFilter && quoteDateFilter !== 'all') {
     var now = new Date();
     var dateFrom = null, dateTo = null;
     if (quoteDateFilter === 'this_month') {
@@ -9153,10 +9294,13 @@ function renderQuotesTable(quotes) {
     });
   }
 
-  // Update stats to reflect filtered set
-  renderQuotesStats(filtered);
+  // Update stats to reflect filtered set (the Follow-Up tab isn't a period view)
+  if (!followTab) renderQuotesStats(filtered);
 
-  // Sort
+  // Sort — Follow-Up tab defaults to soonest/most overdue first
+  if (followTab && !quoteSortField) {
+    filtered.sort(function(a, b) { return String(a.follow_up_date).localeCompare(String(b.follow_up_date)); });
+  }
   if (quoteSortField) {
     filtered.sort(function(a, b) {
       var av = a[quoteSortField], bv = b[quoteSortField];
@@ -9438,6 +9582,8 @@ function openNewQuoteModal() {
   document.getElementById('qd-status').value = 'Draft';
   document.getElementById('qd-date').value = new Date().toISOString().split('T')[0];
   document.getElementById('qd-followup').value = '';
+  _qdFollowupTouched = false;
+  qdApplyFollowupRule();
   document.getElementById('qd-pdf-name').textContent = '';
   document.getElementById('qd-pdf-preview').style.display = 'none';
   document.getElementById('qd-delete-btn').style.display = 'none';
@@ -9448,9 +9594,17 @@ function openNewQuoteModal() {
   quotePdfPhone = null; quotePdfEmail = null;
 }
 
-function openQuoteDetail(id) {
-  var q = allQuotes.find(function(x){ return x.id === id; });
-  if (!q) return;
+function openQuoteDetail(id, _fetched) {
+  var q = _fetched || allQuotes.find(function(x){ return x.id === id; }) ||
+    ((window._qFollowups && window._qFollowups.all) || []).find(function(x){ return x.id === id; }) ||
+    ((window._qFollowups && window._qFollowups.mine) || []).find(function(x){ return x.id === id; });
+  if (!q) {
+    // Not in the loaded period (e.g. a follow-up from another month) — fetch it.
+    fetch('/api/quotes/' + id).then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ var row = d && (d.quote || d); if (row && row.id) openQuoteDetail(id, row); else showToast('Couldn\'t open that quote'); })
+      .catch(function(){ showToast('Couldn\'t open that quote'); });
+    return;
+  }
   currentQuoteId = id; quotePdfData = null; quotePdfName = null;
   var sc = {'Draft':{bg:'#f1f5f9',col:'#475569'},'Sent':{bg:'#e8f0fe',col:'#1558b0'},'Follow-Up':{bg:'#fef3c7',col:'#b45309'},'Won':{bg:'#e6f4ec',col:'#1a7f4b'},'Lost':{bg:'#fdecea',col:'#c0392b'}};
   var s = sc[q.status] || sc['Draft'];
@@ -9472,6 +9626,11 @@ function openQuoteDetail(id) {
   document.getElementById('qd-comments').value = q.comments||'';
   document.getElementById('qd-date').value = q.quote_date ? q.quote_date.split('T')[0] : '';
   document.getElementById('qd-followup').value = q.follow_up_date ? q.follow_up_date.split('T')[0] : '';
+  // Existing quote: show what it has (explicit choice, else "has a date").
+  var fuOn = document.getElementById('qd-followup-on');
+  if (fuOn) fuOn.checked = q.follow_up_enabled === false ? false : (q.follow_up_enabled === true || !!q.follow_up_date);
+  _qdFollowupTouched = true;
+  qdFollowupUI();
   document.getElementById('qd-pdf-name').textContent = '';
   document.getElementById('qd-delete-btn').style.display = 'block';
   var dropArea = document.getElementById('qd-drop-area');
@@ -9748,7 +9907,8 @@ async function saveQuote() {
     products: document.getElementById('qd-products').value.trim() || null,
     comments: document.getElementById('qd-comments').value.trim() || null,
     quote_date: document.getElementById('qd-date').value || null,
-    follow_up_date: document.getElementById('qd-followup').value || null
+    follow_up_enabled: !!(document.getElementById('qd-followup-on') || {}).checked,
+    follow_up_date: (document.getElementById('qd-followup-on') || {}).checked ? (document.getElementById('qd-followup').value || null) : null
   };
   // NOTE: the PDF (multi-MB base64) is intentionally NOT part of this JSON. It is
   // uploaded separately via uploadQuotePdf() AFTER the quote row saves, so a large
@@ -9810,6 +9970,7 @@ async function saveQuote() {
       } else if (result.updated) {
         console.log('Account updated:', result.company);
       }
+      if (result.contact_added && cont) showToast(cont + ' saved as a contact at ' + (result.company || acct));
     })
     .catch(function(e){ console.error('upsert-prospect error:', e); });
 
@@ -9981,6 +10142,7 @@ function processQuotePDF(file) {
       fill('qd-date', data.quote_date);
       fill('qd-followup', data.follow_up_date);
       fill('qd-comments', data.comments);
+      qdApplyFollowupRule();   // under the threshold → no automatic follow-up
       // Stash phone/email for account creation
       quotePdfPhone = data.phone || null;
       quotePdfEmail = data.email || null;
@@ -13957,7 +14119,14 @@ document.addEventListener('click', function(e) {
         // planner_date: the server mirrors the route into today's Weekly Planner.
         body: JSON.stringify({ stops: stops, planner_date: (function(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); })(new Date()) })
       }).then(function(r) {
-        if (r.ok) safeDel(ROUTE_DIRTY);
+        if (!r.ok) return;
+        safeDel(ROUTE_DIRTY);
+        // The server mirrors the route into today's planner — refresh "Your plan"
+        // as soon as it confirms a stop was added or removed.
+        return r.json().then(function(d) {
+          var pl = d && d.planner;
+          if (pl && (pl.added || pl.removed) && typeof window.refreshTodayPlan === 'function') window.refreshTodayPlan();
+        }).catch(function() {});
       }).catch(function() { /* offline — stays dirty, retried on next sync */ });
     }, 400);
   }
@@ -14012,6 +14181,7 @@ document.addEventListener('click', function(e) {
         else { safeDel(ROUTE_KEY); safeDel(ROUTE_TIME); }
         window._routeStops = serverStops;
         if (typeof window._renderRoutePanel === 'function') window._renderRoutePanel();
+        if (typeof window.refreshTodayPlan === 'function') window.refreshTodayPlan();
       })
       .catch(function() {});
   };
@@ -17839,6 +18009,255 @@ function discardCommission() {
       loadCommissionHistory();
     });
 }
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════════════
+// QUOTES — open follow-ups list (every month) with bulk dismiss / reschedule,
+// and the duplicate-account review. Both are built on demand as overlays.
+// ═══════════════════════════════════════════════════════════════════
+function _qOverlay(id, title, onClose) {
+  var m = document.getElementById(id);
+  if (m) { m.style.display = 'flex'; return m; }
+  m = document.createElement('div');
+  m.id = id;
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(15,26,46,.55);z-index:650;display:flex;align-items:center;justify-content:center;padding:16px';
+  m.innerHTML =
+    '<div style="background:#fff;border-radius:10px;width:100%;max-width:760px;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.25);overflow:hidden">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 18px;border-bottom:1px solid var(--border)">' +
+        '<div style="font-size:15px;font-weight:800;color:var(--navy)" data-role="title">' + title + '</div>' +
+        '<button data-role="close" style="border:none;background:none;font-size:22px;line-height:1;color:#94a3b8;cursor:pointer;padding:4px 8px" aria-label="Close">×</button>' +
+      '</div>' +
+      '<div data-role="body" style="overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 18px;flex:1"></div>' +
+      '<div data-role="foot" style="border-top:1px solid var(--border);padding:12px 18px;background:#fafbfc"></div>' +
+    '</div>';
+  function close() { m.style.display = 'none'; if (onClose) onClose(); }
+  m.addEventListener('click', function(e) { if (e.target === m) close(); });
+  m.querySelector('[data-role="close"]').addEventListener('click', close);
+  document.body.appendChild(m);
+  return m;
+}
+
+// ── Follow-ups list ───────────────────────────────────────────────────────
+var _qfuScopeAll = false;
+var _qfuSelected = {};
+function openFollowupsModal() {
+  _qOverlay('qfu-modal', 'Open follow-ups');
+  _qfuSelected = {};
+  renderFollowupsModal();
+  loadOpenFollowups();
+}
+function renderFollowupsModal() {
+  var m = document.getElementById('qfu-modal'); if (!m) return;
+  var list = (_qfuScopeAll ? window._qFollowups.all : window._qFollowups.mine) || [];
+  var today = _qLocalYmd();
+  var overdue = list.filter(function(q){ return String(q.follow_up_date).split('T')[0] < today; }).length;
+  m.querySelector('[data-role="title"]').textContent = 'Open follow-ups (' + list.length + ')' + (overdue ? ' · ' + overdue + ' overdue' : '');
+  var fmt = function(d){ return d ? new Date(String(d).split('T')[0] + 'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—'; };
+  var ids = list.map(function(q){ return q.id; });
+  Object.keys(_qfuSelected).forEach(function(k){ if (ids.indexOf(Number(k)) === -1) delete _qfuSelected[k]; });
+  var nSel = Object.keys(_qfuSelected).length;
+  var head =
+    '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin-bottom:12px;font-size:12px;color:var(--text2)">' +
+      '<label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" ' + (_qfuScopeAll ? 'checked' : '') + ' onchange="_qfuScopeAll=this.checked;_qfuSelected={};renderFollowupsModal()"> Show all reps</label>' +
+      '<span style="margin-left:auto;display:inline-flex;align-items:center;gap:6px">No automatic follow-up under ' +
+        '<input id="qfu-min" type="text" inputmode="decimal" value="' + _qEsc(String(window._qFollowups.min)) + '" style="width:80px;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit">' +
+        '<button class="btn btn-sm" onclick="saveFollowupMin(document.getElementById(\'qfu-min\').value)">Save</button></span>' +
+    '</div>';
+  var rows = list.length ? list.map(function(q) {
+    var d = String(q.follow_up_date).split('T')[0];
+    var late = d < today, isToday = d === today;
+    var checked = _qfuSelected[q.id] ? 'checked' : '';
+    return '<div style="display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid var(--border)' + (late ? ';background:#fffbf0' : '') + '">' +
+      '<input type="checkbox" ' + checked + ' onchange="qfuToggle(' + q.id + ',this.checked)" style="width:18px;height:18px;flex-shrink:0;cursor:pointer" aria-label="Select">' +
+      '<div style="flex:1;min-width:0;cursor:pointer" onclick="qfuOpen(' + q.id + ')">' +
+        '<div style="font-size:13px;font-weight:700;color:var(--navy);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + _qEsc(q.account_name || '—') + '</div>' +
+        '<div style="font-size:11px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' +
+          _qEsc(q.quote_number || ('QT-' + String(q.id).padStart(3,'0'))) + (q.contact_name ? ' · ' + _qEsc(q.contact_name) : '') +
+          (_qfuScopeAll && q.rep_name ? ' · ' + _qEsc(q.rep_name) : '') + ' · ' + _qEsc(q.status) + '</div>' +
+      '</div>' +
+      '<div style="text-align:right;flex-shrink:0">' +
+        '<div style="font-size:13px;font-weight:700;color:var(--navy)">' + (q.amount ? _qMoney(q.amount) : '—') + '</div>' +
+        '<div style="font-size:11px;font-weight:700;color:' + (late ? '#c0392b' : isToday ? '#e67e22' : 'var(--text3)') + '">' + (late ? 'Overdue · ' : isToday ? 'Today · ' : 'Due ') + fmt(d) + '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('') : '<div style="text-align:center;color:var(--text3);font-size:13px;padding:30px">No open follow-ups.</div>';
+  var allChecked = list.length && nSel === list.length;
+  m.querySelector('[data-role="body"]').innerHTML = head +
+    (list.length ? '<label style="display:flex;align-items:center;gap:10px;padding:6px 4px;font-size:12px;font-weight:600;color:var(--text2);border-bottom:2px solid var(--border);cursor:pointer"><input type="checkbox" ' + (allChecked ? 'checked' : '') + ' onchange="qfuSelectAll(this.checked)" style="width:18px;height:18px"> Select all</label>' : '') +
+    rows;
+  var d14 = new Date(); d14.setDate(d14.getDate() + 14);
+  m.querySelector('[data-role="foot"]').innerHTML =
+    '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">' +
+      '<span style="font-size:12px;color:var(--text3);margin-right:auto">' + nSel + ' selected</span>' +
+      '<button class="btn btn-sm" ' + (nSel ? '' : 'disabled') + ' onclick="qfuBulk(\'dismiss\')" style="min-height:38px' + (nSel ? '' : ';opacity:.45;cursor:default') + '">Dismiss follow-up</button>' +
+      '<input id="qfu-date" type="date" value="' + _qLocalYmd(d14) + '" style="padding:7px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;min-height:38px;box-sizing:border-box">' +
+      '<button class="btn btn-primary btn-sm" ' + (nSel ? '' : 'disabled') + ' onclick="qfuBulk(\'reschedule\')" style="min-height:38px' + (nSel ? '' : ';opacity:.45;cursor:default') + '">Change date</button>' +
+    '</div>';
+}
+function qfuToggle(id, on) { if (on) _qfuSelected[id] = true; else delete _qfuSelected[id]; renderFollowupsModal(); }
+function qfuSelectAll(on) {
+  _qfuSelected = {};
+  if (on) ((_qfuScopeAll ? window._qFollowups.all : window._qFollowups.mine) || []).forEach(function(q){ _qfuSelected[q.id] = true; });
+  renderFollowupsModal();
+}
+function qfuOpen(id) { var m = document.getElementById('qfu-modal'); if (m) m.style.display = 'none'; openQuoteDetail(id); }
+function qfuBulk(action) {
+  var ids = Object.keys(_qfuSelected).map(Number);
+  if (!ids.length) return;
+  var date = (document.getElementById('qfu-date') || {}).value;
+  if (action === 'reschedule' && !date) { showToast('Pick a date first'); return; }
+  if (action === 'dismiss' && !confirm('Dismiss the follow-up on ' + ids.length + ' quote' + (ids.length === 1 ? '' : 's') + '? The quotes stay open — you can still mark them won or lost.')) return;
+  fetch('/api/quotes/followups/bulk', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ids: ids, action: action, date: date }) })
+    .then(function(r){ return r.json().then(function(d){ if (!r.ok) throw new Error(d.error || 'Update failed'); return d; }); })
+    .then(function(d){
+      _qfuSelected = {};
+      showToast(action === 'dismiss' ? d.updated + ' follow-up' + (d.updated === 1 ? '' : 's') + ' dismissed' : d.updated + ' follow-up' + (d.updated === 1 ? '' : 's') + ' moved');
+      loadQuotes();
+    })
+    .catch(function(e){ showToast(e.message || 'Update failed'); });
+}
+
+// ── Duplicate accounts review ─────────────────────────────────────────────
+var _dupGroups = [];
+function openDupesModal() {
+  var m = _qOverlay('dupes-modal', 'Duplicate accounts');
+  m.querySelector('[data-role="body"]').innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:30px">Looking for duplicates…</div>';
+  m.querySelector('[data-role="foot"]').innerHTML = '<div style="font-size:11px;color:var(--text3);line-height:1.45">Names that only differ by Inc, LLC, Co, Company or punctuation are proposed as the same account. A city after the name (e.g. CRS-Savannah) is a separate location. Nothing merges until you confirm it — merging moves quotes, contacts and calls to the account you keep.</div>';
+  fetch('/api/account-dupes', { cache: 'no-store' })
+    .then(function(r){ return r.json().then(function(d){ if (!r.ok) throw new Error(d.error || 'Failed'); return d; }); })
+    .then(function(d){ _dupGroups = d.groups || []; renderDupesModal(); })
+    .catch(function(e){ m.querySelector('[data-role="body"]').innerHTML = '<div style="text-align:center;color:#b91c1c;font-size:13px;padding:30px">' + _qEsc(e.message) + '</div>'; });
+}
+function renderDupesModal() {
+  var m = document.getElementById('dupes-modal'); if (!m) return;
+  m.querySelector('[data-role="title"]').textContent = 'Duplicate accounts (' + _dupGroups.length + ')';
+  if (!_dupGroups.length) {
+    m.querySelector('[data-role="body"]').innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:30px">No duplicate accounts to review. 🎉</div>';
+    return;
+  }
+  m.querySelector('[data-role="body"]').innerHTML = _dupGroups.map(function(g, gi) {
+    var accts = g.accounts.map(function(a) {
+      var meta = [a.city, a.phone, a.calls + ' call' + (a.calls === 1 ? '' : 's'), a.contacts + ' contact' + (a.contacts === 1 ? '' : 's')]
+        .concat(a.commission_lines ? [a.commission_lines + ' commission line' + (a.commission_lines === 1 ? '' : 's')] : [])
+        .filter(Boolean).map(_qEsc).join(' · ');
+      return '<label style="display:flex;align-items:flex-start;gap:9px;padding:7px 4px;cursor:pointer">' +
+        '<input type="radio" name="dup-keep-' + gi + '" value="' + a.id + '" ' + (a.id === g.suggested_keep_id ? 'checked' : '') + ' style="margin-top:3px;width:16px;height:16px;flex-shrink:0">' +
+        '<span style="min-width:0"><span style="font-size:13px;font-weight:700;color:var(--navy)">' + _qEsc(a.company) + '</span>' +
+        (a.id === g.suggested_keep_id ? ' <span style="font-size:10px;font-weight:700;color:#166534;background:#dcfce7;padding:1px 6px;border-radius:8px">suggested</span>' : '') +
+        '<br><span style="font-size:11px;color:var(--text3)">' + meta + ' · #' + a.id + '</span></span></label>';
+    }).join('');
+    return '<div id="dup-group-' + gi + '" style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px">' +
+      '<div style="font-size:11px;color:var(--text3);margin-bottom:4px">' + g.accounts.length + ' accounts' + (g.quotes ? ' · ' + g.quotes + ' quote' + (g.quotes === 1 ? '' : 's') : '') + ' — pick the one to keep</div>' +
+      accts +
+      '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px">' +
+        '<button class="btn btn-sm" onclick="dupSkip(' + gi + ')" style="min-height:38px">Skip</button>' +
+        '<button class="btn btn-primary btn-sm" onclick="dupMerge(' + gi + ')" style="min-height:38px">Merge</button>' +
+      '</div></div>';
+  }).join('');
+}
+function _dupRemove(gi) { _dupGroups.splice(gi, 1); renderDupesModal(); }
+function dupSkip(gi) {
+  var g = _dupGroups[gi]; if (!g) return;
+  fetch('/api/account-dupes/skip', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ key: g.key }) })
+    .then(function(r){ if (!r.ok) throw new Error(); _dupRemove(gi); })
+    .catch(function(){ showToast('Couldn\'t skip — try again'); });
+}
+function dupMerge(gi) {
+  var g = _dupGroups[gi]; if (!g) return;
+  var pick = document.querySelector('input[name="dup-keep-' + gi + '"]:checked');
+  var keepId = pick ? Number(pick.value) : g.suggested_keep_id;
+  var keep = g.accounts.find(function(a){ return a.id === keepId; });
+  var others = g.accounts.filter(function(a){ return a.id !== keepId; });
+  if (!confirm('Merge ' + others.length + ' account' + (others.length === 1 ? '' : 's') + ' into "' + keep.company + '"?\n\nTheir quotes, contacts and calls move to it and the duplicates are deleted. This can\'t be undone.')) return;
+  fetch('/api/account-dupes/merge', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ keep_id: keepId, merge_ids: others.map(function(a){ return a.id; }) }) })
+    .then(function(r){ return r.json().then(function(d){ if (!r.ok) throw new Error(d.error || 'Merge failed'); return d; }); })
+    .then(function(d){
+      var mv = d.moved || {};
+      showToast('Merged into ' + keep.company + ' — ' + (mv.quotes || 0) + ' quotes, ' + (mv.contacts || 0) + ' contacts, ' + (mv.calls || 0) + ' calls moved');
+      _dupRemove(gi);
+      if (typeof loadProspects === 'function') loadProspects();
+      if (typeof loadQuotes === 'function' && document.getElementById('page-quotes') && document.getElementById('page-quotes').classList.contains('active')) loadQuotes();
+    })
+    .catch(function(e){ showToast(e.message || 'Merge failed'); });
+}
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════════════
+// SEARCH INPUTS — stop browser autofill. Chrome was filling the rep's email
+// into the sidebar / Accounts search boxes, filtering Accounts to 0 records.
+// Chrome ignores autocomplete="off" on fields it guesses are logins, so:
+//   1. autofill-off attributes + a non-identity name
+//   2. readonly until focused on mouse devices (Chrome never autofills a
+//      readonly field)
+//   3. guard: a value the user didn't type that looks like an email is
+//      cleared and the search re-run
+// Applies to every input whose placeholder starts with "Search", including
+// ones added later (MutationObserver).
+// ═══════════════════════════════════════════════════════════════════
+(function() {
+  var SEL = 'input[placeholder^="Search"], input[placeholder^="Filter"]';
+  var EMAIL_RX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  var FINE_POINTER = !!(window.matchMedia && window.matchMedia('(pointer: fine)').matches);
+
+  function harden(el) {
+    if (!el || el._noAutofill) return;
+    el._noAutofill = true;
+    el.setAttribute('autocomplete', 'off');
+    el.setAttribute('autocorrect', 'off');
+    el.setAttribute('autocapitalize', 'off');
+    el.setAttribute('spellcheck', 'false');
+    el.setAttribute('data-lpignore', 'true');
+    el.setAttribute('data-1p-ignore', 'true');
+    el.setAttribute('data-form-type', 'other');
+    if (!el.name) el.name = 'rr-q-' + (el.id || Math.random().toString(36).slice(2, 8));
+    // Readonly-until-focus only with a mouse (desktop Chrome is where autofill
+    // hits); on touch it can cost iOS a second tap before the keyboard opens.
+    if (FINE_POINTER) {
+      if (document.activeElement !== el) el.readOnly = true;
+      el.addEventListener('focus', function() { el.readOnly = false; });
+      el.addEventListener('mousedown', function() { el.readOnly = false; });
+    }
+    el.addEventListener('blur', function() { if (FINE_POINTER) el.readOnly = true; guard(el); });
+    // Anything the user actually types or pastes is theirs, email or not.
+    ['keydown', 'paste', 'drop', 'compositionstart'].forEach(function(t) {
+      el.addEventListener(t, function() { el._userTyped = true; });
+    });
+    el.addEventListener('input', function() { if (!el.value) el._userTyped = false; });
+    guard(el);
+  }
+
+  function guard(el) {
+    var v = (el.value || '').trim();
+    if (!v || el._userTyped) return;
+    var mine = window.currentUser && window.currentUser.email &&
+      v.toLowerCase() === String(window.currentUser.email).toLowerCase();
+    if (mine || EMAIL_RX.test(v)) {
+      el.value = '';
+      el.dispatchEvent(new Event('input', { bubbles: true }));   // re-run the search unfiltered
+    }
+  }
+
+  function scan() { document.querySelectorAll(SEL).forEach(function(el) { harden(el); guard(el); }); }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', scan); else scan();
+  // Autofill can land after load — re-check a few times, then on page switches.
+  [300, 1000, 2500, 5000].forEach(function(ms) { setTimeout(scan, ms); });
+  window.addEventListener('pageshow', scan);
+  try {
+    new MutationObserver(function(muts) {
+      for (var i = 0; i < muts.length; i++) {
+        var nodes = muts[i].addedNodes;
+        for (var j = 0; j < nodes.length; j++) {
+          var n = nodes[j];
+          if (n.nodeType !== 1) continue;
+          if (n.matches && n.matches(SEL)) harden(n);
+          if (n.querySelectorAll) n.querySelectorAll(SEL).forEach(harden);
+        }
+      }
+    }).observe(document.body, { childList: true, subtree: true });
+  } catch (e) {}
+  window.hardenSearchInputs = scan;
+})();
 </script>
 </body>
 </html>

@@ -228,6 +228,10 @@ async function initDB() {
     CREATE INDEX IF NOT EXISTS idx_quotes_user ON quotes(user_id);
     CREATE INDEX IF NOT EXISTS idx_quotes_status ON quotes(status);
     CREATE INDEX IF NOT EXISTS idx_quotes_followup ON quotes(follow_up_date);
+    -- Quote follow-up toggle: TRUE = follow up, FALSE = don't (no date), NULL = legacy.
+    ALTER TABLE quotes ADD COLUMN IF NOT EXISTS follow_up_enabled BOOLEAN;
+    -- Rep's threshold: quotes under this amount get no automatic follow-up.
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS quote_followup_min NUMERIC(12,2) DEFAULT 5000;
     ALTER TABLE quotes ADD COLUMN IF NOT EXISTS rep_name TEXT;
 
     -- ── Customer number is a SEPARATE field from quote_number. Reps reuse the
@@ -442,6 +446,15 @@ async function initDB() {
       user_id    INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
       stops      JSONB NOT NULL DEFAULT '[]'::jsonb,
       updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    -- ── Duplicate-account review: groups the rep chose to skip ────────
+    -- key = lib/account-key.js accountKey() of the account name.
+    CREATE TABLE IF NOT EXISTS account_dupe_skips (
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      key        TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      PRIMARY KEY (user_id, key)
     );
 
     -- ── Tasks page ──────────────────────────────────────────────────

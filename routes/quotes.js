@@ -1,6 +1,36 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
+const { accountKey, accountKeySql } = require('../lib/account-key');
+
+const DEFAULT_FOLLOWUP_MIN = 5000;
+
+// The rep's "no automatic follow-up under $X" threshold (users.quote_followup_min).
+async function followupMin(uid) {
+  const r = await pool.query('SELECT quote_followup_min FROM users WHERE id=$1', [uid]);
+  const v = r.rows[0] && r.rows[0].quote_followup_min;
+  return v == null ? DEFAULT_FOLLOWUP_MIN : Number(v);
+}
+
+// follow_up_enabled: true = rep wants a follow-up, false = no follow-up (the date
+// is cleared), null/undefined = legacy client → keep whatever date was sent.
+function followUpFields(body) {
+  const fe = body.follow_up_enabled;
+  const enabled = fe === true ? true : fe === false ? false : null;
+  return { enabled, date: enabled === false ? null : (body.follow_up_date || null) };
+}
+
+// Canonical (most-used) spelling of an existing account matching `name` by
+// accountKey — team-wide, since the quote board is shared. null if none.
+async function canonicalAccountName(name) {
+  const key = accountKey(name);
+  if (!key) return null;
+  const r = await pool.query(
+    `SELECT TRIM(company) AS company, COUNT(*) AS n FROM prospects
+      WHERE ${accountKeySql('company')} = $1
+      GROUP BY TRIM(company) ORDER BY n DESC, LENGTH(TRIM(company)) ASC LIMIT 1`, [key]);
+  return r.rows.length ? r.rows[0].company : null;
+}
 
 // GET all quotes — team-wide (all users share the same quote board)
 router.get('/', async (req, res) => {
@@ -39,18 +69,94 @@ router.get('/', async (req, res) => {
   }
 });
 
+// ── Follow-ups: every OPEN follow-up regardless of quote month ──────
+// Open = has a follow_up_date and isn't Won/Lost. Overdue ones stay until the
+// rep marks the quote won/lost or dismisses the follow-up.
+// ?scope=mine (default) → quotes for this rep; ?scope=all → whole team.
+router.get('/followups', async (req, res) => {
+  try {
+    const uid = req.session.user.id;
+    const mine = req.query.scope !== 'all';
+    const r = await pool.query(
+      `SELECT q.id, q.user_id, q.rep_id, q.quote_number, q.customer_number, q.status, q.account_name,
+              q.contact_name, q.amount, q.products, q.comments, q.quote_date, q.follow_up_date,
+              q.follow_up_enabled, q.pdf_filename, q.created_at, q.updated_at,
+              COALESCE(q.rep_name, u.name) AS rep_name
+         FROM quotes q LEFT JOIN users u ON q.user_id = u.id
+        WHERE q.follow_up_date IS NOT NULL
+          AND q.status NOT IN ('Won','Lost')
+          ${mine ? 'AND (q.rep_id = $1 OR q.user_id = $1)' : ''}
+        ORDER BY q.follow_up_date ASC, q.id ASC`,
+      mine ? [uid] : []);
+    res.set('Cache-Control', 'no-store');
+    res.json({ followups: r.rows, min_amount: await followupMin(uid) });
+  } catch (e) {
+    console.error('GET /api/quotes/followups error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /followups/bulk { ids:[], action:'dismiss'|'reschedule', date? }
+// dismiss → clears the follow-up (quote stays open, can still be marked won).
+router.post('/followups/bulk', async (req, res) => {
+  try {
+    const ids = (Array.isArray(req.body.ids) ? req.body.ids : []).map(Number).filter(Number.isFinite);
+    const { action, date } = req.body;
+    if (!ids.length) return res.status(400).json({ error: 'No quotes selected' });
+    let r;
+    if (action === 'dismiss') {
+      r = await pool.query(
+        `UPDATE quotes SET follow_up_date = NULL, follow_up_enabled = FALSE,
+                status = CASE WHEN status = 'Follow-Up' THEN 'Sent' ELSE status END,
+                updated_at = NOW()
+          WHERE id = ANY($1::int[]) AND status NOT IN ('Won','Lost')`, [ids]);
+    } else if (action === 'reschedule') {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) return res.status(400).json({ error: 'Pick a follow-up date' });
+      r = await pool.query(
+        `UPDATE quotes SET follow_up_date = $2, follow_up_enabled = TRUE, updated_at = NOW()
+          WHERE id = ANY($1::int[])`, [ids, date]);
+    } else {
+      return res.status(400).json({ error: 'Unknown action' });
+    }
+    res.json({ ok: true, updated: r.rowCount });
+  } catch (e) {
+    console.error('POST /api/quotes/followups/bulk error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET/POST /settings — the rep's no-automatic-follow-up threshold.
+router.get('/settings', async (req, res) => {
+  try { res.json({ followup_min_amount: await followupMin(req.session.user.id) }); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+router.post('/settings', async (req, res) => {
+  try {
+    const v = Number(req.body.followup_min_amount);
+    if (!Number.isFinite(v) || v < 0) return res.status(400).json({ error: 'Enter a dollar amount (0 or more)' });
+    await pool.query('UPDATE users SET quote_followup_min=$1 WHERE id=$2', [Math.round(v * 100) / 100, req.session.user.id]);
+    res.json({ ok: true, followup_min_amount: v });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // GET /search-accounts -- typeahead: return matching account names from prospects (Fix 2)
 router.get('/search-accounts', async (req, res) => {
   try {
     const { q } = req.query;
     if (!q || q.trim().length < 2) return res.json({ accounts: [] });
+    // One entry per account (accountKey): "CRS Inc" / "CRS, Inc." / "CRS Inc."
+    // show once, as the most-used spelling. City-suffixed locations stay distinct.
     const result = await pool.query(
-      `SELECT DISTINCT TRIM(company) AS company FROM prospects
-       WHERE LOWER(TRIM(company)) LIKE LOWER($1)
-       ORDER BY company LIMIT 10`,
+      `SELECT DISTINCT ON (k) company FROM (
+         SELECT TRIM(company) AS company, ${accountKeySql('company')} AS k, COUNT(*) OVER (PARTITION BY TRIM(company)) AS n
+           FROM prospects
+          WHERE LOWER(TRIM(company)) LIKE LOWER($1)
+       ) t
+       ORDER BY k, n DESC, LENGTH(company) ASC
+       LIMIT 15`,
       ['%' + q.trim() + '%']
     );
-    res.json({ accounts: result.rows.map(r => r.company) });
+    res.json({ accounts: result.rows.map(r => r.company).sort((a, b) => a.localeCompare(b)).slice(0, 10) });
   } catch (e) {
     res.status(500).json({ accounts: [], error: e.message });
   }
@@ -77,15 +183,28 @@ router.get('/contacts-for-account', async (req, res) => {
          ORDER BY call_date DESC, created_at DESC
          LIMIT 1
        ) lc ON true
-       WHERE LOWER(TRIM(p.company)) = LOWER(TRIM($1))
+       WHERE ${accountKeySql('p.company')} = $1
          AND p.contact IS NOT NULL
          AND TRIM(p.contact) != ''
        GROUP BY p.contact
        ORDER BY last_activity DESC NULLS LAST, freq DESC, p.contact ASC`,
-      [account.trim()]
+      [accountKey(account)]
     );
-
-    const contacts = result.rows.map(r => r.contact);
+    // Plus people saved on those accounts' Contacts lists (incl. ones typed on quotes).
+    const listed = await pool.query(
+      `SELECT c.name, MAX(c.created_at) AS added
+         FROM contacts c JOIN prospects p ON p.id = c.prospect_id
+        WHERE ${accountKeySql('p.company')} = $1 AND TRIM(c.name) <> ''
+        GROUP BY c.name ORDER BY added DESC`,
+      [accountKey(account)]
+    );
+    const seen = new Set();
+    const contacts = [];
+    for (const n of result.rows.map(r => r.contact).concat(listed.rows.map(r => r.name))) {
+      const k = String(n).trim().toLowerCase();
+      if (!k || seen.has(k)) continue;
+      seen.add(k); contacts.push(String(n).trim());
+    }
     res.json({ contacts });
   } catch (e) {
     console.error('contacts-for-account error:', e.message);
@@ -154,6 +273,11 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Account name is required' });
     }
 
+    // Match the account to an existing one (same accountKey) so a new spelling
+    // — "Mid-Atlantic Roofing Supply Company" — doesn't start a duplicate.
+    const acctName = (await canonicalAccountName(account_name)) || account_name.trim();
+    const fu = followUpFields(req.body);
+
     // Quote number is OPTIONAL; customer number is a wholly separate field and is
     // NEVER read into or compared against the quote number.
     const qnum = quote_number && quote_number.trim() ? quote_number.trim() : null;
@@ -195,14 +319,15 @@ router.post('/', async (req, res) => {
            pdf_filename = COALESCE($12, pdf_filename),
            pdf_data = COALESCE($13, pdf_data),
            rep_name = COALESCE($14, rep_name),
+           follow_up_enabled = $15,
            updated_at = NOW()
          WHERE id = $1
          RETURNING *`,
         [
-          existingDup.id, qnum, cnum, status || 'Draft', account_name.trim(),
+          existingDup.id, qnum, cnum, status || 'Draft', acctName,
           contact_name || null, amount ? parseFloat(amount) : null, products || null,
-          comments || null, quote_date || null, follow_up_date || null,
-          pdf_filename || null, pdf_data || null, rep_name || null
+          comments || null, quote_date || null, fu.date,
+          pdf_filename || null, pdf_data || null, rep_name || null, fu.enabled
         ]
       );
       const savedQuote = upd.rows[0];
@@ -213,24 +338,26 @@ router.post('/', async (req, res) => {
     const result = await pool.query(
       `INSERT INTO quotes
        (user_id, rep_id, quote_number, customer_number, status, account_name, contact_name,
-        amount, products, comments, quote_date, follow_up_date, pdf_filename, pdf_data, rep_name)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+        amount, products, comments, quote_date, follow_up_date, pdf_filename, pdf_data, rep_name,
+        follow_up_enabled)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
        RETURNING *`,
       [
         userId, userId,
         qnum,
         cnum,
         status || 'Draft',
-        account_name.trim(),
+        acctName,
         contact_name || null,
         amount ? parseFloat(amount) : null,
         products || null,
         comments || null,
         quote_date || null,
-        follow_up_date || null,
+        fu.date,
         pdf_filename || null,
         pdf_data || null,
-        rep_name || null
+        rep_name || null,
+        fu.enabled
       ]
     );
     const savedQuote = result.rows[0];
@@ -256,6 +383,8 @@ router.put('/:id', async (req, res) => {
     } = req.body;
     const force = req.body.force === true || force_override === true;
     const cnum = customer_number && String(customer_number).trim() ? String(customer_number).trim() : null;
+    const acctName = account_name ? ((await canonicalAccountName(account_name)) || String(account_name).trim()) : account_name;
+    const fu = followUpFields(req.body);
 
     // ── Duplicate check (PER-REP) — never collides with the quote's OWN id ──
     // Scoped to the same rep as the quote being edited and excludes this id, so
@@ -295,6 +424,7 @@ router.put('/:id', async (req, res) => {
         pdf_data = COALESCE($12, pdf_data),
         rep_name = COALESCE($13, rep_name),
         customer_number = $14,
+        follow_up_enabled = $15,
         updated_at = NOW()
        WHERE id = $1
        RETURNING *`,
@@ -302,17 +432,18 @@ router.put('/:id', async (req, res) => {
         req.params.id,
         quote_number ? quote_number.trim() : null,
         status || 'Draft',
-        account_name,
+        acctName,
         contact_name || null,
         amount ? parseFloat(amount) : null,
         products || null,
         comments || null,
         quote_date || null,
-        follow_up_date || null,
+        fu.date,
         pdf_filename || null,
         pdf_data || null,
         rep_name || null,
-        cnum
+        cnum,
+        fu.enabled
       ]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Quote not found' });
@@ -388,7 +519,7 @@ router.post('/parse-pdf', async (req, res) => {
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 600,
+        max_tokens: 800,
         messages: [{
           role: 'user',
           content: [
@@ -402,7 +533,7 @@ router.post('/parse-pdf', async (req, res) => {
             },
             {
               type: 'text',
-              text: 'Extract fields from this sales quote or proposal PDF. Respond ONLY with a valid JSON object, no markdown or explanation:\n{\n  "quote_number": "the QUOTE/PROPOSAL/ESTIMATE number (the seller\'s number for THIS document) or null",\n  "customer_number": "the CUSTOMER/ACCOUNT number (the buyer\'s account/customer ID, often labeled Customer #, Account #, Cust No) or null",\n  "account_name": "customer/client/bill-to company name or null",\n  "contact_name": "contact person full name or null",\n  "amount": "total dollar amount as number string like \\"1234.56\\" with no dollar sign, or null",\n  "products": "concise summary of all products or line items, max 150 chars, or null",\n  "quote_date": "quote date in YYYY-MM-DD format or null",\n  "follow_up_date": "follow-up or expiry date in YYYY-MM-DD format or null",\n  "comments": "relevant notes, terms, or special instructions max 200 chars or null"\n}\nRules: use null for any field you cannot find with confidence. For amount use the GRAND TOTAL only. quote_number and customer_number are DIFFERENT fields — never put the same value in both. If the document shows only ONE number and you cannot tell which kind it is, put it in customer_number and leave quote_number null. Return ONLY the JSON object.'
+              text: 'Extract fields from this sales quote or proposal PDF. Respond ONLY with a valid JSON object, no markdown or explanation:\n{\n  "quote_number": "the QUOTE/PROPOSAL/ESTIMATE number (the seller\'s number for THIS document) or null",\n  "customer_number": "the CUSTOMER/ACCOUNT number (the buyer\'s account/customer ID, often labeled Customer #, Account #, Cust No) or null",\n  "account_name": "the CUSTOMER company the quote is sold/addressed to (Sold To, Bill To, Customer, Quoted To, Attention company) or null — NEVER the job or project name",\n  "job_name": "the job / project / ship-to site name if shown (e.g. a church, school, or building project) or null",\n  "contact_name": "contact person full name or null",\n  "amount": "total dollar amount as number string like \\"1234.56\\" with no dollar sign, or null",\n  "products": "concise summary of all products or line items, max 150 chars, or null",\n  "quote_date": "quote date in YYYY-MM-DD format or null",\n  "follow_up_date": "follow-up or expiry date in YYYY-MM-DD format or null",\n  "comments": "relevant notes, terms, or special instructions max 200 chars or null"\n}\nRules: use null for any field you cannot find with confidence. Quotes often show BOTH a job/project name (e.g. "Johnson Ferry Baptist Church") and the customer company buying the material (e.g. "Mid-Atlantic Roofing Supply") — account_name is ALWAYS the customer company, and the job goes in job_name. If the only company shown is a job/project, still put it in job_name and leave account_name null. For amount use the GRAND TOTAL only. quote_number and customer_number are DIFFERENT fields — never put the same value in both. If the document shows only ONE number and you cannot tell which kind it is, put it in customer_number and leave quote_number null. Return ONLY the JSON object.'
             }
           ]
         }]
@@ -437,6 +568,22 @@ router.post('/parse-pdf', async (req, res) => {
       }
     });
 
+    // Customer, not job: if the model returned the job name as the account too,
+    // leave the account blank so the rep picks the customer (the job is noted).
+    if (extracted.job_name && extracted.account_name &&
+        accountKey(extracted.job_name) === accountKey(extracted.account_name)) {
+      delete extracted.account_name;
+    }
+    if (extracted.job_name) {
+      const jobNote = 'Job: ' + extracted.job_name;
+      extracted.comments = extracted.comments ? jobNote + ' — ' + extracted.comments : jobNote;
+    }
+    // Snap to an existing account's spelling (same matching rules as duplicates).
+    if (extracted.account_name) {
+      const canon = await canonicalAccountName(extracted.account_name).catch(() => null);
+      if (canon) { extracted.account_name_raw = extracted.account_name; extracted.account_name = canon; }
+    }
+
     res.json(extracted);
 
   } catch (e) {
@@ -444,6 +591,21 @@ router.post('/parse-pdf', async (req, res) => {
     res.json({ _error: e.message });
   }
 });
+
+// Save a contact typed on a quote to the account's Contacts list when it's new —
+// not the account's main contact and not already listed (case-insensitive).
+// Returns true when a contact was added.
+async function saveQuoteContact(prospectId, mainContact, name, userId) {
+  const n = String(name || '').trim();
+  if (!n) return false;
+  if (mainContact && mainContact.trim().toLowerCase() === n.toLowerCase()) return false;
+  const r = await pool.query(
+    `INSERT INTO contacts (prospect_id, name, status, created_by)
+     SELECT $1, $2, 'New', $3
+      WHERE NOT EXISTS (SELECT 1 FROM contacts WHERE prospect_id=$1 AND LOWER(TRIM(name)) = LOWER($2))`,
+    [prospectId, n, userId]);
+  return r.rowCount > 0;
+}
 
 // POST upsert-prospect — create/update account+contact, lookup address+phone via Places
 router.post('/upsert-prospect', async (req, res) => {
@@ -524,12 +686,15 @@ router.post('/upsert-prospect', async (req, res) => {
       });
     }
 
-    // ── Check if this company already exists for this user ──
+    // ── Check if this company already exists for this user — same account rule
+    //    as duplicate review (Inc/LLC/Co/Company/punctuation don't matter; a city
+    //    after the name is a separate location). Prefer the most-active record.
     const existing = await pool.query(
       `SELECT id, company, contact, phone, email, city, website FROM prospects
-       WHERE user_id = $1 AND LOWER(TRIM(company)) = LOWER($2)
+       WHERE user_id = $1 AND ${accountKeySql('company')} = $2
+       ORDER BY last_activity_at DESC NULLS LAST, id ASC
        LIMIT 1`,
-      [userId, company]
+      [userId, accountKey(company)]
     );
 
     if (existing.rows.length > 0) {
@@ -545,8 +710,10 @@ router.post('/upsert-prospect', async (req, res) => {
         }
       };
 
-      // Contact: update if blank, or force_update when rep edits quote
-      if (contact && (!p.contact || p.contact.trim() === '' || force_update)) add('contact', contact);
+      // Contact: fill the account's main contact only if blank. A different person
+      // on a quote is added to the account's Contacts list below instead of
+      // overwriting the main contact.
+      if (contact && (!p.contact || p.contact.trim() === '')) add('contact', contact);
       // Phone: fill blank from Places or from what was passed in
       if (placesPhone && (!p.phone || p.phone.trim() === '')) add('phone', placesPhone);
       // Email: fill blank
@@ -564,9 +731,11 @@ router.post('/upsert-prospect', async (req, res) => {
         );
       }
 
+      const contactAdded = await saveQuoteContact(p.id, p.contact, contact, userId);
       return res.json({
         created: false,
         updated: updates.length > 0,
+        contact_added: contactAdded,
         id: p.id,
         company: p.company,
         phone: placesPhone || p.phone,
