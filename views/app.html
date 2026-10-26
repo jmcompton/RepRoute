@@ -15513,6 +15513,9 @@ window.BCS = (function() {
     .then(function(data) {
       VCL.extracted = data;
       VCL.extracted._rawTranscript = transcript;
+      if (data._ai_error && typeof showToast === 'function') {
+        showToast('AI couldn\'t read this call — type the account name below', 4000);
+      }
 
       if (!data.account_name) {
         // No account extracted — skip matching

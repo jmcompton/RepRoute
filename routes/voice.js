@@ -106,11 +106,12 @@ Return ONLY valid JSON, no markdown, no backticks, no explanation:
     const data = await response.json();
     if (data.error) {
       console.error('[voice/process] API error:', data.error.message);
-      // Graceful fallback
+      // Graceful fallback, but tell the app so the rep isn't left guessing
       return res.json({
         account_name: null, contact_name: null,
         summary: transcript.trim().substring(0, 400),
-        outcome: 'Other', next_steps: null
+        outcome: 'Other', next_steps: null,
+        _ai_error: data.error.message || 'AI unavailable'
       });
     }
 
