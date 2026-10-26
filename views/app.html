@@ -6236,6 +6236,7 @@ function _cdHandleCardB64(b64) {
     .then(function(r){ return r.json(); })
     .then(function(result) {
       var updates = { business_card_image: b64 };
+      if (result && result.error) window._cdCardErr = result.error;
       if (result.extracted) {
         var ce = result.extracted;
         if (ce.phone)   updates.phone   = ce.phone;
@@ -6254,7 +6255,8 @@ function _cdHandleCardB64(b64) {
     })
     .then(function() {
       openContactDetail(currentContactRecord.id, _contactParentId);
-      showToast('Business card saved!');
+      if (window._cdCardErr) { showToast('Card photo saved, but ' + window._cdCardErr); window._cdCardErr = null; }
+      else showToast('Business card saved!');
     })
     .catch(function(err) {
       console.error('[cdRescan]', err);
@@ -10092,13 +10094,70 @@ async function saveQuoteForceOverride() {
 }
 
 // PDF drag & drop
-function qDropOver(e) { e.preventDefault(); var a=document.getElementById('qd-drop-area'); a.style.borderColor='var(--blue)'; a.style.background='#e8f4ff'; }
-function qDropLeave(e) { var a=document.getElementById('qd-drop-area'); a.style.borderColor='var(--border)'; a.style.background='#fafbfc'; }
-function qDropFile(e) { e.preventDefault(); qDropLeave(e); var f=e.dataTransfer.files[0]; if(f) processQuotePDF(f); }
-function qFileSelected(e) { var f=e.target.files[0]; if(f) processQuotePDF(f); }
+// The PDF can be dropped anywhere on the open quote, or on the Quotes page
+// (opens a new quote). Before, only the dashed box caught it — a drop just
+// outside it made the browser open the PDF and the quote got nothing.
+function qDropOver(e) { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'; var a=document.getElementById('qd-drop-area'); a.style.borderColor='var(--blue)'; a.style.background='#e8f4ff'; }
+function qDropLeave(e) {
+  // Ignore leave events fired when moving over the box's own children
+  var a=document.getElementById('qd-drop-area');
+  if (e && e.relatedTarget && a.contains(e.relatedTarget)) return;
+  a.style.borderColor='var(--border)'; a.style.background='#fafbfc';
+}
+function qPdfFromDrop(e) {
+  var dt = e.dataTransfer; if (!dt) return null;
+  var files = Array.prototype.slice.call(dt.files || []);
+  if (!files.length && dt.items) {
+    Array.prototype.forEach.call(dt.items, function(it) {
+      if (it.kind === 'file') { var f = it.getAsFile(); if (f) files.push(f); }
+    });
+  }
+  var pdf = files.filter(qIsPdf)[0];
+  return pdf || files[0] || null;
+}
+function qIsPdf(f) { return !!f && (/\.pdf$/i.test(f.name || '') || f.type === 'application/pdf'); }
+function qDropFile(e) {
+  e.preventDefault(); if (e.stopPropagation) e.stopPropagation();
+  qDropLeave({});
+  var f = qPdfFromDrop(e);
+  if (f) processQuotePDF(f);
+  else showToast && showToast('Couldn\'t get the file from that drop — save the PDF first, then drag it from your folder');
+}
+function qFileSelected(e) { var f=e.target.files[0]; if(f) processQuotePDF(f); e.target.value=''; }
+
+// Page-level drop handling: quote modal open → fill it; Quotes page → new quote.
+(function() {
+  function hasFiles(e) {
+    var t = e.dataTransfer && e.dataTransfer.types;
+    return !!t && Array.prototype.indexOf.call(t, 'Files') !== -1;
+  }
+  function quoteModalOpen() {
+    var m = document.getElementById('quote-detail-modal');
+    return m && m.style.display !== 'none';
+  }
+  function quotesPageActive() {
+    var p = document.getElementById('page-quotes');
+    return p && p.classList.contains('active');
+  }
+  document.addEventListener('dragover', function(e) {
+    if (!hasFiles(e) || !(quoteModalOpen() || quotesPageActive())) return;
+    e.preventDefault();
+    if (quoteModalOpen()) qDropOver(e);
+  });
+  document.addEventListener('drop', function(e) {
+    if (!hasFiles(e) || !(quoteModalOpen() || quotesPageActive())) return;
+    e.preventDefault();
+    var f = qPdfFromDrop(e);
+    if (!f) return;
+    if (!quoteModalOpen()) openNewQuoteModal();
+    qDropLeave({});
+    processQuotePDF(f);
+  });
+})();
 
 function processQuotePDF(file) {
-  if (!file.name.toLowerCase().endsWith('.pdf')) { alert('Please select a PDF file'); return; }
+  if (!qIsPdf(file)) { showToast ? showToast('That file isn\'t a PDF — drop the quote PDF') : alert('Please select a PDF file'); return; }
+  if (file.size > 18 * 1024 * 1024) { showToast('That PDF is over 18 MB — too large to upload. Try a smaller export.', 4000); return; }
   quotePdfName = file.name;
   var dropArea = document.getElementById('qd-drop-area');
   var pdfNameEl = document.getElementById('qd-pdf-name');
@@ -14471,7 +14530,7 @@ document.addEventListener('click', function(e) {
   <!-- White flash -->
   <div id="bcs-flash"></div>
   <!-- Close -->
-  <button id="bcs-close-btn" onclick="window.BCS.close()" aria-label="Close scanner">✕</button>
+  <button id="bcs-close-btn" onclick="window._cdRescanning=false;window.BCS.close()" aria-label="Close scanner">✕</button>
   <!-- Scan button — always visible -->
   <button id="bcs-scan-btn" onclick="window.BCS.scan()">📷 Scan</button>
 </div>
@@ -14939,6 +14998,8 @@ window.BCS = (function() {
     el('bcs-overlay').classList.add('bcs-active');
     var scanBtn = el('bcs-scan-btn');
     if (scanBtn) { scanBtn.disabled = false; scanBtn.textContent = '📷 Scan'; }
+    var sbar = el('bcs-status-bar');
+    if (sbar) sbar.textContent = 'Frame your card then tap Scan';
     var flash = el('bcs-flash');
     if (flash) flash.classList.remove('bcs-flashing');
 
@@ -14978,6 +15039,14 @@ window.BCS = (function() {
     var video = el('bcs-video');
     if (!video) return;
 
+    // Camera not streaming yet (iPhone can take a second) — capturing now
+    // sends a black frame that can't be read. Ask the rep to tap again.
+    if (!video.videoWidth || !video.videoHeight || video.readyState < 2) {
+      var sb = el('bcs-status-bar');
+      if (sb) sb.textContent = 'Camera is starting — tap Scan again';
+      return;
+    }
+
     // Disable button immediately to prevent double-tap
     var scanBtn = el('bcs-scan-btn');
     if (scanBtn) { scanBtn.disabled = true; scanBtn.textContent = 'Reading card…'; }
@@ -14994,14 +15063,37 @@ window.BCS = (function() {
       setTimeout(function() { flash.classList.remove('bcs-flashing'); }, 300);
     }
 
-    // Draw current frame to full-res canvas
+    // Crop to the gold guide frame (plus a margin) at full camera resolution.
+    // Sending the whole frame left the card small, so its text was too tiny to
+    // read. The video is drawn with object-fit:cover, so map screen → video.
     var canvas = el('bcs-capture-canvas');
     var vw = video.videoWidth  || 1280;
     var vh = video.videoHeight || 720;
-    canvas.width  = vw;
-    canvas.height = vh;
-    canvas.getContext('2d').drawImage(video, 0, 0, vw, vh);
-    var b64 = canvas.toDataURL('image/jpeg', 0.88).split(',')[1];
+    var sx = 0, sy = 0, sw = vw, sh = vh;
+    try {
+      var vr = video.getBoundingClientRect();
+      var fr = el('bcs-guide-frame').getBoundingClientRect();
+      var scale = Math.max(vr.width / vw, vr.height / vh);   // cover
+      var offX = (vr.width  - vw * scale) / 2;
+      var offY = (vr.height - vh * scale) / 2;
+      var padX = fr.width * 0.12, padY = fr.height * 0.12;
+      var x0 = (fr.left - padX - vr.left - offX) / scale;
+      var y0 = (fr.top  - padY - vr.top  - offY) / scale;
+      var x1 = (fr.right  + padX - vr.left - offX) / scale;
+      var y1 = (fr.bottom + padY - vr.top  - offY) / scale;
+      x0 = Math.max(0, x0); y0 = Math.max(0, y0);
+      x1 = Math.min(vw, x1); y1 = Math.min(vh, y1);
+      if (fr.width > 0 && x1 - x0 > 50 && y1 - y0 > 30) { sx = x0; sy = y0; sw = x1 - x0; sh = y1 - y0; }
+    } catch (e) { /* fall back to the full frame */ }
+    // Upscale small crops so the text has enough pixels (cap at 1600 wide)
+    var outW = Math.min(1600, Math.max(sw, 1000));
+    var outH = Math.round(sh * outW / sw);
+    canvas.width  = outW;
+    canvas.height = outH;
+    var cx = canvas.getContext('2d');
+    cx.imageSmoothingQuality = 'high';
+    cx.drawImage(video, sx, sy, sw, sh, 0, 0, outW, outH);
+    var b64 = canvas.toDataURL('image/jpeg', 0.9).split(',')[1];
 
     // Close scanner after flash, then fire callback
     setTimeout(function() {
@@ -15073,7 +15165,23 @@ window.BCS = (function() {
       confirmEl.style.display = 'flex';
       confirmEl.style.flexDirection = 'column';
       if (window.KOL) KOL.sync('vcl-keep'); // reflect the sticky toggle
+      fillAccountDatalist();
     }
+  }
+
+  // Autocomplete existing account names on the confirm screen, so a rep who
+  // corrects the account picks the real one instead of making a duplicate.
+  function fillAccountDatalist() {
+    var dl = $id('vcl-acct-list');
+    if (!dl) return;
+    function fill(names) {
+      dl.innerHTML = names.map(function(n) { return '<option value="' + vclEsc(n) + '">'; }).join('');
+    }
+    if (VCL.accountNames) { fill(VCL.accountNames); return; }
+    fetch('/api/voice/account-names')
+      .then(function(r) { return r.json(); })
+      .then(function(names) { VCL.accountNames = Array.isArray(names) ? names : []; fill(VCL.accountNames); })
+      .catch(function() {});
   }
 
   // ── Modal open / close ─────────────────────────────────────────
@@ -15443,14 +15551,23 @@ window.BCS = (function() {
     if (!matchData || matchData.error) matchData = { matches: [], best_match: null };
     VCL.accountMatches = matchData.matches || [];
 
-    if (matchData.best_match && VCL.accountMatches.length === 1) {
-      // Single clear match — auto-select and proceed
-      var bm = matchData.best_match;
+    var top = VCL.accountMatches[0];
+    var second = VCL.accountMatches[1];
+    var clearWinner = matchData.best_match && (
+      matchData.exact ||
+      VCL.accountMatches.length === 1 ||
+      (top.sim >= 0.9 && (!second || second.sim < 0.8))
+    );
+
+    if (clearWinner) {
+      // One clear match — auto-select and proceed
+      var bm = matchData.exact || matchData.best_match;
       VCL.selectedAccount = { id: bm.id, company: bm.company, city: bm.city || '', state: bm.state || '', category: bm.category || '', isNew: false };
       loadContactsThenResolve();
 
-    } else if (VCL.accountMatches.length > 1) {
-      // Multiple matches — show picker
+    } else if (VCL.accountMatches.length > 0) {
+      // Possible matches but none certain — let the rep pick (even a single
+      // close-ish match; it used to be silently treated as a new account)
       renderAccountMatchScreen(VCL.accountMatches, VCL.extracted.account_name);
       showScreen('account-match');
 
@@ -15674,9 +15791,10 @@ window.BCS = (function() {
       '<div style="margin-bottom:13px">' +
         '<label style="' + labelStyle + '">Account</label>' +
         '<div style="display:flex;align-items:center;gap:8px">' +
-          '<input id="vcl-cf-account" type="text" value="' + vclEsc(acctName) + '" placeholder="Account name..." style="' + fieldStyle + ';font-weight:600;flex:1">' +
+          '<input id="vcl-cf-account" type="text" list="vcl-acct-list" autocomplete="off" value="' + vclEsc(acctName) + '" placeholder="Account name..." style="' + fieldStyle + ';font-weight:600;flex:1">' +
           acctBadge +
         '</div>' +
+        '<datalist id="vcl-acct-list"></datalist>' +
       '</div>' +
       // Contact
       '<div style="margin-bottom:13px">' +
@@ -15874,6 +15992,7 @@ window.BCS = (function() {
         if (typeof loadDashboard === 'function') loadDashboard();
         if (typeof loadProspects === 'function') loadProspects();
         window._qclAllProspects = null;
+        VCL.accountNames = null;
       })
       .catch(function(e) {
         console.error('[VCL] save error:', e);
@@ -15899,8 +16018,30 @@ window.BCS = (function() {
         return Promise.resolve(acct.id);
       }
     } else {
-      // New account (or edited name) — create with all form fields
-      return createNewAccountProspect(account, contName, ef);
+      // New account (or edited name). Check first whether the name typed is an
+      // account the rep already has — if so, log under it instead of creating
+      // a duplicate.
+      return fetch('/api/voice/match-account?name=' + encodeURIComponent(account))
+        .then(function(r) { return r.json(); })
+        .catch(function() { return {}; })
+        .then(function(md) {
+          var ex = md && md.exact;
+          if (!ex || !ex.id) return createNewAccountProspect(account, contName, ef);
+          var existing = { id: ex.id, company: ex.company, city: ex.city || '', state: ex.state || '', category: ex.category || '', isNew: false };
+          if (!contName) return existing.id;
+          // Contact named — reuse a matching contact at that account, else add one
+          return fetch('/api/voice/account-contacts?company=' + encodeURIComponent(existing.company))
+            .then(function(r) { return r.json(); })
+            .catch(function() { return []; })
+            .then(function(contacts) {
+              var want = contName.trim().toLowerCase();
+              var hit = (Array.isArray(contacts) ? contacts : []).filter(function(c) {
+                var full = (c.contact || '').trim().toLowerCase();
+                return full && (full === want || full.split(' ')[0] === want);
+              })[0];
+              return hit ? hit.id : createContactUnderAccount(existing.company, contName, existing, ef);
+            });
+        });
     }
   }
 
@@ -16028,6 +16169,9 @@ window.BCS = (function() {
 
   // Open BCS live scanner; fall back to file input when camera unavailable
   window.VCL_scanCard = function() {
+    // A cancelled scan from Contact Detail leaves this flag on, which sent the
+    // next voice-logger card photo to the wrong handler.
+    window._cdRescanning = false;
     // BCS.open expects a callback(base64jpeg)
     window.BCS.open(function(b64) {
       // Synthesize a fake "file input" result — pass the base64 directly to handleCardFile
@@ -16080,7 +16224,7 @@ window.BCS = (function() {
             statusEl.style.background = 'rgba(239,68,68,.12)';
             statusEl.style.border = '1px solid rgba(239,68,68,.3)';
             statusEl.style.color = '#ef4444';
-            statusEl.textContent = '⚠ Could not read card — please fill in manually';
+            statusEl.textContent = '⚠ ' + ((result && result.error) || 'Could not read card') + ' (or fill in manually)';
           }
           return;
         }
@@ -16142,7 +16286,7 @@ window.BCS = (function() {
           statusEl.style.background = 'rgba(239,68,68,.12)';
           statusEl.style.border = '1px solid rgba(239,68,68,.3)';
           statusEl.style.color = '#ef4444';
-          statusEl.textContent = '⚠ Could not read card — please fill in manually';
+          statusEl.textContent = '⚠ ' + ((result && result.error) || 'Could not read card') + ' (or fill in manually)';
         }
         return;
       }
