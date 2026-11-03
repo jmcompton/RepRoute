@@ -317,8 +317,9 @@ function showToday() {
     var leadCity = (d.stops.filter(function (x) { return x.city; })[0] || {}).city || (ME && ME.territory) || '';
     h += '<a class="card tap row" href="#leads" style="padding:14px;margin-top:12px;text-decoration:none">' +
       '<div class="circle" style="background:var(--gold);border-color:var(--gold);color:var(--ink)">' + ICON.search + '</div>' +
-      '<div class="grow"><div class="t1">Find new leads</div><div class="t2">' + (leadCity ? 'Distributors and contractors near ' + esc(leadCity) : 'Distributors and contractors near you') + '</div></div>' + ICON.chev + '</a>';
+      '<div class="grow"><div class="t1">Find new leads</div><div class="t2">' + (d.stops.length ? 'Along today\'s route, near your ' + plural(d.stops.length, 'stop') : leadCity ? 'Distributors and contractors near ' + esc(leadCity) : 'Distributors and contractors near you') + '</div></div>' + ICON.chev + '</a>';
     window._leadCityDefault = leadCity;
+    window._todayStopCount = d.stops.filter(function (x) { return x.account_id; }).length;
     if (ME && ME.role === 'manager') h += '<div id="team-box"></div>';
     // Stops
     h += '<div class="h2">Today\'s stops<a href="#accounts">+ Add stop</a></div>';
@@ -1130,7 +1131,7 @@ var LF_SEGMENTS = [
   ['Window/Door Installer', 'Window / Door'], ['Deck Contractor', 'Deck Contractors'], ['Roofing Contractor', 'Roofing Contractors'],
   ['Siding Contractor', 'Siding Contractors'], ['Cornice Contractor', 'Cornice Contractors'], ['Spray Foam Contractor', 'Spray Foam Contractors'], ['Glass Shop', 'Glass Shops']
 ];
-var LFK = 'rr_lead_finder_v1';
+var LFK = 'rr_lead_finder_v2';
 function lfLoad() { try { return JSON.parse(localStorage.getItem(LFK) || '{}'); } catch (e) { return {}; } }
 function lfSave(st) { try { localStorage.setItem(LFK, JSON.stringify(st)); } catch (e) {} }
 var LF = null;
@@ -1140,45 +1141,83 @@ function showLeads() {
   LF.brands = LF.brands || ['BOSS Products', 'ShurTape', 'Alum-A-Pole'];
   LF.segments = LF.segments || ['Deck Distributor/Dealer', 'Roofing Distributor', 'Siding Distributor'];
   LF.city = LF.city || window._leadCityDefault || (ME && ME.territory) || '';
+  LF.radius = LF.radius || 8;
+  if (!LF.mode) LF.mode = window._todayStopCount ? 'route' : 'city';
+  // Results from another day's route are stale.
+  if (LF.date !== ymd()) { LF.leads = []; LF.shown = []; LF.route = null; LF.date = ymd(); }
   LF.shown = LF.shown || []; LF.leads = LF.leads || [];
-  view('<div class="field"><label for="lf-city">City</label><input id="lf-city" placeholder="e.g. Norcross GA" autocomplete="off" autocapitalize="words" value="' + esc(LF.city) + '"></div>' +
+  view('<div class="seg" role="group" aria-label="Where to look" style="margin-bottom:12px">' +
+    '<button data-group="lfm" data-v="route" aria-pressed="' + (LF.mode === 'route') + '">Along today\'s route</button>' +
+    '<button data-group="lfm" data-v="city" aria-pressed="' + (LF.mode === 'city') + '">Near a city</button></div>' +
+    '<div id="lf-where"></div>' +
     '<div class="field"><span class="lbl">Brands</span><div class="chips">' + LF_BRANDS.map(function (b) {
       return '<button class="chip" data-lfb="' + esc(b[0]) + '" aria-pressed="' + (LF.brands.indexOf(b[0]) >= 0) + '" onclick="toggle(this)">' + esc(b[1]) + '</button>'; }).join('') + '</div></div>' +
     '<div class="field"><span class="lbl">Segments <span style="font-weight:500">(distributors first)</span></span><div class="chips">' + LF_SEGMENTS.map(function (g) {
       return '<button class="chip" data-lfs="' + esc(g[0]) + '" aria-pressed="' + (LF.segments.indexOf(g[0]) >= 0) + '" onclick="toggle(this)">' + esc(g[1]) + '</button>'; }).join('') + '</div></div>' +
     '<div class="btns" style="margin-bottom:16px"><button class="btn gold" id="lf-go" onclick="findLeads(false)">Find leads</button>' +
-    '<button class="btn" id="lf-more" onclick="findLeads(true)"' + (LF.leads.length ? '' : ' disabled') + '>10 new ones</button></div>' +
+    '<button class="btn" id="lf-more" onclick="findLeads(true)"' + (LF.leads.length ? '' : ' disabled') + '>More new ones</button></div>' +
     '<div id="lf-out"></div>');
-  renderLeads();
+  $$('[data-group="lfm"]').forEach(function (b) { b.onclick = function () {
+    press(b, 'lfm'); if (LF.mode !== b.dataset.v) { LF.mode = b.dataset.v; LF.leads = []; LF.shown = []; lfSave(LF); renderLeads(); }
+    renderWhere(); $('#lf-more').disabled = true; }; });
+  renderWhere(); renderLeads();
+}
+function renderWhere() {
+  var el = $('#lf-where'); if (!el) return;
+  if (LF.mode === 'city') {
+    el.innerHTML = '<div class="field"><label for="lf-city">City</label><input id="lf-city" placeholder="e.g. Norcross GA" autocomplete="off" autocapitalize="words" value="' + esc(LF.city) + '"></div>';
+    return;
+  }
+  el.innerHTML = '<div class="card" style="padding:12px 14px;margin-bottom:12px" id="lf-stops"><div class="t2">Loading today\'s stops…</div></div>' +
+    '<div class="field"><span class="lbl">How far off the route</span><div class="chips">' + [5, 8, 15].map(function (m) {
+      return '<button class="chip" data-group="lfr" aria-pressed="' + (LF.radius === m) + '" onclick="press(this,\'lfr\');LF.radius=' + m + ';lfSave(LF)">' + m + ' miles</button>'; }).join('') + '</div></div>';
+  api('/api/m/today?date=' + ymd()).then(function (d) {
+    var box = $('#lf-stops'); if (!box) return;
+    var stops = d.stops.filter(function (x) { return x.account_id; });
+    window._todayStopCount = stops.length;
+    box.innerHTML = stops.length
+      ? '<div class="lbl" style="margin-bottom:6px">Searching around your ' + plural(stops.length, 'stop') + '</div>' +
+        stops.map(function (x, i) { return '<div class="row" style="padding:3px 0"><div class="num" style="width:24px;height:24px;font-size:12px">' + (i + 1) + '</div><div class="grow" style="font-size:15px">' + esc(x.company) + '<span class="t2"> · ' + esc(x.city || '') + '</span></div></div>'; }).join('')
+      : '<div class="t1">No stops on today\'s route yet</div><div class="t2" style="margin:4px 0 10px">Add a few stops first, or search near a city.</div>' +
+        '<div class="btns"><a class="btn sm" href="#accounts">Add stops</a><button class="btn sm" onclick="$(\'[data-group=lfm][data-v=city]\').click()">Search a city</button></div>';
+  }).catch(function () { var box = $('#lf-stops'); if (box) box.innerHTML = '<div class="t2">Couldn\'t load today\'s stops.</div>'; });
 }
 function findLeads(more) {
-  var city = $('#lf-city').value.trim();
+  var routeMode = LF.mode === 'route';
+  var city = routeMode ? (LF.city || '') : ($('#lf-city') ? $('#lf-city').value.trim() : '');
   var brands = $$('[data-lfb][aria-pressed="true"]').map(function (b) { return b.dataset.lfb; });
   var segs = $$('[data-lfs][aria-pressed="true"]').map(function (b) { return b.dataset.lfs; });
-  if (!city) { toast('Enter a city first, like Norcross GA', true); $('#lf-city').focus(); return; }
+  if (!routeMode && !city) { toast('Enter a city first, like Norcross GA', true); $('#lf-city').focus(); return; }
+  if (routeMode && window._todayStopCount === 0) { toast('Add stops to today first, or search a city', true); return; }
   if (!brands.length) { toast('Pick at least one brand', true); return; }
   if (!segs.length) { toast('Pick at least one segment', true); return; }
-  if (!more || city !== LF.city) LF.shown = [];
-  LF.city = city; LF.brands = brands; LF.segments = segs;
+  if (!more || (!routeMode && city !== LF.city)) LF.shown = [];
+  if (!routeMode) LF.city = city;
+  LF.brands = brands; LF.segments = segs;
   var go = $('#lf-go'), mo = $('#lf-more'); go.disabled = true; mo.disabled = true; go.textContent = 'Searching…';
-  $('#lf-out').innerHTML = '<div class="t2" style="margin-bottom:10px">Searching ' + segs.length + ' segment' + (segs.length === 1 ? '' : 's') + ' around ' + esc(city) + '…</div><div class="skel"></div><div class="skel"></div><div class="skel"></div>';
+  $('#lf-out').innerHTML = '<div class="t2" style="margin-bottom:10px">Searching ' + plural(segs.length, 'segment') + (routeMode ? ' along today\'s route' : ' around ' + esc(city)) + '…</div><div class="skel"></div><div class="skel"></div><div class="skel"></div>';
   var all = [], seen = {}, seenFlag = {}; LF.shown.forEach(function (k) { seen[k] = 1; });
-  var errMsg = null;
+  var errMsg = null, noRoute = false, routeInfo = null;
   var chain = segs.reduce(function (p, seg) {
     return p.then(function () {
-      return api('/api/morning/daily-leads', { method: 'POST', body: { city: city, brands: brands, channel: seg, shown_place_ids: LF.shown, shown_names: [] } })
+      if (noRoute) return;
+      var body = { city: city, brands: brands, channel: seg, shown_place_ids: LF.shown, shown_names: [] };
+      if (routeMode) { body.route_date = ymd(); body.route_radius_miles = LF.radius; }
+      return api('/api/morning/daily-leads', { method: 'POST', body: body })
         .then(function (d) {
+          if (d.route) routeInfo = d.route;
           (d.leads || []).forEach(function (l) {
             l.segment = seg; var k = l.place_id || (l.company || '').toLowerCase();
             // Leads a teammate already has always show (flagged), but only once.
             if (l.already_contacted) { if (!seenFlag[k]) { seenFlag[k] = 1; all.push(l); } return; }
             if (!seen[k]) { seen[k] = 1; all.push(l); }
           });
-        }).catch(function (e) { errMsg = e.message; });
+        }).catch(function (e) { errMsg = e.message; if (e.body && e.body.code === 'NO_ROUTE') noRoute = true; });
     });
   }, Promise.resolve());
   chain.then(function () {
     go.disabled = false; go.textContent = 'Find leads';
+    if (noRoute) { $('#lf-out').innerHTML = '<div class="card empty">' + esc(errMsg) + '</div>'; return; }
     all.sort(function (a, b) { return (b.opportunity_score || 0) - (a.opportunity_score || 0); });
     var block = /paint|handyman|landscap|lawn care|pressure wash|gutter clean|house clean/i;
     var clean = all.filter(function (l) {
@@ -1186,8 +1225,9 @@ function findLeads(more) {
       if (block.test(l.company || '')) return false;
       if (/window|door/i.test(l.segment) && /garage|overhead door/i.test(l.company || '')) return false;
       return true;
-    }).slice(0, 10);
+    }).slice(0, routeMode ? 15 : 10);
     LF.leads = clean.concat(all.filter(function (l) { return l.already_contacted; }));
+    LF.route = routeInfo;
     clean.forEach(function (l) { if (l.place_id) LF.shown.push(l.place_id); });
     lfSave(LF); mo.disabled = !LF.leads.length;
     if (!LF.leads.length && errMsg) { $('#lf-out').innerHTML = '<div class="card err">Lead search failed: ' + esc(errMsg) + '</div>'; return; }
@@ -1196,43 +1236,80 @@ function findLeads(more) {
     if (clean.length) toast(plural(clean.length, 'new lead') + ' found');
   });
 }
+function leadCard(l, i) {
+  var seg = (LF_SEGMENTS.filter(function (g) { return g[0] === l.segment; })[0] || [0, l.category || ''])[1];
+  var where = l.detour_miles != null ? (l.detour_miles < 1 ? 'right on your route' : l.detour_miles + ' mi out of the way')
+            : (l.distance_miles != null ? Math.round(l.distance_miles) + ' mi away' : '');
+  var meta = [seg, where, l.rating ? '★ ' + l.rating + ' (' + (l.reviews || 0) + ')' : ''].filter(Boolean).join(' · ');
+  var acts;
+  if (l.already_contacted) {
+    acts = (l.phone ? '<a class="btn sm" href="tel:' + esc(digits(l.phone)) + '">Call</a>' : '') +
+      (l.account_id ? '<a class="btn sm" href="#account/' + l.account_id + '">Open account</a>' : '');
+  } else {
+    acts = (l.phone ? '<a class="btn sm" href="tel:' + esc(digits(l.phone)) + '">Call</a>' : '') +
+      '<a class="btn sm" href="' + esc(mapsUrl({ address: l.address, company: l.company })) + '" target="_blank" rel="noopener">Go</a>' +
+      (l.near_stop_number != null
+        ? '<button class="btn sm" id="lf-route-' + i + '" onclick="saveLead(' + i + ',\'route\')">' + (l.on_route ? '✓ On route' : '+ Route') + '</button>'
+        : '<button class="btn sm" id="lf-save-' + i + '" onclick="saveLead(' + i + ',\'save\')">' + (l.saved ? '✓ Saved' : 'Save') + '</button>') +
+      '<button class="btn sm pri" onclick="saveLead(' + i + ',\'log\')">Log visit</button>';
+  }
+  return '<div><div class="row" style="align-items:flex-start"><div class="grow"><div class="t1">' + esc(l.company) + '</div>' +
+    '<div class="t2">' + esc(meta) + '</div>' + (l.address ? '<div class="t2">' + esc(l.address) + '</div>' : '') +
+    (l.already_contacted ? '<div style="margin-top:4px"><span class="pill warn">Already in RepRoute' + (l.contacted_by ? ' · ' + esc(l.contacted_by) + '\'s account' : '') + '</span></div>' : '') + '</div>' +
+    (l.opportunity_score ? '<span class="pill ' + (l.opportunity_score >= 8 ? 'ok' : l.opportunity_score >= 6 ? 'navy' : '') + '">' + l.opportunity_score + '/10</span>' : '') + '</div>' +
+    '<div class="btns" style="margin-top:10px">' + acts + '</div></div>';
+}
 function renderLeads() {
   var el = $('#lf-out'); if (!el) return;
-  if (!LF.leads.length) { el.innerHTML = '<div class="card empty">Pick brands and segments, enter a city, and tap Find leads.</div>'; return; }
-  el.innerHTML = '<div class="h2">' + plural(LF.leads.filter(function (l) { return !l.already_contacted; }).length, 'lead') + ' near ' + esc(LF.city) + '</div>' +
-    '<div class="card list">' + LF.leads.map(function (l, i) {
-      var seg = (LF_SEGMENTS.filter(function (g) { return g[0] === l.segment; })[0] || [0, l.category || ''])[1];
-      var meta = [seg, l.distance_miles != null ? Math.round(l.distance_miles) + ' mi' : '', l.rating ? '★ ' + l.rating + ' (' + (l.reviews || 0) + ')' : ''].filter(Boolean).join(' · ');
-      return '<div><div class="row" style="align-items:flex-start"><div class="grow"><div class="t1">' + esc(l.company) + '</div>' +
-        '<div class="t2">' + esc(meta) + '</div>' + (l.address ? '<div class="t2">' + esc(l.address) + '</div>' : '') +
-        (l.already_contacted ? '<div style="margin-top:4px"><span class="pill warn">Already in RepRoute' + (l.contacted_by ? ' · ' + esc(l.contacted_by) : '') + '</span></div>' : '') + '</div>' +
-        (l.opportunity_score ? '<span class="pill ' + (l.opportunity_score >= 8 ? 'ok' : l.opportunity_score >= 6 ? 'navy' : '') + '">' + l.opportunity_score + '/10</span>' : '') + '</div>' +
-        '<div class="btns" style="margin-top:10px">' +
-        (l.phone ? '<a class="btn sm" href="tel:' + esc(digits(l.phone)) + '">Call</a>' : '') +
-        '<a class="btn sm" href="' + esc(mapsUrl({ address: l.address, company: l.company })) + '" target="_blank" rel="noopener">Go</a>' +
-        (l.already_contacted ? '' : '<button class="btn sm" id="lf-save-' + i + '" onclick="saveLead(' + i + ',false)">Save</button>' +
-          '<button class="btn sm pri" onclick="saveLead(' + i + ',true)">Log visit</button>') + '</div></div>';
-    }).join('') + '</div>' +
-    '<div class="t2" style="margin-top:10px;text-align:center">Saving adds the lead to your accounts. "10 new ones" skips the leads you\'ve already seen.</div>';
+  if (!LF.leads.length) { el.innerHTML = '<div class="card empty">' + (LF.mode === 'route' ? 'Pick brands and segments and tap Find leads. We\'ll look around each stop on today\'s route.' : 'Pick brands and segments, enter a city, and tap Find leads.') + '</div>'; return; }
+  var fresh = LF.leads.filter(function (l) { return !l.already_contacted; });
+  var h = '';
+  if (LF.mode === 'route') {
+    // Group by the stop each lead is near, in route order.
+    var groups = {};
+    LF.leads.forEach(function (l, i) { if (l.already_contacted) return; var n = l.near_stop_number || 0; (groups[n] = groups[n] || []).push(i); });
+    h += '<div class="h2">' + plural(fresh.length, 'lead') + ' along today\'s route</div>';
+    if (LF.route && LF.route.missing_location) h += '<div class="t2" style="margin-bottom:8px">' + plural(LF.route.missing_location, 'stop') + ' had no address, so we skipped ' + (LF.route.missing_location === 1 ? 'it' : 'them') + '.</div>';
+    Object.keys(groups).map(Number).sort(function (a, b) { return a - b; }).forEach(function (n) {
+      var first = LF.leads[groups[n][0]];
+      groups[n].sort(function (a, b) { return (LF.leads[b].opportunity_score || 0) - (LF.leads[a].opportunity_score || 0) || (LF.leads[a].detour_miles || 0) - (LF.leads[b].detour_miles || 0); });
+      h += '<div class="lbl" style="margin:14px 0 6px">Near stop ' + n + ' · ' + esc(first.near_stop || '') + '</div>' +
+        '<div class="card list">' + groups[n].map(function (i) { return leadCard(LF.leads[i], i); }).join('') + '</div>';
+    });
+  } else {
+    h += '<div class="h2">' + plural(fresh.length, 'lead') + ' near ' + esc(LF.city) + '</div>' +
+      '<div class="card list">' + LF.leads.map(function (l, i) { return l.already_contacted ? '' : leadCard(l, i); }).join('') + '</div>';
+  }
+  var flagged = LF.leads.map(function (l, i) { return l.already_contacted ? leadCard(l, i) : ''; }).join('');
+  if (flagged) h += '<div class="lbl" style="margin:16px 0 6px">Already a teammate\'s account</div><div class="card list">' + flagged + '</div>';
+  h += '<div class="t2" style="margin-top:10px;text-align:center">' + (LF.mode === 'route' ? '"+ Route" saves the lead and puts it on today\'s stops right after the stop it\'s near.' : 'Saving adds the lead to your accounts.') + ' "More new ones" skips leads you\'ve already seen.</div>';
+  el.innerHTML = h;
 }
-// Save a lead as an account (same endpoint as desktop), then find its id.
-function saveLead(i, thenLog) {
+// Save a lead as an account (same endpoint as desktop), then act on it.
+//   how = 'save' | 'route' (also add to today's stops after its nearest stop) | 'log'
+function saveLead(i, how) {
   var l = LF.leads[i]; if (!l) return;
-  var b = $('#lf-save-' + i); if (b) { b.disabled = true; b.textContent = 'Saving…'; }
+  var b = $(how === 'route' ? '#lf-route-' + i : '#lf-save-' + i); if (b) { b.disabled = true; b.textContent = 'Saving…'; }
   var cat = /Distributor|Dealer|Lumber|Fasteners|Division 10/.test(l.segment || '') ? 'Distributor' : 'Commercial Contractor';
-  api('/api/ai/leads/save', { method: 'POST', body: { leads: [{
-    company: l.company, category: l.category || cat, city: l.city || '', state: l.state || 'GA', phone: l.phone || null,
-    website: l.website || null, address: l.address || null, products: l.products || null,
-    data_status: 'Unvetted', source: 'Distribution Finder' }] } })
+  var ensure = l.account_id ? Promise.resolve(l.account_id) :
+    api('/api/ai/leads/save', { method: 'POST', body: { leads: [{
+      company: l.company, category: l.category || cat, city: l.city || '', state: l.state || 'GA', phone: l.phone || null,
+      website: l.website || null, address: l.address || null, products: l.products || null,
+      data_status: 'Unvetted', source: 'Distribution Finder' }] } })
     .then(function () { return api('/api/m/accounts?scope=mine&limit=5&q=' + encodeURIComponent(l.company)); })
     .then(function (rows) {
       var a = rows.filter(function (r) { return (r.company || '').toLowerCase() === (l.company || '').toLowerCase(); })[0] || rows[0];
-      l.saved = true; l.account_id = a && a.id; lfSave(LF);
-      if (b) { b.textContent = '✓ Saved'; }
-      if (!a) { toast('Saved to your accounts'); return; }
-      if (thenLog) location.hash = '#log/' + a.id; else toast('Saved. It\'s in your accounts now.');
-    })
-    .catch(function (e) { if (b) { b.disabled = false; b.textContent = 'Save'; } toast(e.message, true); });
+      if (!a) throw new Error('Saved, but couldn\'t find it in your accounts');
+      l.saved = true; l.account_id = a.id; lfSave(LF); return a.id;
+    });
+  ensure.then(function (id) {
+    if (how === 'log') { location.hash = '#log/' + id; return; }
+    if (how === 'route') {
+      return api('/api/m/route/insert', { method: 'POST', body: { account_id: id, after_stop_number: l.near_stop_number || 0, date: ymd() } })
+        .then(function (r) { l.on_route = true; lfSave(LF); if (b) b.textContent = '✓ On route'; toast(r.duplicate ? 'Already on today\'s stops' : 'Added as stop ' + r.stop_number + ', right after stop ' + l.near_stop_number); });
+    }
+    if (b) b.textContent = '✓ Saved'; toast('Saved. It\'s in your accounts now.');
+  }).catch(function (e) { if (b) { b.disabled = false; b.textContent = how === 'route' ? '+ Route' : 'Save'; } toast(e.message, true); });
 }
 
 // ════════════════════════════════════════════════════════════════

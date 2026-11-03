@@ -1,6 +1,10 @@
 const express = require('express');
 const fetch = require('node-fetch');
 const { pool } = require('../db');
+const { accountKey } = require('../lib/account-key');
+const { geocodeAddress } = require('../lib/geocode');
+// PLACES_BASE_URL overrides Google's host (used to point tests at a stub).
+const PLACES_SEARCH_URL = (process.env.PLACES_BASE_URL || 'https://places.googleapis.com').replace(/\/$/, '') + '/v1/places:searchText';
 const router = express.Router();
 
 const CLAUDE_API = 'https://api.anthropic.com/v1/messages';
@@ -155,6 +159,17 @@ const SEGMENT_SEARCH_CONFIG = {
     { query: 'outdoor deck patio contractor', score: 9, category: 'Deck Contractor' },
     { query: 'wood deck builder residential', score: 8, category: 'Deck Contractor' },
   ],
+  // Decking / railing supply houses and lumber yards with a decking program.
+  // Was missing: the default-checked "Deck Distributors" pill had no query set,
+  // so the server rejected it as an unknown segment and it never returned leads.
+  'Deck Distributor/Dealer': [
+    { query: 'decking supply distributor', score: 10, category: 'Deck Distributor/Dealer' },
+    { query: 'composite decking dealer', score: 10, category: 'Deck Distributor/Dealer' },
+    { query: 'deck and railing supply', score: 10, category: 'Deck Distributor/Dealer' },
+    { query: 'Trex TimberTech decking dealer', score: 9, category: 'Deck Distributor/Dealer' },
+    { query: 'lumber yard decking materials', score: 9, category: 'Deck Distributor/Dealer' },
+    { query: 'outdoor living building products distributor', score: 8, category: 'Deck Distributor/Dealer' },
+  ],
   'Siding Contractor': [
     { query: 'siding contractor installation', score: 10, category: 'Siding Contractor' },
     { query: 'vinyl siding contractor', score: 10, category: 'Siding Contractor' },
@@ -223,6 +238,11 @@ const SEGMENT_SEARCH_CONFIG = {
 //   block — name patterns that are clearly the wrong business (dropped)
 //   boost — name/type signals that confirm the right business (+1 score)
 const SEGMENT_RELEVANCE = {
+  // Deck supply: drop deck builders/installers (that's the Deck Contractor pill).
+  'Deck Distributor/Dealer': {
+    block: /\b(decks?|patios?|fences?|outdoor living)\s*(&\s*\w+\s*)?(builders?|contractors?|construction|installers?|installation|pros?|masters?|design(s|ers)?|guys?|company|co\b)|handyman|remodel|(power|pressure) ?wash|staining|\bpainting\b/i,
+    boost: /supply|lumber|building (products|materials|center)|decking|rail(ing)?|wholesale|distribut/i,
+  },
   'Spray Foam Contractor': {
     block: /pest control|exterminat|termite|foam (fabricat|rubber|packag|cushion)|mattress|upholster|packaging|car wash|\bpool\b/i,
     boost: /spray ?foam|\bspf\b|foam insulation|polyurethane|insulat/i,
@@ -495,6 +515,7 @@ router.post('/daily-leads', async (req, res) => {
     'Cornice Contractor':    'Contractor',
     'Window/Door Installer': 'Contractor',
     'Deck Contractor':       'Contractor',
+    'Deck Distributor/Dealer': 'Dealer',
     'Construction Fasteners': 'Dealer',
     'Lumber / Building Supply': 'Dealer',
     'Spray Foam Contractor': 'Contractor',
@@ -507,118 +528,186 @@ router.post('/daily-leads', async (req, res) => {
   const channel = SEGMENT_TO_CHANNEL[rawChannel] || 'Contractor';
   console.log(`[daily-leads] uid=${req.session.user.id} rawChannel="${rawChannel}" → channel="${channel}" city=${req.body.city}`);
   const radiusMiles = parseInt(req.body.radius_miles) || 50; // Default 50mi vs old 5mi
+  // Along-today's-route mode: route_date = the phone's local date. Leads are
+  // searched around each planned stop and kept only if they're close to the
+  // route; route_radius_miles = how far off a stop a lead may be (default 8).
+  const routeDate = /^\d{4}-\d{2}-\d{2}$/.test(req.body.route_date || '') ? req.body.route_date : null;
+  const routeRadius = Math.min(Math.max(parseFloat(req.body.route_radius_miles) || 8, 2), 25);
 
   try {
-    // Get existing prospects to avoid duplicates
+    // Every account on the TEAM (not just this rep's): this rep's own are
+    // skipped; a teammate's come back flagged with their name, so reps never
+    // cold-call each other's accounts as "new" leads. Names match with the same
+    // accountKey rule used everywhere else ("Harlan Supply Co" = "Harlan Supply").
     const existing = await pool.query(
-      'SELECT LOWER(company) as company, google_place_id FROM prospects WHERE user_id=$1', [uid]
-    );
-    const existingNames = new Set(existing.rows.map(r => r.company).filter(Boolean));
-    const existingPlaceIds = new Set(existing.rows.map(r => r.google_place_id).filter(Boolean));
-
-    // Also exclude leads already shown in this browser session (for refresh)
-    const shownPlaceIds = Array.isArray(req.body.shown_place_ids) ? req.body.shown_place_ids : [];
-    const shownNames = Array.isArray(req.body.shown_names) ? req.body.shown_names.map(n => n.toLowerCase()) : [];
-    for (const id of shownPlaceIds) existingPlaceIds.add(id);
-    for (const n of shownNames) existingNames.add(n);
-
-    // Geocode the city — always use the typed city first, fall back to home base
-    let centerCoords = null;
-    try {
-      const geoRes = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(city)}&key=${PLACES_KEY}`
-      );
-      const geoData = await geoRes.json();
-      if (geoData.results && geoData.results[0]) {
-        const loc = geoData.results[0].geometry.location;
-        centerCoords = { lat: loc.lat, lng: loc.lng };
-        console.log(`Geocoded "${city}" → ${loc.lat}, ${loc.lng}`);
-      }
-    } catch(e) { console.error('Geocode failed:', e.message); }
-    // Fall back to stored home base if geocode failed
-    if (!centerCoords && userInfo.home_base_lat && userInfo.home_base_lng) {
-      centerCoords = { lat: parseFloat(userInfo.home_base_lat), lng: parseFloat(userInfo.home_base_lng) };
-      console.log('Using home base coords as fallback');
+      `SELECT p.id, p.user_id, p.company, p.google_place_id,
+              COALESCE(NULLIF(TRIM(u.name),''), u.email) AS owner
+         FROM prospects p LEFT JOIN users u ON u.id = p.user_id`);
+    const byPlace = new Map(), byKey = new Map();
+    for (const r of existing.rows) {
+      const rec = { id: r.id, mine: r.user_id === uid, owner: r.owner };
+      if (r.google_place_id) { const cur = byPlace.get(r.google_place_id); if (!cur || rec.mine) byPlace.set(r.google_place_id, rec); }
+      const k = accountKey(r.company);
+      if (k) { const cur = byKey.get(k); if (!cur || rec.mine) byKey.set(k, rec); }
     }
 
-    if (!centerCoords) {
-      return res.status(500).json({ error: `Could not locate city: ${city}. Please check the city name.` });
-    }
+    // Also exclude leads already shown on this device (for "10 new ones").
+    const shownPlaceIds = new Set(Array.isArray(req.body.shown_place_ids) ? req.body.shown_place_ids : []);
+    const shownKeys = new Set((Array.isArray(req.body.shown_names) ? req.body.shown_names : []).map(n => accountKey(n)));
 
-    // Build search queries from segment config directly — segment pill = exact query set
-    // rawChannel is the segment name from the UI pill (e.g. 'Roofing Contractor', 'Window/Door Installer')
+    // Segment pill = exact query set.
     const segmentQueries = SEGMENT_SEARCH_CONFIG[rawChannel];
     if (!segmentQueries || !segmentQueries.length) {
       return res.status(400).json({ error: `Unknown segment: "${rawChannel}". Please select a valid segment.` });
     }
-    const searchConfigs = segmentQueries.map(sc => ({ ...sc, brand: brands[0] || rawChannel }));
-    console.log(`[daily-leads] segment="${rawChannel}" → ${searchConfigs.length} queries for city="${city}"`);
 
-    // Deduplicate search queries (same query from multiple brands)
-    const seenQueries = new Set();
-    const uniqueConfigs = searchConfigs.filter(sc => {
-      if (seenQueries.has(sc.query)) return false;
-      seenQueries.add(sc.query);
-      return true;
-    });
+    // ── Where to search ────────────────────────────────────────────
+    // City mode: one center (the typed city). Route mode: today's stops in
+    // planned order (geocoded if needed), starting from the rep's home base.
+    let centerCoords = null;
+    let route = null;      // { path:[{lat,lng,label,stop_number}], stops:[...], missing }
+    let plans = [];        // [{ textQuery, bias, centerIdx, config }]
+    if (routeDate) {
+      const st = await pool.query(
+        `SELECT pi.id, pi.sort_order, p.id AS pid, p.company, p.city, p.state, p.address, p.lat, p.lng
+           FROM planner_items pi JOIN prospects p ON p.id = pi.account_id
+          WHERE pi.rep_id = $1 AND pi.planned_date = $2
+          ORDER BY pi.sort_order ASC, pi.id ASC`, [uid, routeDate]);
+      const stops = [];
+      let missing = 0;
+      for (const [i, r] of st.rows.entries()) {
+        let lat = r.lat != null ? parseFloat(r.lat) : null, lng = r.lng != null ? parseFloat(r.lng) : null;
+        if (lat == null || lng == null) {
+          const q = [r.address, r.address ? null : r.company, r.city, r.state].filter(Boolean).join(', ');
+          const g = q ? await geocodeAddress(q) : null;
+          if (g) {
+            lat = g.lat; lng = g.lng;
+            pool.query('UPDATE prospects SET lat=$1, lng=$2, geocoded_at=NOW() WHERE id=$3', [lat, lng, r.pid]).catch(() => {});
+          }
+        }
+        if (lat == null || lng == null) { missing++; continue; }
+        stops.push({ lat, lng, label: r.company, city: r.city, state: r.state, stop_number: i + 1 });
+      }
+      if (!stops.length) {
+        return res.status(400).json({
+          error: st.rows.length ? "None of today's stops have an address we can map. Add addresses to those accounts or search by city."
+                                : "No stops on today's route yet. Add stops, or search by city.",
+          code: 'NO_ROUTE' });
+      }
+      const path = [];
+      if (userInfo.home_base_lat != null && userInfo.home_base_lng != null) {
+        path.push({ lat: parseFloat(userInfo.home_base_lat), lng: parseFloat(userInfo.home_base_lng), label: 'Home', stop_number: 0 });
+      }
+      stops.forEach(s => path.push(s));
+      route = { path, stops, missing };
+      // Search centers: stops, merging ones within 6 miles of the last center,
+      // capped at 5 (evenly spread) to keep Google calls in check.
+      let centers = [];
+      for (const s of stops) {
+        const last = centers[centers.length - 1];
+        if (!last || distanceMiles(last.lat, last.lng, s.lat, s.lng) > 6) centers.push(s);
+      }
+      if (centers.length > 5) centers = [0, 1, 2, 3, 4].map(k => centers[Math.round(k * (centers.length - 1) / 4)]);
+      route.centers = centers;
+      const topQueries = segmentQueries.slice().sort((a, b) => b.score - a.score).slice(0, 3);
+      // Interleave centers so every part of the route gets leads, not just the first stop.
+      for (const config of topQueries) {
+        centers.forEach((c, ci) => plans.push({
+          textQuery: `${config.query} near ${[c.city, c.state].filter(Boolean).join(' ') || ''}`.trim(),
+          bias: { circle: { center: { latitude: c.lat, longitude: c.lng }, radius: Math.min(routeRadius * 1609.34 * 1.5, 40000) } },
+          centerIdx: ci, config
+        }));
+      }
+      centerCoords = { lat: centers[0].lat, lng: centers[0].lng };
+    } else {
+      // Geocode the city — always use the typed city first, fall back to home base
+      try {
+        const g = await geocodeAddress(city);
+        if (g) { centerCoords = g; console.log(`Geocoded "${city}" → ${g.lat}, ${g.lng}`); }
+      } catch (e) { console.error('Geocode failed:', e.message); }
+      if (!centerCoords && userInfo.home_base_lat && userInfo.home_base_lng) {
+        centerCoords = { lat: parseFloat(userInfo.home_base_lat), lng: parseFloat(userInfo.home_base_lng) };
+        console.log('Using home base coords as fallback');
+      }
+      if (!centerCoords) {
+        return res.status(500).json({ error: `Could not locate city: ${city}. Please check the city name.` });
+      }
+      // Embed city directly in query — NO locationBias
+      // (locationBias with radius >50km causes 400 errors from Google Places API)
+      const seenQ = new Set();
+      for (const config of segmentQueries) {
+        if (seenQ.has(config.query)) continue;
+        seenQ.add(config.query);
+        plans.push({ textQuery: `${config.query} ${city}`, bias: null, centerIdx: 0, config });
+      }
+    }
+    console.log(`[daily-leads] segment="${rawChannel}" mode=${route ? 'route' : 'city'} → ${plans.length} searches`);
 
+    // Distance from the route: nearest stop, and the extra miles to swing by
+    // (best detour between consecutive points on home → stop 1 → stop 2 …).
+    function routeFit(lat, lng) {
+      let nearest = null, nearestD = Infinity;
+      for (const s of route.stops) {
+        const d = distanceMiles(s.lat, s.lng, lat, lng);
+        if (d < nearestD) { nearestD = d; nearest = s; }
+      }
+      let detour = 2 * nearestD;
+      const pts = route.path;
+      for (let i = 0; i + 1 < pts.length; i++) {
+        const a = pts[i], b = pts[i + 1];
+        const extra = distanceMiles(a.lat, a.lng, lat, lng) + distanceMiles(lat, lng, b.lat, b.lng) - distanceMiles(a.lat, a.lng, b.lat, b.lng);
+        if (extra < detour) detour = extra;
+      }
+      return { nearest, nearestD, detour: Math.max(0, detour) };
+    }
+
+    const MAX_LEADS = route ? 40 : 25;
+    const perCenterCap = route ? Math.max(6, Math.ceil(MAX_LEADS / route.centers.length)) : Infinity;
+    const perCenter = {};
     const allLeads = [];
+    const flagged = [];
     const sessionSeen = new Set();
 
-    for (const config of uniqueConfigs) {
-      if (allLeads.length >= 25) break; // Collect 25, return top 10 (more headroom for refresh)
-
+    for (const plan of plans) {
+      if (allLeads.length >= MAX_LEADS) break;
+      if ((perCenter[plan.centerIdx] || 0) >= perCenterCap) continue;
+      const config = Object.assign({}, plan.config, { brand: brands[0] || rawChannel });
       try {
-        // Embed city directly in query — NO locationBias
-        // locationBias with radius >50km causes 400 errors from Google Places API
-        const searchBody = {
-          textQuery: `${config.query} ${city}`,
-          maxResultCount: 20
-        };
-
-        const placesRes = await fetch('https://places.googleapis.com/v1/places:searchText', {
+        const searchBody = { textQuery: plan.textQuery, maxResultCount: 20 };
+        if (plan.bias) searchBody.locationBias = plan.bias;
+        const placesRes = await fetch(PLACES_SEARCH_URL, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'X-Goog-Api-Key': PLACES_KEY,
             'X-Goog-FieldMask': [
-              'places.id',
-              'places.displayName',
-              'places.formattedAddress',
-              'places.nationalPhoneNumber',
-              'places.websiteUri',
-              'places.rating',
-              'places.userRatingCount',
-              'places.businessStatus',
-              'places.location',
-              'places.primaryTypeDisplayName',
-              'places.types',
-              'places.photos',
+              'places.id', 'places.displayName', 'places.formattedAddress', 'places.nationalPhoneNumber',
+              'places.websiteUri', 'places.rating', 'places.userRatingCount', 'places.businessStatus',
+              'places.location', 'places.primaryTypeDisplayName', 'places.types', 'places.photos',
               'places.regularOpeningHours'
             ].join(',')
           },
           body: JSON.stringify(searchBody)
         });
-
         const data = await placesRes.json();
+        if (data.error) console.error('[daily-leads] Places error:', data.error.message || data.error.status);
         const places = data.places || [];
 
         for (const place of places) {
-          if (allLeads.length >= 25) break;
+          if (allLeads.length >= MAX_LEADS) break;
+          if ((perCenter[plan.centerIdx] || 0) >= perCenterCap) break;
 
           const company = place.displayName?.text || '';
           const placeId = place.id || '';
-          const companyLower = company.toLowerCase();
+          if (!company) continue;
+          const key = accountKey(company);
+          if (sessionSeen.has(placeId || key)) continue;
 
           // Basic validity checks
-          if (!company) continue;
-
           if (isResidentialRooferBlocked(company, place.types || [], rawChannel)) continue;
           if (place.businessStatus === 'CLOSED_PERMANENTLY') continue;
-          if (placeId && existingPlaceIds.has(placeId)) continue;
-          if (existingNames.has(companyLower)) continue;
-          if (sessionSeen.has(placeId || companyLower)) continue;
-
+          if (placeId && shownPlaceIds.has(placeId)) continue;
+          if (shownKeys.has(key)) continue;
           // Hard block — big-box retailers (Home Depot, Lowe's, Menards) are
           // ALWAYS excluded; they are never walkable rep targets.
           if (isBigBoxBlocked(company)) continue;
@@ -631,52 +720,52 @@ router.post('/daily-leads', async (req, res) => {
           const relevance = SEGMENT_RELEVANCE[rawChannel];
           if (relevance && relevance.block.test(company)) continue;
           if (relevance && relevance.blockTypes && relevance.blockTypes.test((place.types || []).join(' '))) continue;
-          sessionSeen.add(placeId || companyLower);
 
-          // Distance filter — use the rep's actual radius
-          let distMi = null;
+          // Distance: from the city center, or how far off today's route.
+          let distMi = null, fit = null;
           if (place.location?.latitude != null) {
-            distMi = Math.round(distanceMiles(
-              centerCoords.lat, centerCoords.lng,
-              place.location.latitude, place.location.longitude
-            ) * 10) / 10;
-            if (distMi > radiusMiles) continue;
+            if (route) {
+              fit = routeFit(place.location.latitude, place.location.longitude);
+              if (fit.nearestD > routeRadius && fit.detour > routeRadius * 1.5) continue;
+              distMi = Math.round(fit.nearestD * 10) / 10;
+            } else {
+              distMi = Math.round(distanceMiles(centerCoords.lat, centerCoords.lng, place.location.latitude, place.location.longitude) * 10) / 10;
+              if (distMi > radiusMiles) continue;
+            }
+          } else if (route) {
+            continue; // can't place it on the route
           }
 
           // Use Google's place types for accurate classification (not just name matching)
           const placeTypes = new Set(place.types || []);
           const primaryType = place.primaryTypeDisplayName?.text || config.category;
-
           // Soft channel filter — only block clear mismatches, not ambiguous types
-          // Many specialty dealers (siding supply, fastener stores) don't have explicit Google types
           const isClassifiedContractor = [...placeTypes].some(t => CONTRACTOR_PLACE_TYPES.has(t));
           const isClassifiedDealer = [...placeTypes].some(t => DEALER_PLACE_TYPES.has(t));
-
-          // Only hard-exclude if Google is very confident it's the WRONG type
-          // Allow anything ambiguous (no classification) through — better to include than miss
           const channelFilterOn = !CHANNEL_FILTER_EXEMPT.has(rawChannel);
           if (channelFilterOn && channel === 'Dealer' && isClassifiedContractor && !isClassifiedDealer && placeTypes.size > 2) continue;
           if (channelFilterOn && channel === 'Contractor' && isClassifiedDealer && !isClassifiedContractor && placeTypes.size > 2) continue;
+          sessionSeen.add(placeId || key);
+
+          // Already in RepRoute? Mine → skip. A teammate's → flag with their name.
+          const known = (placeId && byPlace.get(placeId)) || byKey.get(key);
+          if (known && known.mine) continue;
 
           // Count how many product lines this prospect is relevant to
           const matchingBrands = brands.filter(brand => {
             const bc = PRODUCT_SEARCH_CONFIG[brand]?.[channel];
             return bc?.some(sc => sc.category === config.category || sc.query.split(' ')[0] === config.query.split(' ')[0]);
           });
-
+          // Route mode scores by detour (miles out of the way), city mode by distance.
           let opportunityScore = calcOpportunityScore(
             config.score,
-            distMi || 25,
+            route ? fit.detour : (distMi || 25),
             place.userRatingCount || 0,
             place.rating || 0,
             matchingBrands.length,
             channel
           );
-
-          // Lumber / building-supply few-shot ranking nudge: businesses that
-          // share the "kind" of Keith's gold-standard anchors rank higher.
-          // Positive-only — uncertain hardware/farm stores still surface so the
-          // rep can decide (per the category rules).
+          // Lumber / building-supply few-shot ranking nudge.
           if (rawChannel === 'Lumber / Building Supply') {
             opportunityScore = Math.min(10, opportunityScore + lumberKindBoost(company, place.types || []));
           }
@@ -684,24 +773,15 @@ router.post('/daily-leads', async (req, res) => {
           if (relevance && relevance.boost.test(company + ' ' + (place.types || []).join(' '))) {
             opportunityScore = Math.min(10, opportunityScore + 1);
           }
-
           // Home-based business detection — badge + optional score penalty
-          const homeBasedResult = isHomeBased(
-            place.formattedAddress || '',
-            company,
-            place.websiteUri || '',
-            place.types || []
-          );
+          const homeBasedResult = isHomeBased(place.formattedAddress || '', company, place.websiteUri || '', place.types || []);
           let homeBasedBadge = false;
           if (homeBasedResult.primary && homeBasedResult.secondary) {
-            // Both signals: badge + strong score penalty (pushes to bottom)
             homeBasedBadge = true;
             opportunityScore = Math.max(1, opportunityScore - 15);
           } else if (homeBasedResult.primary) {
-            // Primary only: badge, no score change
             homeBasedBadge = true;
           } else if (homeBasedResult.secondary) {
-            // Secondary only: mild score penalty, no badge
             opportunityScore = Math.max(1, opportunityScore - 5);
           }
 
@@ -711,7 +791,7 @@ router.post('/daily-leads', async (req, res) => {
           const stateZip = addrParts.length >= 2 ? addrParts[addrParts.length - 2] || '' : '';
           const stateName = stateZip.split(' ')[0] || 'GA';
 
-          allLeads.push({
+          const lead = {
             company,
             category: config.category,
             channel,
@@ -723,7 +803,7 @@ router.post('/daily-leads', async (req, res) => {
             website: place.websiteUri || '',
             products: matchingBrands.join(', ') || brands.join(', '),
             place_id: placeId,
-            territory: city,
+            territory: route ? 'Along today\'s route' : city,
             opportunity_score: opportunityScore,
             priority: opportunityScore >= 8 ? 'High' : opportunityScore >= 6 ? 'Medium' : 'Low',
             rating: place.rating || null,
@@ -734,32 +814,53 @@ router.post('/daily-leads', async (req, res) => {
             business_status: place.businessStatus || 'OPERATIONAL',
             photo_count: (place.photos || []).length,
             has_hours: !!(place.regularOpeningHours)
-          });
+          };
+          if (route) {
+            lead.near_stop = fit.nearest.label;
+            lead.near_stop_number = fit.nearest.stop_number;
+            lead.detour_miles = Math.round(fit.detour * 10) / 10;
+            lead.why = `Near stop ${fit.nearest.stop_number} (${fit.nearest.label}), about ${lead.detour_miles} mi out of the way`;
+          }
+          if (known) {
+            lead.already_contacted = true;
+            lead.contacted_by = known.owner;
+            lead.account_id = known.id;
+            if (flagged.length < 5) flagged.push(lead);
+            continue;
+          }
+          perCenter[plan.centerIdx] = (perCenter[plan.centerIdx] || 0) + 1;
+          allLeads.push(lead);
         }
-      } catch(e) {
-        console.error('Places search error for query:', config.query, e.message);
+      } catch (e) {
+        console.error('Places search error for query:', plan.textQuery, e.message);
       }
     }
 
-    // Sort: opportunity score DESC, then distance ASC
+    // Sort: opportunity score DESC, then (route) least out of the way / (city) closest.
     allLeads.sort((a, b) => {
       if (b.opportunity_score !== a.opportunity_score) return b.opportunity_score - a.opportunity_score;
-      const da = a.distance_miles ?? 999;
-      const db = b.distance_miles ?? 999;
+      const da = route ? (a.detour_miles ?? 999) : (a.distance_miles ?? 999);
+      const db = route ? (b.detour_miles ?? 999) : (b.distance_miles ?? 999);
       return da - db;
     });
 
-    const topLeads = allLeads.slice(0, 10);
+    const topLeads = allLeads.slice(0, route ? 15 : 10).concat(flagged);
 
     res.json({
       ok: true,
       leads: topLeads,
       brands_used: brands,
       channel,
-      radius_miles: radiusMiles,
+      mode: route ? 'route' : 'city',
+      radius_miles: route ? routeRadius : radiusMiles,
       center: { city, coords: centerCoords },
+      route: route ? {
+        stops: route.stops.map(s => ({ stop_number: s.stop_number, company: s.label, city: s.city })),
+        searched_near: route.centers.map(c => c.label),
+        missing_location: route.missing
+      } : null,
       total_found: allLeads.length,
-      excluded_count: existingNames.size
+      excluded_count: byKey.size
     });
 
   } catch(e) {

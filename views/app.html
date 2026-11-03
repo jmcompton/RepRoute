@@ -1814,8 +1814,11 @@ function localYMD(d){ d = d || new Date(); return d.getFullYear()+'-'+String(d.g
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <input id="lead-city-input" type="text" name="lead_city_search" inputmode="text" placeholder="Enter city (e.g. Norcross GA)" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-form-type="other">
           <div style="display:flex;gap:8px;align-items:center">
-            <button onclick="runDailyLeads()" id="lead-find-btn" style="padding:10px 22px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">
+            <button onclick="window._lfRouteMode=false;runDailyLeads()" id="lead-find-btn" style="padding:10px 22px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">
               Find Today's Leads
+            </button>
+            <button onclick="window._lfRouteMode=true;runDailyLeads()" id="lead-route-btn" title="Search around each stop on today's route" style="padding:10px 16px;background:var(--navy);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">
+              Along Today's Route
             </button>
             <button onclick="refreshLeads()" id="lead-refresh-btn" style="display:none;padding:10px 14px;background:var(--surface);color:var(--navy);border:1px solid var(--border);border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap" title="Get 10 new leads">
               ↻ Refresh
@@ -11392,13 +11395,15 @@ window.runDailyLeads = function() {
   var summary = document.getElementById('lead-summary');
   var city = document.getElementById('lead-city-input')?.value?.trim() || '';
 
-  if (!city) { alert('Please enter a city first (e.g. Norcross GA)'); return; }
+  var routeMode = !!window._lfRouteMode;
+  if (!city && !routeMode) { alert('Please enter a city first (e.g. Norcross GA)'); return; }
 
   var segments = getSelectedSegments();
   if (!segments.length) { alert('Please select at least one segment.'); return; }
 
   btn.disabled = true;
   btn.textContent = 'Searching...';
+  var routeBtn = document.getElementById('lead-route-btn'); if (routeBtn) routeBtn.disabled = true;
   if (loading) loading.style.display = 'block';
   if (results) results.innerHTML = '';
   if (summary) summary.style.display = 'none';
@@ -11420,11 +11425,14 @@ window.runDailyLeads = function() {
         brands: getSelectedBrands(),
         channel: segments[idx],
         shown_place_ids: Array.from(seenIds),
-        shown_names: window._shownNames || []
+        shown_names: window._shownNames || [],
+        route_date: routeMode ? localYMD() : undefined,
+        route_radius_miles: routeMode ? 8 : undefined
       })
     })
     .then(function(r) { return r.json(); })
     .then(function(data) {
+      if (data.code === 'NO_ROUTE') { routeError = data.error; segments = []; finalize(); return; }
       if (data.leads) {
         data.leads.forEach(function(lead) {
           var id = lead.place_id || lead.company;
@@ -11442,10 +11450,14 @@ window.runDailyLeads = function() {
     .catch(function() { fetchSegment(idx + 1); });
   }
 
+  var routeError = null, finalized = false;
   function finalize() {
+    if (finalized) return; finalized = true;
     if (loading) loading.style.display = 'none';
     btn.disabled = false;
     btn.textContent = "Find Today's Leads";
+    if (routeBtn) routeBtn.disabled = false;
+    if (routeError) { alert(routeError); return; }
     var refreshBtn = document.getElementById('lead-refresh-btn');
     if (refreshBtn) { refreshBtn.style.display = 'block'; refreshBtn.textContent = '↻ Refresh'; refreshBtn.disabled = false; }
 

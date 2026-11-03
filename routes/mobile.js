@@ -406,4 +406,41 @@ router.get('/activity', async (req, res) => {
   }
 });
 
+// ── POST /api/m/route/insert { account_id, after_stop_number, date } ──
+// Put an account on today's route right after the stop it's near (stop numbers
+// are 1-based positions in today's planned order), renumbering the rest.
+// Already planned today → returns that stop unchanged.
+router.post('/route/insert', async (req, res) => {
+  const uid = req.session.user.id;
+  const b = req.body || {};
+  const accountId = parseInt(b.account_id);
+  if (!Number.isFinite(accountId)) return res.status(400).json({ error: 'account_id required' });
+  const client = await pool.connect();
+  try {
+    const date = isYmd(b.date) ? b.date : await todayFor(req);
+    await client.query('BEGIN');
+    const items = (await client.query(
+      `SELECT id, account_id FROM planner_items WHERE rep_id=$1 AND planned_date=$2
+        ORDER BY sort_order ASC, id ASC FOR UPDATE`, [uid, date])).rows;
+    const dup = items.find(i => i.account_id === accountId);
+    if (dup) { await client.query('ROLLBACK'); return res.json({ id: dup.id, duplicate: true }); }
+    const after = Math.min(Math.max(parseInt(b.after_stop_number) || items.length, 0), items.length);
+    const ins = await client.query(
+      `INSERT INTO planner_items (rep_id, planned_date, item_type, account_id, sort_order, source)
+       VALUES ($1,$2,'stop',$3,0,'manual') RETURNING id`, [uid, date, accountId]);
+    const order = items.slice(0, after).map(i => i.id).concat([ins.rows[0].id], items.slice(after).map(i => i.id));
+    for (let k = 0; k < order.length; k++) {
+      await client.query('UPDATE planner_items SET sort_order=$1 WHERE id=$2', [k, order[k]]);
+    }
+    await client.query('COMMIT');
+    res.json({ id: ins.rows[0].id, stop_number: after + 1 });
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[m/route/insert]', e.message);
+    res.status(500).json({ error: e.message });
+  } finally {
+    client.release();
+  }
+});
+
 module.exports = router;
