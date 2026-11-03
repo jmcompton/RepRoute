@@ -723,6 +723,15 @@ async function initDB() {
     console.error('[migrate] embedded-contacts backfill skipped:', e.message);
   }
 
+  // Sample status is lowercase everywhere the desktop reads it ('pending',
+  // 'converted', 'no_interest'). Normalize any capitalized rows. Idempotent.
+  try {
+    await pool.query(`UPDATE samples SET status = LOWER(REPLACE(status, ' ', '_'))
+                       WHERE status IN ('Pending','Converted','No Interest','No_Interest')`);
+  } catch (e) {
+    console.error('[migrate] sample status normalize skipped:', e.message);
+  }
+
   // (Removed Nov 2026) A startup "backfill" here forced every call CREATED today
   // onto CURRENT_DATE (UTC) on every boot. Because Railway restarts on every
   // deploy, it silently re-dated legitimate backdated visits (yesterday's visit

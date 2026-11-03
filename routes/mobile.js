@@ -68,7 +68,7 @@ router.get('/today', async (req, res) => {
         `SELECT s.id, s.prospect_id, s.product_line, s.sent_date::text AS sent_date, s.follow_up_date::text AS due,
                 p.company, p.phone
            FROM samples s LEFT JOIN prospects p ON p.id = s.prospect_id
-          WHERE s.user_id = $1 AND COALESCE(s.status,'Pending') NOT IN ('Converted','Closed','Lost','Won','No Interest')
+          WHERE s.user_id = $1 AND LOWER(COALESCE(s.status,'pending')) NOT IN ('converted','no_interest','no interest','closed','lost','won')
             AND s.closed_at IS NULL
           ORDER BY s.follow_up_date ASC NULLS LAST`, [uid]),
       pool.query(
@@ -155,13 +155,13 @@ router.get('/account/:id', async (req, res) => {
                          COALESCE(NULLIF(TRIM(u.name),''), u.email) AS rep
                     FROM calls c LEFT JOIN users u ON u.id = c.user_id
                    WHERE c.prospect_id=$1 ORDER BY c.call_date DESC, c.id DESC LIMIT 15`, [id]),
-      pool.query(`SELECT id, quote_number, status, amount, products, quote_date::text AS quote_date,
+      pool.query(`SELECT id, user_id, rep_id, account_name, quote_number, status, amount, products, quote_date::text AS quote_date,
                          follow_up_date::text AS follow_up_date, rep_name
                     FROM quotes
                    WHERE LOWER(REGEXP_REPLACE(account_name,'[^a-zA-Z0-9]','','g'))
                        = LOWER(REGEXP_REPLACE($1,'[^a-zA-Z0-9]','','g'))
                    ORDER BY quote_date DESC NULLS LAST, id DESC LIMIT 10`, [acct.company]),
-      pool.query(`SELECT id, product_line, quantity, sent_date::text AS sent_date, follow_up_date::text AS follow_up_date,
+      pool.query(`SELECT id, user_id, product_line, quantity, sent_date::text AS sent_date, follow_up_date::text AS follow_up_date,
                          status, closed_at
                     FROM samples WHERE prospect_id=$1 ORDER BY sent_date DESC LIMIT 10`, [id]),
       pool.query(`SELECT l.name, al.total_sales
@@ -190,19 +190,19 @@ router.get('/pipeline', async (req, res) => {
   try {
     const [quotes, samples] = await Promise.all([
       pool.query(
-        `SELECT q.id, q.account_name, q.amount, q.status, q.products, q.quote_date::text AS quote_date,
+        `SELECT q.id, q.user_id, q.rep_id, q.account_name, q.amount, q.status, q.products, q.quote_date::text AS quote_date,
                 q.follow_up_date::text AS follow_up_date, COALESCE(q.rep_name, u.name) AS rep
            FROM quotes q LEFT JOIN users u ON u.id = q.user_id
           WHERE ($2 OR q.user_id = $1 OR q.rep_id = $1)
             AND (q.status NOT IN ('Won','Lost') OR q.quote_date >= (NOW() AT TIME ZONE '${TZ}')::date - 60)
           ORDER BY q.quote_date DESC NULLS LAST, q.id DESC LIMIT 200`, [uid, team]),
       pool.query(
-        `SELECT s.id, s.prospect_id, s.product_line, s.quantity, s.sent_date::text AS sent_date,
+        `SELECT s.id, s.user_id, s.prospect_id, s.product_line, s.quantity, s.sent_date::text AS sent_date,
                 s.follow_up_date::text AS follow_up_date, s.status, p.company,
                 COALESCE(NULLIF(TRIM(u.name),''), u.email) AS rep
            FROM samples s LEFT JOIN prospects p ON p.id = s.prospect_id LEFT JOIN users u ON u.id = s.user_id
           WHERE ($2 OR s.user_id = $1) AND s.closed_at IS NULL
-            AND COALESCE(s.status,'Pending') NOT IN ('Converted','Closed','Lost','Won','No Interest')
+            AND LOWER(COALESCE(s.status,'pending')) NOT IN ('converted','no_interest','no interest','closed','lost','won')
           ORDER BY s.follow_up_date ASC NULLS LAST LIMIT 200`, [uid, team])
     ]);
     res.json({ quotes: quotes.rows, samples: samples.rows });
@@ -249,6 +249,127 @@ router.post('/stops/:id/done', async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     console.error('[m/stops/done]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Ownership helper for quick edits from the phone ──────────────
+const canEdit = (me, ownerIds) => me.role === 'manager' || ownerIds.some(id => id && Number(id) === Number(me.id));
+const isYmdOrNull = v => v === null || v === '' || isYmd(v);
+
+// ── PATCH /api/m/quotes/:id { status?, follow_up_date? } ─────────
+// Only touches status / follow-up. The full quote editor stays on desktop.
+router.patch('/quotes/:id', async (req, res) => {
+  const me = req.session.user;
+  const id = parseInt(req.params.id);
+  const b = req.body || {};
+  const STATUSES = ['Draft', 'Sent', 'Follow-Up', 'Won', 'Lost'];
+  try {
+    const q = await pool.query('SELECT id, user_id, rep_id FROM quotes WHERE id=$1', [id]);
+    if (!q.rows.length) return res.status(404).json({ error: 'Quote not found' });
+    if (!canEdit(me, [q.rows[0].user_id, q.rows[0].rep_id])) return res.status(403).json({ error: 'Only the quote\'s rep or a manager can change it' });
+    const sets = [], vals = [];
+    if (b.status !== undefined) {
+      if (!STATUSES.includes(b.status)) return res.status(400).json({ error: 'Unknown status' });
+      vals.push(b.status); sets.push(`status=$${vals.length}`);
+    }
+    if (b.follow_up_date !== undefined) {
+      if (!isYmdOrNull(b.follow_up_date)) return res.status(400).json({ error: 'Bad date' });
+      vals.push(b.follow_up_date || null); sets.push(`follow_up_date=$${vals.length}`);
+      sets.push(`follow_up_enabled=${b.follow_up_date ? 'TRUE' : 'FALSE'}`);
+    }
+    if (!sets.length) return res.status(400).json({ error: 'Nothing to change' });
+    vals.push(id);
+    const r = await pool.query(
+      `UPDATE quotes SET ${sets.join(', ')}, updated_at=NOW() WHERE id=$${vals.length}
+       RETURNING id, status, follow_up_date::text AS follow_up_date`, vals);
+    res.json(r.rows[0]);
+  } catch (e) {
+    console.error('[m/quotes PATCH]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── PATCH /api/m/samples/:id { outcome: converted|no_interest|pending, follow_up_date? }
+router.patch('/samples/:id', async (req, res) => {
+  const me = req.session.user;
+  const id = parseInt(req.params.id);
+  const b = req.body || {};
+  try {
+    const q = await pool.query('SELECT id, user_id FROM samples WHERE id=$1', [id]);
+    if (!q.rows.length) return res.status(404).json({ error: 'Sample not found' });
+    if (!canEdit(me, [q.rows[0].user_id])) return res.status(403).json({ error: 'Only the rep who left it or a manager can change it' });
+    if (b.outcome !== undefined) {
+      if (!['converted', 'no_interest', 'pending'].includes(b.outcome)) return res.status(400).json({ error: 'Unknown outcome' });
+      const closed = b.outcome !== 'pending';
+      await pool.query(
+        `UPDATE samples SET status=$1, outcome_notes=COALESCE($2, outcome_notes), closed_at=${closed ? 'NOW()' : 'NULL'} WHERE id=$3`,
+        [b.outcome, b.notes ? String(b.notes).slice(0, 500) : null, id]);
+    }
+    if (b.follow_up_date !== undefined) {
+      if (!isYmdOrNull(b.follow_up_date)) return res.status(400).json({ error: 'Bad date' });
+      await pool.query('UPDATE samples SET follow_up_date=$1 WHERE id=$2', [b.follow_up_date || null, id]);
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[m/samples PATCH]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── POST /api/m/followups/:callId { action: 'done' | 'snooze', days? } ──
+// Close out or push back the next step a visit set, without logging a visit.
+router.post('/followups/:callId', async (req, res) => {
+  const me = req.session.user;
+  const id = parseInt(req.params.callId);
+  const action = (req.body || {}).action;
+  try {
+    const c = await pool.query('SELECT id, user_id FROM calls WHERE id=$1', [id]);
+    if (!c.rows.length) return res.status(404).json({ error: 'Follow-up not found' });
+    if (!canEdit(me, [c.rows[0].user_id])) return res.status(403).json({ error: 'Not your follow-up' });
+    if (action === 'done') {
+      await pool.query('UPDATE calls SET next_step_date=NULL WHERE id=$1', [id]);
+    } else if (action === 'snooze') {
+      const days = Math.min(Math.max(parseInt((req.body || {}).days) || 7, 1), 90);
+      const base = isYmd((req.body || {}).today) ? req.body.today : (await todayFor(req));
+      await pool.query(`UPDATE calls SET next_step_date = $1::date + $2::int WHERE id=$3`, [base, days, id]);
+    } else {
+      return res.status(400).json({ error: 'Unknown action' });
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[m/followups]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── PATCH /api/m/account/:id ─────────────────────────────────────
+// Reps fix contact details on any team account they're standing in.
+// Changing the account's name or type stays with the owner or a manager.
+router.patch('/account/:id', async (req, res) => {
+  const me = req.session.user;
+  const id = parseInt(req.params.id);
+  const b = req.body || {};
+  try {
+    const a = await pool.query('SELECT id, user_id FROM prospects WHERE id=$1', [id]);
+    if (!a.rows.length) return res.status(404).json({ error: 'Account not found' });
+    const owner = canEdit(me, [a.rows[0].user_id]);
+    const allowed = ['phone', 'address', 'city', 'state', 'zip', 'website'].concat(owner ? ['company', 'category'] : []);
+    const sets = [], vals = [];
+    allowed.forEach(k => {
+      if (b[k] === undefined) return;
+      const v = String(b[k] == null ? '' : b[k]).trim().slice(0, 200);
+      if ((k === 'company' || k === 'category') && !v) return;
+      vals.push(v || null); sets.push(`${k}=$${vals.length}`);
+    });
+    if (!sets.length) return res.status(400).json({ error: 'Nothing to change' });
+    // A moved address needs a fresh map pin.
+    if (b.address !== undefined || b.city !== undefined) sets.push('lat=NULL, lng=NULL, geocoded_at=NULL');
+    vals.push(id);
+    await pool.query(`UPDATE prospects SET ${sets.join(', ')} WHERE id=$${vals.length}`, vals);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[m/account PATCH]', e.message);
     res.status(500).json({ error: e.message });
   }
 });

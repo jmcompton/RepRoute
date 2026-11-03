@@ -65,6 +65,9 @@ nav#tabs svg{width:23px;height:23px}
 .t3{font-size:14px;color:var(--navy);margin-top:3px}
 .tap{display:block;text-decoration:none;color:inherit;cursor:pointer}
 .tap:active{background:#F7F8FA}
+.rowbtn{width:100%;border:none;background:none;text-align:left;font:inherit;color:inherit;cursor:pointer;padding:14px}
+.list>.rowbtn{border-bottom:1px solid var(--line)}
+.list>.rowbtn:last-child{border-bottom:none}
 .btn{height:48px;padding:0 16px;border-radius:10px;border:1px solid var(--field);background:#fff;font-weight:600;font-size:15px;
   color:var(--navy);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;text-decoration:none;white-space:nowrap}
 .btn.sm{height:40px;font-size:14px;padding:0 12px}
@@ -138,8 +141,8 @@ nav#tabs svg{width:23px;height:23px}
   padding:8px 16px calc(20px + var(--safe-b));box-shadow:0 -8px 30px rgba(0,0,0,.15)}
 #sheet .grab{width:40px;height:5px;border-radius:3px;background:#D5D9E0;margin:4px auto 12px}
 #sheet h2{font-size:19px;margin:0 0 14px}
-#toast{position:fixed;left:16px;right:16px;bottom:calc(96px + var(--safe-b));z-index:60;background:var(--ink);color:#fff;border-radius:12px;
-  padding:14px 16px;font-weight:600;font-size:15px;text-align:center;opacity:0;transform:translateY(10px);transition:.2s;pointer-events:none}
+#toast{position:fixed;left:16px;right:16px;top:calc(64px + var(--safe-t));z-index:60;background:var(--ink);color:#fff;border-radius:12px;
+  padding:14px 16px;font-weight:600;font-size:15px;text-align:center;opacity:0;transform:translateY(-10px);box-shadow:0 6px 20px rgba(0,0,0,.2);transition:.2s;pointer-events:none}
 #toast.show{opacity:1;transform:none}
 #toast.bad{background:#7F1D1D}
 #offline{background:#FEF3C7;color:#92400E;font-size:14px;font-weight:600;text-align:center;padding:8px 12px}
@@ -332,27 +335,31 @@ function showToday() {
     if (d.followups.length) {
       h += '<div class="h2">Follow-ups</div><div class="card list">' + d.followups.slice(0, 12).map(function (f) {
         var t = ymd(); var cls = f.due < t ? 'bad' : f.due === t ? 'warn' : '';
-        return '<a class="tap row" href="#account/' + f.prospect_id + '"><div class="grow"><div class="t1">' + esc(f.company) + '</div>' +
+        return '<div><a class="tap row" href="#account/' + f.prospect_id + '"><div class="grow"><div class="t1">' + esc(f.company) + '</div>' +
           '<div class="t2">' + esc(f.next_step || 'Follow up') + (f.contact ? ' · ' + esc(f.contact) : '') + '</div></div>' +
-          '<span class="pill ' + cls + '">' + (f.due < t ? 'Overdue' : esc(fmtDate(f.due))) + '</span></a>';
+          '<span class="pill ' + cls + '">' + (f.due < t ? 'Overdue' : esc(fmtDate(f.due))) + '</span></a>' +
+          '<div class="btns" style="margin-top:10px">' +
+          (f.phone ? '<a class="btn sm" href="tel:' + esc(digits(f.phone)) + '">Call</a>' : '') +
+          '<button class="btn sm" onclick="followup(' + f.id + ',\'snooze\',7,this)">Push 1 week</button>' +
+          '<button class="btn sm" onclick="followup(' + f.id + ',\'done\',0,this)">Done</button></div></div>';
       }).join('') + '</div>';
     }
     // Quote follow-ups
     if (d.quote_followups.length) {
       h += '<div class="h2">Quotes to chase</div><div class="card list">' + d.quote_followups.map(function (q) {
-        var late = q.due < ymd();
-        return '<a class="tap row" href="#accounts?q=' + encodeURIComponent(q.account_name || '') + '"><div class="grow"><div class="t1">' + esc(q.account_name) + '</div>' +
+        var late = q.due < ymd(); q.follow_up_date = q.due; reg('q', q);
+        return '<button class="tap row rowbtn" onclick="quoteSheet(' + q.id + ')"><div class="grow"><div class="t1">' + esc(q.account_name) + '</div>' +
           '<div class="t2">' + esc([q.products, q.amount ? money(q.amount) : ''].filter(Boolean).join(' · ')) + '</div></div>' +
-          '<span class="pill ' + (late ? 'bad' : 'warn') + '">' + (late ? 'Overdue' : esc(fmtDate(q.due))) + '</span></a>';
+          '<span class="pill ' + (late ? 'bad' : 'warn') + '">' + (late ? 'Overdue' : esc(fmtDate(q.due))) + '</span></button>';
       }).join('') + '</div>';
     }
     // Samples
     if (d.samples.length) {
       h += '<div class="h2">Samples out</div><div class="card list">' + d.samples.slice(0, 8).map(function (s) {
-        var late = s.due && s.due < ymd();
-        return '<a class="tap row" href="' + (s.prospect_id ? '#account/' + s.prospect_id : '#pipeline') + '"><div class="grow"><div class="t1">' + esc(s.company || 'Account') + '</div>' +
+        var late = s.due && s.due < ymd(); s.follow_up_date = s.due; reg('s', s);
+        return '<button class="tap row rowbtn" onclick="sampleSheet(' + s.id + ')"><div class="grow"><div class="t1">' + esc(s.company || 'Account') + '</div>' +
           '<div class="t2">' + esc(s.product_line) + ' · left ' + esc(fmtDate(s.sent_date)) + '</div></div>' +
-          (s.due ? '<span class="pill ' + (late ? 'bad' : '') + '">' + (late ? 'Check in' : esc(fmtDate(s.due))) + '</span>' : '') + '</a>';
+          (s.due ? '<span class="pill ' + (late ? 'bad' : '') + '">' + (late ? 'Check in' : esc(fmtDate(s.due))) + '</span>' : '') + '</button>';
       }).join('') + '</div>';
     }
     if (!d.followups.length && !d.samples.length && !d.quote_followups.length) {
@@ -428,7 +435,8 @@ function showAccount(args) {
     var h = '<div class="card" style="padding:16px;margin-bottom:4px">' +
       '<div style="font-size:22px;font-weight:700;overflow-wrap:anywhere">' + esc(a.company) + '</div>' +
       '<div class="t2">' + esc([a.category, [a.city, a.state].filter(Boolean).join(', ')].filter(Boolean).join(' · ')) + '</div>' +
-      '<div class="t2">Owner: ' + esc(d.mine ? 'You' : (a.owner || '—')) + (a.phone ? ' · ' + esc(fmtPhone(a.phone)) : '') + '</div>' +
+      '<div class="row" style="align-items:flex-start"><div class="t2 grow">Owner: ' + esc(d.mine ? 'You' : (a.owner || '—')) + (a.phone ? ' · ' + esc(fmtPhone(a.phone)) : '') +
+      (a.address ? '<br>' + esc(a.address) : '') + '</div><button class="btn sm" onclick="editAccountSheet()">Edit</button></div>' +
       (d.lines.length ? '<div class="chips" style="margin-top:10px">' + d.lines.map(function (l) { return '<span class="pill navy">' + esc(l.name) + (l.total_sales ? ' ' + money(l.total_sales) : '') + '</span>'; }).join('') +
         LINES.filter(function (x) { return bought.indexOf(x.toLowerCase()) < 0; }).slice(0, 2).map(function (x) { return '<span class="pill">Not yet: ' + esc(x) + '</span>'; }).join('') + '</div>' : '') +
       '<div class="btns" style="margin-top:14px">' +
@@ -458,16 +466,18 @@ function showAccount(args) {
 
     if (d.quotes.length) {
       h += '<div class="h2">Quotes</div><div class="card list">' + d.quotes.map(function (q) {
-        var cls = q.status === 'Won' ? 'ok' : q.status === 'Lost' ? 'bad' : q.status === 'Follow-Up' ? 'warn' : 'navy';
-        return '<div class="row"><div class="grow"><div class="t1">' + esc(q.products || 'Quote') + (q.amount ? ' · ' + money(q.amount) : '') + '</div>' +
-          '<div class="t2">' + esc([fmtDate(q.quote_date), q.rep_name].filter(Boolean).join(' · ')) + '</div></div><span class="pill ' + cls + '">' + esc(q.status || 'Draft') + '</span></div>';
+        var cls = q.status === 'Won' ? 'ok' : q.status === 'Lost' ? 'bad' : q.status === 'Follow-Up' ? 'warn' : 'navy'; reg('q', q);
+        return '<button class="tap row rowbtn" onclick="quoteSheet(' + q.id + ')"><div class="grow"><div class="t1">' + esc(q.products || 'Quote') + (q.amount ? ' · ' + money(q.amount) : '') + '</div>' +
+          '<div class="t2">' + esc([fmtDate(q.quote_date), q.rep_name].filter(Boolean).join(' · ')) + '</div></div><span class="pill ' + cls + '">' + esc(q.status || 'Draft') + '</span></button>';
       }).join('') + '</div>';
     }
     if (d.samples.length) {
       h += '<div class="h2">Samples</div><div class="card list">' + d.samples.map(function (s) {
-        return '<div class="row"><div class="grow"><div class="t1">' + esc(s.product_line) + (s.quantity ? ' × ' + s.quantity : '') + '</div>' +
+        s.company = ACCT.account.company; s.prospect_id = ACCT.account.id; reg('s', s);
+        var st = sampleStatus(s.status);
+        return '<button class="tap row rowbtn" onclick="sampleSheet(' + s.id + ')"><div class="grow"><div class="t1">' + esc(s.product_line) + (s.quantity ? ' × ' + s.quantity : '') + '</div>' +
           '<div class="t2">Left ' + esc(fmtDate(s.sent_date)) + (s.follow_up_date && !s.closed_at ? ' · check in ' + esc(fmtDate(s.follow_up_date)) : '') + '</div></div>' +
-          '<span class="pill">' + esc(s.status || 'Pending') + '</span></div>';
+          '<span class="pill ' + st[1] + '">' + esc(st[0]) + '</span></button>';
       }).join('') + '</div>';
     }
     view(h);
@@ -598,7 +608,7 @@ function saveVisit() {
     client_ref: 'm-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8)
   };
   var sample = $('#lg-sample').checked ? { prospect_id: LOG.account.id, product_line: lines[0] || 'Samples', quantity: 1, sent_date: ymd(),
-    follow_up_date: addDays(ymd(), 7), status: 'Pending', notes: lines.join(', ') } : null;
+    follow_up_date: addDays(ymd(), 7), status: 'pending', notes: lines.join(', ') } : null;
   var b = $('#lg-save'); b.disabled = true; b.textContent = 'Saving…';
   var acct = LOG.account, outcome = LOG.outcome, stop = LOG.stop;
   if (!navigator.onLine) { queueVisit(call, sample, stop); return; }
@@ -688,18 +698,18 @@ function loadPipeline() {
     ['Follow-Up', 'Sent', 'Draft', 'Won', 'Lost'].forEach(function (s) {
       if (!by[s].length) return;
       h += '<div class="h2">' + (s === 'Follow-Up' ? 'Needs follow-up' : s) + ' (' + by[s].length + ')</div><div class="card list">' + by[s].slice(0, 25).map(function (q) {
-        var late = q.follow_up_date && q.follow_up_date < t && (s !== 'Won' && s !== 'Lost');
-        return '<a class="tap row" href="#accounts?q=' + encodeURIComponent(q.account_name || '') + '"><div class="grow"><div class="t1">' + esc(q.account_name) + '</div>' +
+        var late = q.follow_up_date && q.follow_up_date < t && (s !== 'Won' && s !== 'Lost'); reg('q', q);
+        return '<button class="tap row rowbtn" onclick="quoteSheet(' + q.id + ')"><div class="grow"><div class="t1">' + esc(q.account_name) + '</div>' +
           '<div class="t2">' + esc([q.products, fmtDate(q.quote_date), pipeScope === 'team' ? q.rep : ''].filter(Boolean).join(' · ')) + '</div></div>' +
-          '<div style="text-align:right"><div class="t1">' + (q.amount ? money(q.amount) : '') + '</div>' + (late ? '<span class="pill bad">Overdue</span>' : '') + '</div></a>';
+          '<div style="text-align:right"><div class="t1">' + (q.amount ? money(q.amount) : '') + '</div>' + (late ? '<span class="pill bad">Overdue</span>' : '') + '</div></button>';
       }).join('') + '</div>';
     });
     h += '<div class="h2">Samples out (' + d.samples.length + ')</div>';
     h += d.samples.length ? '<div class="card list">' + d.samples.map(function (s) {
-      var late = s.follow_up_date && s.follow_up_date < t;
-      return '<a class="tap row" href="' + (s.prospect_id ? '#account/' + s.prospect_id : '#pipeline') + '"><div class="grow"><div class="t1">' + esc(s.company || 'Account') + '</div>' +
+      var late = s.follow_up_date && s.follow_up_date < t; reg('s', s);
+      return '<button class="tap row rowbtn" onclick="sampleSheet(' + s.id + ')"><div class="grow"><div class="t1">' + esc(s.company || 'Account') + '</div>' +
         '<div class="t2">' + esc([s.product_line, 'left ' + fmtDate(s.sent_date), pipeScope === 'team' ? s.rep : ''].filter(Boolean).join(' · ')) + '</div></div>' +
-        (late ? '<span class="pill bad">Check in</span>' : s.follow_up_date ? '<span class="pill">' + esc(fmtDate(s.follow_up_date)) + '</span>' : '') + '</a>';
+        (late ? '<span class="pill bad">Check in</span>' : s.follow_up_date ? '<span class="pill">' + esc(fmtDate(s.follow_up_date)) + '</span>' : '') + '</button>';
     }).join('') + '</div>' : '<div class="card empty">No samples out.</div>';
     if (!d.quotes.length) h += '<div class="h2">Quotes</div><div class="card empty">No quotes yet. Quotes you create on the full site show up here.</div>';
     el.innerHTML = h;
@@ -788,6 +798,94 @@ function loadReport() {
         return '<a target="_blank" rel="noopener" href="/api/reports/export?type=' + x[0] + '&' + qs + '">' + ICON.chev.replace('#5B6474', '#16264A') + esc(x[1]) + '</a>'; }).join('') + '</div>';
     el.innerHTML = h;
   }).catch(function (e) { el.innerHTML = '<div class="card err">Couldn\'t run the report. ' + esc(e.message) + ' <button class="btn sm pri" onclick="loadReport()">Retry</button></div>'; });
+}
+
+
+// ════════════════════════════════════════════════════════════════
+// QUICK EDITS: quotes, samples, follow-ups, account details
+// ════════════════════════════════════════════════════════════════
+var REG = { q: {}, s: {} };
+function reg(kind, obj) { REG[kind][obj.id] = obj; return obj.id; }
+function mineOrMgr(ids) { if (!ME) return true; if (ME.role === 'manager') return true; return ids.some(function (x) { return x && +x === +ME.id; }); }
+function sampleStatus(st) {
+  var k = String(st || 'pending').toLowerCase();
+  if (k === 'converted') return ['Ordered', 'ok'];
+  if (k === 'no_interest' || k === 'no interest') return ['No interest', 'bad'];
+  return ['Out', ''];
+}
+function afterEdit(msg) { closeSheet(); toast(msg); route(); }
+
+function quoteSheet(id) {
+  var q = REG.q[id]; if (!q) return;
+  var can = q.user_id === undefined || mineOrMgr([q.user_id, q.rep_id]);
+  var st = q.status || 'Draft';
+  openSheet('<h2>' + esc(q.account_name || 'Quote') + '</h2>' +
+    '<div class="t2" style="margin:-8px 0 14px">' + esc([q.products, q.amount ? money(q.amount) : '', q.quote_date ? 'quoted ' + fmtDate(q.quote_date) : ''].filter(Boolean).join(' · ')) + '</div>' +
+    (can ? '<div class="field"><span class="lbl">Status</span><div class="grid2">' +
+      [['Sent', 'Sent'], ['Follow-Up', 'Needs follow-up'], ['Won', 'Won'], ['Lost', 'Lost']].map(function (o) {
+        return '<button class="opt" aria-pressed="' + (st === o[0]) + '" onclick="saveQuote(' + id + ',{status:\'' + o[0] + '\'},this)">' + o[1] + '</button>'; }).join('') + '</div></div>' +
+      '<div class="field"><label for="qs-date">Follow up on</label><input id="qs-date" type="date" value="' + esc(q.follow_up_date || '') + '"></div>' +
+      '<div class="btns"><button class="btn" onclick="saveQuote(' + id + ',{follow_up_date:null},this)">No follow-up</button>' +
+      '<button class="btn pri" onclick="saveQuote(' + id + ',{follow_up_date:$(\'#qs-date\').value||null},this)">Save date</button></div>'
+      : '<div class="card empty">Only ' + esc(q.rep || q.rep_name || 'the quote\'s rep') + ' or a manager can change this quote.</div>') +
+    '<a class="btn" style="width:100%;margin-top:10px" href="#accounts?q=' + encodeURIComponent(q.account_name || '') + '">Find the account</a>');
+}
+function saveQuote(id, body, btn) {
+  if (btn) btn.disabled = true;
+  api('/api/m/quotes/' + id, { method: 'PATCH', body: body })
+    .then(function () { afterEdit(body.status ? 'Quote marked ' + (body.status === 'Follow-Up' ? 'needs follow-up' : body.status.toLowerCase()) : 'Follow-up updated'); })
+    .catch(function (e) { if (btn) btn.disabled = false; toast(e.message, true); });
+}
+
+function sampleSheet(id) {
+  var s = REG.s[id]; if (!s) return;
+  var can = s.user_id === undefined || mineOrMgr([s.user_id]);
+  var open = sampleStatus(s.status)[0] === 'Out';
+  openSheet('<h2>' + esc(s.product_line) + ' samples</h2>' +
+    '<div class="t2" style="margin:-8px 0 14px">' + esc([s.company, 'left ' + fmtDate(s.sent_date)].filter(Boolean).join(' · ')) + '</div>' +
+    (can ? (open ? '<div class="field"><span class="lbl">How did it go?</span><div class="grid2">' +
+        '<button class="opt" onclick="saveSample(' + id + ',{outcome:\'converted\'},this)">They ordered</button>' +
+        '<button class="opt" onclick="saveSample(' + id + ',{outcome:\'no_interest\'},this)">No interest</button></div></div>' +
+        '<div class="field"><label for="ss-date">Check in on</label><input id="ss-date" type="date" value="' + esc(s.follow_up_date || '') + '"></div>' +
+        '<button class="btn pri" style="width:100%" onclick="saveSample(' + id + ',{follow_up_date:$(\'#ss-date\').value||null},this)">Save check-in date</button>'
+      : '<div class="field"><span class="pill ' + sampleStatus(s.status)[1] + '">' + esc(sampleStatus(s.status)[0]) + '</span></div>' +
+        '<button class="btn" style="width:100%" onclick="saveSample(' + id + ',{outcome:\'pending\'},this)">Reopen (still out)</button>')
+      : '<div class="card empty">Only the rep who left these or a manager can change them.</div>') +
+    (s.prospect_id ? '<a class="btn" style="width:100%;margin-top:10px" href="#account/' + s.prospect_id + '">Open account</a>' : ''));
+}
+function saveSample(id, body, btn) {
+  if (btn) btn.disabled = true;
+  api('/api/m/samples/' + id, { method: 'PATCH', body: body })
+    .then(function () { afterEdit(body.outcome === 'converted' ? 'Marked as ordered' : body.outcome === 'no_interest' ? 'Marked no interest' : body.outcome === 'pending' ? 'Sample reopened' : 'Check-in date saved'); })
+    .catch(function (e) { if (btn) btn.disabled = false; toast(e.message, true); });
+}
+
+function followup(callId, action, days, btn) {
+  if (btn) btn.disabled = true;
+  api('/api/m/followups/' + callId, { method: 'POST', body: { action: action, days: days, today: ymd() } })
+    .then(function () { toast(action === 'done' ? 'Follow-up done' : 'Pushed to ' + fmtDate(addDays(ymd(), days))); route(); })
+    .catch(function (e) { if (btn) btn.disabled = false; toast(e.message, true); });
+}
+
+function editAccountSheet() {
+  var a = ACCT.account, owner = ACCT.mine || (ME && ME.role === 'manager');
+  var f = function (id, label, val, type, extra) { return '<div class="field"><label for="ea-' + id + '">' + label + '</label><input id="ea-' + id + '" type="' + (type || 'text') + '"' + (extra || '') + ' value="' + esc(val) + '"></div>'; };
+  openSheet('<h2>Edit account</h2>' +
+    (owner ? f('company', 'Company name', a.company, 'text', ' autocomplete="organization"') : '') +
+    f('phone', 'Phone', a.phone, 'tel', ' inputmode="tel"') +
+    f('address', 'Street address', a.address, 'text', ' autocomplete="street-address"') +
+    '<div class="grid2">' + f('city', 'City', a.city) + f('state', 'State', a.state) + '</div>' +
+    f('zip', 'ZIP', a.zip, 'text', ' inputmode="numeric"') +
+    f('website', 'Website', a.website, 'url', ' inputmode="url"') +
+    (owner ? '' : '<div class="t2" style="margin-bottom:12px">Name and type changes go through ' + esc(a.owner || 'the owner') + '.</div>') +
+    '<button class="btn gold" style="width:100%" id="ea-save" onclick="saveAccountEdits(' + (owner ? 1 : 0) + ')">Save</button>');
+}
+function saveAccountEdits(owner) {
+  var body = {}; ['phone', 'address', 'city', 'state', 'zip', 'website'].concat(owner ? ['company'] : []).forEach(function (k) { var el = $('#ea-' + k); if (el) body[k] = el.value; });
+  var b = $('#ea-save'); b.disabled = true; b.textContent = 'Saving…';
+  api('/api/m/account/' + ACCT.account.id, { method: 'PATCH', body: body })
+    .then(function () { afterEdit('Account updated'); })
+    .catch(function (e) { b.disabled = false; b.textContent = 'Save'; toast(e.message, true); });
 }
 
 // ════════════════════════════════════════════════════════════════
