@@ -723,6 +723,18 @@ async function initDB() {
     console.error('[migrate] embedded-contacts backfill skipped:', e.message);
   }
 
+  // Agent output cache: one morning brief per rep per day.
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS agent_briefs (
+      user_id    INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      brief_date DATE NOT NULL,
+      content    JSONB NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      PRIMARY KEY (user_id, brief_date))`);
+  } catch (e) {
+    console.error('[migrate] agent_briefs skipped:', e.message);
+  }
+
   // Sample status is lowercase everywhere the desktop reads it ('pending',
   // 'converted', 'no_interest'). Normalize any capitalized rows. Idempotent.
   try {

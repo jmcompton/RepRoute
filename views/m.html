@@ -65,6 +65,7 @@ nav#tabs svg{width:23px;height:23px}
 .t3{font-size:14px;color:var(--navy);margin-top:3px}
 .tap{display:block;text-decoration:none;color:inherit;cursor:pointer}
 .tap:active{background:#F7F8FA}
+.tap.row{display:flex}
 .rowbtn{width:100%;border:none;background:none;text-align:left;font:inherit;color:inherit;cursor:pointer;padding:14px}
 .list>.rowbtn{border-bottom:1px solid var(--line)}
 .list>.rowbtn:last-child{border-bottom:none}
@@ -312,6 +313,7 @@ function showToday() {
       '<div class="stat"><b>' + d.counts.followups + '</b><span>follow-ups due</span></div>' +
       '<div class="stat"><b>' + d.logged_today + '</b><span>logged today</span></div></div></div>';
 
+    h += '<div id="brief-box"></div>';
     if (ME && ME.role === 'manager') h += '<div id="team-box"></div>';
     // Stops
     h += '<div class="h2">Today\'s stops<a href="#accounts">+ Add stop</a></div>';
@@ -370,6 +372,7 @@ function showToday() {
       h += '<div class="h2">Follow-ups</div><div class="card empty">Nothing due. Nice.</div>';
     }
     view(h);
+    loadBrief(false);
     if (ME && ME.role === 'manager') loadTeamBox();
   }).catch(function (e) { failed(e, 'route()'); });
 }
@@ -419,7 +422,8 @@ function showAccounts() {
     '<label class="sr" for="acct-q">Search accounts</label><input id="acct-q" type="search" placeholder="Search name, city or contact" autocomplete="off" value="' + esc(acctState.q) + '"></div>' +
     '<div class="row" style="margin-bottom:14px"><div class="seg grow" role="group" aria-label="Which accounts">' +
     '<button data-group="scope" data-v="team" aria-pressed="' + (acctState.scope === 'team') + '">All team</button>' +
-    '<button data-group="scope" data-v="mine" aria-pressed="' + (acctState.scope === 'mine') + '">Mine</button></div>' +
+    '<button data-group="scope" data-v="mine" aria-pressed="' + (acctState.scope === 'mine') + '">Mine</button>' +
+    '<button data-group="scope" data-v="cold" aria-pressed="' + (acctState.scope === 'cold') + '">Going cold</button></div>' +
     '<button class="btn sm gold" onclick="newAccountSheet()">+ New</button></div><div id="acct-list"></div>');
   var input = $('#acct-q'); var t;
   input.addEventListener('input', function () { clearTimeout(t); t = setTimeout(function () { acctState.q = input.value.trim(); loadAccounts(); }, 250); });
@@ -429,6 +433,7 @@ function showAccounts() {
 var acctReq = 0;
 function loadAccounts() {
   var el = $('#acct-list'); if (!el) return; var my = ++acctReq;
+  if (acctState.scope === 'cold') { loadColdAccounts(el, my); return; }
   el.innerHTML = '<div class="skel"></div><div class="skel"></div><div class="skel"></div>';
   api('/api/m/accounts?scope=' + acctState.scope + '&q=' + encodeURIComponent(acctState.q)).then(function (rows) {
     if (my !== acctReq) return;
@@ -485,6 +490,14 @@ function showAccount(args) {
       '<div class="btns" style="margin-top:8px"><button class="btn" id="add-today" onclick="addToToday(' + a.id + ')">+ Today\'s stops</button>' +
       '<button class="btn" onclick="quoteNewSheet()">+ New quote</button></div></div>';
 
+    var lastV = d.calls[0] && d.calls[0].call_date;
+    var coldDays = lastV ? Math.round((new Date(ymd()) - new Date(lastV)) / 864e5) : null;
+    if (coldDays !== null && coldDays >= 60) {
+      h += '<div class="agent" style="margin-top:12px"><div class="t1">No visit in ' + coldDays + ' days</div>' +
+        '<div class="t2" style="margin:2px 0 10px">Get a check-in drafted to reconnect with ' + esc((d.contacts[0] && firstName(d.contacts[0].name)) || 'the buyer') + '.</div>' +
+        '<div class="btns"><button class="btn sm" onclick="winbackDraft(' + a.id + ',\'text\',this)">Draft a text</button>' +
+        '<button class="btn sm pri" onclick="winbackDraft(' + a.id + ',\'email\',this)">Draft an email</button></div></div>';
+    }
     // Contacts first: it's what reps reach for.
     h += '<div class="h2">Contacts (' + d.contacts.length + ')<button class="btn sm gold" onclick="contactSheet()">+ Add contact</button></div>';
     h += d.contacts.length ? '<div class="card list">' + d.contacts.map(function (c) {
@@ -680,18 +693,29 @@ function afterSave(acct, saved, call, contact, outcome) {
 function draftFollowup(callId, acctId) {
   var b = $('#ag-go'); b.disabled = true; b.textContent = 'Drafting…';
   api('/api/agents/followup', { method: 'POST', body: { call_id: callId } }).then(function (d) {
-    var to = d.to_email || '';
-    $('#ag-out').innerHTML = '<div class="agent"><div class="field"><label for="ag-to">To</label><input id="ag-to" type="email" value="' + esc(to) + '" placeholder="Buyer\'s email"></div>' +
-      '<div class="field"><label for="ag-sub">Subject</label><input id="ag-sub" value="' + esc(d.subject) + '"></div>' +
-      '<div class="field"><label for="ag-body">Email</label><textarea id="ag-body">' + esc(d.body) + '</textarea></div>' +
-      (d.next_step ? '<div class="t2" style="margin-bottom:10px">Suggested next step: <b>' + esc(d.next_step) + '</b>' + (d.next_step_date ? ' on ' + esc(fmtDate(d.next_step_date)) : '') + '</div>' : '') +
-      '<div class="btns"><button class="btn" onclick="copyDraft()">Copy</button><button class="btn pri" onclick="openMail()">Open in Mail</button></div></div>';
+    renderDraft($('#ag-out'), d);
     b.classList.add('hidden');
     $('#sheet').querySelector('.btns .btn').textContent = 'Done';
   }).catch(function (e) { b.disabled = false; b.textContent = 'Try again'; toast(e.message || 'Couldn\'t draft that', true); });
 }
+// One draft card for every agent: edit, copy, or open in Mail / Messages.
+function renderDraft(el, d) {
+  var text = d.channel === 'text';
+  el.innerHTML = '<div class="agent">' +
+    (text ? '<div class="field"><label for="ag-to">To</label><input id="ag-to" type="tel" value="' + esc(d.to_phone || '') + '" placeholder="Their cell"></div>'
+          : '<div class="field"><label for="ag-to">To</label><input id="ag-to" type="email" value="' + esc(d.to_email || '') + '" placeholder="Buyer\'s email"></div>' +
+            '<div class="field"><label for="ag-sub">Subject</label><input id="ag-sub" value="' + esc(d.subject) + '"></div>') +
+    '<div class="field"><label for="ag-body">' + (text ? 'Text' : 'Email') + (d.to_name ? ' to ' + esc(firstName(d.to_name)) : '') + '</label><textarea id="ag-body">' + esc(d.body) + '</textarea></div>' +
+    (d.next_step ? '<div class="t2" style="margin-bottom:10px">Suggested next step: <b>' + esc(d.next_step) + '</b>' + (d.next_step_date ? ' on ' + esc(fmtDate(d.next_step_date)) : '') + '</div>' : '') +
+    '<div class="btns"><button class="btn" onclick="copyDraft()">Copy</button>' +
+    (text ? '<button class="btn pri" onclick="openSms()">Open in Messages</button>' : '<button class="btn pri" onclick="openMail()">Open in Mail</button>') + '</div>' +
+    '<div class="t2" style="margin-top:8px">Nothing sends until you hit send in ' + (text ? 'Messages' : 'Mail') + '.</div></div>';
+}
+function openSms() {
+  location.href = 'sms:' + encodeURIComponent(digits($('#ag-to').value)) + '?&body=' + encodeURIComponent($('#ag-body').value);
+}
 function copyDraft() {
-  var txt = $('#ag-sub').value + '\n\n' + $('#ag-body').value;
+  var txt = ($('#ag-sub') ? $('#ag-sub').value + '\n\n' : '') + $('#ag-body').value;
   (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(function () { toast('Copied'); }).catch(function () { $('#ag-body').select(); toast('Select and copy the text'); });
 }
 function openMail() {
@@ -871,7 +895,8 @@ function quoteSheet(id) {
       '<div class="btns"><button class="btn" onclick="saveQuote(' + id + ',{follow_up_date:null},this)">No follow-up</button>' +
       '<button class="btn pri" onclick="saveQuote(' + id + ',{follow_up_date:$(\'#qs-date\').value||null},this)">Save date</button></div>'
       : '<div class="card empty">Only ' + esc(q.rep || q.rep_name || 'the quote\'s rep') + ' or a manager can change this quote.</div>') +
-    '<a class="btn" style="width:100%;margin-top:10px" href="#accounts?q=' + encodeURIComponent(q.account_name || '') + '">Find the account</a>');
+    (can && st !== 'Won' && st !== 'Lost' ? '<button class="btn gold" style="width:100%;margin-top:10px" id="qs-nudge" onclick="quoteNudge(' + id + ',this)">Draft a follow-up email</button>' : '') +
+    '<a class="btn" style="width:100%;margin-top:10px" href="#accounts?q=' + encodeURIComponent(q.account_name || '') + '">Find the account</a><div id="qs-draft"></div>');
 }
 function saveQuote(id, body, btn) {
   if (btn) btn.disabled = true;
@@ -1021,6 +1046,71 @@ function saveNewQuote(force) {
       }
       toast(e.message, true);
     });
+}
+
+
+// ════════════════════════════════════════════════════════════════
+// AGENTS: morning brief, win-back, quote chaser
+// ════════════════════════════════════════════════════════════════
+function loadBrief(refresh) {
+  var el = $('#brief-box'); if (!el) return;
+  if (refresh) el.innerHTML = '<div class="h2">Your plan today</div><div class="skel"></div>';
+  api('/api/agents/brief?date=' + ymd() + (refresh ? '&refresh=1' : '')).then(function (b) {
+    if (!$('#brief-box')) return;
+    var items = b.items || [];
+    el.innerHTML = '<div class="h2">Your plan today<button class="link" onclick="loadBrief(true)">Refresh</button></div>' +
+      '<div class="agent" style="margin-top:0"><div class="t1" style="margin-bottom:' + (items.length ? 10 : 0) + 'px">' + esc(b.headline || '') + '</div>' +
+      (items.length ? '<div class="list" style="margin:0 -14px -14px">' + items.map(function (it, i) {
+        var go = it.kind === 'quote' && it.quote_id ? 'onclick="briefQuote(' + it.quote_id + ',' + (it.account_id || 0) + ')"' :
+          it.account_id ? 'onclick="location.hash=\'#account/' + it.account_id + '\'"' : 'onclick="window.scrollTo(0,' + 420 + ')"';
+        return '<button class="tap row rowbtn" ' + go + '><div class="num">' + (i + 1) + '</div><div class="grow" style="font-size:15px">' + esc(it.text) + '</div>' + ICON.chev + '</button>';
+      }).join('') + '</div>' : '') + '</div>';
+  }).catch(function () { el.innerHTML = ''; });
+}
+function briefQuote(quoteId, accountId) {
+  api('/api/m/pipeline?scope=mine').then(function (d) {
+    var q = d.quotes.filter(function (x) { return x.id === quoteId; })[0];
+    if (q) { reg('q', q); quoteSheet(quoteId); } else if (accountId) location.hash = '#account/' + accountId;
+  }).catch(function () { if (accountId) location.hash = '#account/' + accountId; });
+}
+
+function loadColdAccounts(el, my) {
+  el.innerHTML = '<div class="skel"></div><div class="skel"></div>';
+  api('/api/agents/winback?scope=mine').then(function (d) {
+    if (my !== acctReq) return;
+    if (!d.accounts.length) { el.innerHTML = '<div class="card empty">None of your accounts have gone 60+ days without a visit. Nice work.</div>'; return; }
+    el.innerHTML = '<div class="t2" style="margin-bottom:10px">Your accounts with no visit in ' + d.days + '+ days. Biggest buyers first.</div>' +
+      '<div class="card list">' + d.accounts.map(function (a) {
+        return '<div><a class="tap row" href="#account/' + a.id + '"><div class="grow"><div class="t1">' + esc(a.company) + '</div>' +
+          '<div class="t2">' + esc([a.city, a.lines || a.last_lines].filter(Boolean).join(' · ')) + '</div>' +
+          '<div class="t2">Last visit ' + esc(fmtDate(a.last_visit)) + (a.last_outcome ? ' · ' + esc(a.last_outcome) : '') + '</div></div>' +
+          '<span class="pill warn">' + a.days_cold + 'd</span></a>' +
+          '<div class="btns" style="margin-top:10px"><button class="btn sm" onclick="winbackDraft(' + a.id + ',\'text\',this)">Draft text</button>' +
+          '<button class="btn sm" onclick="winbackDraft(' + a.id + ',\'email\',this)">Draft email</button>' +
+          '<button class="btn sm pri" onclick="addToTodayFrom(' + a.id + ',this)">+ Today</button></div></div>';
+      }).join('') + '</div>';
+  }).catch(function (e) { if (my === acctReq) el.innerHTML = '<div class="card err">Couldn\'t load. <button class="btn sm pri" onclick="loadAccounts()">Retry</button></div>'; });
+}
+function addToTodayFrom(id, btn) {
+  btn.disabled = true;
+  api('/api/planner/items', { method: 'POST', body: { planned_date: ymd(), item_type: 'stop', account_id: id } })
+    .then(function (r) { btn.textContent = '✓ Today'; toast(r.duplicate ? 'Already planned ' + fmtDate(r.planned_date) : 'Added to today\'s stops'); })
+    .catch(function (e) { btn.disabled = false; toast(e.message, true); });
+}
+function winbackDraft(id, channel, btn) {
+  var old = btn.textContent; btn.disabled = true; btn.textContent = 'Drafting…';
+  api('/api/agents/winback/draft', { method: 'POST', body: { account_id: id, channel: channel } }).then(function (d) {
+    btn.disabled = false; btn.textContent = old;
+    openSheet('<h2>' + (channel === 'text' ? 'Check-in text' : 'Check-in email') + '</h2><div id="wb-draft"></div>');
+    renderDraft($('#wb-draft'), d);
+  }).catch(function (e) { btn.disabled = false; btn.textContent = old; toast(e.message, true); });
+}
+function quoteNudge(id, btn) {
+  btn.disabled = true; btn.textContent = 'Drafting…';
+  api('/api/agents/quote-nudge', { method: 'POST', body: { quote_id: id } }).then(function (d) {
+    btn.classList.add('hidden'); renderDraft($('#qs-draft'), d);
+    $('#qs-draft').scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }).catch(function (e) { btn.disabled = false; btn.textContent = 'Draft a follow-up email'; toast(e.message, true); });
 }
 
 // ════════════════════════════════════════════════════════════════
