@@ -492,6 +492,61 @@ router.get('/', async (req, res) => {
 });
 
 // ─── DAILY LEAD FINDER (IMPROVED) ────────────────────────────────────────────
+// Where a rep works: the middle of their mapped accounts, else their home base,
+// else their territory. Used to find unmapped stops by name in the right area.
+async function repRegionCenter(uid, userInfo) {
+  const r = await pool.query(
+    `SELECT AVG(lat)::float AS lat, AVG(lng)::float AS lng, COUNT(*)::int AS n
+       FROM prospects WHERE user_id=$1 AND lat IS NOT NULL AND lng IS NOT NULL`, [uid]);
+  if (r.rows[0] && r.rows[0].n >= 3) return { lat: r.rows[0].lat, lng: r.rows[0].lng };
+  if (userInfo.home_base_lat != null && userInfo.home_base_lng != null) {
+    return { lat: parseFloat(userInfo.home_base_lat), lng: parseFloat(userInfo.home_base_lng) };
+  }
+  return (userInfo.territory && await geocodeAddress(userInfo.territory)) || null;
+}
+
+// Locate an account that has no usable address (e.g. Zoho imports, which came
+// in with no address and a default state of GA): ask Google Places for the
+// business by name near where the rep works, and accept it only if the name
+// matches. On a match the account's address/city/state get filled in too, so
+// it never has to be looked up again.
+async function locateAccountByName(acct, region, placesKey) {
+  try {
+    const body = { textQuery: [acct.company, acct.city].filter(Boolean).join(' '), maxResultCount: 5, regionCode: 'US' };
+    if (region) body.locationBias = { circle: { center: { latitude: region.lat, longitude: region.lng }, radius: 50000 } };
+    const r = await fetch(PLACES_SEARCH_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': placesKey,
+                 'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location' },
+      body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    const want = accountKey(acct.company);
+    const hit = (d.places || []).find(p => {
+      const k = accountKey(p.displayName && p.displayName.text);
+      return k && want && (k === want || k.startsWith(want + ' ') || want.startsWith(k + ' '));
+    });
+    if (!hit || !hit.location) return null;
+    // Too far from where the rep works → probably a different business.
+    if (region && distanceMiles(region.lat, region.lng, hit.location.latitude, hit.location.longitude) > 120) return null;
+    const parts = (hit.formattedAddress || '').split(',').map(x => x.trim());
+    const city = parts.length >= 3 ? parts[parts.length - 3] : null;
+    const state = parts.length >= 2 ? (parts[parts.length - 2] || '').split(' ')[0] : null;
+    await pool.query(
+      `UPDATE prospects SET lat=$1, lng=$2, geocoded_at=NOW(),
+              address = COALESCE(NULLIF(TRIM(address),''), $3),
+              city = COALESCE(NULLIF(TRIM(city),''), $4),
+              state = CASE WHEN NULLIF(TRIM(address),'') IS NULL AND $5::text IS NOT NULL THEN $5 ELSE state END,
+              google_place_id = COALESCE(google_place_id, $6)
+        WHERE id=$7`,
+      [hit.location.latitude, hit.location.longitude, hit.formattedAddress || null, city, state && /^[A-Z]{2}$/.test(state) ? state : null, hit.id || null, acct.pid]);
+    return { lat: hit.location.latitude, lng: hit.location.longitude, city, state };
+  } catch (e) {
+    console.error('[daily-leads] locate by name failed:', acct.company, e.message);
+    return null;
+  }
+}
+
 router.post('/daily-leads', async (req, res) => {
   const uid = req.session.user.id;
   const PLACES_KEY = process.env.GOOGLE_PLACES_API_KEY;
@@ -574,19 +629,26 @@ router.post('/daily-leads', async (req, res) => {
           WHERE pi.rep_id = $1 AND pi.planned_date = $2
           ORDER BY pi.sort_order ASC, pi.id ASC`, [uid, routeDate]);
       const stops = [];
-      let missing = 0;
+      let missing = 0, region;
       for (const [i, r] of st.rows.entries()) {
         let lat = r.lat != null ? parseFloat(r.lat) : null, lng = r.lng != null ? parseFloat(r.lng) : null;
-        if (lat == null || lng == null) {
-          const q = [r.address, r.address ? null : r.company, r.city, r.state].filter(Boolean).join(', ');
-          const g = q ? await geocodeAddress(q) : null;
+        let sc = r.city, ss = r.state;
+        if ((lat == null || lng == null) && r.address && r.address.trim()) {
+          // A real street address: geocode it.
+          const g = await geocodeAddress([r.address, r.address.includes(',') ? null : r.city, r.address.includes(',') ? null : r.state].filter(Boolean).join(', '));
           if (g) {
             lat = g.lat; lng = g.lng;
             pool.query('UPDATE prospects SET lat=$1, lng=$2, geocoded_at=NOW() WHERE id=$3', [lat, lng, r.pid]).catch(() => {});
           }
         }
+        if (lat == null || lng == null) {
+          // No address (or it wouldn't map): find the business by name near the rep.
+          if (region === undefined) region = await repRegionCenter(uid, userInfo);
+          const f = await locateAccountByName(r, region, PLACES_KEY);
+          if (f) { lat = f.lat; lng = f.lng; sc = sc || f.city; ss = f.state || ss; }
+        }
         if (lat == null || lng == null) { missing++; continue; }
-        stops.push({ lat, lng, label: r.company, city: r.city, state: r.state, stop_number: i + 1 });
+        stops.push({ lat, lng, label: r.company, city: sc, state: ss, stop_number: i + 1 });
       }
       if (!stops.length) {
         return res.status(400).json({
@@ -613,7 +675,7 @@ router.post('/daily-leads', async (req, res) => {
       // Interleave centers so every part of the route gets leads, not just the first stop.
       for (const config of topQueries) {
         centers.forEach((c, ci) => plans.push({
-          textQuery: `${config.query} near ${[c.city, c.state].filter(Boolean).join(' ') || ''}`.trim(),
+          textQuery: c.city ? `${config.query} near ${c.city}${c.state ? ' ' + c.state : ''}` : config.query,
           bias: { circle: { center: { latitude: c.lat, longitude: c.lng }, radius: Math.min(routeRadius * 1609.34 * 1.5, 40000) } },
           centerIdx: ci, config
         }));
@@ -632,8 +694,8 @@ router.post('/daily-leads', async (req, res) => {
       if (!centerCoords) {
         return res.status(500).json({ error: `Could not locate city: ${city}. Please check the city name.` });
       }
-      // Embed city directly in query — NO locationBias
-      // (locationBias with radius >50km causes 400 errors from Google Places API)
+      // City is in the query text; a soft 40 km locationBias (kept under Google's
+      // 50 km limit) is added at search time.
       const seenQ = new Set();
       for (const config of segmentQueries) {
         if (seenQ.has(config.query)) continue;
@@ -673,8 +735,10 @@ router.post('/daily-leads', async (req, res) => {
       if ((perCenter[plan.centerIdx] || 0) >= perCenterCap) continue;
       const config = Object.assign({}, plan.config, { brand: brands[0] || rawChannel });
       try {
-        const searchBody = { textQuery: plan.textQuery, maxResultCount: 20 };
-        if (plan.bias) searchBody.locationBias = plan.bias;
+        const searchBody = { textQuery: plan.textQuery, maxResultCount: 20, regionCode: 'US' };
+        // Route: circle around the stop. City: soft 40 km bias around the city so a
+        // name shared by several places ("Birmingham", "Columbus") stays local.
+        searchBody.locationBias = plan.bias || { circle: { center: { latitude: centerCoords.lat, longitude: centerCoords.lng }, radius: 40000 } };
         const placesRes = await fetch(PLACES_SEARCH_URL, {
           method: 'POST',
           headers: {

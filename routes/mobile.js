@@ -18,9 +18,35 @@ async function todayFor(req) {
 }
 
 // ── GET /api/m/me ────────────────────────────────────────────────
-router.get('/me', (req, res) => {
+// home_city / home_state: where this rep actually works, from their own
+// accounts (state only from accounts with a real address: imports defaulted
+// every state to GA). Used for Lead Finder and new-account defaults, so a
+// Birmingham rep isn't defaulted to Atlanta.
+router.get('/me', async (req, res) => {
   const u = req.session.user;
-  res.json({ id: u.id, name: u.name, role: u.role, territory: u.territory });
+  try {
+    const [st, ct] = await Promise.all([
+      pool.query(`SELECT UPPER(TRIM(state)) AS s, COUNT(*)::int AS n FROM prospects
+                   WHERE user_id=$1 AND NULLIF(TRIM(address),'') IS NOT NULL AND state ~ '^[A-Za-z]{2}$'
+                   GROUP BY 1 ORDER BY 2 DESC LIMIT 1`, [u.id]),
+      pool.query(`SELECT INITCAP(TRIM(p.city)) AS c, UPPER(TRIM(p.state)) AS s, COUNT(c2.id)::int + COUNT(DISTINCT p.id)::int AS n
+                    FROM prospects p LEFT JOIN calls c2 ON c2.prospect_id = p.id
+                   WHERE p.user_id=$1 AND NULLIF(TRIM(p.city),'') IS NOT NULL
+                   GROUP BY 1,2 ORDER BY 3 DESC LIMIT 1`, [u.id])
+    ]);
+    const terr = String(u.territory || '');
+    let homeState = st.rows[0] && st.rows[0].s;
+    if (!homeState) homeState = /birmingham|alabama|\bAL\b|huntsville|montgomery|tuscaloosa/i.test(terr) ? 'AL'
+                              : /tennessee|\bTN\b|nashville|chattanooga|knoxville/i.test(terr) ? 'TN' : 'GA';
+    const c = ct.rows[0];
+    // A territory the rep (or manager) actually set wins; the signup default
+    // "Atlanta Metro" only counts when their accounts don't say otherwise.
+    const fromAccounts = c ? c.c + ' ' + (st.rows[0] ? homeState : (c.s || homeState)) : null;
+    const homeCity = terr && terr !== 'Atlanta Metro' ? terr : (fromAccounts || terr || null);
+    res.json({ id: u.id, name: u.name, role: u.role, territory: u.territory, home_state: homeState, home_city: homeCity });
+  } catch (e) {
+    res.json({ id: u.id, name: u.name, role: u.role, territory: u.territory, home_state: 'GA', home_city: null });
+  }
 });
 
 // ── GET /api/m/team ──────────────────────────────────────────────

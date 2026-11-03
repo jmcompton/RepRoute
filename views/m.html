@@ -314,7 +314,8 @@ function showToday() {
       '<div class="stat"><b>' + d.logged_today + '</b><span>logged today</span></div></div></div>';
 
     h += '<div id="brief-box"></div>';
-    var leadCity = (d.stops.filter(function (x) { return x.city; })[0] || {}).city || (ME && ME.territory) || '';
+    var fs = d.stops.filter(function (x) { return x.city; })[0];
+    var leadCity = fs ? fs.city + (fs.state ? ' ' + fs.state : '') : (ME && (ME.home_city || ME.territory)) || '';
     h += '<a class="card tap row" href="#leads" style="padding:14px;margin-top:12px;text-decoration:none">' +
       '<div class="circle" style="background:var(--gold);border-color:var(--gold);color:var(--ink)">' + ICON.search + '</div>' +
       '<div class="grow"><div class="t1">Find new leads</div><div class="t2">' + (d.stops.length ? 'Along today\'s route, near your ' + plural(d.stops.length, 'stop') : leadCity ? 'Distributors and contractors near ' + esc(leadCity) : 'Distributors and contractors near you') + '</div></div>' + ICON.chev + '</a>';
@@ -456,7 +457,7 @@ function newAccountSheet() {
   openSheet('<h2>New account</h2>' +
     '<div class="field"><label for="na-co">Company name</label><input id="na-co" autocomplete="organization"></div>' +
     '<div class="grid2"><div class="field"><label for="na-city">City</label><input id="na-city"></div>' +
-    '<div class="field"><label for="na-st">State</label><select id="na-st">' + ['GA', 'AL', 'TN', 'NC', 'SC', 'FL'].map(function (s) { return '<option>' + s + '</option>'; }).join('') + '</select></div></div>' +
+    '<div class="field"><label for="na-st">State</label><select id="na-st">' + ['GA', 'AL', 'TN', 'NC', 'SC', 'FL'].map(function (s) { return '<option' + (ME && ME.home_state === s ? ' selected' : '') + '>' + s + '</option>'; }).join('') + '</select></div></div>' +
     '<div class="field"><label for="na-ph">Phone</label><input id="na-ph" type="tel" inputmode="tel"></div>' +
     '<div class="field"><label for="na-cat">Type</label><select id="na-cat">' +
     ['Lumberyard / Building Supply', 'Hardware Store', 'Roofing Distributor', 'Decking Distributor', 'Siding Distributor', 'Paint Dealer', 'Roofing Contractor', 'Decking Contractor', 'General Contractor', 'Other']
@@ -1140,7 +1141,7 @@ function showLeads() {
   LF = lfLoad();
   LF.brands = LF.brands || ['BOSS Products', 'ShurTape', 'Alum-A-Pole'];
   LF.segments = LF.segments || ['Deck Distributor/Dealer', 'Roofing Distributor', 'Siding Distributor'];
-  LF.city = LF.city || window._leadCityDefault || (ME && ME.territory) || '';
+  LF.city = LF.city || window._leadCityDefault || (ME && (ME.home_city || ME.territory)) || '';
   LF.radius = LF.radius || 8;
   if (!LF.mode) LF.mode = window._todayStopCount ? 'route' : 'city';
   // Results from another day's route are stale.
@@ -1293,7 +1294,7 @@ function saveLead(i, how) {
   var cat = /Distributor|Dealer|Lumber|Fasteners|Division 10/.test(l.segment || '') ? 'Distributor' : 'Commercial Contractor';
   var ensure = l.account_id ? Promise.resolve(l.account_id) :
     api('/api/ai/leads/save', { method: 'POST', body: { leads: [{
-      company: l.company, category: l.category || cat, city: l.city || '', state: l.state || 'GA', phone: l.phone || null,
+      company: l.company, category: l.category || cat, city: l.city || '', state: l.state || (ME && ME.home_state) || 'GA', phone: l.phone || null,
       website: l.website || null, address: l.address || null, products: l.products || null,
       data_status: 'Unvetted', source: 'Distribution Finder' }] } })
     .then(function () { return api('/api/m/accounts?scope=mine&limit=5&q=' + encodeURIComponent(l.company)); })
