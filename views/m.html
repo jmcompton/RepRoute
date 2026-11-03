@@ -1256,7 +1256,9 @@ function leadCard(l, i) {
   }
   return '<div><div class="row" style="align-items:flex-start"><div class="grow"><div class="t1">' + esc(l.company) + '</div>' +
     '<div class="t2">' + esc(meta) + '</div>' + (l.address ? '<div class="t2">' + esc(l.address) + '</div>' : '') +
-    (l.already_contacted ? '<div style="margin-top:4px"><span class="pill warn">Already in RepRoute' + (l.contacted_by ? ' · ' + esc(l.contacted_by) + '\'s account' : '') + '</span></div>' : '') + '</div>' +
+    (l.already_contacted ? '<div style="margin-top:4px"><span class="pill warn">Already in RepRoute' + (l.contacted_by ? ' · ' + esc(l.contacted_by) + '\'s account' : '') + '</span></div>' : '') +
+    (l.possible_match && !l.already_contacted ? '<div style="margin-top:4px" class="t2"><span class="pill">Same name as ' + (l.possible_match.mine ? 'your' : esc(l.possible_match.owner || 'a teammate') + '\'s') + ' account with no address</span> ' +
+      '<a href="#account/' + l.possible_match.account_id + '" style="font-size:13px">Check it</a></div>' : '') + '</div>' +
     (l.opportunity_score ? '<span class="pill ' + (l.opportunity_score >= 8 ? 'ok' : l.opportunity_score >= 6 ? 'navy' : '') + '">' + l.opportunity_score + '/10</span>' : '') + '</div>' +
     '<div class="btns" style="margin-top:10px">' + acts + '</div></div>';
 }

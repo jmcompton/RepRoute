@@ -492,6 +492,18 @@ router.get('/', async (req, res) => {
 });
 
 // ─── DAILY LEAD FINDER (IMPROVED) ────────────────────────────────────────────
+// Territory → coordinates, cached for a day (a territory rarely moves).
+const _territoryCache = new Map();
+async function territoryCenter(t) {
+  const k = String(t || '').trim().toLowerCase();
+  if (!k) return null;
+  const hit = _territoryCache.get(k);
+  if (hit && Date.now() - hit.at < 864e5) return hit.c;
+  const c = await geocodeAddress(t);
+  _territoryCache.set(k, { c, at: Date.now() });
+  return c;
+}
+
 // Where a rep works: the middle of their mapped accounts, else their home base,
 // else their territory. Used to find unmapped stops by name in the right area.
 async function repRegionCenter(uid, userInfo) {
@@ -502,7 +514,7 @@ async function repRegionCenter(uid, userInfo) {
   if (userInfo.home_base_lat != null && userInfo.home_base_lng != null) {
     return { lat: parseFloat(userInfo.home_base_lat), lng: parseFloat(userInfo.home_base_lng) };
   }
-  return (userInfo.territory && await geocodeAddress(userInfo.territory)) || null;
+  return (userInfo.territory && await territoryCenter(userInfo.territory)) || null;
 }
 
 // Locate an account that has no usable address (e.g. Zoho imports, which came
@@ -522,11 +534,21 @@ async function locateAccountByName(acct, region, placesKey) {
     });
     const d = await r.json();
     const want = accountKey(acct.company);
-    const hit = (d.places || []).find(p => {
+    const hits = (d.places || []).filter(p => {
       const k = accountKey(p.displayName && p.displayName.text);
-      return k && want && (k === want || k.startsWith(want + ' ') || want.startsWith(k + ' '));
+      return p.location && k && want && (k === want || k.startsWith(want + ' ') || want.startsWith(k + ' '));
     });
-    if (!hit || !hit.location) return null;
+    // If the account has a city, only that city's listings count.
+    const cityLc = (acct.city || '').trim().toLowerCase();
+    const inCity = cityLc ? hits.filter(p => (p.formattedAddress || '').toLowerCase().includes(cityLc)) : hits;
+    if (cityLc) hits.splice(0, hits.length, ...inCity);
+    if (!hits.length) return null;
+    const hit = hits[0];
+    // A chain with several branches in the area (ABC Supply, 84 Lumber, Ace):
+    // without an address we can't tell which branch is this account, so don't
+    // guess. The stop is skipped and the rep sees it needs an address.
+    const otherBranch = hits.slice(1).some(p => distanceMiles(hit.location.latitude, hit.location.longitude, p.location.latitude, p.location.longitude) > 3);
+    if (otherBranch) { console.log('[daily-leads] several branches match, not guessing:', acct.company); return null; }
     // Too far from where the rep works → probably a different business.
     if (region && distanceMiles(region.lat, region.lng, hit.location.latitude, hit.location.longitude) > 120) return null;
     const parts = (hit.formattedAddress || '').split(',').map(x => x.trim());
@@ -592,18 +614,60 @@ router.post('/daily-leads', async (req, res) => {
   try {
     // Every account on the TEAM (not just this rep's): this rep's own are
     // skipped; a teammate's come back flagged with their name, so reps never
-    // cold-call each other's accounts as "new" leads. Names match with the same
-    // accountKey rule used everywhere else ("Harlan Supply Co" = "Harlan Supply").
+    // cold-call each other's accounts as "new" leads.
+    // Every branch is its own customer: a name match only counts when it's the
+    // same Google listing, or the same name (accountKey rule) at the same spot
+    // (within 1.5 mi; or same city when the account has no coordinates).
+    // Chain branches 5 miles apart are different customers. "ABC Supply" in Kennesaw is NOT Sean's
+    // "ABC Supply" in Marietta. A same-name account with no location on file
+    // (e.g. a Zoho import) can't be ruled in or out, so the lead still shows,
+    // with a "maybe already" note.
     const existing = await pool.query(
-      `SELECT p.id, p.user_id, p.company, p.google_place_id,
+      `SELECT p.id, p.user_id, p.company, p.google_place_id, p.city, p.lat, p.lng,
               COALESCE(NULLIF(TRIM(u.name),''), u.email) AS owner
          FROM prospects p LEFT JOIN users u ON u.id = p.user_id`);
     const byPlace = new Map(), byKey = new Map();
     for (const r of existing.rows) {
-      const rec = { id: r.id, mine: r.user_id === uid, owner: r.owner };
+      const rec = { id: r.id, mine: r.user_id === uid, owner: r.owner, owner_id: r.user_id,
+                    city: (r.city || '').trim().toLowerCase(),
+                    lat: r.lat != null ? parseFloat(r.lat) : null, lng: r.lng != null ? parseFloat(r.lng) : null };
       if (r.google_place_id) { const cur = byPlace.get(r.google_place_id); if (!cur || rec.mine) byPlace.set(r.google_place_id, rec); }
       const k = accountKey(r.company);
-      if (k) { const cur = byKey.get(k); if (!cur || rec.mine) byKey.set(k, rec); }
+      if (k) { if (!byKey.has(k)) byKey.set(k, []); byKey.get(k).push(rec); }
+    }
+    // Where each rep works, so a teammate's address-less "ABC Supply" only
+    // raises "maybe" for leads in that teammate's part of the map (Dan's
+    // Birmingham import says nothing about a Kennesaw branch).
+    const ownerRegion = new Map();
+    {
+      const rr = await pool.query(
+        `SELECT u.id, u.territory, u.home_base_lat, u.home_base_lng, a.lat, a.lng, COALESCE(a.n, 0) AS n
+           FROM users u LEFT JOIN (SELECT user_id, AVG(lat)::float AS lat, AVG(lng)::float AS lng, COUNT(*)::int AS n
+                                     FROM prospects WHERE lat IS NOT NULL GROUP BY user_id) a ON a.user_id = u.id`);
+      for (const u of rr.rows) {
+        let c = null;
+        if (u.n >= 3) c = { lat: u.lat, lng: u.lng };
+        else if (u.home_base_lat != null && u.home_base_lng != null) c = { lat: parseFloat(u.home_base_lat), lng: parseFloat(u.home_base_lng) };
+        else if (u.territory) c = await territoryCenter(u.territory);
+        ownerRegion.set(u.id, c);
+      }
+    }
+    // → { known: rec } same place · { maybe: rec } same name, no location · {} new
+    function matchExisting(placeId, key, leadCity, lat, lng) {
+      if (placeId && byPlace.has(placeId)) return { known: byPlace.get(placeId) };
+      const recs = byKey.get(key) || [];
+      const city = (leadCity || '').trim().toLowerCase();
+      const same = recs.filter(r =>
+        (r.lat != null && lat != null && distanceMiles(r.lat, r.lng, lat, lng) <= 1.5) ||
+        (r.lat == null && r.city && city && r.city === city));
+      if (same.length) return { known: same.find(r => r.mine) || same[0] };
+      const unknown = recs.filter(r => {
+        if (r.lat != null || r.city) return false;
+        const reg = ownerRegion.get(r.owner_id);
+        return !reg || lat == null || distanceMiles(reg.lat, reg.lng, lat, lng) <= 75;
+      });
+      if (unknown.length) return { maybe: unknown.find(r => r.mine) || unknown[0] };
+      return {};
     }
 
     // Also exclude leads already shown on this device (for "10 new ones").
@@ -812,7 +876,10 @@ router.post('/daily-leads', async (req, res) => {
           sessionSeen.add(placeId || key);
 
           // Already in RepRoute? Mine → skip. A teammate's → flag with their name.
-          const known = (placeId && byPlace.get(placeId)) || byKey.get(key);
+          const addrPartsM = (place.formattedAddress || '').split(',').map(x => x.trim());
+          const leadCityM = addrPartsM.length >= 3 ? addrPartsM[addrPartsM.length - 3] : '';
+          const m = matchExisting(placeId, key, leadCityM, place.location?.latitude ?? null, place.location?.longitude ?? null);
+          const known = m.known || null;
           if (known && known.mine) continue;
 
           // Count how many product lines this prospect is relevant to
@@ -884,6 +951,9 @@ router.post('/daily-leads', async (req, res) => {
             lead.near_stop_number = fit.nearest.stop_number;
             lead.detour_miles = Math.round(fit.detour * 10) / 10;
             lead.why = `Near stop ${fit.nearest.stop_number} (${fit.nearest.label}), about ${lead.detour_miles} mi out of the way`;
+          }
+          if (m.maybe) {
+            lead.possible_match = { account_id: m.maybe.id, mine: m.maybe.mine, owner: m.maybe.owner };
           }
           if (known) {
             lead.already_contacted = true;
