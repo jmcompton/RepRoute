@@ -547,9 +547,18 @@ router.post('/enrich-missing', async (req, res) => {
 });
 
 // ── Account contacts (one-to-many people under an account) ───────────────────
-// Distinct from the single embedded contact on the prospect row. Scoped exactly
-// like prospects: a rep sees/creates contacts only on their own accounts; a
-// manager may act on any account. Both sides use /api/prospects/:id/contacts.
+// Distinct from the single embedded contact on the prospect row. Contacts are
+// team-wide: reps already see teammates' accounts (/api/prospects/team), so any
+// signed-in user can view, add and edit people on any account. Deleting stays
+// with the account owner, the person who added the contact, or a manager.
+
+// Any existing account on the team. Returns the prospect id, else null.
+async function teamAccount(req, pid) {
+  const id = parseInt(pid);
+  if (!Number.isFinite(id)) return null;
+  const r = await pool.query('SELECT id FROM prospects WHERE id=$1', [id]);
+  return r.rows.length ? id : null;
+}
 
 // Confirm the account belongs to this user (or user is a manager). Returns the
 // prospect id when allowed, else null.
@@ -566,7 +575,7 @@ async function ownAccount(req, pid) {
 // GET /api/prospects/:id/contacts — list contacts for an account.
 router.get('/:id/contacts', async (req, res) => {
   try {
-    const pid = await ownAccount(req, req.params.id);
+    const pid = await teamAccount(req, req.params.id);
     if (!pid) return res.status(404).json({ error: 'Account not found' });
     const r = await pool.query(
       `SELECT id, prospect_id, name, title, phone, email, status, created_at, is_primary
@@ -581,7 +590,7 @@ router.get('/:id/contacts', async (req, res) => {
 // POST /api/prospects/:id/contacts — add a contact under an account.
 router.post('/:id/contacts', async (req, res) => {
   try {
-    const pid = await ownAccount(req, req.params.id);
+    const pid = await teamAccount(req, req.params.id);
     if (!pid) return res.status(404).json({ error: 'Account not found' });
     const { name, title, phone, email, status } = req.body || {};
     if (!name || !String(name).trim()) return res.status(400).json({ error: 'Contact name is required' });
@@ -603,7 +612,7 @@ router.post('/:id/contacts', async (req, res) => {
 // are kept in step (the boot-time backfill reads them).
 router.put('/:id/contacts/:cid', async (req, res) => {
   try {
-    const pid = await ownAccount(req, req.params.id);
+    const pid = await teamAccount(req, req.params.id);
     if (!pid) return res.status(404).json({ error: 'Account not found' });
     const cid = parseInt(req.params.cid);
     const { name, title, phone, email, status } = req.body || {};
@@ -633,11 +642,18 @@ router.put('/:id/contacts/:cid', async (req, res) => {
 // embedded contact fields on the next deploy, those fields are cleared too.
 router.delete('/:id/contacts/:cid', async (req, res) => {
   try {
-    const pid = await ownAccount(req, req.params.id);
+    const pid = await teamAccount(req, req.params.id);
     if (!pid) return res.status(404).json({ error: 'Account not found' });
+    const owns = await ownAccount(req, pid);
+    const cid = parseInt(req.params.cid);
+    if (!owns) {
+      const mine = await pool.query('SELECT 1 FROM contacts WHERE id=$1 AND prospect_id=$2 AND created_by=$3',
+        [cid, pid, req.session.user.id]);
+      if (!mine.rows.length) return res.status(403).json({ error: 'Only the account owner or a manager can delete this contact' });
+    }
     const r = await pool.query(
       'DELETE FROM contacts WHERE id=$1 AND prospect_id=$2 RETURNING is_primary',
-      [parseInt(req.params.cid), pid]);
+      [cid, pid]);
     if (!r.rows.length) return res.status(404).json({ error: 'Contact not found' });
     // Same guard as the db.js embedded-contacts backfill: if it would re-insert a
     // contact for this account on the next boot, clear the embedded fields it reads.

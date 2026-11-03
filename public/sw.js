@@ -1,15 +1,14 @@
 // RepRoute Service Worker
 // Strategy:
-//   • Navigations / HTML (the app shell): NETWORK-FIRST with a 3s timeout, so
-//     online users always get the latest app.html; cache is offline fallback only.
+//   • Navigations / HTML (the app shell): NETWORK-FIRST (10s dead-zone fallback),
+//     so online users get the latest app.html; cache is an offline fallback.
 //   • /api/* : NETWORK-ONLY — never served from cache (stale API data = bug).
 //   • Static, stable assets (icons/manifest/css/svg/png): cache-first, stored
 //     under the versioned cache below.
 //   • On activate: delete every cache whose name !== current version, then claim.
 //   • skipWaiting + clients.claim so a new SW takes over existing clients on
 //     their next visit instead of waiting for all tabs to close.
-const CACHE_VERSION = 'reproute-v3';
-const NAV_TIMEOUT_MS = 3000;
+const CACHE_VERSION = 'reproute-v4';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
@@ -37,17 +36,19 @@ function isNavigationRequest(request) {
      (request.headers.get('accept') || '').includes('text/html'));
 }
 
-// Network-first with a timeout: race the network against a timer; if the network
-// is too slow or fails, fall back to whatever we cached last (offline support).
+// Network-first. When the phone has signal, wait for the current app.html:
+// the old 3-second cutoff served reps an outdated app against the new server,
+// which broke buttons in the field. Only if the network fails, or gives nothing
+// for 10 seconds (dead-zone signal), fall back to the last saved copy. The app
+// is gzipped (~225 KB), so 10 s is plenty on any real connection.
+const NAV_FALLBACK_MS = 10000;
 function networkFirst(request) {
   return new Promise((resolve) => {
     let settled = false;
     const done = (r) => { if (!settled) { settled = true; resolve(r); } };
-
     const timer = setTimeout(() => {
       caches.match(request).then(cached => { if (cached) done(cached); });
-    }, NAV_TIMEOUT_MS);
-
+    }, NAV_FALLBACK_MS);
     fetch(request)
       .then(response => {
         clearTimeout(timer);

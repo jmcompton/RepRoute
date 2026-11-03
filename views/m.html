@@ -1,0 +1,813 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#16264A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="icon" href="/icons/icon-96.png">
+<title>RepRoute</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#16264A; --navy-2:#0B1630; --gold:#F2B233; --bg:#F4F5F7; --card:#FFFFFF;
+  --ink:#111827; --muted:#5B6474; --line:#E3E6EB; --chip:#E8EBF1; --field:#CBD1DA;
+  --warn-bg:#FFEDD5; --warn:#9A3412; --ok-bg:#DCFCE7; --ok:#166534; --bad-bg:#FEE2E2; --bad:#991B1B;
+  --safe-b: env(safe-area-inset-bottom, 0px); --safe-t: env(safe-area-inset-top, 0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:'DM Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  font-size:16px;line-height:1.35;-webkit-text-size-adjust:100%;overscroll-behavior-y:none}
+button,input,select,textarea{font:inherit;color:inherit}
+/* 16px in every field: below that, iPhone zooms the page when you tap in. */
+input,select,textarea{font-size:16px;width:100%;min-height:48px;padding:12px 14px;border:1px solid var(--field);
+  border-radius:10px;background:#fff;outline:none;-webkit-appearance:none;appearance:none}
+textarea{min-height:96px;resize:vertical}
+select{background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
+  background-position:calc(100% - 20px) 50%,calc(100% - 14px) 50%;background-size:6px 6px;background-repeat:no-repeat;padding-right:36px}
+input:focus,select:focus,textarea:focus{border-color:var(--navy);box-shadow:0 0 0 3px rgba(22,38,74,.15)}
+a{color:var(--navy)}
+.hidden{display:none!important}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* Shell */
+#top{position:sticky;top:0;z-index:20;background:var(--navy);color:#fff;padding:calc(10px + var(--safe-t)) 16px 10px;
+  display:flex;align-items:center;gap:10px;min-height:56px}
+#top h1{font-size:18px;font-weight:700;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.icon-btn{width:44px;height:44px;border:none;background:transparent;color:inherit;border-radius:22px;display:inline-flex;
+  align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+.icon-btn:active{background:rgba(255,255,255,.12)}
+#view{padding:16px 16px calc(110px + var(--safe-b));max-width:720px;margin:0 auto}
+nav#tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;background:#fff;border-top:1px solid var(--line);
+  display:flex;align-items:center;justify-content:space-around;padding:6px 6px calc(6px + var(--safe-b));height:calc(70px + var(--safe-b))}
+nav#tabs a{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;font-weight:500;color:var(--muted);
+  text-decoration:none;min-width:60px;min-height:48px;justify-content:center;border-radius:10px}
+nav#tabs a.on{color:var(--navy);font-weight:700}
+nav#tabs a.log{width:58px;height:58px;min-width:58px;border-radius:29px;background:var(--gold);color:var(--ink);margin-top:-26px;
+  box-shadow:0 4px 14px rgba(0,0,0,.18)}
+nav#tabs svg{width:23px;height:23px}
+
+/* Pieces */
+.h2{font-size:16px;font-weight:700;margin:20px 0 10px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.h2:first-child{margin-top:0}
+.h2 a,.h2 button.link{font-size:14px;font-weight:600;text-decoration:none;background:none;border:none;color:var(--navy);padding:8px 0;cursor:pointer}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px}
+.list>*{padding:14px;border-bottom:1px solid var(--line)}
+.list>*:last-child{border-bottom:none}
+.row{display:flex;align-items:center;gap:12px}
+.grow{flex:1;min-width:0}
+.t1{font-size:16px;font-weight:600;overflow-wrap:anywhere}
+.t2{font-size:14px;color:var(--muted)}
+.t3{font-size:14px;color:var(--navy);margin-top:3px}
+.tap{display:block;text-decoration:none;color:inherit;cursor:pointer}
+.tap:active{background:#F7F8FA}
+.btn{height:48px;padding:0 16px;border-radius:10px;border:1px solid var(--field);background:#fff;font-weight:600;font-size:15px;
+  color:var(--navy);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;text-decoration:none;white-space:nowrap}
+.btn.sm{height:40px;font-size:14px;padding:0 12px}
+.btn.pri{background:var(--navy);border-color:var(--navy);color:#fff}
+.btn.gold{background:var(--gold);border-color:var(--gold);color:var(--ink);font-weight:700}
+.btn.danger{color:var(--bad);border-color:#FECACA}
+.btn:disabled{opacity:.55}
+.btns{display:flex;gap:8px}
+.btns>.btn{flex:1}
+.circle{width:44px;height:44px;border-radius:22px;border:1px solid var(--line);background:#fff;color:var(--navy);display:inline-flex;
+  align-items:center;justify-content:center;flex-shrink:0;text-decoration:none}
+.num{width:30px;height:30px;border-radius:15px;background:var(--chip);color:var(--navy);font-size:14px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.num.done{background:var(--ok-bg);color:var(--ok)}
+.pill{display:inline-block;font-size:12px;font-weight:700;padding:3px 8px;border-radius:8px;background:#EEF0F3;color:var(--muted);white-space:nowrap}
+.pill.warn{background:var(--warn-bg);color:var(--warn)}
+.pill.ok{background:var(--ok-bg);color:var(--ok)}
+.pill.bad{background:var(--bad-bg);color:var(--bad)}
+.pill.navy{background:var(--chip);color:var(--navy)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{min-height:40px;padding:8px 14px;border-radius:20px;border:1px solid var(--field);background:#fff;font-size:14px;font-weight:500;cursor:pointer}
+.chip[aria-pressed="true"]{border:2px solid var(--navy);background:var(--chip);color:var(--navy);font-weight:700;padding:7px 13px}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.opt{min-height:52px;border-radius:10px;border:1px solid var(--field);background:#fff;font-size:14px;font-weight:600;cursor:pointer;padding:8px}
+.opt[aria-pressed="true"]{border:2px solid var(--navy);background:var(--chip);color:var(--navy)}
+.seg{display:flex;background:#E9ECF1;border-radius:10px;padding:3px;gap:2px}
+.seg button{flex:1;min-height:40px;border:none;background:transparent;border-radius:8px;font-size:14px;font-weight:500;color:var(--muted);cursor:pointer}
+.seg button[aria-pressed="true"]{background:#fff;color:var(--navy);font-weight:700;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}
+.field>label,.lbl{font-size:13px;font-weight:600;color:var(--muted)}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.stat{background:rgba(255,255,255,.1);border-radius:12px;padding:10px 12px}
+.stat b{display:block;font-size:22px}
+.stat span{font-size:12px;color:#C7D0E0}
+.hero{background:var(--navy);color:#fff;margin:-16px -16px 16px;padding:8px 16px 18px}
+.hero .date{font-size:13px;color:#C7D0E0}
+.hero .hi{font-size:24px;font-weight:700;margin:2px 0 12px}
+.kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.kpi{padding:12px 14px}
+.kpi b{display:block;font-size:22px}
+.kpi span{font-size:13px;color:var(--muted)}
+.bars{display:flex;align-items:flex-end;gap:6px;height:96px;border-bottom:1px solid var(--line);padding-top:6px}
+.bars div{flex:1;background:#B9C3D6;border-radius:4px 4px 0 0;min-height:2px;position:relative}
+.bars div:last-child{background:var(--navy)}
+.bars div span{position:absolute;top:-18px;left:0;right:0;text-align:center;font-size:11px;color:var(--muted)}
+.blabels{display:flex;gap:6px;font-size:11px;color:var(--muted);margin-top:4px}
+.blabels span{flex:1;text-align:center;white-space:nowrap;overflow:hidden}
+.hbar{height:8px;border-radius:4px;background:#EEF0F3;overflow:hidden;margin-top:6px}
+.hbar i{display:block;height:100%;background:var(--navy);border-radius:4px}
+.empty{padding:22px 16px;text-align:center;color:var(--muted);font-size:15px}
+.empty .btn{margin-top:12px}
+.err{padding:18px;text-align:center;color:var(--bad);font-size:15px}
+.skel{height:76px;border-radius:14px;background:linear-gradient(90deg,#ECEEF2,#F6F7F9,#ECEEF2);background-size:200% 100%;animation:sk 1.2s infinite;margin-bottom:10px}
+@keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.search{position:relative}
+.search svg{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
+.search input{padding-left:42px}
+.dd{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:15;background:#fff;border:1px solid var(--line);border-radius:12px;
+  box-shadow:0 10px 30px rgba(0,0,0,.12);max-height:300px;overflow:auto}
+.dd button{display:block;width:100%;text-align:left;border:none;background:#fff;padding:12px 14px;border-bottom:1px solid var(--line);cursor:pointer}
+.mic{position:absolute;right:8px;bottom:8px;width:44px;height:44px;border-radius:22px;border:none;background:var(--gold);color:var(--ink);
+  display:flex;align-items:center;justify-content:center;cursor:pointer}
+.mic.rec{background:#DC2626;color:#fff;animation:pulse 1.2s infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 8px rgba(220,38,38,.2)}}
+.savebar{position:fixed;left:0;right:0;bottom:0;z-index:35;background:#fff;border-top:1px solid var(--line);padding:12px 16px calc(12px + var(--safe-b))}
+.savebar .btn{width:100%;height:54px;font-size:17px}
+
+/* Sheet + toast */
+#scrim{position:fixed;inset:0;background:rgba(17,24,39,.4);z-index:50}
+#sheet{position:fixed;left:0;right:0;bottom:0;z-index:51;background:#fff;border-radius:18px 18px 0 0;max-height:88vh;overflow:auto;
+  padding:8px 16px calc(20px + var(--safe-b));box-shadow:0 -8px 30px rgba(0,0,0,.15)}
+#sheet .grab{width:40px;height:5px;border-radius:3px;background:#D5D9E0;margin:4px auto 12px}
+#sheet h2{font-size:19px;margin:0 0 14px}
+#toast{position:fixed;left:16px;right:16px;bottom:calc(96px + var(--safe-b));z-index:60;background:var(--ink);color:#fff;border-radius:12px;
+  padding:14px 16px;font-weight:600;font-size:15px;text-align:center;opacity:0;transform:translateY(10px);transition:.2s;pointer-events:none}
+#toast.show{opacity:1;transform:none}
+#toast.bad{background:#7F1D1D}
+#offline{background:#FEF3C7;color:#92400E;font-size:14px;font-weight:600;text-align:center;padding:8px 12px}
+.menu a,.menu button{display:flex;align-items:center;gap:12px;width:100%;min-height:52px;padding:0 4px;border:none;background:none;
+  border-bottom:1px solid var(--line);font-size:16px;color:var(--ink);text-decoration:none;cursor:pointer;text-align:left}
+.menu a:last-child,.menu button:last-child{border-bottom:none}
+.agent{border:1px solid #C7D2FE;background:#EEF2FF;border-radius:14px;padding:14px;margin-top:12px}
+.agent textarea{background:#fff;min-height:160px}
+</style>
+</head>
+<body>
+<div id="offline" class="hidden" role="status">You're offline. Visits you log are saved and will send when you're back.</div>
+<header id="top">
+  <button class="icon-btn hidden" id="back" aria-label="Back" onclick="history.back()">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+  </button>
+  <h1 id="title">RepRoute</h1>
+  <button class="icon-btn" aria-label="More" onclick="openMore()">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+  </button>
+</header>
+<main id="view" tabindex="-1"></main>
+<nav id="tabs" aria-label="Main">
+  <a href="#today" data-tab="today"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Today</a>
+  <a href="#accounts" data-tab="accounts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/></svg>Accounts</a>
+  <a href="#log" data-tab="log" class="log" aria-label="Log a visit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></a>
+  <a href="#pipeline" data-tab="pipeline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h11M4 18h6"/></svg>Pipeline</a>
+  <a href="#reports" data-tab="reports"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 20V4M4 20h16M8 16v-5M12 16V8M16 16v-3"/></svg>Reports</a>
+</nav>
+<div id="scrim" class="hidden" onclick="closeSheet()"></div>
+<div id="sheet" class="hidden" role="dialog" aria-modal="true"></div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+'use strict';
+// ════════════════════════════════════════════════════════════════
+// RepRoute phone app. Hash routes: #today #accounts #account/ID #log[/ID]
+// #pipeline #reports. Every screen loads with one request.
+// ════════════════════════════════════════════════════════════════
+var LINES = ['Soudal', 'ShurTape', 'Alum-A-Pole', 'Fortress'];
+var OUTCOMES = [
+  ['Dropped In - Interested', 'Met, interested'], ['Ready to Order', 'Ready to order'],
+  ['Left Sample', 'Left samples'], ['Follow-up Needed', 'Needs follow-up'],
+  ['Order Placed', 'Order placed'], ['Dropped In - Not Interested', 'Not interested'],
+  ['Not Available', 'Buyer not in'], ['Left Voicemail', 'Left voicemail']
+];
+var ME = null, TEAM = null;
+var $ = function (s, r) { return (r || document).querySelector(s); };
+var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function ymd(d) { d = d || new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function addDays(s, n) { var p = s.split('-'); var d = new Date(+p[0], +p[1] - 1, +p[2]); d.setDate(d.getDate() + n); return ymd(d); }
+var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function fmtDate(s) { if (!s) return ''; s = String(s).slice(0, 10); var p = s.split('-'); var t = ymd();
+  if (s === t) return 'Today'; if (s === addDays(t, 1)) return 'Tomorrow'; if (s === addDays(t, -1)) return 'Yesterday';
+  return MON[+p[1] - 1] + ' ' + (+p[2]) + (p[0] !== t.slice(0, 4) ? ', ' + p[0] : ''); }
+function money(n) { n = Number(n) || 0; return '$' + (n >= 10000 ? Math.round(n / 1000) + 'k' : n.toLocaleString('en-US', { maximumFractionDigits: 0 })); }
+function digits(p) { return String(p || '').replace(/[^\d+]/g, ''); }
+function fmtPhone(p) { var d = String(p || '').replace(/\D/g, ''); if (d.length === 11 && d[0] === '1') d = d.slice(1);
+  return d.length === 10 ? '(' + d.slice(0, 3) + ') ' + d.slice(3, 6) + '-' + d.slice(6) : (p || ''); }
+function mapsUrl(a) { var q = encodeURIComponent([a.address, a.company, a.city, a.state].filter(Boolean).join(', '));
+  return /iPhone|iPad|iPod/.test(navigator.userAgent) ? 'https://maps.apple.com/?q=' + q : 'https://www.google.com/maps/search/?api=1&query=' + q; }
+function plural(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); }
+function firstName(n) { return String(n || '').trim().split(/\s+/)[0] || ''; }
+
+// ── Network ──────────────────────────────────────────────────────
+function api(url, opts) {
+  opts = opts || {};
+  var init = { method: opts.method || 'GET', headers: {}, credentials: 'same-origin' };
+  if (opts.body !== undefined) { init.headers['Content-Type'] = 'application/json'; init.body = JSON.stringify(opts.body); }
+  return fetch(url, init).then(function (r) {
+    // Some /api routes answer an expired session by redirecting to the login
+    // page (200 HTML). Treat that as signed out, never as a successful save.
+    var ct = r.headers.get('content-type') || '';
+    if (r.status === 401 || r.redirected || (r.ok && ct.indexOf('application/json') < 0 && ct.indexOf('text/csv') < 0)) {
+      var e0 = new Error('You were signed out. Sign in again and your visit will send.'); e0.status = 401; e0.signedOut = true;
+      setTimeout(function () { location.href = '/'; }, 1800); throw e0;
+    }
+    return r.json().catch(function () { return {}; }).then(function (j) {
+      if (!r.ok) { var e = new Error(j.error || ('Error ' + r.status)); e.status = r.status; e.body = j; throw e; }
+      return j;
+    });
+  });
+}
+
+// Offline queue for visits: a save that can't reach the server is kept on the
+// phone and sent later. client_ref makes the retry idempotent on the server.
+var QKEY = 'rr_visit_queue_v1';
+function readQ() { try { return JSON.parse(localStorage.getItem(QKEY) || '[]'); } catch (e) { return []; } }
+function writeQ(q) { try { localStorage.setItem(QKEY, JSON.stringify(q)); } catch (e) {} }
+function flushQ() {
+  var q = readQ(); if (!q.length || !navigator.onLine) return Promise.resolve();
+  var item = q[0];
+  return api('/api/calls', { method: 'POST', body: item.call }).then(function () {
+    var sample = item.sample ? api('/api/samples', { method: 'POST', body: item.sample }) : Promise.resolve();
+    return sample.catch(function () {}).then(function () {
+      writeQ(readQ().filter(function (x) { return x.call.client_ref !== item.call.client_ref; }));
+      if (item.stop) api('/api/m/stops/' + item.stop + '/done', { method: 'POST' }).catch(function () {});
+      toast('Saved your offline visit');
+      return flushQ();
+    });
+  }).catch(function (e) {
+    // Network still down or signed out: keep it for later. A real rejection
+    // (account deleted, bad data) is moved aside so later visits still send.
+    if (e && e.status && !e.signedOut) {
+      writeQ(readQ().filter(function (x) { return x.call.client_ref !== item.call.client_ref; }));
+      try { var bad = JSON.parse(localStorage.getItem('rr_visit_failed_v1') || '[]'); bad.push(item); localStorage.setItem('rr_visit_failed_v1', JSON.stringify(bad)); } catch (x) {}
+      toast('One offline visit couldn\'t be saved: ' + e.message, true);
+      return flushQ();
+    }
+  });
+}
+function setOnline() { $('#offline').classList.toggle('hidden', navigator.onLine); if (navigator.onLine) flushQ(); }
+window.addEventListener('online', setOnline); window.addEventListener('offline', setOnline);
+
+// ── UI helpers ───────────────────────────────────────────────────
+var toastT;
+function toast(msg, bad) { var t = $('#toast'); t.textContent = msg; t.className = 'show' + (bad ? ' bad' : ''); clearTimeout(toastT);
+  toastT = setTimeout(function () { t.className = bad ? 'bad' : ''; }, bad ? 4000 : 2400); }
+function openSheet(html) { $('#sheet').innerHTML = '<div class="grab"></div>' + html; $('#sheet').classList.remove('hidden'); $('#scrim').classList.remove('hidden');
+  var f = $('#sheet input, #sheet textarea'); if (f) setTimeout(function () { try { f.focus(); } catch (e) {} }, 60); }
+function closeSheet() { $('#sheet').classList.add('hidden'); $('#scrim').classList.add('hidden'); $('#sheet').innerHTML = ''; }
+function setTitle(t, back) { $('#title').textContent = t; $('#back').classList.toggle('hidden', !back); document.title = t + ' · RepRoute'; }
+function view(html) { var v = $('#view'); v.innerHTML = html; }
+function skeleton(n) { var h = ''; for (var i = 0; i < (n || 4); i++) h += '<div class="skel"></div>'; view(h); }
+function failed(err, retry) { view('<div class="card err">Couldn\'t load this. ' + esc(err && err.message || '') +
+  '<div style="margin-top:12px"><button class="btn pri" onclick="' + retry + '">Try again</button></div></div>'); }
+function press(btn, group) { $$('[data-group="' + group + '"]').forEach(function (b) { b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'); }); }
+function toggle(btn) { btn.setAttribute('aria-pressed', btn.getAttribute('aria-pressed') === 'true' ? 'false' : 'true'); }
+var ICON = {
+  phone: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2"/></svg>',
+  text: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 01-11.6 7.1L4 20l1-4.6A8 8 0 1121 12z"/></svg>',
+  pin: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 1114 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>',
+  mail: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>',
+  chev: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5B6474" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>',
+  search: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>',
+  mic: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg>'
+};
+
+// ── Router ───────────────────────────────────────────────────────
+var ROUTES = { today: showToday, accounts: showAccounts, account: showAccount, log: showLog, pipeline: showPipeline, reports: showReports };
+var current = '';
+function route() {
+  var h = (location.hash || '#today').slice(1); var parts = h.split('?')[0].split('/'); var name = parts[0] || 'today';
+  if (!ROUTES[name]) name = 'today';
+  closeSheet(); stopDictation();
+  var tab = name === 'account' ? 'accounts' : name;
+  $$('nav#tabs a').forEach(function (a) { a.classList.toggle('on', a.dataset.tab === tab); a.setAttribute('aria-current', a.dataset.tab === tab ? 'page' : 'false'); });
+  $('#tabs').classList.toggle('hidden', name === 'log');
+  if (current !== h) window.scrollTo(0, 0);
+  current = h;
+  ROUTES[name](parts.slice(1));
+}
+window.addEventListener('hashchange', route);
+
+// ════════════════════════════════════════════════════════════════
+// TODAY
+// ════════════════════════════════════════════════════════════════
+function showToday() {
+  setTitle('Today'); skeleton(4);
+  api('/api/m/today?date=' + ymd()).then(function (d) {
+    var now = new Date();
+    var greet = now.getHours() < 12 ? 'Morning' : now.getHours() < 17 ? 'Afternoon' : 'Evening';
+    var dateStr = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+    var h = '<div class="hero"><div class="date">' + esc(dateStr) + '</div><div class="hi">' + greet + ', ' + esc(firstName(d.name)) + '</div>' +
+      '<div class="stats"><div class="stat"><b>' + d.counts.stops + '</b><span>stops</span></div>' +
+      '<div class="stat"><b>' + d.counts.followups + '</b><span>follow-ups due</span></div>' +
+      '<div class="stat"><b>' + d.logged_today + '</b><span>logged today</span></div></div></div>';
+
+    // Stops
+    h += '<div class="h2">Today\'s stops<a href="/app?full=1">Plan week</a></div>';
+    if (!d.stops.length) {
+      h += '<div class="card empty">No stops planned for today.<br><a class="btn pri" href="#accounts">Find an account to visit</a></div>';
+    } else {
+      h += '<div class="card list">' + d.stops.map(function (s, i) {
+        var done = !!s.completed_at;
+        var title = s.company || s.note || 'Stop';
+        var inner = '<div class="row"><div class="num' + (done ? ' done' : '') + '">' + (done ? '✓' : (i + 1)) + '</div><div class="grow">' +
+          '<div class="t1">' + esc(title) + '</div><div class="t2">' + esc([s.appt_time, s.city].filter(Boolean).join(' · ')) + '</div>' +
+          (s.next_step ? '<div class="t3">' + esc(s.next_step) + '</div>' : '') + '</div></div>';
+        var acts = s.account_id ? '<div class="btns" style="margin-top:10px">' +
+          (s.phone ? '<a class="btn sm" href="tel:' + esc(digits(s.phone)) + '">Call</a>' : '') +
+          '<a class="btn sm" href="' + esc(mapsUrl(s)) + '" target="_blank" rel="noopener">Directions</a>' +
+          '<a class="btn sm ' + (done ? '' : 'pri') + '" href="#log/' + s.account_id + '?stop=' + s.id + '">' + (done ? 'Log again' : 'Log visit') + '</a></div>' : '';
+        return '<div>' + (s.account_id ? '<a class="tap" href="#account/' + s.account_id + '">' + inner + '</a>' : inner) + acts + '</div>';
+      }).join('') + '</div>';
+    }
+
+    // Follow-ups
+    if (d.followups.length) {
+      h += '<div class="h2">Follow-ups</div><div class="card list">' + d.followups.slice(0, 12).map(function (f) {
+        var t = ymd(); var cls = f.due < t ? 'bad' : f.due === t ? 'warn' : '';
+        return '<a class="tap row" href="#account/' + f.prospect_id + '"><div class="grow"><div class="t1">' + esc(f.company) + '</div>' +
+          '<div class="t2">' + esc(f.next_step || 'Follow up') + (f.contact ? ' · ' + esc(f.contact) : '') + '</div></div>' +
+          '<span class="pill ' + cls + '">' + (f.due < t ? 'Overdue' : esc(fmtDate(f.due))) + '</span></a>';
+      }).join('') + '</div>';
+    }
+    // Quote follow-ups
+    if (d.quote_followups.length) {
+      h += '<div class="h2">Quotes to chase</div><div class="card list">' + d.quote_followups.map(function (q) {
+        var late = q.due < ymd();
+        return '<a class="tap row" href="#accounts?q=' + encodeURIComponent(q.account_name || '') + '"><div class="grow"><div class="t1">' + esc(q.account_name) + '</div>' +
+          '<div class="t2">' + esc([q.products, q.amount ? money(q.amount) : ''].filter(Boolean).join(' · ')) + '</div></div>' +
+          '<span class="pill ' + (late ? 'bad' : 'warn') + '">' + (late ? 'Overdue' : esc(fmtDate(q.due))) + '</span></a>';
+      }).join('') + '</div>';
+    }
+    // Samples
+    if (d.samples.length) {
+      h += '<div class="h2">Samples out</div><div class="card list">' + d.samples.slice(0, 8).map(function (s) {
+        var late = s.due && s.due < ymd();
+        return '<a class="tap row" href="' + (s.prospect_id ? '#account/' + s.prospect_id : '#pipeline') + '"><div class="grow"><div class="t1">' + esc(s.company || 'Account') + '</div>' +
+          '<div class="t2">' + esc(s.product_line) + ' · left ' + esc(fmtDate(s.sent_date)) + '</div></div>' +
+          (s.due ? '<span class="pill ' + (late ? 'bad' : '') + '">' + (late ? 'Check in' : esc(fmtDate(s.due))) + '</span>' : '') + '</a>';
+      }).join('') + '</div>';
+    }
+    if (!d.followups.length && !d.samples.length && !d.quote_followups.length) {
+      h += '<div class="h2">Follow-ups</div><div class="card empty">Nothing due. Nice.</div>';
+    }
+    view(h);
+  }).catch(function (e) { failed(e, 'route()'); });
+}
+
+// ════════════════════════════════════════════════════════════════
+// ACCOUNTS
+// ════════════════════════════════════════════════════════════════
+var acctState = { q: '', scope: 'team' };
+function showAccounts() {
+  setTitle('Accounts');
+  var m = location.hash.match(/\?q=([^&]*)/); if (m) acctState.q = decodeURIComponent(m[1]);
+  view('<div class="search" style="margin-bottom:10px">' + ICON.search +
+    '<label class="sr" for="acct-q">Search accounts</label><input id="acct-q" type="search" placeholder="Search name, city or contact" autocomplete="off" value="' + esc(acctState.q) + '"></div>' +
+    '<div class="row" style="margin-bottom:14px"><div class="seg grow" role="group" aria-label="Which accounts">' +
+    '<button data-group="scope" data-v="team" aria-pressed="' + (acctState.scope === 'team') + '">All team</button>' +
+    '<button data-group="scope" data-v="mine" aria-pressed="' + (acctState.scope === 'mine') + '">Mine</button></div>' +
+    '<button class="btn sm gold" onclick="newAccountSheet()">+ New</button></div><div id="acct-list"></div>');
+  var input = $('#acct-q'); var t;
+  input.addEventListener('input', function () { clearTimeout(t); t = setTimeout(function () { acctState.q = input.value.trim(); loadAccounts(); }, 250); });
+  $$('[data-group="scope"]').forEach(function (b) { b.onclick = function () { press(b, 'scope'); acctState.scope = b.dataset.v; loadAccounts(); }; });
+  loadAccounts();
+}
+var acctReq = 0;
+function loadAccounts() {
+  var el = $('#acct-list'); if (!el) return; var my = ++acctReq;
+  el.innerHTML = '<div class="skel"></div><div class="skel"></div><div class="skel"></div>';
+  api('/api/m/accounts?scope=' + acctState.scope + '&q=' + encodeURIComponent(acctState.q)).then(function (rows) {
+    if (my !== acctReq) return;
+    if (!rows.length) { el.innerHTML = '<div class="card empty">' + (acctState.q ? 'No accounts match "' + esc(acctState.q) + '".' : 'No accounts yet.') +
+      '<br><button class="btn pri" onclick="newAccountSheet()">Add an account</button></div>'; return; }
+    el.innerHTML = '<div class="card list">' + rows.map(function (a) {
+      return '<a class="tap row" href="#account/' + a.id + '"><div class="grow"><div class="t1">' + esc(a.company) + '</div>' +
+        '<div class="t2">' + esc([a.city && (a.city + (a.state ? ', ' + a.state : '')), a.owner].filter(Boolean).join(' · ')) + '</div>' +
+        '<div class="t2">' + (a.last_visit ? 'Last visit ' + esc(fmtDate(a.last_visit)) : 'Not visited yet') + '</div></div>' + ICON.chev + '</a>';
+    }).join('') + '</div>' + (rows.length >= 60 ? '<div class="t2" style="text-align:center;margin-top:10px">Showing first 60. Search to narrow it down.</div>' : '');
+  }).catch(function (e) { if (my === acctReq) el.innerHTML = '<div class="card err">Couldn\'t load accounts. <button class="btn sm pri" onclick="loadAccounts()">Retry</button></div>'; });
+}
+function newAccountSheet() {
+  openSheet('<h2>New account</h2>' +
+    '<div class="field"><label for="na-co">Company name</label><input id="na-co" autocomplete="organization"></div>' +
+    '<div class="grid2"><div class="field"><label for="na-city">City</label><input id="na-city"></div>' +
+    '<div class="field"><label for="na-st">State</label><select id="na-st">' + ['GA', 'AL', 'TN', 'NC', 'SC', 'FL'].map(function (s) { return '<option>' + s + '</option>'; }).join('') + '</select></div></div>' +
+    '<div class="field"><label for="na-ph">Phone</label><input id="na-ph" type="tel" inputmode="tel"></div>' +
+    '<div class="field"><label for="na-cat">Type</label><select id="na-cat">' +
+    ['Lumberyard / Building Supply', 'Hardware Store', 'Roofing Distributor', 'Decking Distributor', 'Siding Distributor', 'Paint Dealer', 'Roofing Contractor', 'Decking Contractor', 'General Contractor', 'Other']
+      .map(function (c) { return '<option>' + c + '</option>'; }).join('') + '</select></div>' +
+    '<button class="btn gold" style="width:100%" id="na-save" onclick="saveAccount()">Save account</button>');
+}
+function saveAccount() {
+  var co = $('#na-co').value.trim(); if (!co) { toast('Add the company name', true); return; }
+  var b = $('#na-save'); b.disabled = true; b.textContent = 'Saving…';
+  api('/api/m/accounts', { method: 'POST', body: { company: co, city: $('#na-city').value, state: $('#na-st').value, phone: $('#na-ph').value, category: $('#na-cat').value } })
+    .then(function (r) { closeSheet(); toast('Account added'); location.hash = '#account/' + r.id; })
+    .catch(function (e) {
+      b.disabled = false; b.textContent = 'Save account';
+      if (e.status === 409 && e.body && e.body.id) { closeSheet(); toast('Already in RepRoute. Opening it.'); location.hash = '#account/' + e.body.id; }
+      else toast(e.message, true);
+    });
+}
+
+// ── Account detail ───────────────────────────────────────────────
+var ACCT = null;
+function showAccount(args) {
+  var id = parseInt(args[0]); setTitle('Account', true); skeleton(3);
+  api('/api/m/account/' + id).then(function (d) {
+    ACCT = d; var a = d.account; setTitle(a.company, true);
+    var bought = d.lines.map(function (l) { return (l.name || '').toLowerCase(); });
+    var h = '<div class="card" style="padding:16px;margin-bottom:4px">' +
+      '<div style="font-size:22px;font-weight:700;overflow-wrap:anywhere">' + esc(a.company) + '</div>' +
+      '<div class="t2">' + esc([a.category, [a.city, a.state].filter(Boolean).join(', ')].filter(Boolean).join(' · ')) + '</div>' +
+      '<div class="t2">Owner: ' + esc(d.mine ? 'You' : (a.owner || '—')) + (a.phone ? ' · ' + esc(fmtPhone(a.phone)) : '') + '</div>' +
+      (d.lines.length ? '<div class="chips" style="margin-top:10px">' + d.lines.map(function (l) { return '<span class="pill navy">' + esc(l.name) + (l.total_sales ? ' ' + money(l.total_sales) : '') + '</span>'; }).join('') +
+        LINES.filter(function (x) { return bought.indexOf(x.toLowerCase()) < 0; }).slice(0, 2).map(function (x) { return '<span class="pill">Not yet: ' + esc(x) + '</span>'; }).join('') + '</div>' : '') +
+      '<div class="btns" style="margin-top:14px">' +
+      (a.phone ? '<a class="btn" href="tel:' + esc(digits(a.phone)) + '">' + ICON.phone + 'Call</a>' : '') +
+      '<a class="btn" href="' + esc(mapsUrl(a)) + '" target="_blank" rel="noopener">' + ICON.pin + 'Go</a>' +
+      '<a class="btn pri" href="#log/' + a.id + '">Log visit</a></div></div>';
+
+    // Contacts first: it's what reps reach for.
+    h += '<div class="h2">Contacts (' + d.contacts.length + ')<button class="btn sm gold" onclick="contactSheet()">+ Add contact</button></div>';
+    h += d.contacts.length ? '<div class="card list">' + d.contacts.map(function (c) {
+      return '<div class="row"><button class="grow tap" style="border:none;background:none;text-align:left;padding:0" onclick="contactSheet(' + c.id + ')">' +
+        '<div class="t1">' + esc(c.name) + (c.is_primary ? ' <span class="pill navy">Main</span>' : '') + '</div>' +
+        '<div class="t2">' + esc([c.title, fmtPhone(c.phone)].filter(Boolean).join(' · ') || c.email || 'Tap to add details') + '</div></button>' +
+        (c.phone ? '<a class="circle" href="sms:' + esc(digits(c.phone)) + '" aria-label="Text ' + esc(c.name) + '">' + ICON.text + '</a>' +
+          '<a class="circle" href="tel:' + esc(digits(c.phone)) + '" aria-label="Call ' + esc(c.name) + '">' + ICON.phone + '</a>'
+          : c.email ? '<a class="circle" href="mailto:' + esc(c.email) + '" aria-label="Email ' + esc(c.name) + '">' + ICON.mail + '</a>' : '') + '</div>';
+    }).join('') + '</div>' : '<div class="card empty">No contacts yet. Add the buyer so the whole team knows who to ask for.</div>';
+
+    // Visits
+    h += '<div class="h2">Visits</div>';
+    h += d.calls.length ? '<div class="card list">' + d.calls.map(function (c) {
+      return '<div><div class="t2">' + esc(fmtDate(c.call_date)) + ' · ' + esc(c.rep || '') + (c.outcome ? ' · ' + esc(c.outcome) : '') + '</div>' +
+        (c.notes ? '<div style="font-size:15px;margin-top:2px;white-space:pre-wrap">' + esc(c.notes) + '</div>' : '') +
+        (c.products_discussed ? '<div class="t2">Lines: ' + esc(c.products_discussed) + '</div>' : '') +
+        (c.next_step ? '<div class="t3">Next: ' + esc(c.next_step) + (c.next_step_date ? ' (' + esc(fmtDate(c.next_step_date)) + ')' : '') + '</div>' : '') + '</div>';
+    }).join('') + '</div>' : '<div class="card empty">No visits logged yet.</div>';
+
+    if (d.quotes.length) {
+      h += '<div class="h2">Quotes</div><div class="card list">' + d.quotes.map(function (q) {
+        var cls = q.status === 'Won' ? 'ok' : q.status === 'Lost' ? 'bad' : q.status === 'Follow-Up' ? 'warn' : 'navy';
+        return '<div class="row"><div class="grow"><div class="t1">' + esc(q.products || 'Quote') + (q.amount ? ' · ' + money(q.amount) : '') + '</div>' +
+          '<div class="t2">' + esc([fmtDate(q.quote_date), q.rep_name].filter(Boolean).join(' · ')) + '</div></div><span class="pill ' + cls + '">' + esc(q.status || 'Draft') + '</span></div>';
+      }).join('') + '</div>';
+    }
+    if (d.samples.length) {
+      h += '<div class="h2">Samples</div><div class="card list">' + d.samples.map(function (s) {
+        return '<div class="row"><div class="grow"><div class="t1">' + esc(s.product_line) + (s.quantity ? ' × ' + s.quantity : '') + '</div>' +
+          '<div class="t2">Left ' + esc(fmtDate(s.sent_date)) + (s.follow_up_date && !s.closed_at ? ' · check in ' + esc(fmtDate(s.follow_up_date)) : '') + '</div></div>' +
+          '<span class="pill">' + esc(s.status || 'Pending') + '</span></div>';
+      }).join('') + '</div>';
+    }
+    view(h);
+  }).catch(function (e) { failed(e, 'route()'); });
+}
+
+function contactSheet(cid) {
+  var c = cid ? (ACCT.contacts.filter(function (x) { return x.id === cid; })[0] || {}) : {};
+  var canDelete = cid && (ACCT.can_delete_contacts || (ME && c.created_by === ME.id));
+  openSheet('<h2>' + (cid ? 'Edit contact' : 'Add contact') + '</h2>' +
+    '<div class="field"><label for="ct-name">Name</label><input id="ct-name" autocomplete="name" value="' + esc(c.name) + '"></div>' +
+    '<div class="field"><label for="ct-title">Title</label><input id="ct-title" placeholder="Owner, buyer, yard manager" value="' + esc(c.title) + '"></div>' +
+    '<div class="field"><label for="ct-phone">Phone</label><input id="ct-phone" type="tel" inputmode="tel" autocomplete="tel" value="' + esc(c.phone) + '"></div>' +
+    '<div class="field"><label for="ct-email">Email</label><input id="ct-email" type="email" inputmode="email" autocomplete="email" value="' + esc(c.email) + '"></div>' +
+    '<button class="btn gold" style="width:100%" id="ct-save" onclick="saveContact(' + (cid || 0) + ')">' + (cid ? 'Save changes' : 'Save contact') + '</button>' +
+    (canDelete ? '<button class="btn danger" style="width:100%;margin-top:10px" onclick="deleteContact(' + cid + ')">Delete contact</button>' : ''));
+}
+function saveContact(cid) {
+  var name = $('#ct-name').value.trim(); if (!name) { toast('Add a name', true); return; }
+  var b = $('#ct-save'); b.disabled = true; b.textContent = 'Saving…';
+  var old = cid ? ACCT.contacts.filter(function (x) { return x.id === cid; })[0] : null;
+  api('/api/prospects/' + ACCT.account.id + '/contacts' + (cid ? '/' + cid : ''), { method: cid ? 'PUT' : 'POST',
+    body: { name: name, title: $('#ct-title').value.trim(), phone: $('#ct-phone').value.trim(), email: $('#ct-email').value.trim(), status: (old && old.status) || 'New' } })
+    .then(function () { closeSheet(); toast(cid ? 'Contact updated' : 'Contact added'); route(); })
+    .catch(function (e) { b.disabled = false; b.textContent = cid ? 'Save changes' : 'Save contact'; toast(e.message, true); });
+}
+function deleteContact(cid) {
+  if (!confirm('Delete this contact?')) return;
+  api('/api/prospects/' + ACCT.account.id + '/contacts/' + cid, { method: 'DELETE' })
+    .then(function () { closeSheet(); toast('Contact deleted'); route(); }).catch(function (e) { toast(e.message, true); });
+}
+
+// ════════════════════════════════════════════════════════════════
+// LOG A VISIT
+// ════════════════════════════════════════════════════════════════
+var LOG = null;
+function showLog(args) {
+  var id = parseInt(args[0]) || null;
+  var sm = location.hash.match(/[?&]stop=(\d+)/);
+  LOG = { stop: sm ? +sm[1] : null, account: null, contacts: [], contact: null, outcome: null, lines: [], type: 'In-Person', next: null, nextDate: null, sample: false };
+  setTitle('Log a visit', true);
+  view('<div class="field" style="position:relative"><label for="lg-acct">Account</label><input id="lg-acct" placeholder="Start typing the account name" autocomplete="off"><div id="lg-dd" class="dd hidden"></div></div>' +
+    '<div id="lg-who"></div>' +
+    '<div class="field"><span class="lbl">How</span><div class="seg" role="group" aria-label="Visit type">' +
+    '<button data-group="vt" aria-pressed="true" onclick="press(this,\'vt\');LOG.type=\'In-Person\'">In person</button>' +
+    '<button data-group="vt" aria-pressed="false" onclick="press(this,\'vt\');LOG.type=\'Phone\'">Phone call</button></div></div>' +
+    '<div class="field"><span class="lbl">What happened?</span><div class="grid2">' +
+    OUTCOMES.map(function (o) { return '<button class="opt" data-group="oc" aria-pressed="false" onclick="press(this,\'oc\');LOG.outcome=\'' + o[0] + '\';onOutcome()">' + esc(o[1]) + '</button>'; }).join('') + '</div></div>' +
+    '<div class="field"><span class="lbl">Lines discussed</span><div class="chips">' +
+    LINES.map(function (l) { return '<button class="chip" aria-pressed="false" data-line="' + esc(l) + '" onclick="toggle(this)">' + esc(l) + '</button>'; }).join('') + '</div></div>' +
+    '<div class="field" id="lg-sample-wrap"><label class="row" style="min-height:44px;font-size:15px;font-weight:600;color:var(--ink)">' +
+    '<input type="checkbox" id="lg-sample" style="width:24px;height:24px;min-height:0;flex-shrink:0;-webkit-appearance:checkbox;appearance:auto">Left samples (adds a 7-day check-in)</label></div>' +
+    '<div class="field"><label for="lg-notes">Notes</label><div style="position:relative"><textarea id="lg-notes" placeholder="What did they say? Tap the mic to talk." style="padding-right:60px"></textarea>' +
+    '<button class="mic" id="lg-mic" type="button" aria-label="Dictate notes" onclick="toggleDictation()">' + ICON.mic + '</button></div></div>' +
+    '<div class="field"><span class="lbl">Next step</span><div class="chips">' +
+    [['1w', 'Follow up in 1 week'], ['2w', 'In 2 weeks'], ['quote', 'Send quote'], ['date', 'Pick a date'], ['none', 'None']].map(function (n) {
+      return '<button class="chip" data-group="nx" aria-pressed="false" onclick="press(this,\'nx\');pickNext(\'' + n[0] + '\')">' + n[1] + '</button>'; }).join('') + '</div>' +
+    '<div id="lg-next-more" class="hidden" style="margin-top:10px"><div class="grid2"><div><label class="lbl" for="lg-next-text">What</label><input id="lg-next-text"></div>' +
+    '<div><label class="lbl" for="lg-next-date">When</label><input id="lg-next-date" type="date"></div></div></div></div>' +
+    '<div class="savebar"><button class="btn pri" id="lg-save" onclick="saveVisit()">Save visit</button></div>');
+  setupAccountPicker();
+  if (id) api('/api/m/account/' + id).then(function (d) { pickAccount(d.account.id, d.account.company, d.contacts); }).catch(function () {});
+}
+function setupAccountPicker() {
+  var input = $('#lg-acct'), dd = $('#lg-dd'), t, n = 0;
+  input.addEventListener('input', function () {
+    LOG.account = null; renderWho(); clearTimeout(t); var q = input.value.trim();
+    if (q.length < 2) { dd.classList.add('hidden'); return; }
+    t = setTimeout(function () {
+      var my = ++n;
+      api('/api/m/accounts?scope=team&limit=8&q=' + encodeURIComponent(q)).then(function (rows) {
+        if (my !== n) return;
+        dd.innerHTML = rows.map(function (r) { return '<button type="button" data-id="' + r.id + '" data-name="' + esc(r.company) + '"><div class="t1">' + esc(r.company) + '</div><div class="t2">' + esc([r.city, r.owner].filter(Boolean).join(' · ')) + '</div></button>'; }).join('') +
+          '<button type="button" data-new="1"><div class="t1">+ Add "' + esc(q) + '" as a new account</div></button>';
+        dd.classList.remove('hidden');
+        $$('button', dd).forEach(function (b) {
+          b.onclick = function () {
+            dd.classList.add('hidden');
+            if (b.dataset.new) { newAccountSheet(); $('#na-co').value = q; return; }
+            api('/api/prospects/' + b.dataset.id + '/contacts').then(function (cs) { pickAccount(+b.dataset.id, b.dataset.name, cs); })
+              .catch(function () { pickAccount(+b.dataset.id, b.dataset.name, []); });
+          };
+        });
+      }).catch(function () {});
+    }, 220);
+  });
+}
+function pickAccount(id, name, contacts) { LOG.account = { id: id, name: name }; LOG.contacts = contacts || []; $('#lg-acct').value = name; renderWho(); }
+function renderWho() {
+  var el = $('#lg-who'); if (!el) return;
+  if (!LOG.account) { el.innerHTML = ''; return; }
+  el.innerHTML = '<div class="field"><span class="lbl">Who did you see?</span><div class="chips">' +
+    LOG.contacts.map(function (c) { return '<button class="chip" data-group="who" aria-pressed="false" onclick="press(this,\'who\');LOG.contact=' + c.id + '">' + esc(c.name) + '</button>'; }).join('') +
+    '<button class="chip" style="border-style:dashed" onclick="quickContact()">+ New person</button></div></div>';
+}
+function quickContact() {
+  openSheet('<h2>Who did you see?</h2><div class="field"><label for="qc-name">Name</label><input id="qc-name"></div>' +
+    '<div class="field"><label for="qc-title">Title</label><input id="qc-title" placeholder="Buyer, owner"></div>' +
+    '<div class="field"><label for="qc-phone">Phone</label><input id="qc-phone" type="tel" inputmode="tel"></div>' +
+    '<button class="btn gold" style="width:100%" onclick="saveQuickContact(this)">Add to account</button>');
+}
+function saveQuickContact(b) {
+  var name = $('#qc-name').value.trim(); if (!name) { toast('Add a name', true); return; } b.disabled = true;
+  api('/api/prospects/' + LOG.account.id + '/contacts', { method: 'POST', body: { name: name, title: $('#qc-title').value.trim(), phone: $('#qc-phone').value.trim() } })
+    .then(function (c) { LOG.contacts.push(c); closeSheet(); renderWho(); var btn = $$('[data-group="who"]').pop(); if (btn) { press(btn, 'who'); LOG.contact = c.id; } toast('Contact added'); })
+    .catch(function (e) { b.disabled = false; toast(e.message, true); });
+}
+function onOutcome() { if (LOG.outcome === 'Left Sample') $('#lg-sample').checked = true; }
+function pickNext(k) {
+  var t = ymd(), more = $('#lg-next-more');
+  var map = { '1w': ['Follow up', addDays(t, 7)], '2w': ['Follow up', addDays(t, 14)], 'quote': ['Send quote', addDays(t, 2)], 'date': ['Follow up', addDays(t, 3)], 'none': [null, null] };
+  LOG.next = map[k][0]; LOG.nextDate = map[k][1];
+  more.classList.toggle('hidden', k === 'none');
+  $('#lg-next-text').value = LOG.next || ''; $('#lg-next-date').value = LOG.nextDate || '';
+}
+function saveVisit() {
+  if (!LOG.account) { toast('Pick the account first', true); $('#lg-acct').focus(); return; }
+  stopDictation();
+  var lines = $$('[data-line][aria-pressed="true"]').map(function (b) { return b.dataset.line; });
+  var notes = $('#lg-notes').value.trim();
+  var contact = LOG.contacts.filter(function (c) { return c.id === LOG.contact; })[0];
+  if (contact) notes = (notes ? notes + '\n' : '') + '(Spoke with ' + contact.name + ')';
+  var more = !$('#lg-next-more').classList.contains('hidden');
+  var call = {
+    prospect_id: LOG.account.id, call_date: ymd(), call_type: LOG.type, outcome: LOG.outcome || 'Other',
+    products_discussed: lines.join(', '), next_step: more ? ($('#lg-next-text').value.trim() || null) : null,
+    next_step_date: more ? ($('#lg-next-date').value || null) : null, notes: notes,
+    client_ref: 'm-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8)
+  };
+  var sample = $('#lg-sample').checked ? { prospect_id: LOG.account.id, product_line: lines[0] || 'Samples', quantity: 1, sent_date: ymd(),
+    follow_up_date: addDays(ymd(), 7), status: 'Pending', notes: lines.join(', ') } : null;
+  var b = $('#lg-save'); b.disabled = true; b.textContent = 'Saving…';
+  var acct = LOG.account, outcome = LOG.outcome, stop = LOG.stop;
+  if (!navigator.onLine) { queueVisit(call, sample, stop); return; }
+  api('/api/calls', { method: 'POST', body: call }).then(function (saved) {
+    if (stop) api('/api/m/stops/' + stop + '/done', { method: 'POST' }).catch(function () {});
+    return (sample ? api('/api/samples', { method: 'POST', body: sample }).catch(function () { toast('Visit saved, but the sample didn\'t save', true); }) : Promise.resolve())
+      .then(function () { afterSave(acct, saved, call, contact, outcome); });
+  }).catch(function (e) {
+    if (!e.status) { queueVisit(call, sample, stop); return; }
+    b.disabled = false; b.textContent = 'Save visit'; toast(e.message, true);
+  });
+}
+function queueVisit(call, sample, stop) {
+  var q = readQ(); q.push({ call: call, sample: sample, stop: stop || null }); writeQ(q);
+  toast('No signal. Saved on your phone, will send later.'); location.hash = '#today';
+}
+
+// ── Post-call agent: offer a follow-up email draft right after saving ─────
+function afterSave(acct, saved, call, contact, outcome) {
+  toast('Visit saved');
+  var want = call.notes && call.notes.length > 15 && outcome !== 'Not Available' && outcome !== 'Left Voicemail' && outcome !== 'Dropped In - Not Interested';
+  if (!want) { location.hash = '#account/' + acct.id; return; }
+  openSheet('<h2>Visit saved</h2><p class="t2" style="margin-top:-6px">Want a follow-up email drafted from your notes? You review it before anything is sent.</p>' +
+    '<div class="btns"><button class="btn" onclick="closeSheet();location.hash=\'#account/' + acct.id + '\'">No thanks</button>' +
+    '<button class="btn gold" id="ag-go" onclick="draftFollowup(' + saved.id + ',' + acct.id + ')">Draft email</button></div><div id="ag-out"></div>');
+}
+function draftFollowup(callId, acctId) {
+  var b = $('#ag-go'); b.disabled = true; b.textContent = 'Drafting…';
+  api('/api/agents/followup', { method: 'POST', body: { call_id: callId } }).then(function (d) {
+    var to = d.to_email || '';
+    $('#ag-out').innerHTML = '<div class="agent"><div class="field"><label for="ag-to">To</label><input id="ag-to" type="email" value="' + esc(to) + '" placeholder="Buyer\'s email"></div>' +
+      '<div class="field"><label for="ag-sub">Subject</label><input id="ag-sub" value="' + esc(d.subject) + '"></div>' +
+      '<div class="field"><label for="ag-body">Email</label><textarea id="ag-body">' + esc(d.body) + '</textarea></div>' +
+      (d.next_step ? '<div class="t2" style="margin-bottom:10px">Suggested next step: <b>' + esc(d.next_step) + '</b>' + (d.next_step_date ? ' on ' + esc(fmtDate(d.next_step_date)) : '') + '</div>' : '') +
+      '<div class="btns"><button class="btn" onclick="copyDraft()">Copy</button><button class="btn pri" onclick="openMail()">Open in Mail</button></div></div>';
+    b.classList.add('hidden');
+    $('#sheet').querySelector('.btns .btn').textContent = 'Done';
+  }).catch(function (e) { b.disabled = false; b.textContent = 'Try again'; toast(e.message || 'Couldn\'t draft that', true); });
+}
+function copyDraft() {
+  var txt = $('#ag-sub').value + '\n\n' + $('#ag-body').value;
+  (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(function () { toast('Copied'); }).catch(function () { $('#ag-body').select(); toast('Select and copy the text'); });
+}
+function openMail() {
+  location.href = 'mailto:' + encodeURIComponent($('#ag-to').value.trim()) + '?subject=' + encodeURIComponent($('#ag-sub').value) + '&body=' + encodeURIComponent($('#ag-body').value);
+}
+
+// ── Dictation (Safari/Chrome speech recognition) ─────────────────
+var REC = null;
+function toggleDictation() {
+  if (REC) { stopDictation(); return; }
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { toast('Use the mic on your keyboard to dictate', false); $('#lg-notes').focus(); return; }
+  var ta = $('#lg-notes'), base = ta.value ? ta.value.replace(/\s*$/, ' ') : '';
+  REC = new SR(); REC.lang = 'en-US'; REC.continuous = true; REC.interimResults = true;
+  REC.onresult = function (e) { var s = ''; for (var i = 0; i < e.results.length; i++) s += e.results[i][0].transcript; ta.value = base + s; };
+  REC.onerror = function (e) { if (e.error === 'not-allowed') toast('Allow the microphone to dictate', true); stopDictation(); };
+  REC.onend = function () { stopDictation(); };
+  try { REC.start(); $('#lg-mic').classList.add('rec'); $('#lg-mic').setAttribute('aria-label', 'Stop dictating'); } catch (e) { REC = null; }
+}
+function stopDictation() { if (REC) { try { REC.stop(); } catch (e) {} REC = null; } var m = $('#lg-mic'); if (m) { m.classList.remove('rec'); m.setAttribute('aria-label', 'Dictate notes'); } }
+
+// ════════════════════════════════════════════════════════════════
+// PIPELINE
+// ════════════════════════════════════════════════════════════════
+var pipeScope = 'mine';
+function showPipeline() {
+  setTitle('Pipeline');
+  view('<div class="seg" role="group" aria-label="Whose pipeline" style="margin-bottom:14px">' +
+    '<button data-group="ps" data-v="mine" aria-pressed="' + (pipeScope === 'mine') + '">Mine</button>' +
+    '<button data-group="ps" data-v="team" aria-pressed="' + (pipeScope === 'team') + '">All team</button></div><div id="pipe"></div>');
+  $$('[data-group="ps"]').forEach(function (b) { b.onclick = function () { press(b, 'ps'); pipeScope = b.dataset.v; loadPipeline(); }; });
+  loadPipeline();
+}
+function loadPipeline() {
+  var el = $('#pipe'); el.innerHTML = '<div class="skel"></div><div class="skel"></div>';
+  api('/api/m/pipeline?scope=' + pipeScope).then(function (d) {
+    var order = ['Draft', 'Sent', 'Follow-Up', 'Won', 'Lost'];
+    var by = {}; order.forEach(function (s) { by[s] = []; });
+    d.quotes.forEach(function (q) { var s = order.indexOf(q.status) >= 0 ? q.status : 'Draft'; by[s].push(q); });
+    var open = by.Draft.concat(by.Sent, by['Follow-Up']);
+    var openVal = open.reduce(function (t, q) { return t + (Number(q.amount) || 0); }, 0);
+    var wonVal = by.Won.reduce(function (t, q) { return t + (Number(q.amount) || 0); }, 0);
+    var h = '<div class="kpis" style="margin-bottom:6px"><div class="card kpi"><b>' + open.length + '</b><span>open quotes · ' + money(openVal) + '</span></div>' +
+      '<div class="card kpi"><b>' + money(wonVal) + '</b><span>won, last 60 days</span></div></div>';
+    var t = ymd();
+    ['Follow-Up', 'Sent', 'Draft', 'Won', 'Lost'].forEach(function (s) {
+      if (!by[s].length) return;
+      h += '<div class="h2">' + (s === 'Follow-Up' ? 'Needs follow-up' : s) + ' (' + by[s].length + ')</div><div class="card list">' + by[s].slice(0, 25).map(function (q) {
+        var late = q.follow_up_date && q.follow_up_date < t && (s !== 'Won' && s !== 'Lost');
+        return '<a class="tap row" href="#accounts?q=' + encodeURIComponent(q.account_name || '') + '"><div class="grow"><div class="t1">' + esc(q.account_name) + '</div>' +
+          '<div class="t2">' + esc([q.products, fmtDate(q.quote_date), pipeScope === 'team' ? q.rep : ''].filter(Boolean).join(' · ')) + '</div></div>' +
+          '<div style="text-align:right"><div class="t1">' + (q.amount ? money(q.amount) : '') + '</div>' + (late ? '<span class="pill bad">Overdue</span>' : '') + '</div></a>';
+      }).join('') + '</div>';
+    });
+    h += '<div class="h2">Samples out (' + d.samples.length + ')</div>';
+    h += d.samples.length ? '<div class="card list">' + d.samples.map(function (s) {
+      var late = s.follow_up_date && s.follow_up_date < t;
+      return '<a class="tap row" href="' + (s.prospect_id ? '#account/' + s.prospect_id : '#pipeline') + '"><div class="grow"><div class="t1">' + esc(s.company || 'Account') + '</div>' +
+        '<div class="t2">' + esc([s.product_line, 'left ' + fmtDate(s.sent_date), pipeScope === 'team' ? s.rep : ''].filter(Boolean).join(' · ')) + '</div></div>' +
+        (late ? '<span class="pill bad">Check in</span>' : s.follow_up_date ? '<span class="pill">' + esc(fmtDate(s.follow_up_date)) + '</span>' : '') + '</a>';
+    }).join('') + '</div>' : '<div class="card empty">No samples out.</div>';
+    if (!d.quotes.length) h += '<div class="h2">Quotes</div><div class="card empty">No quotes yet. Quotes you create on the full site show up here.</div>';
+    el.innerHTML = h;
+  }).catch(function (e) { el.innerHTML = '<div class="card err">Couldn\'t load the pipeline. <button class="btn sm pri" onclick="loadPipeline()">Retry</button></div>'; });
+}
+
+// ════════════════════════════════════════════════════════════════
+// REPORTS
+// ════════════════════════════════════════════════════════════════
+var RF = { range: 'month', from: '', to: '', rep: 'me', line: '' };
+function rangeDates(k) {
+  var t = new Date(), y = t.getFullYear(), m = t.getMonth();
+  if (k === 'month') return [ymd(new Date(y, m, 1)), ymd(t)];
+  if (k === 'last') return [ymd(new Date(y, m - 1, 1)), ymd(new Date(y, m, 0))];
+  if (k === 'quarter') return [ymd(new Date(y, Math.floor(m / 3) * 3, 1)), ymd(t)];
+  if (k === 'year') return [ymd(new Date(y, 0, 1)), ymd(t)];
+  return [RF.from || ymd(new Date(y, m, 1)), RF.to || ymd(t)];
+}
+function showReports() {
+  setTitle('Reports');
+  var teamOpts = (TEAM || []).map(function (u) { return '<option value="' + u.id + '"' + (String(RF.rep) === String(u.id) ? ' selected' : '') + '>' + esc(u.name) + '</option>'; }).join('');
+  view('<div class="seg" role="group" aria-label="Date range" style="margin-bottom:10px">' +
+    [['month', 'This mo.'], ['last', 'Last mo.'], ['quarter', 'Quarter'], ['year', 'Year'], ['custom', 'Custom']].map(function (r) {
+      return '<button data-group="rr" data-v="' + r[0] + '" aria-pressed="' + (RF.range === r[0]) + '" style="font-size:13px">' + r[1] + '</button>'; }).join('') + '</div>' +
+    '<div id="rf-custom" class="grid2' + (RF.range === 'custom' ? '' : ' hidden') + '" style="margin-bottom:10px"><div><label class="lbl" for="rf-from">From</label><input id="rf-from" type="date"></div>' +
+    '<div><label class="lbl" for="rf-to">To</label><input id="rf-to" type="date"></div></div>' +
+    '<div class="grid2" style="margin-bottom:14px"><div><label class="sr" for="rf-rep">Rep</label><select id="rf-rep"><option value="me">Me</option><option value="all"' + (RF.rep === 'all' ? ' selected' : '') + '>All team</option>' + teamOpts + '</select></div>' +
+    '<div><label class="sr" for="rf-line">Line</label><select id="rf-line"><option value="">All lines</option>' + LINES.map(function (l) { return '<option' + (RF.line === l ? ' selected' : '') + '>' + l + '</option>'; }).join('') + '</select></div></div>' +
+    '<div id="rep-out"></div>');
+  var d = rangeDates(RF.range); $('#rf-from').value = d[0]; $('#rf-to').value = d[1];
+  $$('[data-group="rr"]').forEach(function (b) { b.onclick = function () { press(b, 'rr'); RF.range = b.dataset.v; $('#rf-custom').classList.toggle('hidden', RF.range !== 'custom');
+    var dd = rangeDates(RF.range); $('#rf-from').value = dd[0]; $('#rf-to').value = dd[1]; if (RF.range !== 'custom') loadReport(); }; });
+  ['rf-from', 'rf-to'].forEach(function (id) { $('#' + id).onchange = function () { RF.from = $('#rf-from').value; RF.to = $('#rf-to').value; loadReport(); }; });
+  $('#rf-rep').onchange = function () { RF.rep = this.value; loadReport(); };
+  $('#rf-line').onchange = function () { RF.line = this.value; loadReport(); };
+  loadReport();
+}
+function reportQS() { return 'from=' + $('#rf-from').value + '&to=' + $('#rf-to').value + '&rep=' + encodeURIComponent(RF.rep) + '&line=' + encodeURIComponent(RF.line); }
+function loadReport() {
+  var el = $('#rep-out'); if (!el) return; el.innerHTML = '<div class="skel"></div><div class="skel"></div><div class="skel"></div>';
+  var qs = reportQS();
+  api('/api/reports/summary?' + qs).then(function (d) {
+    var k = d.kpis;
+    var h = '<div class="kpis">' +
+      [[k.visits, k.visits === 1 ? 'visit' : 'visits'], [k.accounts_visited, 'accounts visited'], [k.quotes, (k.quotes === 1 ? 'quote' : 'quotes') + ' · ' + money(k.quote_value)], [money(k.won_value), 'won'],
+       [k.samples_sent, 'samples left'], [k.new_accounts, 'new accounts']].map(function (x) { return '<div class="card kpi"><b>' + x[0] + '</b><span>' + esc(x[1]) + '</span></div>'; }).join('') + '</div>';
+    if (k.followups_overdue) h += '<div class="card" style="padding:12px 14px;margin-top:8px;display:flex;justify-content:space-between;align-items:center"><span><b>' + k.followups_overdue + '</b> follow-ups overdue</span><a class="btn sm" target="_blank" rel="noopener" href="/api/reports/export?type=followups&' + qs + '">Due list</a></div>';
+    // Visits by week
+    if (d.by_week.length) {
+      var max = Math.max.apply(null, d.by_week.map(function (w) { return w.n; })) || 1;
+      h += '<div class="h2">Visits by week</div><div class="card" style="padding:18px 14px 12px"><div class="bars">' + d.by_week.map(function (w) {
+        return '<div style="height:' + Math.max(3, Math.round(w.n / max * 100)) + '%"><span>' + w.n + '</span></div>'; }).join('') + '</div>' +
+        '<div class="blabels">' + d.by_week.map(function (w) { return '<span>' + esc(fmtDate(w.week)) + '</span>'; }).join('') + '</div></div>';
+    }
+    // By rep
+    if (d.by_rep.length && RF.rep === 'all') {
+      h += '<div class="h2">By rep</div><div class="card list">' + d.by_rep.map(function (r) {
+        return '<div><div class="t1">' + esc(r.rep) + '</div><div class="t2">' + plural(r.visits, 'visit') + ' · ' + plural(r.accounts, 'account') + ' · ' + plural(r.quotes, 'quote') + ' (' + money(r.quote_value) + ') · ' + plural(r.samples, 'sample') + '</div></div>';
+      }).join('') + '</div>';
+    }
+    // Lines
+    if (d.by_line.length) {
+      var lmax = d.by_line[0].visits || 1;
+      h += '<div class="h2">Lines discussed</div><div class="card list">' + d.by_line.map(function (l) {
+        return '<div><div class="row"><div class="grow t1">' + esc(l.line) + '</div><div class="t2">' + plural(l.visits, 'visit') + ' · ' + plural(l.accounts, 'acct') + '</div></div><div class="hbar"><i style="width:' + Math.round(l.visits / lmax * 100) + '%"></i></div></div>';
+      }).join('') + '</div>';
+    }
+    // Outcomes
+    if (d.by_outcome.length) {
+      h += '<div class="h2">Visit outcomes</div><div class="card list">' + d.by_outcome.map(function (o) {
+        return '<div class="row"><div class="grow">' + esc(o.outcome) + '</div><b>' + o.n + '</b></div>'; }).join('') + '</div>';
+    }
+    // Quotes by status
+    if (d.quotes_by_status.length) {
+      h += '<div class="h2">Quotes by status</div><div class="card list">' + d.quotes_by_status.map(function (q) {
+        return '<div class="row"><div class="grow">' + esc(q.status) + '</div><span class="t2">' + q.n + ' · </span><b>' + money(q.value) + '</b></div>'; }).join('') + '</div>';
+    }
+    // Top accounts
+    if (d.top_accounts.length) {
+      h += '<div class="h2">Most visited accounts</div><div class="card list">' + d.top_accounts.map(function (a) {
+        return '<a class="tap row" href="#account/' + a.id + '"><div class="grow"><div class="t1">' + esc(a.company) + '</div><div class="t2">' + esc(a.city || '') + '</div></div><b>' + a.visits + '</b></a>'; }).join('') + '</div>';
+    }
+    if (!k.visits && !k.quotes && !k.samples_sent) h += '<div class="card empty" style="margin-top:10px">Nothing logged in this range yet.</div>';
+    h += '<div class="h2">Download (Excel)</div><div class="card menu" style="padding:0 14px">' +
+      [['visits', 'Visits and calls'], ['quotes', 'Quotes'], ['samples', 'Samples'], ['followups', 'Follow-ups due'], ['accounts', 'Account list']].map(function (x) {
+        return '<a target="_blank" rel="noopener" href="/api/reports/export?type=' + x[0] + '&' + qs + '">' + ICON.chev.replace('#5B6474', '#16264A') + esc(x[1]) + '</a>'; }).join('') + '</div>';
+    el.innerHTML = h;
+  }).catch(function (e) { el.innerHTML = '<div class="card err">Couldn\'t run the report. ' + esc(e.message) + ' <button class="btn sm pri" onclick="loadReport()">Retry</button></div>'; });
+}
+
+// ════════════════════════════════════════════════════════════════
+// MORE MENU
+// ════════════════════════════════════════════════════════════════
+function openMore() {
+  var mgr = ME && ME.role === 'manager';
+  openSheet('<h2>' + esc(ME ? ME.name : 'RepRoute') + '</h2><div class="menu">' +
+    '<a href="#accounts" onclick="closeSheet()">Accounts</a>' +
+    '<a href="/app?full=1">Weekly planner, quotes, Fortress promo (full site)</a>' +
+    (mgr ? '<a href="/app?full=1">Team dashboard and commissions (full site)</a>' : '') +
+    '<button onclick="location.reload()">Refresh</button>' +
+    '<button onclick="signOut()">Sign out</button></div>');
+}
+function signOut() { fetch('/logout', { method: 'POST', credentials: 'same-origin' }).finally(function () { location.href = '/'; }); }
+
+// ── Boot ─────────────────────────────────────────────────────────
+Promise.all([api('/api/m/me'), api('/api/m/team').catch(function () { return []; })]).then(function (r) { ME = r[0]; TEAM = r[1]; })
+  .catch(function () {}).then(function () { setOnline(); route(); });
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function () {});
+</script>
+</body>
+</html>

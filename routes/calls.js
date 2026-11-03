@@ -68,7 +68,7 @@ router.get('/today', async (req, res) => {
   const result = await pool.query(
     `SELECT c.*, p.company, p.city, p.phone as prospect_phone FROM calls c
      JOIN prospects p ON c.prospect_id=p.id
-     WHERE c.user_id=$1 AND c.call_date=CURRENT_DATE`, [uid]);
+     WHERE c.user_id=$1 AND c.call_date=timezone($$America/New_York$$, NOW())::date`, [uid]);
   res.json(result.rows);
 });
 

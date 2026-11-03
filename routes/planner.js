@@ -308,7 +308,7 @@ router.get('/panel', async (req, res) => {
               c.next_step, c.next_step_date
          FROM calls c JOIN prospects p ON p.id = c.prospect_id
         WHERE c.user_id = $1 AND c.next_step_date IS NOT NULL
-          AND c.next_step_date <= CURRENT_DATE + INTERVAL '7 days'
+          AND c.next_step_date <= timezone($$America/New_York$$, NOW())::date + INTERVAL '7 days'
         ORDER BY p.id, c.next_step_date ASC
         LIMIT 25`,
       [repId]
@@ -1162,13 +1162,13 @@ router.post('/items/:id/done', async (req, res) => {
       // counts for today. The same-day dedup also keys off CURRENT_DATE, so a
       // stop done twice today still yields exactly one Visit call (no double-count).
       const existing = await pool.query(
-        'SELECT 1 FROM calls WHERE user_id=$1 AND prospect_id=$2 AND call_date=CURRENT_DATE LIMIT 1',
+        'SELECT 1 FROM calls WHERE user_id=$1 AND prospect_id=$2 AND call_date=timezone($$America/New_York$$, NOW())::date LIMIT 1',
         [repId, acctId]
       );
       if (!existing.rows.length) {
         await pool.query(
           `INSERT INTO calls (user_id, prospect_id, call_date, call_type, outcome)
-           VALUES ($1,$2,CURRENT_DATE,'Visit','Visited')`,
+           VALUES ($1,$2,timezone($$America/New_York$$, NOW())::date,'Visit','Visited')`,
           [repId, acctId]
         );
         await pool.query(

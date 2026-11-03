@@ -397,10 +397,10 @@ router.get('/', async (req, res) => {
       `SELECT p.id, p.company, p.category, p.city, p.address, p.phone, p.priority,
               c.next_step, c.next_step_date, c.outcome as last_outcome,
               'follow_up' as call_reason,
-              (CURRENT_DATE - c.next_step_date) as days_overdue
+              (timezone($$America/New_York$$, NOW())::date - c.next_step_date) as days_overdue
        FROM calls c JOIN prospects p ON c.prospect_id = p.id
        WHERE c.user_id = $1 AND c.next_step_date IS NOT NULL
-         AND c.next_step_date <= CURRENT_DATE
+         AND c.next_step_date <= timezone($$America/New_York$$, NOW())::date
          AND c.next_step IS NOT NULL AND c.next_step != ''
        ORDER BY c.next_step_date ASC LIMIT 10`,
       [uid]
@@ -415,7 +415,7 @@ router.get('/', async (req, res) => {
       [uid]
     );
     const todayCalls = await pool.query(
-      'SELECT COUNT(*) FROM calls WHERE user_id=$1 AND call_date=CURRENT_DATE', [uid]
+      'SELECT COUNT(*) FROM calls WHERE user_id=$1 AND call_date=timezone($$America/New_York$$, NOW())::date', [uid]
     );
     const stats = await pool.query(
       `SELECT COUNT(*) as total, COUNT(CASE WHEN priority='High' THEN 1 END) as hot
@@ -782,7 +782,7 @@ router.post('/log-call', async (req, res) => {
     // (the previous app-side UTC date could miss the DB's current day).
     await pool.query(
       `INSERT INTO calls (user_id, prospect_id, call_date, call_type, outcome, next_step, next_step_date, notes)
-       VALUES ($1,$2,CURRENT_DATE,$3,$4,$5,$6,$7)`,
+       VALUES ($1,$2,timezone($$America/New_York$$, NOW())::date,$3,$4,$5,$6,$7)`,
       [uid, prospect_id, 'In-Person Visit', outcome || '', next_step || '', next_step_date || null, notes || null]
     );
     // Sync notes to prospect record if provided

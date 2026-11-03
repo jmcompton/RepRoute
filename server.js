@@ -41,8 +41,15 @@ const manufacturersRoutes = require('./routes/manufacturers');
 const crosssellRoutes = require('./routes/crosssell');
 const fortressRoutes = require('./routes/fortress');
 const recapRoutes = require('./routes/recap');
+const mobileRoutes = require('./routes/mobile');
+const reportsRoutes = require('./routes/reports');
+const agentsRoutes = require('./routes/agents');
 
+const compression = require('compression');
 const app = express();
+// Gzip every response. The app shell is ~1 MB of HTML; compressed it is ~220 KB,
+// which is the difference between loading and timing out on cell signal.
+app.use(compression());
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
@@ -120,7 +127,20 @@ app.post('/api/contact', async (req, res) => {
   }
 });
 
-app.get('/app', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'views', 'app.html')));
+// Phones get the phone app (/m). Links from the phone app to desktop-only
+// tools use /app?full=1, which opens the full site for that visit only, so a
+// rep is never stuck on the desktop layout afterwards.
+const PHONE_UA = /iPhone|iPod|Android.+Mobile|Windows Phone/i;
+app.get('/app', requireAuth, (req, res) => {
+  // Only plain visits redirect: /app?outlook=... (OAuth return) and other
+  // query-string landings must reach the full app with their parameters.
+  if (!Object.keys(req.query).length && PHONE_UA.test(req.headers['user-agent'] || '')) return res.redirect('/m');
+  res.sendFile(path.join(__dirname, 'views', 'app.html'));
+});
+app.get('/m', requireAuth, (req, res) => {
+  res.set('Cache-Control', 'no-cache');
+  res.sendFile(path.join(__dirname, 'views', 'm.html'));
+});
 app.get('/morning', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'views', 'morning.html')));
 app.get('/landing', (req, res) => res.sendFile(path.join(__dirname, 'views', 'landing.html')));
 
@@ -180,6 +200,9 @@ app.use('/api/reconnect', requireAuthAPI, reconnectRoutes);
 app.use('/api/crosssell', requireAuth, crosssellRoutes);
 app.use('/api/fortress', requireAuth, fortressRoutes);
 app.use('/api/recap', requireAuth, recapRoutes);
+app.use('/api/m', requireAuthAPI, mobileRoutes);
+app.use('/api/reports', requireAuthAPI, reportsRoutes);
+app.use('/api/agents', requireAuthAPI, agentsRoutes);
 app.get('/zoho-import', requireAuth, (req, res) =>
   res.sendFile(path.join(__dirname, 'views', 'zoho-import.html'))
 );

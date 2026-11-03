@@ -1423,6 +1423,44 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
   .page.active { padding-bottom:calc(62px + env(safe-area-inset-bottom, 0px)) !important; }
   #pwa-install-banner { bottom:calc(80px + env(safe-area-inset-bottom, 0px)) !important; }
 }
+
+/* ── Reports page ── */
+.rpt-wrap{padding:16px;max-width:1200px}
+.rpt-filters{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}
+.rpt-f{display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;flex:1 1 150px}
+.rpt-f select,.rpt-f input{height:40px;padding:0 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font:500 14px inherit;text-transform:none;letter-spacing:0}
+.rpt-kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.rpt-kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px}
+.rpt-kpi b{display:block;font-size:22px;color:var(--navy)}
+.rpt-kpi span{font-size:12px;color:var(--text2)}
+.rpt-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
+.rpt-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px;min-width:0}
+.rpt-h{font-size:12px;font-weight:700;color:var(--navy);margin-bottom:12px;text-transform:uppercase;letter-spacing:.04em}
+.rpt-empty{padding:16px;text-align:center;color:var(--text3);font-size:13px}
+.rpt-bars{display:flex;align-items:flex-end;gap:8px;min-height:150px}
+.rpt-bar{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;color:var(--text2)}
+.rpt-bar i{display:block;width:100%;background:var(--navy);border-radius:4px 4px 0 0}
+.rpt-bar em{font-style:normal}
+.rpt-t{width:100%;border-collapse:collapse;font-size:13px}
+.rpt-t th{text-align:left;font-size:11px;color:var(--text3);font-weight:700;padding:6px;border-bottom:2px solid var(--border)}
+.rpt-t td{padding:8px 6px;border-bottom:1px solid var(--border)}
+.rpt-row{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px}
+.rpt-row:last-child{border-bottom:none}
+.rpt-hb{margin-bottom:10px;font-size:13px}
+.rpt-hb>div{display:flex;justify-content:space-between;gap:8px;margin-bottom:4px}
+.rpt-hb>div span:last-child{color:var(--text2)}
+.rpt-hb i{display:block;height:6px;background:var(--border);border-radius:3px}
+.rpt-hb b{display:block;height:6px;background:var(--navy);border-radius:3px}
+.rpt-dl{display:flex;flex-wrap:wrap;gap:8px}
+.rpt-dl button{min-height:40px;padding:0 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--navy);font:600 13px inherit;cursor:pointer}
+@media (max-width:640px){ .rpt-card{overflow-x:auto} .rpt-f{flex:1 1 45%} .rpt-f select,.rpt-f input{font-size:16px} }
+
+/* Full site on a phone: 16px fields so iPhone doesn't zoom in on tap, and
+   nothing wider than the screen. */
+@media (max-width:768px){
+  input:not([type=checkbox]):not([type=radio]), select, textarea { font-size:16px !important; max-width:100%; }
+  .page table { display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+}
 </style>
 <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
@@ -1432,11 +1470,24 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 // freeze users (esp. the iPhone PWA foreground case).
 if ('serviceWorker' in navigator) {
   // Reload exactly once when a new SW takes control. Guard against loops.
+  // A new version took over. Reload right away unless the rep is mid-entry
+  // (typing in a field or has a form/modal open); then offer a one-tap refresh
+  // instead, so an update never wipes a half-logged visit.
   var _swReloaded = false;
   navigator.serviceWorker.addEventListener('controllerchange', function() {
     if (_swReloaded) return;
-    _swReloaded = true;
-    window.location.reload();
+    var ae = document.activeElement;
+    var typing = ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName);
+    var modalOpen = !!document.querySelector('.mo.open, [id^="modal-"].open');
+    if (!typing && !modalOpen) { _swReloaded = true; window.location.reload(); return; }
+    if (document.getElementById('rr-update-bar')) return;
+    var bar = document.createElement('button');
+    bar.id = 'rr-update-bar';
+    bar.type = 'button';
+    bar.textContent = 'RepRoute updated. Tap to refresh when you\'re done.';
+    bar.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:9999;padding:14px 16px;border:none;border-radius:12px;background:#16264A;color:#fff;font:600 15px inherit;box-shadow:0 6px 20px rgba(0,0,0,.25)';
+    bar.onclick = function(){ _swReloaded = true; window.location.reload(); };
+    document.body.appendChild(bar);
   });
 
   window.addEventListener('load', function() {
@@ -1519,6 +1570,12 @@ window.addEventListener('load', function() {
 });
 </script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script>
+// The rep's local calendar date (YYYY-MM-DD). toISOString() is UTC, which is
+// already "tomorrow" from 6-7pm in Georgia and Alabama, so visits logged in the
+// evening used to get the next day's date.
+function localYMD(d){ d = d || new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+</script>
 </head>
 <body>
 
@@ -1564,6 +1621,7 @@ window.addEventListener('load', function() {
     <button class="sb-item" data-roles="rep intern manager" onclick="go('today')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><rect x="2" y="3" width="12" height="11" rx="1"/><path d="M2 7h12M11 1.5v2M5 1.5v2"/><path d="M6.5 10.5l1.25 1.25L10 9"/></svg>Today</button>
     <button class="sb-item" data-roles="rep intern manager" onclick="go('recap')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M4 1.5h6l3 3V14a.5.5 0 01-.5.5h-9A.5.5 0 013 14V2a.5.5 0 01.5-.5z"/><path d="M9.5 1.5V5h3.5M5.5 8h5M5.5 10.5h5"/></svg>Daily Recap</button>
     <button class="sb-item" data-roles="rep intern manager" onclick="go('contacts')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg>Accounts</button>
+    <button class="sb-item" data-roles="rep intern manager" onclick="go('reports')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 14V2M2 14h12M5 11V7M8 11V4M11 11V9"/></svg>Reports</button>
 
     <button class="sb-item" data-roles="rep intern manager" onclick="go('deals')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 4h12M2 8h9M2 12h6"/></svg>Deal Pipeline</button>
     <button class="sb-item" data-roles="rep manager" onclick="go('quotes')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><path d="M3 2h10a1 1 0 011 1v11a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1zM5 7h6M5 9.5h4"/></svg>Quotes</button>
@@ -1589,6 +1647,7 @@ window.addEventListener('load', function() {
   <div class="sb-section jm-only">
     <div class="sb-sec-label">Personal</div>
     <button class="sb-item" onclick="go('time')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5l2 1.5"/></svg>Time Tracker</button>
+    <button class="sb-item" onclick="window.location.href='/m'"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><rect x="4.5" y="1.5" width="7" height="13" rx="1.5"/><path d="M7 12h2"/></svg>Phone app</button>
   </div>
   <div class="sb-bottom">
     <div style="padding:8px 10px;background:rgba(255,255,255,.05);border-radius:5px;margin-bottom:7px;display:flex;align-items:center;justify-content:space-between">
@@ -3084,37 +3143,39 @@ window.addEventListener('load', function() {
 
   <!-- REPORTS PAGE -->
   <div class="page" id="page-reports" style="overflow-y:auto">
-    <div style="padding:16px">
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:24px" id="rep-kpis">
-      <div class="stat-card"><div class="stat-lbl">Total Calls Logged</div><div class="stat-val" id="rep-calls">—</div></div>
-      <div class="stat-card"><div class="stat-lbl">Contacts Added</div><div class="stat-val" id="rep-contacts">—</div></div>
-      <div class="stat-card"><div class="stat-lbl">Deals in Pipeline</div><div class="stat-val" id="rep-deals">—</div></div>
-    </div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px;margin-bottom:16px">
-      <div style="font-size:12px;font-weight:700;margin-bottom:16px">CALLS BY OUTCOME</div>
-      <div id="rep-calls-empty" style="text-align:center;padding:24px;color:var(--text3);font-size:12px">
-        <div style="font-size:24px;margin-bottom:8px">📞</div>
-        <div>No calls logged yet — your call outcomes will chart here.</div>
-        <button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="go('calls')">Log your first call →</button>
+    <div class="rpt-wrap">
+      <div class="rpt-filters">
+        <label class="rpt-f"><span>Range</span>
+          <select id="rpt-range" onchange="rptRangeChanged()">
+            <option value="month">This month</option><option value="last">Last month</option>
+            <option value="quarter">This quarter</option><option value="year">This year</option><option value="custom">Custom</option>
+          </select></label>
+        <label class="rpt-f"><span>From</span><input type="date" id="rpt-from" onchange="rptCustom()"></label>
+        <label class="rpt-f"><span>To</span><input type="date" id="rpt-to" onchange="rptCustom()"></label>
+        <label class="rpt-f"><span>Rep</span><select id="rpt-rep" onchange="loadReports()"><option value="me">Me</option><option value="all">All team</option></select></label>
+        <label class="rpt-f"><span>Line</span><select id="rpt-line" onchange="loadReports()"><option value="">All lines</option><option>Soudal</option><option>ShurTape</option><option>Alum-A-Pole</option><option>Fortress</option></select></label>
       </div>
-      <div id="rep-outcome-chart" style="display:flex;gap:8px;align-items:flex-end;height:120px"></div>
-    </div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-        <div style="font-size:12px;font-weight:700">CONTACTS BY CATEGORY</div>
-        <button onclick="exportReportsCSV()" style="padding:6px 14px;font-size:11px;background:transparent;border:1px solid var(--border);border-radius:40px;color:var(--text2);cursor:pointer">⬇ Export CSV</button>
+      <div id="rpt-kpis" class="rpt-kpis"></div>
+      <div class="rpt-grid">
+        <div class="rpt-card"><div class="rpt-h">Visits by week</div><div id="rpt-weeks"></div></div>
+        <div class="rpt-card"><div class="rpt-h">By rep</div><div id="rpt-reps"></div></div>
+        <div class="rpt-card"><div class="rpt-h">Lines discussed</div><div id="rpt-lines"></div></div>
+        <div class="rpt-card"><div class="rpt-h">Visit outcomes</div><div id="rpt-outcomes"></div></div>
+        <div class="rpt-card"><div class="rpt-h">Quotes by status</div><div id="rpt-quotes"></div></div>
+        <div class="rpt-card"><div class="rpt-h">Most visited accounts</div><div id="rpt-top"></div></div>
       </div>
-      <div id="rep-category-chart" style="display:flex;flex-direction:column;gap:8px">
-        <div id="rep-category-empty" style="text-align:center;padding:24px;color:var(--text3);font-size:12px">
-          <div style="font-size:24px;margin-bottom:8px">📊</div>
-          <div>No data yet — contacts will appear here once added to your CRM.</div>
-          <button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="go('leads')">Find leads with AI →</button>
+      <div class="rpt-card" style="margin-top:14px"><div class="rpt-h">Download for Excel</div>
+        <div class="rpt-dl">
+          <button type="button" onclick="rptExport('visits')">Visits and calls</button>
+          <button type="button" onclick="rptExport('quotes')">Quotes</button>
+          <button type="button" onclick="rptExport('samples')">Samples</button>
+          <button type="button" onclick="rptExport('followups')">Follow-ups due</button>
+          <button type="button" onclick="rptExport('accounts')">Account list</button>
         </div>
       </div>
     </div>
-    </div>
-    </div>
   </div>
+  </div><!-- kept: closes the legacy container this page used to close; later pages depend on it -->
 
   <!-- ANALYTICS PAGE -->
   <div class="page" id="page-analytics" style="overflow-y:auto">
@@ -4032,7 +4093,7 @@ window.KOL = (function () {
   function lsSet(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
   function norm(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim(); }
   function keyOf(lead){ if(!lead) return ''; return lead.place_id || norm(lead.company); }
-  function today(){ return new Date().toISOString().split('T')[0]; }
+  function today(){ return localYMD(); }
 
   function pref(){ return lsGet(PREF_KEY) === '1'; }
   function setPref(on){ lsSet(PREF_KEY, on ? '1' : '0'); }
@@ -4219,7 +4280,7 @@ function applyRoleNav(role) {
 }
 
 window.addEventListener('load', function() {
-  var t = new Date().toISOString().split('T')[0];
+  var t = localYMD();
   var cd = document.getElementById('call-date');
   if (cd) cd.value = t;
 
@@ -5449,7 +5510,7 @@ function loadCrossSell(accountId) {
 // Neutral outcome does NOT advance any pipeline stage; it does refresh last_activity_at.
 function logPitch(accountId, lineName, btn) {
   if (btn) { btn.disabled = true; btn.textContent = 'Logging…'; }
-  var today = new Date().toISOString().slice(0,10);
+  var today = localYMD();
   fetch('/api/calls', {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({
@@ -5585,7 +5646,7 @@ function loadToday() {
     fetch('/api/reconnect?filter=all').then(okJson).catch(function(){ return null; }),
     fetch('/api/planner/panel').then(okJson).catch(function(){ return null; })
   ]).then(function(res){
-    var d = res[0] || { date: new Date().toISOString().slice(0,10), goal: 10, progress:{done:0,total:0}, stops:[], carried_over:[], nearby:[] };
+    var d = res[0] || { date: localYMD(), goal: 10, progress:{done:0,total:0}, stops:[], carried_over:[], nearby:[] };
     window._todayData = d;
     var calls = (res[1] && res[1].stats && res[1].stats.callsMadeToday) || 0;
     var recon = (res[2] && res[2].accounts) || [];
@@ -5937,7 +5998,7 @@ function todayUndone(id, btn) {
 }
 function todayMoveToToday(id, btn) {
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
-  var today = (window._todayData && window._todayData.date) || new Date().toISOString().slice(0,10);
+  var today = (window._todayData && window._todayData.date) || localYMD();
   fetch('/api/planner/items/' + id, {
     method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ planned_date: today })
   })
@@ -5947,7 +6008,7 @@ function todayMoveToToday(id, btn) {
 }
 function todayAddNearby(accountId, btn) {
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
-  var today = (window._todayData && window._todayData.date) || new Date().toISOString().slice(0,10);
+  var today = (window._todayData && window._todayData.date) || localYMD();
   fetch('/api/planner/items', {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({ account_id: accountId, planned_date: today, source:'manual' })
@@ -7543,7 +7604,7 @@ function buildCrmContext() {
   ctx.recent_quotes = (window.allQuotes || []).slice(0,8).map(function(q) {
     return { account:q.account_name, status:q.status, amount:q.amount, products:q.products };
   });
-  var today = new Date().toISOString().split('T')[0];
+  var today = localYMD();
   ctx.follow_ups_due = (window.allProspects || []).filter(function(p) {
     return p.next_followup && p.next_followup.split('T')[0] <= today && p.status !== 'Won';
   }).map(function(p) { return p.company + ' (' + (p.city||'') + ')'; });
@@ -7973,7 +8034,7 @@ function saveNote() {
   var input = document.getElementById('note-input');
   var text = input.value.trim();
   if (!text) return;
-  var today = new Date().toISOString().split('T')[0];
+  var today = localYMD();
   var btn = document.querySelector('[onclick="saveNote()"]');
   if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
   fetch('/api/calls', {
@@ -8029,49 +8090,70 @@ function loadRecordDeals() {
 function signOut() { fetch('/logout',{method:'POST'}).then(function(){window.location='/';}) }
 
 // ── REPORTS ─────────────────────────────────────────────────
-async function loadReports() {
-  try {
-    const [data, calls] = await Promise.all([
-      fetch('/app/data').then(r=>r.json()),
-      fetch('/api/calls').then(r=>r.json())
-    ]);
-    const s = data.stats || {};
-    document.getElementById('rep-calls').textContent = s.calls || '0';
-    document.getElementById('rep-contacts').textContent = s.prospects || '0';
-    document.getElementById('rep-deals').textContent = s.deals || '0';
-
-    // Calls by outcome chart
-    const outcomes = {};
-    (calls.calls||[]).forEach(c => { outcomes[c.outcome||'Unknown'] = (outcomes[c.outcome||'Unknown']||0)+1; });
-    const maxV = Math.max(...Object.values(outcomes), 1);
-    document.getElementById('rep-outcome-chart').innerHTML = Object.entries(outcomes).map(([k,v]) =>
-      '<div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1">' +
-      '<div style="font-size:10px;color:var(--text2);font-weight:700">' + v + '</div>' +
-      '<div style="width:100%;background:var(--blue);border-radius:4px 4px 0 0;height:' + Math.round((v/maxV)*100) + 'px"></div>' +
-      '<div style="font-size:9px;color:var(--text2);text-align:center">' + k + '</div></div>'
-    ).join('');
-
-    // By category
-    const cats = {};
-    (data.prospects||[]).forEach(p => { cats[p.category||'Other'] = (cats[p.category||'Other']||0)+1; });
-    const total = Object.values(cats).reduce((a,b)=>a+b,0)||1;
-    document.getElementById('rep-category-chart').innerHTML = Object.entries(cats).sort((a,b)=>b[1]-a[1]).map(([k,v]) =>
-      '<div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px"><span>' + k + '</span><span style="color:var(--text2)">' + v + '</span></div>' +
-      '<div style="height:6px;background:var(--border);border-radius:3px"><div style="height:6px;background:var(--blue);border-radius:3px;width:' + Math.round((v/total)*100) + '%"></div></div></div>'
-    ).join('');
-  } catch(e) { console.error(e); }
+// ── REPORTS ─────────────────────────────────────────────────
+// Same data as the phone app's Reports tab: /api/reports/summary + CSV export.
+var _rptTeamLoaded = false;
+function _rptYmd(d){ return localYMD(d); }
+function _rptRange(k){
+  var t=new Date(), y=t.getFullYear(), m=t.getMonth();
+  if (k==='last') return [_rptYmd(new Date(y,m-1,1)), _rptYmd(new Date(y,m,0))];
+  if (k==='quarter') return [_rptYmd(new Date(y,Math.floor(m/3)*3,1)), _rptYmd(t)];
+  if (k==='year') return [_rptYmd(new Date(y,0,1)), _rptYmd(t)];
+  return [_rptYmd(new Date(y,m,1)), _rptYmd(t)];
 }
-
-function exportReportsCSV() {
-  fetch('/api/prospects').then(r=>r.json()).then(data => {
-    const rows = [['Company','Category','City','Priority','Phone','Email','Contact']];
-    (data.prospects||[]).forEach(p => rows.push([p.company,p.category,p.city,p.priority,p.phone||'',p.email||'',p.contact||'']));
-    const csv = rows.map(r=>r.map(v=>'"'+(v||'')+'"').join(',')).join('\n');
-    const a = document.createElement('a');
-    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
-    a.download = 'reproute-contacts.csv';
-    a.click();
-  });
+function rptRangeChanged(){
+  var k=document.getElementById('rpt-range').value;
+  if (k!=='custom'){ var r=_rptRange(k); document.getElementById('rpt-from').value=r[0]; document.getElementById('rpt-to').value=r[1]; loadReports(); }
+}
+function rptCustom(){ document.getElementById('rpt-range').value='custom'; loadReports(); }
+function _rptQS(){
+  return 'from='+document.getElementById('rpt-from').value+'&to='+document.getElementById('rpt-to').value+
+    '&rep='+encodeURIComponent(document.getElementById('rpt-rep').value)+'&line='+encodeURIComponent(document.getElementById('rpt-line').value);
+}
+function rptExport(type){ window.location.href='/api/reports/export?type='+type+'&'+_rptQS(); }
+function _rptEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+function _rptMoney(n){ return '$'+(Number(n)||0).toLocaleString('en-US',{maximumFractionDigits:0}); }
+function _rptPl(n,w){ return n+' '+w+(n===1?'':'s'); }
+async function loadReports() {
+  var from=document.getElementById('rpt-from');
+  if (!from) return;
+  if (!from.value){ var r=_rptRange('month'); from.value=r[0]; document.getElementById('rpt-to').value=r[1]; }
+  if (!_rptTeamLoaded){
+    _rptTeamLoaded=true;
+    try {
+      var team=await fetch('/api/m/team').then(function(r){return r.ok?r.json():[];});
+      var sel=document.getElementById('rpt-rep');
+      team.forEach(function(u){ var o=document.createElement('option'); o.value=u.id; o.textContent=u.name; sel.appendChild(o); });
+    } catch(e) {}
+  }
+  var kp=document.getElementById('rpt-kpis');
+  kp.innerHTML='<div class="rpt-empty">Running report…</div>';
+  try {
+    var res=await fetch('/api/reports/summary?'+_rptQS());
+    var d=await res.json();
+    if (!res.ok) throw new Error(d.error||('Error '+res.status));
+    var k=d.kpis;
+    kp.innerHTML=[[k.visits,'Visits'],[k.accounts_visited,'Accounts visited'],[k.new_accounts,'New accounts'],[k.quotes,'Quotes ('+_rptMoney(k.quote_value)+')'],
+      [_rptMoney(k.won_value),'Won'],[k.samples_sent,'Samples left'],[k.followups_overdue,'Follow-ups overdue']]
+      .map(function(x){ return '<div class="rpt-kpi"><b>'+x[0]+'</b><span>'+_rptEsc(x[1])+'</span></div>'; }).join('');
+    var none='<div class="rpt-empty">Nothing in this range.</div>';
+    var maxW=Math.max.apply(null,d.by_week.map(function(w){return w.n;}).concat([1]));
+    document.getElementById('rpt-weeks').innerHTML=d.by_week.length?'<div class="rpt-bars">'+d.by_week.map(function(w){
+      return '<div class="rpt-bar"><span>'+w.n+'</span><i style="height:'+Math.max(3,Math.round(w.n/maxW*110))+'px"></i><em>'+_rptEsc(w.week.slice(5))+'</em></div>'; }).join('')+'</div>':none;
+    document.getElementById('rpt-reps').innerHTML=d.by_rep.length?'<table class="rpt-t"><thead><tr><th>Rep</th><th>Visits</th><th>Accts</th><th>Quotes</th><th>Won</th><th>Samples</th></tr></thead><tbody>'+
+      d.by_rep.map(function(r){ return '<tr><td>'+_rptEsc(r.rep)+'</td><td>'+r.visits+'</td><td>'+r.accounts+'</td><td>'+r.quotes+' ('+_rptMoney(r.quote_value)+')</td><td>'+_rptMoney(r.won_value)+'</td><td>'+r.samples+'</td></tr>'; }).join('')+'</tbody></table>':none;
+    var lmax=(d.by_line[0]&&d.by_line[0].visits)||1;
+    document.getElementById('rpt-lines').innerHTML=d.by_line.length?d.by_line.map(function(l){
+      return '<div class="rpt-hb"><div><span>'+_rptEsc(l.line)+'</span><span>'+_rptPl(l.visits,'visit')+' · '+_rptPl(l.accounts,'acct')+'</span></div><i><b style="width:'+Math.round(l.visits/lmax*100)+'%"></b></i></div>'; }).join(''):none;
+    document.getElementById('rpt-outcomes').innerHTML=d.by_outcome.length?d.by_outcome.map(function(o){
+      return '<div class="rpt-row"><span>'+_rptEsc(o.outcome)+'</span><b>'+o.n+'</b></div>'; }).join(''):none;
+    document.getElementById('rpt-quotes').innerHTML=d.quotes_by_status.length?d.quotes_by_status.map(function(q){
+      return '<div class="rpt-row"><span>'+_rptEsc(q.status)+' ('+q.n+')</span><b>'+_rptMoney(q.value)+'</b></div>'; }).join(''):none;
+    document.getElementById('rpt-top').innerHTML=d.top_accounts.length?d.top_accounts.map(function(a){
+      return '<div class="rpt-row" style="cursor:pointer" onclick="viewRecord('+a.id+')"><span>'+_rptEsc(a.company)+(a.city?' · '+_rptEsc(a.city):'')+'</span><b>'+a.visits+'</b></div>'; }).join(''):none;
+  } catch(e) {
+    kp.innerHTML='<div class="rpt-empty" style="color:#b91c1c">Couldn\'t run the report: '+_rptEsc(e.message)+' <button type="button" class="btn btn-primary btn-sm" onclick="loadReports()">Retry</button></div>';
+  }
 }
 
 // ── ANALYTICS ───────────────────────────────────────────────
@@ -8216,7 +8298,7 @@ function loadTasks() {
 }
 
 function renderTasks() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = localYMD();
   let filtered = tasks;
   if (taskFilter==='due') filtered = tasks.filter(t=>!t.done && t.due===today);
   else if (taskFilter==='overdue') filtered = tasks.filter(t=>!t.done && t.due && t.due<today);
@@ -8668,7 +8750,7 @@ var origOpenModal = openModal;
 openModal = function(id) {
   if (id === 'add-sample') {
     var dateEl = document.getElementById('smp-date');
-    if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().split('T')[0];
+    if (dateEl && !dateEl.value) dateEl.value = localYMD();
     loadSampleContacts();
   }
   origOpenModal(id);
@@ -9582,7 +9664,7 @@ function openNewQuoteModal() {
   var defaultRep = (window.__userData && window.__userData.name) ? getDefaultRepForUser(window.__userData.name) : '';
   if (defaultRep) qSetRepValue(defaultRep);
   document.getElementById('qd-status').value = 'Draft';
-  document.getElementById('qd-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('qd-date').value = localYMD();
   document.getElementById('qd-followup').value = '';
   _qdFollowupTouched = false;
   qdApplyFollowupRule();
@@ -10527,7 +10609,7 @@ window.leadLogAndAdd = function(i, e) {
     if (keepOn) {
       // Keep on the finder: tag already-touched, show the badge, persist so it
       // survives re-renders and fresh searches. No drop-off, no dimming.
-      var today = new Date().toISOString().split('T')[0];
+      var today = localYMD();
       if (window._dailyLeads && window._dailyLeads[i]) {
         window._dailyLeads[i].kept = true;
         window._dailyLeads[i].called = true;
@@ -13917,7 +13999,7 @@ window.saveQuickCall = function() {
   var notes      = document.getElementById('qcl-notes').value.trim();
   var nextStep   = document.getElementById('qcl-nextstep').value.trim();
   var nextDate   = document.getElementById('qcl-nextdate').value;
-  var today      = new Date().toISOString().split('T')[0];
+  var today      = localYMD();
 
   function doLogCall(prospectId) {
     return fetch('/api/calls', {
@@ -15756,7 +15838,7 @@ window.BCS = (function() {
     var ex = VCL.extracted || {};
     var acct = VCL.selectedAccount;
     var cont = VCL.selectedContact;
-    var today = new Date().toISOString().split('T')[0];
+    var today = localYMD();
 
     var acctName = acct ? acct.company : (ex.account_name || '');
     var acctBadge = acct
@@ -15896,7 +15978,7 @@ window.BCS = (function() {
   window.VCL_save = function() {
     var account   = (($id('vcl-cf-account')  || {}).value || '').trim();
     var contName  = (($id('vcl-cf-contact')  || {}).value || '').trim();
-    var callDate  = ($id('vcl-cf-date')   || {}).value || new Date().toISOString().split('T')[0];
+    var callDate  = ($id('vcl-cf-date')   || {}).value || localYMD();
     var callType  = ($id('vcl-cf-type')   || {}).value || 'In-Person Visit';
     var outcome   = ($id('vcl-cf-outcome') || {}).value || '';
     var summary   = (($id('vcl-cf-summary') || {}).value || '').trim();
