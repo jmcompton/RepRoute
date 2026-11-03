@@ -312,10 +312,12 @@ function showToday() {
       '<div class="stat"><b>' + d.counts.followups + '</b><span>follow-ups due</span></div>' +
       '<div class="stat"><b>' + d.logged_today + '</b><span>logged today</span></div></div></div>';
 
+    if (ME && ME.role === 'manager') h += '<div id="team-box"></div>';
     // Stops
-    h += '<div class="h2">Today\'s stops<a href="/app?full=1">Plan week</a></div>';
+    h += '<div class="h2">Today\'s stops<a href="#accounts">+ Add stop</a></div>';
     if (!d.stops.length) {
-      h += '<div class="card empty">No stops planned for today.<br><a class="btn pri" href="#accounts">Find an account to visit</a></div>';
+      h += '<div class="card empty">No stops planned for today.<br><a class="btn pri" href="#accounts">Add an account to today</a>' +
+        '<div style="margin-top:10px"><a href="/app?full=1">Or plan the week on the full site</a></div></div>';
     } else {
       h += '<div class="card list">' + d.stops.map(function (s, i) {
         var done = !!s.completed_at;
@@ -327,7 +329,9 @@ function showToday() {
           (s.phone ? '<a class="btn sm" href="tel:' + esc(digits(s.phone)) + '">Call</a>' : '') +
           '<a class="btn sm" href="' + esc(mapsUrl(s)) + '" target="_blank" rel="noopener">Directions</a>' +
           '<a class="btn sm ' + (done ? '' : 'pri') + '" href="#log/' + s.account_id + '?stop=' + s.id + '">' + (done ? 'Log again' : 'Log visit') + '</a></div>' : '';
-        return '<div>' + (s.account_id ? '<a class="tap" href="#account/' + s.account_id + '">' + inner + '</a>' : inner) + acts + '</div>';
+        var rm = '<button class="circle" style="width:36px;height:36px;border-radius:18px" aria-label="Remove this stop" onclick="removeStop(' + s.id + ',this)">' +
+          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>';
+        return '<div><div class="row"><div class="grow">' + (s.account_id ? '<a class="tap" href="#account/' + s.account_id + '">' + inner + '</a>' : inner) + '</div>' + (done ? '' : rm) + '</div>' + acts + '</div>';
       }).join('') + '</div>';
     }
 
@@ -366,7 +370,42 @@ function showToday() {
       h += '<div class="h2">Follow-ups</div><div class="card empty">Nothing due. Nice.</div>';
     }
     view(h);
+    if (ME && ME.role === 'manager') loadTeamBox();
   }).catch(function (e) { failed(e, 'route()'); });
+}
+
+// ── Manager: team activity ───────────────────────────────────────
+var teamDays = 1;
+function loadTeamBox() {
+  var el = $('#team-box'); if (!el) return;
+  api('/api/m/activity?days=' + teamDays + '&date=' + ymd()).then(function (d) {
+    var total = d.reps.reduce(function (t, r) { return t + r.visits; }, 0);
+    el.innerHTML = '<div class="h2">Team ' + (teamDays === 1 ? 'today' : 'this week') + ' · ' + plural(total, 'visit') +
+      '<button class="link" onclick="teamDays=' + (teamDays === 1 ? 7 : 1) + ';loadTeamBox()">' + (teamDays === 1 ? 'Last 7 days' : 'Today') + '</button></div>' +
+      '<div class="card list">' + d.reps.map(function (r) {
+        return '<div class="row"><div class="grow t1">' + esc(r.rep) + '</div><span class="t2">' + plural(r.accounts, 'account') + '</span><span class="pill ' + (r.visits ? 'navy' : '') + '">' + r.visits + '</span></div>';
+      }).join('') + '</div>' +
+      (d.recent.length ? '<div class="h2" style="margin-top:14px">Latest visits</div><div class="card list">' + d.recent.slice(0, 8).map(function (c) {
+        return '<a class="tap" href="#account/' + c.prospect_id + '"><div class="t2">' + esc([c.rep, fmtDate(c.call_date), c.outcome].filter(Boolean).join(' · ')) + '</div>' +
+          '<div class="t1">' + esc(c.company) + '</div>' + (c.notes ? '<div class="t2">' + esc(c.notes) + '</div>' : '') + '</a>';
+      }).join('') + '</div>' : '');
+  }).catch(function () { el.innerHTML = ''; });
+}
+
+// ── Stops ────────────────────────────────────────────────────────
+function addToToday(accountId) {
+  var b = $('#add-today'); if (b) b.disabled = true;
+  api('/api/planner/items', { method: 'POST', body: { planned_date: ymd(), item_type: 'stop', account_id: accountId } })
+    .then(function (r) {
+      if (b) { b.textContent = '✓ On today\'s stops'; }
+      toast(r.duplicate ? (r.planned_date === ymd() ? 'Already on today\'s stops' : 'Already planned ' + fmtDate(r.planned_date)) : 'Added to today\'s stops');
+    })
+    .catch(function (e) { if (b) b.disabled = false; toast(e.message, true); });
+}
+function removeStop(id, btn) {
+  if (btn) btn.disabled = true;
+  api('/api/planner/items/' + id, { method: 'DELETE' }).then(function () { toast('Stop removed'); route(); })
+    .catch(function (e) { if (btn) btn.disabled = false; toast(e.message, true); });
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -442,7 +481,9 @@ function showAccount(args) {
       '<div class="btns" style="margin-top:14px">' +
       (a.phone ? '<a class="btn" href="tel:' + esc(digits(a.phone)) + '">' + ICON.phone + 'Call</a>' : '') +
       '<a class="btn" href="' + esc(mapsUrl(a)) + '" target="_blank" rel="noopener">' + ICON.pin + 'Go</a>' +
-      '<a class="btn pri" href="#log/' + a.id + '">Log visit</a></div></div>';
+      '<a class="btn pri" href="#log/' + a.id + '">Log visit</a></div>' +
+      '<div class="btns" style="margin-top:8px"><button class="btn" id="add-today" onclick="addToToday(' + a.id + ')">+ Today\'s stops</button>' +
+      '<button class="btn" onclick="quoteNewSheet()">+ New quote</button></div></div>';
 
     // Contacts first: it's what reps reach for.
     h += '<div class="h2">Contacts (' + d.contacts.length + ')<button class="btn sm gold" onclick="contactSheet()">+ Add contact</button></div>';
@@ -488,6 +529,7 @@ function contactSheet(cid) {
   var c = cid ? (ACCT.contacts.filter(function (x) { return x.id === cid; })[0] || {}) : {};
   var canDelete = cid && (ACCT.can_delete_contacts || (ME && c.created_by === ME.id));
   openSheet('<h2>' + (cid ? 'Edit contact' : 'Add contact') + '</h2>' +
+    (cid ? '' : '<label class="btn" style="width:100%;margin-bottom:14px" id="ct-scan">Scan a business card<input type="file" accept="image/*" capture="environment" class="sr" onchange="scanCard(this)"></label>') +
     '<div class="field"><label for="ct-name">Name</label><input id="ct-name" autocomplete="name" value="' + esc(c.name) + '"></div>' +
     '<div class="field"><label for="ct-title">Title</label><input id="ct-title" placeholder="Owner, buyer, yard manager" value="' + esc(c.title) + '"></div>' +
     '<div class="field"><label for="ct-phone">Phone</label><input id="ct-phone" type="tel" inputmode="tel" autocomplete="tel" value="' + esc(c.phone) + '"></div>' +
@@ -679,7 +721,8 @@ function showPipeline() {
   setTitle('Pipeline');
   view('<div class="seg" role="group" aria-label="Whose pipeline" style="margin-bottom:14px">' +
     '<button data-group="ps" data-v="mine" aria-pressed="' + (pipeScope === 'mine') + '">Mine</button>' +
-    '<button data-group="ps" data-v="team" aria-pressed="' + (pipeScope === 'team') + '">All team</button></div><div id="pipe"></div>');
+    '<button data-group="ps" data-v="team" aria-pressed="' + (pipeScope === 'team') + '">All team</button></div>' +
+    '<button class="btn gold" style="width:100%;margin-bottom:14px" onclick="quoteNewSheet(true)">+ New quote</button><div id="pipe"></div>');
   $$('[data-group="ps"]').forEach(function (b) { b.onclick = function () { press(b, 'ps'); pipeScope = b.dataset.v; loadPipeline(); }; });
   loadPipeline();
 }
@@ -886,6 +929,98 @@ function saveAccountEdits(owner) {
   api('/api/m/account/' + ACCT.account.id, { method: 'PATCH', body: body })
     .then(function () { afterEdit('Account updated'); })
     .catch(function (e) { b.disabled = false; b.textContent = 'Save'; toast(e.message, true); });
+}
+
+
+// ── Business card scan → contact form ─────────────────────────────
+function shrinkImage(file, maxSide) {
+  return new Promise(function (resolve, reject) {
+    var img = new Image(), url = URL.createObjectURL(file);
+    img.onload = function () {
+      var k = Math.min(1, maxSide / Math.max(img.width, img.height));
+      var c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('Couldn\'t open that photo')); };
+    img.src = url;
+  });
+}
+function scanCard(input) {
+  var f = input.files && input.files[0]; if (!f) return;
+  var lab = $('#ct-scan'); lab.firstChild.nodeValue = 'Reading card…';
+  shrinkImage(f, 1600).then(function (dataUrl) {
+    return api('/api/voice/scan-card', { method: 'POST', body: { image: dataUrl, mimeType: 'image/jpeg' } });
+  }).then(function (r) {
+    var x = r.extracted || {};
+    if (r.error && !Object.keys(x).length) throw new Error(r.error);
+    var set = function (id, v) { var el = $('#' + id); if (el && v && !el.value) el.value = v; };
+    set('ct-name', x.contact_name || [x.first_name, x.last_name].filter(Boolean).join(' '));
+    set('ct-title', x.title); set('ct-phone', x.mobile || x.phone); set('ct-email', x.email);
+    lab.firstChild.nodeValue = 'Scan another card';
+    toast('Card read. Check the details and save.');
+  }).catch(function (e) { lab.firstChild.nodeValue = 'Scan a business card'; toast(e.message || 'Couldn\'t read the card', true); })
+    .then(function () { input.value = ''; });
+}
+
+// ── New quote ────────────────────────────────────────────────────
+var QN = null;
+function quoteNewSheet(pick) {
+  var a = !pick && ACCT ? ACCT.account : null;
+  QN = { account: a ? a.company : '', contacts: a ? ACCT.contacts : [] };
+  openSheet('<h2>New quote</h2>' +
+    (a ? '<div class="t2" style="margin:-8px 0 14px">' + esc(a.company) + '</div>'
+       : '<div class="field" style="position:relative"><label for="qn-acct">Account</label><input id="qn-acct" autocomplete="off" placeholder="Start typing the account name"><div id="qn-dd" class="dd hidden"></div></div>') +
+    '<div class="field"><span class="lbl">Lines</span><div class="chips">' + LINES.map(function (l) {
+      return '<button class="chip" aria-pressed="false" data-qline="' + esc(l) + '" onclick="toggle(this)">' + esc(l) + '</button>'; }).join('') + '</div></div>' +
+    '<div class="grid2"><div class="field"><label for="qn-amt">Amount ($)</label><input id="qn-amt" inputmode="decimal" placeholder="0"></div>' +
+    '<div class="field"><label for="qn-num">Quote #</label><input id="qn-num" placeholder="Optional"></div></div>' +
+    '<div class="field"><label for="qn-contact">For</label><select id="qn-contact"><option value="">No contact</option>' +
+      QN.contacts.map(function (c) { return '<option>' + esc(c.name) + '</option>'; }).join('') + '</select></div>' +
+    '<div class="grid2"><div class="field"><label for="qn-status">Status</label><select id="qn-status"><option value="Sent">Sent</option><option value="Draft">Draft</option></select></div>' +
+    '<div class="field"><label for="qn-fu">Follow up on</label><input id="qn-fu" type="date" value="' + addDays(ymd(), 7) + '"></div></div>' +
+    '<div class="field"><label for="qn-notes">Notes</label><textarea id="qn-notes" style="min-height:70px" placeholder="Products, quantities, anything to remember"></textarea></div>' +
+    '<button class="btn gold" style="width:100%" id="qn-save" onclick="saveNewQuote(false)">Save quote</button>');
+  if (!a) {
+    var input = $('#qn-acct'), dd = $('#qn-dd'), t;
+    input.addEventListener('input', function () {
+      clearTimeout(t); QN.account = ''; var q = input.value.trim(); if (q.length < 2) { dd.classList.add('hidden'); return; }
+      t = setTimeout(function () {
+        api('/api/m/accounts?scope=team&limit=8&q=' + encodeURIComponent(q)).then(function (rows) {
+          dd.innerHTML = rows.map(function (r) { return '<button type="button" data-id="' + r.id + '" data-name="' + esc(r.company) + '"><div class="t1">' + esc(r.company) + '</div><div class="t2">' + esc(r.city || '') + '</div></button>'; }).join('') ||
+            '<div class="t2" style="padding:12px 14px">No match. Add the account first on the Accounts tab.</div>';
+          dd.classList.remove('hidden');
+          $$('button', dd).forEach(function (b) { b.onclick = function () {
+            dd.classList.add('hidden'); input.value = b.dataset.name; QN.account = b.dataset.name;
+            api('/api/prospects/' + b.dataset.id + '/contacts').then(function (cs) {
+              $('#qn-contact').innerHTML = '<option value="">No contact</option>' + cs.map(function (c) { return '<option>' + esc(c.name) + '</option>'; }).join('');
+            }).catch(function () {});
+          }; });
+        }).catch(function () {});
+      }, 220);
+    });
+  }
+}
+function saveNewQuote(force) {
+  if (!QN.account) { toast('Pick the account from the list', true); return; }
+  var lines = $$('[data-qline][aria-pressed="true"]').map(function (b) { return b.dataset.qline; });
+  var amt = parseFloat(String($('#qn-amt').value).replace(/[$,\s]/g, ''));
+  var fu = $('#qn-fu').value;
+  var body = { account_name: QN.account, products: lines.join(', ') || null, amount: isFinite(amt) ? amt : null,
+    quote_number: $('#qn-num').value.trim() || null, contact_name: $('#qn-contact').value || null,
+    status: $('#qn-status').value, quote_date: ymd(), follow_up_date: fu || null, follow_up_enabled: !!fu,
+    comments: $('#qn-notes').value.trim() || null, rep_name: ME ? ME.name : null, force: !!force };
+  var b = $('#qn-save'); b.disabled = true; b.textContent = 'Saving…';
+  api('/api/quotes', { method: 'POST', body: body }).then(function () { afterEdit('Quote saved'); })
+    .catch(function (e) {
+      b.disabled = false; b.textContent = 'Save quote';
+      if (e.status === 409 && e.body && e.body.existing) {
+        var ex = e.body.existing;
+        if (confirm('You already have quote #' + body.quote_number + ' for ' + (ex.account_name || 'an account') + '. Update that one with these details?')) saveNewQuote(true);
+        return;
+      }
+      toast(e.message, true);
+    });
 }
 
 // ════════════════════════════════════════════════════════════════

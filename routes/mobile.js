@@ -374,4 +374,36 @@ router.patch('/account/:id', async (req, res) => {
   }
 });
 
+// ── GET /api/m/activity?date=YYYY-MM-DD&days=1|7 (managers) ──────
+// Who logged what: per-rep counts plus the latest visits across the team.
+router.get('/activity', async (req, res) => {
+  if (!isManager(req.session.user)) return res.status(403).json({ error: 'Managers only' });
+  try {
+    const today = await todayFor(req);
+    const days = parseInt(req.query.days) === 7 ? 7 : 1;
+    const from = (await pool.query('SELECT ($1::date - $2::int + 1)::text AS d', [today, days])).rows[0].d;
+    const [reps, recent] = await Promise.all([
+      pool.query(
+        `SELECT u.id, COALESCE(NULLIF(TRIM(u.name),''), u.email) AS rep,
+                COUNT(c.id)::int AS visits, COUNT(DISTINCT c.prospect_id)::int AS accounts,
+                MAX(c.created_at) AS last_at
+           FROM users u
+           LEFT JOIN calls c ON c.user_id = u.id AND c.call_date BETWEEN $1 AND $2
+          WHERE u.role IN ('rep','manager')
+          GROUP BY u.id, 2 ORDER BY 3 DESC, 2`, [from, today]),
+      pool.query(
+        `SELECT c.id, c.call_date::text AS call_date, c.outcome, c.products_discussed, c.next_step,
+                LEFT(c.notes, 160) AS notes, p.id AS prospect_id, p.company, p.city,
+                COALESCE(NULLIF(TRIM(u.name),''), u.email) AS rep
+           FROM calls c JOIN prospects p ON p.id = c.prospect_id LEFT JOIN users u ON u.id = c.user_id
+          WHERE c.call_date BETWEEN $1 AND $2
+          ORDER BY c.call_date DESC, c.created_at DESC NULLS LAST, c.id DESC LIMIT 40`, [from, today])
+    ]);
+    res.json({ from, to: today, reps: reps.rows, recent: recent.rows });
+  } catch (e) {
+    console.error('[m/activity]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;
