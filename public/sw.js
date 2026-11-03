@@ -8,7 +8,7 @@
 //   • On activate: delete every cache whose name !== current version, then claim.
 //   • skipWaiting + clients.claim so a new SW takes over existing clients on
 //     their next visit instead of waiting for all tabs to close.
-const CACHE_VERSION = 'reproute-v4';
+const CACHE_VERSION = 'reproute-v5';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

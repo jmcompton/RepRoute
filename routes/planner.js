@@ -76,8 +76,9 @@ function classifyReason({ next_step, next_step_date, pipeline_stage, last_call_d
   const daysSince = lastCall ? Math.round((today - lastCall) / 86400000) : null;
   const activePipeline = pipeline_stage && !['New Lead', 'Closed Won', 'Closed Lost'].includes(pipeline_stage);
 
-  if (nsDate && nsDate <= todayStr) return { reason: 'Overdue follow-up (promised ' + nsDate + ')', kind: 'followup_overdue' };
-  if (nsDate) return { reason: 'Follow-up due ' + nsDate, kind: 'followup_due' };
+  const nice = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  if (nsDate && nsDate <= todayStr) return { reason: 'Overdue follow-up (promised ' + nice(nsDate) + ')', kind: 'followup_overdue' };
+  if (nsDate) return { reason: 'Follow-up due ' + nice(nsDate), kind: 'followup_due' };
   if (next_step) return { reason: 'Promised next step: ' + next_step, kind: 'next_step' };
   if (activePipeline) return { reason: 'Open deal — ' + pipeline_stage, kind: 'open_deal' };
   if (daysSince === null) return { reason: 'Never contacted', kind: 'new' };

@@ -1574,6 +1574,8 @@ window.addEventListener('load', function() {
 // The rep's local calendar date (YYYY-MM-DD). toISOString() is UTC, which is
 // already "tomorrow" from 6-7pm in Georgia and Alabama, so visits logged in the
 // evening used to get the next day's date.
+// 'Nov 3, 2026' from a date or timestamp, without shifting the day.
+function fmtDay(v){ if(!v) return '—'; var d=String(v).split('T')[0]; var t=new Date(d+'T12:00:00'); return isNaN(t) ? String(v) : t.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
 function localYMD(d){ d = d || new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 </script>
 </head>
@@ -1616,33 +1618,33 @@ function localYMD(d){ d = d || new Date(); return d.getFullYear()+'-'+String(d.g
     <button class="sb-item active" data-roles="intern manager" onclick="go('dashboard')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 6l6-4 6 4v8H2V6z"/><path d="M6 14v-4h4v4"/></svg>Home</button>
   </div>
   <div class="sb-section" data-roles="rep intern manager">
-    <div class="sb-sec-label">Daily</div>
-    <button class="sb-item" data-roles="rep intern manager" onclick="go('today')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><rect x="2" y="3" width="12" height="11" rx="1"/><path d="M2 7h12M11 1.5v2M5 1.5v2"/><path d="M6.5 10.5l1.25 1.25L10 9"/></svg>Today</button>
-    <button class="sb-item" data-roles="rep intern manager" onclick="go('contacts')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg>Accounts</button>
-    <button class="sb-item" data-roles="rep manager" onclick="go('quotes')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><path d="M3 2h10a1 1 0 011 1v11a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1zM5 7h6M5 9.5h4"/></svg>Quotes</button>
-    <button class="sb-item" data-roles="rep intern manager" onclick="go('reports')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 14V2M2 14h12M5 11V7M8 11V4M11 11V9"/></svg>Reports</button>
-    <button class="sb-item" data-roles="rep manager" onclick="go('weekly-planner')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><rect x="2" y="3" width="12" height="11" rx="1"/><path d="M2 6h12M6 3v11"/></svg>Weekly Planner</button>
-  </div>
-  <div class="sb-section" data-roles="rep intern manager">
-    <div class="sb-sec-label">Field tools</div>
+    <div class="sb-sec-label">Sales</div>
     <button class="sb-item" data-roles="rep intern manager" onclick="go('reconnect')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 8a6 6 0 0110.5-4M14 8a6 6 0 01-10.5 4"/><path d="M12.5 1.5V4h-2.5M3.5 14.5V12h2.5"/></svg>Reconnect</button>
+    <button class="sb-item" data-roles="rep intern manager" onclick="go('today')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><rect x="2" y="3" width="12" height="11" rx="1"/><path d="M2 7h12M11 1.5v2M5 1.5v2"/><path d="M6.5 10.5l1.25 1.25L10 9"/></svg>Today</button>
     <button class="sb-item" data-roles="rep intern manager" onclick="go('recap')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M4 1.5h6l3 3V14a.5.5 0 01-.5.5h-9A.5.5 0 013 14V2a.5.5 0 01.5-.5z"/><path d="M9.5 1.5V5h3.5M5.5 8h5M5.5 10.5h5"/></svg>Daily Recap</button>
+    <button class="sb-item" data-roles="rep intern manager" onclick="go('contacts')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg>Accounts</button>
+    <button class="sb-item" data-roles="rep intern manager" onclick="go('reports')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 14V2M2 14h12M5 11V7M8 11V4M11 11V9"/></svg>Reports</button>
+
     <button class="sb-item" data-roles="rep intern manager" onclick="go('deals')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 4h12M2 8h9M2 12h6"/></svg>Deal Pipeline</button>
+    <button class="sb-item" data-roles="rep manager" onclick="go('quotes')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><path d="M3 2h10a1 1 0 011 1v11a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1zM5 7h6M5 9.5h4"/></svg>Quotes</button>
     <button class="sb-item" data-roles="rep manager" onclick="go('opportunities')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M8 1l2 4.5 4.9.4-3.7 3.2 1.1 4.8L8 11.5 3.7 13.9l1.1-4.8L1.1 5.9 6 5.5z"/></svg>Opportunities</button>
     <button class="sb-item" data-roles="rep intern manager" onclick="go('manufacturers')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 14V6l4-2v3l4-2v3l4-2v8z"/><path d="M2 14h12"/></svg>Manufacturers</button>
     <button class="sb-item" data-roles="rep intern manager" onclick="go('fortress')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 14V5l3-2 3 2 3-2 3 2v9z"/><path d="M5 14V8M11 14V8M2 11h12"/></svg>Fortress Promo</button>
-    <button class="sb-item" data-roles="manager rep intern" onclick="go('weekly-report')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 14V2M2 14h12M5 11V7M8 11V4M11 11V9"/></svg>Weekly Report</button>
-    <button class="sb-item" onclick="window.location.href='/m'"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><rect x="4.5" y="1.5" width="7" height="13" rx="1.5"/><path d="M7 12h2"/></svg>Phone app</button>
   </div>
-  <div class="sb-section manager-only" data-roles="manager" style="display:none">
-    <div class="sb-sec-label">Manager</div>
-    <button class="sb-item" data-roles="manager" onclick="go('manager')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><circle cx="5" cy="5" r="2.5"/><circle cx="11" cy="5" r="2.5"/><path d="M1 13c0-2.2 1.8-4 4-4s4 1.8 4 4"/><path d="M11 9c1.7.3 3 1.9 3 4"/></svg>Team Dashboard</button>
-    <button class="sb-item" data-roles="manager" onclick="go('commissions')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M8 1v14M11 4H6.5a2 2 0 000 4h3a2 2 0 010 4H5"/></svg>Commissions</button>
-    <button class="sb-item" data-roles="manager" onclick="go('calendar')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><rect x="2" y="3" width="12" height="11" rx="1"/><path d="M5 2v2M11 2v2M2 7h12"/></svg>Team Calendar</button>
-    <button class="sb-item" data-roles="manager" onclick="go('email')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><rect x="1" y="3" width="14" height="10" rx="1"/><path d="M1 4l7 5 7-5"/></svg>Email</button>
+  <div class="sb-section" data-roles="rep manager">
+    <div class="sb-sec-label">Activities</div>
+    <button class="sb-item" data-roles="manager" onclick="go('calendar')" style="padding-left:18px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><rect x="2" y="3" width="12" height="11" rx="1"/><path d="M5 2v2M11 2v2M2 7h12"/></svg>Team Calendar</button>
+    <button class="sb-item" data-roles="manager" onclick="go('email')" style="padding-left:18px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><rect x="1" y="3" width="14" height="10" rx="1"/><path d="M1 4l7 5 7-5"/></svg>Email</button>
+    <button class="sb-item" data-roles="rep manager" onclick="go('weekly-planner')" style="padding-left:18px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><rect x="2" y="3" width="12" height="11" rx="1"/><path d="M2 6h12M6 3v11"/></svg>Weekly Planner</button>
+    <button class="sb-item" data-roles="manager rep intern" onclick="go('weekly-report')" style="padding-left:18px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 14V2M2 14h12M5 11V7M8 11V4M11 11V9"/></svg>Weekly Report</button>
     <button class="sb-item" data-roles="manager" onclick="go('command')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><path d="M9 2L7 14M3 6l-2 2 2 2M13 6l2 2-2 2"/></svg>AI Command</button>
     <button class="sb-item" data-roles="manager" onclick="go('bulk')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 2h5v5H2z"/><path d="M9 2h5v5H9z"/><path d="M2 9h5v5H2z"/><path d="M9 9h5v5H9z"/></svg>Bulk Import</button>
     <button class="sb-item" data-roles="manager" onclick="window.location.href='/zoho-import'"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M8 2v8M5 7l3 3 3-3"/><path d="M3 12h10"/></svg>Zoho Import</button>
+  </div>
+  <div class="sb-section manager-only" data-roles="manager" style="display:none">
+    <div class="sb-sec-label">Team</div>
+    <button class="sb-item" data-roles="manager" onclick="go('manager')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><circle cx="5" cy="5" r="2.5"/><circle cx="11" cy="5" r="2.5"/><path d="M1 13c0-2.2 1.8-4 4-4s4 1.8 4 4"/><path d="M11 9c1.7.3 3 1.9 3 4"/></svg>Team Dashboard</button>
+    <button class="sb-item" data-roles="manager" onclick="go('commissions')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M8 1v14M11 4H6.5a2 2 0 000 4h3a2 2 0 010 4H5"/></svg>Commissions</button>
   </div>
   <div class="sb-section jm-only">
     <div class="sb-sec-label">Personal</div>
@@ -1813,7 +1815,7 @@ function localYMD(d){ d = d || new Date(); return d.getFullYear()+'-'+String(d.g
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <input id="lead-city-input" type="text" name="lead_city_search" inputmode="text" placeholder="Enter city (e.g. Norcross GA)" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-form-type="other">
-          <div style="display:flex;gap:8px;align-items:center">
+          <div id="lead-btn-row" style="display:flex;gap:8px;align-items:center">
             <button onclick="window._lfRouteMode=false;runDailyLeads()" id="lead-find-btn" style="padding:10px 22px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">
               Find Today's Leads
             </button>
@@ -2733,6 +2735,7 @@ function localYMD(d){ d = d || new Date(); return d.getFullYear()+'-'+String(d.g
   <!-- TODAY PAGE (planner execution surface — phone-first) -->
   <div class="page" id="page-today">
     <div id="today-root" style="padding:16px;display:flex;flex-direction:column">
+      <div id="today-brief" style="order:0"></div>
       <div id="today-header" style="order:1"></div>
       <div id="today-content" style="order:2"></div>
       <div id="today-finder-slot" style="order:3;display:none"></div>
@@ -3132,6 +3135,7 @@ function localYMD(d){ d = d || new Date(); return d.getFullYear()+'-'+String(d.g
       <!-- Footer -->
       <div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:#fafbfc;border-radius:0 0 8px 8px">
         <button id="qd-delete-btn" onclick="deleteCurrentQuote()" style="display:none;padding:7px 14px;background:transparent;border:1px solid var(--red);color:var(--red);border-radius:5px;font-size:12px;font-weight:600;cursor:pointer">Delete</button>
+        <button id="qd-nudge-btn" onclick="agentQuoteNudge(currentQuoteId)" style="display:none;margin-left:8px;padding:7px 14px;background:transparent;border:1px solid var(--border);color:var(--navy);border-radius:5px;font-size:12px;font-weight:600;cursor:pointer">✉ Draft follow-up</button>
         <div style="display:flex;gap:8px;margin-left:auto">
           <button onclick="closeQuoteDetail()" style="padding:7px 16px;background:transparent;border:1px solid var(--border);border-radius:5px;font-size:12px;cursor:pointer;color:var(--text2)">Cancel</button>
           <button onclick="saveQuote()" style="padding:7px 18px;background:var(--blue);color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer" id="qd-save-btn">Save Quote</button>
@@ -4661,7 +4665,7 @@ function loadDashboard() {
       // Recent calls
       var rc = d.recentCalls || [];
       document.getElementById('dash-activity').innerHTML = rc.length ?
-        rc.map(function(c) { return '<tr><td style="font-weight:600">' + c.company + '</td><td>' + (c.outcome||'—') + '</td><td style="color:var(--blue);font-size:11.5px">' + (c.next_step||'—') + '</td><td style="color:var(--text3)">' + (c.call_date||'—') + '</td></tr>'; }).join('') :
+        rc.map(function(c) { return '<tr><td style="font-weight:600">' + c.company + '</td><td>' + (c.outcome||'—') + '</td><td style="color:var(--blue);font-size:11.5px">' + (c.next_step||'—') + '</td><td style="color:var(--text3)">' + fmtDay(c.call_date) + '</td></tr>'; }).join('') :
         '<tr><td colspan="4" style="text-align:center;padding:16px;color:var(--text3)">No activity yet.</td></tr>';
 
       // Line coverage bars
@@ -5239,9 +5243,9 @@ function viewRecord(id) {
             rc.map(function(c) {
               return '<div class="tl-item"><div class="tl-ico">' + (c.call_type && (c.call_type.indexOf('Person')!==-1||c.call_type.indexOf('Jobsite')!==-1) ? '' : '') + '</div>' +
                 '<div class="tl-body"><div class="tl-title">' + (c.call_type||'Call') + ' — ' + (c.outcome||'—') + '</div>' +
-                '<div class="tl-meta">' + (c.call_date||'—') + ' · Products: ' + (c.products_discussed||'—') + '</div>' +
+                '<div class="tl-meta">' + fmtDay(c.call_date) + ' · Products: ' + (c.products_discussed||'—') + '</div>' +
                 (c.notes ? '<div class="tl-note">' + c.notes + '</div>' : '') +
-                (c.next_step ? '<div style="margin-top:5px;font-size:11px;color:var(--blue);font-weight:600">→ Next: ' + c.next_step + (c.next_step_date ? ' (' + c.next_step_date + ')' : '') + '</div>' : '') +
+                (c.next_step ? '<div style="margin-top:5px;font-size:11px;color:var(--blue);font-weight:600">→ Next: ' + c.next_step + (c.next_step_date ? ' (' + fmtDay(c.next_step_date) + ')' : '') + '</div>' : '') +
                 '</div></div>';
             }).join('') : '<div style="text-align:center;padding:24px;color:var(--text3)">No activities logged yet.</div>';
         });
@@ -5646,6 +5650,7 @@ function loadToday() {
   var hdr = document.getElementById('today-header');
   if (!content) return;
   content.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:30px;text-align:center">Loading today…</div>';
+  if (typeof loadTodayBrief === 'function') loadTodayBrief();
   function okJson(r){ return r && r.ok ? r.json() : null; }
   Promise.all([
     fetch('/api/planner/today?date=' + (function(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})()).then(okJson).catch(function(){ return null; }),
@@ -6261,7 +6266,7 @@ function renderContactTimeline(calls) {
       '<div class="cd-tl-title">'+(c.call_type||'Call')+' — '+(c.outcome||'—')+'</div>' +
       '<div class="cd-tl-meta">'+dateStr+(c.products_discussed ? ' · Products: '+c.products_discussed : '')+'</div>' +
       (c.notes ? '<div class="cd-tl-note">'+c.notes+'</div>' : '') +
-      (c.next_step ? '<div class="cd-tl-next">→ Next: '+c.next_step+(c.next_step_date?' ('+c.next_step_date+')':'')+'</div>' : '') +
+      (c.next_step ? '<div class="cd-tl-next">→ Next: '+c.next_step+(c.next_step_date?' ('+fmtDay(c.next_step_date)+')':'')+'</div>' : '') +
       '</div>';
   }).join('');
 }
@@ -7433,8 +7438,9 @@ function logCall() {
       products_discussed:document.getElementById('call-products').value, next_step:document.getElementById('call-nextstep').value,
       next_step_date:document.getElementById('call-nextdate').value, notes:document.getElementById('call-notes').value
     })
-  }).then(function() {
+  }).then(function(r) { return r.json().catch(function(){ return null; }); }).then(function(result) {
     showToast('Call logged!');
+    if (typeof agentOfferFollowup === 'function') agentOfferFollowup(result);
     ['call-products','call-nextstep','call-nextdate','call-notes'].forEach(function(id) { var el=document.getElementById(id); if(el) el.value=''; });
     loadCalls(); loadDashboard();
   });
@@ -7450,7 +7456,7 @@ function loadCalls() {
       if (!calls.length) { tbody.innerHTML=''; if(empty) empty.style.display='block'; return; }
       if(empty) empty.style.display='none';
       tbody.innerHTML = calls.map(function(c) {
-        return '<tr><td style="color:var(--text3)">' + (c.call_date||'—') + '</td><td style="font-weight:600">' + c.company + '</td><td>' + (c.call_type||'—') + '</td><td>' + (c.outcome||'—') + '</td><td style="font-size:11.5px;color:var(--text2)">' + (c.products_discussed||'—') + '</td><td style="font-size:11.5px;color:var(--blue)">' + (c.next_step||'—') + '</td><td style="color:var(--text3)">' + (c.next_step_date||'—') + '</td></tr>';
+        return '<tr><td style="color:var(--text3)">' + fmtDay(c.call_date) + '</td><td style="font-weight:600">' + c.company + '</td><td>' + (c.call_type||'—') + '</td><td>' + (c.outcome||'—') + '</td><td style="font-size:11.5px;color:var(--text2)">' + (c.products_discussed||'—') + '</td><td style="font-size:11.5px;color:var(--blue)">' + (c.next_step||'—') + '</td><td style="color:var(--text3)">' + fmtDay(c.next_step_date) + '</td></tr>';
       }).join('');
     });
 }
@@ -9678,6 +9684,7 @@ function openNewQuoteModal() {
   document.getElementById('qd-pdf-name').textContent = '';
   document.getElementById('qd-pdf-preview').style.display = 'none';
   document.getElementById('qd-delete-btn').style.display = 'none';
+  var _nb = document.getElementById('qd-nudge-btn'); if (_nb) _nb.style.display = 'none';
   var dropArea = document.getElementById('qd-drop-area');
   dropArea.style.borderColor = 'var(--border)';
   dropArea.style.background = '#fafbfc';
@@ -9724,6 +9731,7 @@ function openQuoteDetail(id, _fetched) {
   qdFollowupUI();
   document.getElementById('qd-pdf-name').textContent = '';
   document.getElementById('qd-delete-btn').style.display = 'block';
+  var _nb = document.getElementById('qd-nudge-btn'); if (_nb) _nb.style.display = (q.status === 'Won' || q.status === 'Lost') ? 'none' : 'inline-block';
   var dropArea = document.getElementById('qd-drop-area');
   dropArea.style.borderColor = 'var(--border)';
   dropArea.style.background = '#fafbfc';
@@ -11433,6 +11441,7 @@ window.runDailyLeads = function() {
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (data.code === 'NO_ROUTE') { routeError = data.error; segments = []; finalize(); return; }
+      if (data.code === 'SEARCH_FAILED' || (!data.leads && data.error)) searchErr = data.error;
       if (data.leads) {
         data.leads.forEach(function(lead) {
           var id = lead.place_id || lead.company;
@@ -11447,10 +11456,10 @@ window.runDailyLeads = function() {
       }
       fetchSegment(idx + 1);
     })
-    .catch(function() { fetchSegment(idx + 1); });
+    .catch(function() { searchErr = 'Couldn\'t reach RepRoute. Check your signal and try again.'; fetchSegment(idx + 1); });
   }
 
-  var routeError = null, finalized = false;
+  var routeError = null, searchErr = null, finalized = false;
   function finalize() {
     if (finalized) return; finalized = true;
     if (loading) loading.style.display = 'none';
@@ -11458,6 +11467,7 @@ window.runDailyLeads = function() {
     btn.textContent = "Find Today's Leads";
     if (routeBtn) routeBtn.disabled = false;
     if (routeError) { alert(routeError); return; }
+    if (searchErr && !allLeads.length) { alert(searchErr); return; }
     var refreshBtn = document.getElementById('lead-refresh-btn');
     if (refreshBtn) { refreshBtn.style.display = 'block'; refreshBtn.textContent = '↻ Refresh'; refreshBtn.disabled = false; }
 
@@ -12289,6 +12299,12 @@ fetch('/api/notifications/evaluate', { method: 'POST' }).then(function(r){ retur
     <button onclick="goAndCloseMenu('quotes')" class="mm-item" data-roles="rep manager">
       <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#1d6aff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h10l4 4v14a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z"/><path d="M14 2v4h4M7 11h8M7 14.5h6"/></svg>
       <span>Quotes</span>
+      <svg class="mm-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg>
+    </button>
+
+    <button onclick="goAndCloseMenu('reports')" class="mm-item">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#1d6aff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 19V3M3 19h16M7 15v-5M11 15V6M15 15v-3"/></svg>
+      <span>Reports</span>
       <svg class="mm-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg>
     </button>
 
@@ -14046,6 +14062,7 @@ window.saveQuickCall = function() {
         if (window.KOL && KOL.pref()) KOL.applyKeepForCompany(qclName, null);
         closeQuickCallLog();
         showToast('Call logged for ' + qclName);
+        if (typeof agentOfferFollowup === 'function') agentOfferFollowup(result, qclName);
         // Refresh call list + dashboard counts
         if (typeof loadCalls === 'function') loadCalls();
         if (typeof loadDashboard === 'function') loadDashboard();
@@ -14092,6 +14109,7 @@ window.saveQuickCall = function() {
       if (window.KOL && KOL.pref()) KOL.applyKeepForCompany(gp.company, gp.place_id, { phone: gp.phone, city: gp.city, address: gp.address });
       closeQuickCallLog();
       showToast(gp.company + ' added to CRM & call logged');
+      if (typeof agentOfferFollowup === 'function') agentOfferFollowup(result, gp.company);
       if (typeof loadProspects === 'function') loadProspects();
       if (typeof loadCalls === 'function') loadCalls();
       if (typeof loadDashboard === 'function') loadDashboard();
@@ -16088,6 +16106,7 @@ window.BCS = (function() {
         syncFloatBtn();
         if (window.KOL && KOL.pref()) KOL.applyKeepForCompany(account, (acct && acct.place_id) || null);
         if (typeof showToast === 'function') showToast('Call logged for ' + account);
+        if (typeof agentOfferFollowup === 'function') agentOfferFollowup(result, account);
         // Refresh data in the background
         if (typeof loadCalls === 'function') loadCalls();
         if (typeof loadDashboard === 'function') loadDashboard();
@@ -16710,7 +16729,7 @@ function wrCallList(calls) {
       '</div>' +
       (meta.length ? '<div style="font-size:11.5px;color:var(--text2);margin:2px 0 6px">' + meta.join(' · ') + '</div>' : '<div style="height:4px"></div>') +
       (chips ? '<div style="margin-bottom:4px">' + chips + '</div>' : '') +
-      (c.next_step ? '<div style="font-size:12px;color:var(--text);margin-top:2px"><strong>Next:</strong> ' + wrEsc(c.next_step) + (c.next_step_date ? ' (' + c.next_step_date + ')' : '') + '</div>' : '') +
+      (c.next_step ? '<div style="font-size:12px;color:var(--text);margin-top:2px"><strong>Next:</strong> ' + wrEsc(c.next_step) + (c.next_step_date ? ' (' + fmtDay(c.next_step_date) + ')' : '') + '</div>' : '') +
       (c.notes ? '<div style="font-size:12.5px;color:var(--text2);margin-top:4px;line-height:1.5;white-space:pre-line">' + wrEsc(c.notes) + '</div>' : '') +
     '</div>';
   }).join('');
@@ -17596,6 +17615,10 @@ function rcCard(a) {
     + lines
     + '<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">'
       + callBtn + textBtn + routeBtn
+    + '</div>'
+    + '<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">'
+      + '<button class="rc-act" onclick="agentWinback('+a.id+',\'email\')">✉ Draft email</button>'
+      + '<button class="rc-act" onclick="agentWinback('+a.id+',\'text\')">💬 Draft text</button>'
     + '</div>'
     + '<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">'
       + '<button class="rc-act" onclick="rcAction('+a.id+',\'touch\')">✓ Log touch</button>'
@@ -18504,5 +18527,181 @@ function dupMerge(gi) {
   window.hardenSearchInputs = scan;
 })();
 </script>
+<!-- AGENT DRAFTS: AI writes it, the rep reads and sends it. Original app styling. -->
+<div id="agent-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:450;align-items:flex-start;justify-content:center;padding:24px 16px;overflow-y:auto" onclick="if(event.target===this)agentClose()">
+  <div style="background:var(--white);border-radius:8px;width:100%;max-width:620px;box-shadow:0 12px 48px rgba(0,0,0,0.2);margin:auto">
+    <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px">
+      <div style="min-width:0">
+        <div style="font-size:15px;font-weight:700;color:var(--navy)" id="agent-title">Draft</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px" id="agent-sub">Read it, edit anything, then send it from your phone or email.</div>
+      </div>
+      <button onclick="agentClose()" aria-label="Close" style="background:none;border:none;font-size:22px;color:var(--text3);cursor:pointer;line-height:1;padding:4px 6px">&times;</button>
+    </div>
+    <div id="agent-body" style="padding:16px 20px"></div>
+    <div id="agent-foot" style="padding:12px 20px;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;background:#fafbfc;border-radius:0 0 8px 8px"></div>
+  </div>
+</div>
+<div id="agent-offer" style="display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:84px;z-index:440;background:var(--navy);color:#fff;border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.25);padding:10px 12px 10px 16px;align-items:center;gap:12px;max-width:calc(100vw - 32px);font-size:13px"></div>
+<style>
+#lead-city-input{flex:1;min-width:220px;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;color:var(--navy);background:#fff}
+/* Phone fixes for the original screens */
+@media (max-width:768px){
+  #pl-layout{flex-direction:column}
+  #pl-panel{width:100%!important;box-sizing:border-box}
+  #page-contacts > div:first-child{flex-wrap:wrap}
+  #lead-city-input{flex:1 1 100%!important;width:100%!important;min-width:0!important;box-sizing:border-box}
+  #lead-btn-row{flex-wrap:wrap;width:100%}
+  #lead-btn-row button{flex:1 1 auto}
+  #crm-stats-bar{flex-basis:100%;margin-left:0!important;padding:4px 4px 8px!important;flex-wrap:wrap}
+  /* Account record is dark on phones: lift navy text, brighten navy buttons */
+  #page-record [style*="color:var(--navy)"]{color:#e2e8f0!important}
+  #page-record [style*="background:var(--navy)"]{background:#2563eb!important;color:#fff!important}
+  #page-record #rec-add-contact-form{background:#1a1b23!important;border-color:#2a2b35!important}
+  /* Contacts list: cards instead of a six-column table */
+  #rec-contacts-list table,#rec-contacts-list tbody{display:block;width:100%}
+  #rec-contacts-list thead{display:none}
+  #rec-contacts-list tr{display:grid;grid-template-columns:1fr auto;gap:3px 10px;padding:12px 0;border-bottom:1px solid #2a2b35!important}
+  #rec-contacts-list td{padding:0!important;color:#cbd5e1!important;font-size:13px;min-width:0;overflow-wrap:anywhere}
+  #rec-contacts-list td:nth-child(1){grid-column:1;grid-row:1;color:#fff!important;font-size:15px}
+  #rec-contacts-list td:nth-child(5){grid-column:2;grid-row:1;justify-self:end}
+  #rec-contacts-list td:nth-child(2),#rec-contacts-list td:nth-child(3),#rec-contacts-list td:nth-child(4){grid-column:1/-1}
+  #rec-contacts-list td:nth-child(6){grid-column:1/-1;text-align:left!important;padding-top:6px!important}
+  #rec-contacts-list td:nth-child(6) button{min-height:38px!important;padding:6px 16px!important;color:#e2e8f0!important;border-color:#3a3b45!important}
+  #rec-contacts-list td a{color:#60a5fa!important}
+  #page-record .rec-body [style*="background:var(--bg)"],#page-record .rec-body [style*="background:var(--surface)"],#page-record .rec-body [style*="background:#fff"],#page-record .rec-body [style*="background:var(--white)"]{background:#1a1b23!important;border-color:#2a2b35!important;color:#cbd5e1!important}
+}
+</style>
+<style>
+.ag-lbl{display:block;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin:0 0 5px}
+.ag-in{width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid var(--border);border-radius:6px;font-size:14px;font-family:inherit;color:var(--navy);background:#fff;margin-bottom:12px}
+textarea.ag-in{min-height:220px;line-height:1.5;resize:vertical}
+.ag-btn{padding:8px 16px;border-radius:5px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;border:1px solid var(--border);background:transparent;color:var(--text2)}
+.ag-btn.pri{background:var(--blue);border-color:var(--blue);color:#fff}
+.ag-mini{padding:6px 12px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;border:1px solid var(--border);background:#fff;color:var(--navy)}
+.brief-card{background:var(--white);border:1px solid var(--border);border-left:3px solid var(--blue);border-radius:6px;padding:12px 14px;margin-bottom:14px}
+.brief-item{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--border);cursor:pointer;font-size:13px;color:var(--navy);line-height:1.35}
+.brief-item:first-of-type{border-top:none}
+.brief-num{flex-shrink:0;width:20px;height:20px;border-radius:50%;background:#e8f0fe;color:#1558b0;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center}
+@media (max-width:768px){ #agent-offer{left:12px!important;right:12px;transform:none!important;max-width:none!important;bottom:150px!important} .ag-in{font-size:16px} #agent-modal{padding:0} #agent-modal>div{border-radius:0;min-height:100%} #agent-foot .ag-btn{flex:1;min-height:44px} }
+</style>
+<script>
+(function(){
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function post(url, body){
+    return fetch(url, { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body || {}) })
+      .then(function(r){ return r.json().then(function(j){ if (!r.ok || j.error) throw new Error(j.error || 'Request failed'); return j; }); });
+  }
+  function first(n){ return String(n || '').trim().split(/\s+/)[0] || ''; }
+  function digits(s){ return String(s || '').replace(/[^\d+]/g, ''); }
+  var M = function(id){ return document.getElementById(id); };
+
+  window.agentClose = function(){ M('agent-modal').style.display = 'none'; document.body.style.overflow = ''; };
+  function openShell(title){
+    M('agent-title').textContent = title;
+    M('agent-body').innerHTML = '<div style="padding:30px 0;text-align:center;color:var(--text3);font-size:13px">Writing the draft…</div>';
+    M('agent-foot').innerHTML = '<button class="ag-btn" onclick="agentClose()">Cancel</button>';
+    M('agent-modal').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  }
+  function fail(e){
+    M('agent-body').innerHTML = '<div style="color:var(--red);font-size:13px;padding:12px 0">Couldn\'t write the draft: ' + esc(e.message || e) + '</div>';
+  }
+  // d: {subject, body, channel, to_email, to_phone, to_name}
+  function showDraft(d, extra){
+    var text = d.channel === 'text';
+    var html = '';
+    if (text) html += '<label class="ag-lbl" for="ag-to">Text to' + (d.to_name ? ' ' + esc(first(d.to_name)) : '') + '</label><input class="ag-in" id="ag-to" type="tel" value="' + esc(d.to_phone || '') + '" placeholder="Cell number">';
+    else html += '<label class="ag-lbl" for="ag-to">To' + (d.to_name ? ' (' + esc(d.to_name) + ')' : '') + '</label><input class="ag-in" id="ag-to" type="email" value="' + esc(d.to_email || '') + '" placeholder="Email address">'
+              + '<label class="ag-lbl" for="ag-sub">Subject</label><input class="ag-in" id="ag-sub" value="' + esc(d.subject || '') + '">';
+    html += '<label class="ag-lbl" for="ag-body">' + (text ? 'Message' : 'Email') + '</label><textarea class="ag-in" id="ag-body"' + (text ? ' style="min-height:120px"' : '') + '>' + esc(d.body || '') + '</textarea>';
+    if (extra) html += extra;
+    if (d.ai === false) html += '<div style="font-size:11px;color:var(--text3)">Standard template (AI was unavailable). Edit before sending.</div>';
+    M('agent-body').innerHTML = html;
+    M('agent-foot').innerHTML = '<button class="ag-btn" onclick="agentClose()">Close</button>'
+      + '<button class="ag-btn" onclick="agentCopy()">Copy</button>'
+      + (text ? '<button class="ag-btn pri" onclick="agentOpenSms()">Open in Messages</button>'
+              : '<button class="ag-btn pri" onclick="agentOpenMail()">Open in Mail</button>');
+  }
+  window.agentCopy = function(){
+    var s = M('ag-sub'), txt = (s ? s.value + '\n\n' : '') + M('ag-body').value;
+    (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(function(){ showToast('Copied'); })
+      .catch(function(){ M('ag-body').select(); showToast('Select the text and copy it'); });
+  };
+  window.agentOpenMail = function(){
+    location.href = 'mailto:' + encodeURIComponent(M('ag-to').value.trim()) + '?subject=' + encodeURIComponent(M('ag-sub').value) + '&body=' + encodeURIComponent(M('ag-body').value);
+  };
+  window.agentOpenSms = function(){
+    location.href = 'sms:' + encodeURIComponent(digits(M('ag-to').value)) + '?&body=' + encodeURIComponent(M('ag-body').value);
+  };
+
+  // ── Post-call follow-up email ──
+  window.agentFollowup = function(callId){
+    agentOfferHide();
+    openShell('Follow-up email');
+    post('/api/agents/followup', { call_id: callId }).then(function(d){
+      var extra = d.next_step ? '<div style="font-size:12px;color:var(--text2);background:#f8fafc;border:1px solid var(--border);border-radius:6px;padding:8px 10px">Suggested next step: <b>' + esc(d.next_step) + '</b>' + (d.next_step_date ? ' by ' + esc(fmtDay(d.next_step_date)) : '') + '</div>' : '';
+      showDraft(d, extra);
+    }).catch(fail);
+  };
+  var offerTimer = null;
+  window.agentOfferHide = function(){ var o = M('agent-offer'); if (o) o.style.display = 'none'; clearTimeout(offerTimer); };
+  // Shown right after a visit or call is saved.
+  window.agentOfferFollowup = function(result, company){
+    var id = result && (result.id || (result.call && result.call.id));
+    if (!id || result.queued) return;
+    var o = M('agent-offer');
+    o.innerHTML = '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Saved' + (company ? ' for ' + esc(company) : '') + '.</span>'
+      + '<button onclick="agentFollowup(' + parseInt(id) + ')" style="flex-shrink:0;background:#fff;color:var(--navy);border:none;border-radius:5px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Draft follow-up email</button>'
+      + '<button onclick="agentOfferHide()" aria-label="Dismiss" style="flex-shrink:0;background:none;border:none;color:rgba(255,255,255,.7);font-size:18px;cursor:pointer;padding:0 2px">&times;</button>';
+    o.style.display = 'flex';
+    clearTimeout(offerTimer); offerTimer = setTimeout(agentOfferHide, 15000);
+  };
+
+  // ── Win-back (Reconnect) ──
+  window.agentWinback = function(accountId, channel){
+    openShell(channel === 'text' ? 'Reconnect text' : 'Reconnect email');
+    post('/api/agents/winback/draft', { account_id: accountId, channel: channel }).then(function(d){ showDraft(d); }).catch(fail);
+  };
+
+  // ── Quote chaser ──
+  window.agentQuoteNudge = function(quoteId){
+    if (!quoteId) return;
+    openShell('Quote follow-up');
+    post('/api/agents/quote-nudge', { quote_id: quoteId }).then(function(d){ showDraft(d); }).catch(fail);
+  };
+
+  // ── Morning brief on Today ──
+  window.loadTodayBrief = function(refresh){
+    var box = M('today-brief'); if (!box) return;
+    if (!box.innerHTML) box.innerHTML = '<div class="brief-card" style="color:var(--text3);font-size:12px">Putting your day in order…</div>';
+    fetch('/api/agents/brief' + (refresh ? '?refresh=1' : ''), { credentials:'same-origin', cache:'no-store' })
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(b){
+        if (!b || !b.headline) { box.innerHTML = ''; return; }
+        window._briefItems = b.items || [];
+        box.innerHTML = '<div class="brief-card">'
+          + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px">'
+          +   '<div><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.07em">Morning brief</div>'
+          +   '<div style="font-size:14px;font-weight:700;color:var(--navy);margin-top:2px">' + esc(b.headline) + '</div></div>'
+          +   '<button class="ag-mini" onclick="loadTodayBrief(true)">Refresh</button>'
+          + '</div>'
+          + (b.items || []).map(function(it, i){
+              return '<div class="brief-item" onclick="briefOpen(' + i + ')"><span class="brief-num">' + (i + 1) + '</span><span style="flex:1">' + esc(it.text) + '</span>'
+                + (it.kind === 'quote' && it.quote_id ? '<button class="ag-mini" onclick="event.stopPropagation();agentQuoteNudge(' + parseInt(it.quote_id) + ')">Draft email</button>' : '')
+                + (it.kind === 'cold' && it.account_id ? '<button class="ag-mini" onclick="event.stopPropagation();agentWinback(' + parseInt(it.account_id) + ',\'email\')">Draft email</button>' : '')
+                + '</div>';
+            }).join('')
+          + '</div>';
+      }).catch(function(){ box.innerHTML = ''; });
+  };
+  window.briefOpen = function(i){
+    var it = (window._briefItems || [])[i]; if (!it) return;
+    if (it.kind === 'quote' && it.quote_id && typeof openQuoteDetail === 'function') { go('quotes'); setTimeout(function(){ openQuoteDetail(it.quote_id); }, 300); return; }
+    if (it.kind === 'stops') { var c = M('today-content'); if (c) c.scrollIntoView({ behavior:'smooth' }); return; }
+    if (it.account_id && typeof viewRecord === 'function') viewRecord(it.account_id);
+  };
+})();
+</script>
+
 </body>
 </html>

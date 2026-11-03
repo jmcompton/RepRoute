@@ -127,17 +127,12 @@ app.post('/api/contact', async (req, res) => {
   }
 });
 
-// Phones get the phone app (/m). Links from the phone app to desktop-only
-// tools use /app?full=1, which opens the full site for that visit only, so a
-// rep is never stuck on the desktop layout afterwards.
-const PHONE_UA = /iPhone|iPod|Android.+Mobile|Windows Phone/i;
-app.get('/app', requireAuth, (req, res) => {
-  // Only plain visits redirect: /app?outlook=... (OAuth return) and other
-  // query-string landings must reach the full app with their parameters.
-  if (!Object.keys(req.query).length && PHONE_UA.test(req.headers['user-agent'] || '')) return res.redirect('/m');
-  res.sendFile(path.join(__dirname, 'views', 'app.html'));
-});
-app.get('/m', requireAuth, (req, res) => {
+// Everyone, phones included, uses the original app. The separate phone app
+// (views/m.html) is retired; old /m links and home-screen icons land on /app.
+// /m/preview still serves it for reference.
+app.get('/app', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'views', 'app.html')));
+app.get('/m', requireAuth, (req, res) => res.redirect('/app'));
+app.get('/m/preview', requireAuth, (req, res) => {
   res.set('Cache-Control', 'no-cache');
   res.sendFile(path.join(__dirname, 'views', 'm.html'));
 });

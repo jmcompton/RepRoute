@@ -794,10 +794,12 @@ router.post('/daily-leads', async (req, res) => {
     const flagged = [];
     const sessionSeen = new Set();
 
+    let searched = 0, searchFails = 0;
     for (const plan of plans) {
       if (allLeads.length >= MAX_LEADS) break;
       if ((perCenter[plan.centerIdx] || 0) >= perCenterCap) continue;
       const config = Object.assign({}, plan.config, { brand: brands[0] || rawChannel });
+      searched++;
       try {
         const searchBody = { textQuery: plan.textQuery, maxResultCount: 20, regionCode: 'US' };
         // Route: circle around the stop. City: soft 40 km bias around the city so a
@@ -818,6 +820,7 @@ router.post('/daily-leads', async (req, res) => {
           body: JSON.stringify(searchBody)
         });
         const data = await placesRes.json();
+        if (!placesRes.ok || data.error) throw new Error((data.error && data.error.message) || ('Places ' + placesRes.status));
         if (data.error) console.error('[daily-leads] Places error:', data.error.message || data.error.status);
         const places = data.places || [];
 
@@ -967,7 +970,12 @@ router.post('/daily-leads', async (req, res) => {
         }
       } catch (e) {
         console.error('Places search error for query:', plan.textQuery, e.message);
+        searchFails++;
       }
+    }
+    // Every Google call failed: say so instead of "no leads in this area".
+    if (searchFails && searchFails === searched && !allLeads.length && !flagged.length) {
+      return res.status(502).json({ error: "Google search isn't responding right now. Try again in a minute.", code: 'SEARCH_FAILED' });
     }
 
     // Sort: opportunity score DESC, then (route) least out of the way / (city) closest.
