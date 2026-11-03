@@ -4309,9 +4309,15 @@ window.addEventListener('load', function() {
         // "search bounces me to Today" bug on slower loads).
         var _role = applyRoleNav(u.role);
         if (!window._userNavigated) {
-          // Home for everyone is the adaptive Today cockpit.
-          go('today');
-          setActiveNav('bn-home');
+          // Deep link from the phone app's More menu: /app?full=1#go=<page>
+          var _dl = (location.hash.match(/^#go=([a-z-]+)$/) || [])[1];
+          if (_dl && document.getElementById('page-' + _dl)) {
+            go(_dl);
+          } else {
+            // Home for everyone is the adaptive Today cockpit.
+            go('today');
+            setActiveNav('bn-home');
+          }
         }
       } else {
         applyRoleNav('rep');

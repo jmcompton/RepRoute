@@ -284,13 +284,13 @@ var ICON = {
 };
 
 // ── Router ───────────────────────────────────────────────────────
-var ROUTES = { today: showToday, accounts: showAccounts, account: showAccount, log: showLog, pipeline: showPipeline, reports: showReports };
+var ROUTES = { today: showToday, accounts: showAccounts, account: showAccount, log: showLog, pipeline: showPipeline, reports: showReports, leads: showLeads };
 var current = '';
 function route() {
   var h = (location.hash || '#today').slice(1); var parts = h.split('?')[0].split('/'); var name = parts[0] || 'today';
   if (!ROUTES[name]) name = 'today';
   closeSheet(); stopDictation();
-  var tab = name === 'account' ? 'accounts' : name;
+  var tab = name === 'account' ? 'accounts' : name === 'leads' ? 'today' : name;
   $$('nav#tabs a').forEach(function (a) { a.classList.toggle('on', a.dataset.tab === tab); a.setAttribute('aria-current', a.dataset.tab === tab ? 'page' : 'false'); });
   $('#tabs').classList.toggle('hidden', name === 'log');
   if (current !== h) window.scrollTo(0, 0);
@@ -314,6 +314,11 @@ function showToday() {
       '<div class="stat"><b>' + d.logged_today + '</b><span>logged today</span></div></div></div>';
 
     h += '<div id="brief-box"></div>';
+    var leadCity = (d.stops.filter(function (x) { return x.city; })[0] || {}).city || (ME && ME.territory) || '';
+    h += '<a class="card tap row" href="#leads" style="padding:14px;margin-top:12px;text-decoration:none">' +
+      '<div class="circle" style="background:var(--gold);border-color:var(--gold);color:var(--ink)">' + ICON.search + '</div>' +
+      '<div class="grow"><div class="t1">Find new leads</div><div class="t2">' + (leadCity ? 'Distributors and contractors near ' + esc(leadCity) : 'Distributors and contractors near you') + '</div></div>' + ICON.chev + '</a>';
+    window._leadCityDefault = leadCity;
     if (ME && ME.role === 'manager') h += '<div id="team-box"></div>';
     // Stops
     h += '<div class="h2">Today\'s stops<a href="#accounts">+ Add stop</a></div>';
@@ -1113,15 +1118,138 @@ function quoteNudge(id, btn) {
   }).catch(function (e) { btn.disabled = false; btn.textContent = 'Draft a follow-up email'; toast(e.message, true); });
 }
 
+
+// ════════════════════════════════════════════════════════════════
+// LEAD FINDER: same search as the desktop Today screen
+// (/api/morning/daily-leads, one call per segment, merged and ranked)
+// ════════════════════════════════════════════════════════════════
+var LF_BRANDS = [['BOSS Products', 'BOSS'], ['ShurTape', 'ShurTape'], ['Alum-A-Pole', 'Alum-A-Pole']];
+var LF_SEGMENTS = [
+  ['Deck Distributor/Dealer', 'Deck Distributors'], ['Roofing Distributor', 'Roofing Distributors'], ['Siding Distributor', 'Siding Distributors'],
+  ['Lumber / Building Supply', 'Lumber / Building Supply'], ['Construction Fasteners', 'Construction Fasteners'], ['Division 10 Dealer', 'Division 10 Dealers'],
+  ['Window/Door Installer', 'Window / Door'], ['Deck Contractor', 'Deck Contractors'], ['Roofing Contractor', 'Roofing Contractors'],
+  ['Siding Contractor', 'Siding Contractors'], ['Cornice Contractor', 'Cornice Contractors'], ['Spray Foam Contractor', 'Spray Foam Contractors'], ['Glass Shop', 'Glass Shops']
+];
+var LFK = 'rr_lead_finder_v1';
+function lfLoad() { try { return JSON.parse(localStorage.getItem(LFK) || '{}'); } catch (e) { return {}; } }
+function lfSave(st) { try { localStorage.setItem(LFK, JSON.stringify(st)); } catch (e) {} }
+var LF = null;
+function showLeads() {
+  setTitle('Lead Finder', true);
+  LF = lfLoad();
+  LF.brands = LF.brands || ['BOSS Products', 'ShurTape', 'Alum-A-Pole'];
+  LF.segments = LF.segments || ['Deck Distributor/Dealer', 'Roofing Distributor', 'Siding Distributor'];
+  LF.city = LF.city || window._leadCityDefault || (ME && ME.territory) || '';
+  LF.shown = LF.shown || []; LF.leads = LF.leads || [];
+  view('<div class="field"><label for="lf-city">City</label><input id="lf-city" placeholder="e.g. Norcross GA" autocomplete="off" autocapitalize="words" value="' + esc(LF.city) + '"></div>' +
+    '<div class="field"><span class="lbl">Brands</span><div class="chips">' + LF_BRANDS.map(function (b) {
+      return '<button class="chip" data-lfb="' + esc(b[0]) + '" aria-pressed="' + (LF.brands.indexOf(b[0]) >= 0) + '" onclick="toggle(this)">' + esc(b[1]) + '</button>'; }).join('') + '</div></div>' +
+    '<div class="field"><span class="lbl">Segments <span style="font-weight:500">(distributors first)</span></span><div class="chips">' + LF_SEGMENTS.map(function (g) {
+      return '<button class="chip" data-lfs="' + esc(g[0]) + '" aria-pressed="' + (LF.segments.indexOf(g[0]) >= 0) + '" onclick="toggle(this)">' + esc(g[1]) + '</button>'; }).join('') + '</div></div>' +
+    '<div class="btns" style="margin-bottom:16px"><button class="btn gold" id="lf-go" onclick="findLeads(false)">Find leads</button>' +
+    '<button class="btn" id="lf-more" onclick="findLeads(true)"' + (LF.leads.length ? '' : ' disabled') + '>10 new ones</button></div>' +
+    '<div id="lf-out"></div>');
+  renderLeads();
+}
+function findLeads(more) {
+  var city = $('#lf-city').value.trim();
+  var brands = $$('[data-lfb][aria-pressed="true"]').map(function (b) { return b.dataset.lfb; });
+  var segs = $$('[data-lfs][aria-pressed="true"]').map(function (b) { return b.dataset.lfs; });
+  if (!city) { toast('Enter a city first, like Norcross GA', true); $('#lf-city').focus(); return; }
+  if (!brands.length) { toast('Pick at least one brand', true); return; }
+  if (!segs.length) { toast('Pick at least one segment', true); return; }
+  if (!more || city !== LF.city) LF.shown = [];
+  LF.city = city; LF.brands = brands; LF.segments = segs;
+  var go = $('#lf-go'), mo = $('#lf-more'); go.disabled = true; mo.disabled = true; go.textContent = 'Searching…';
+  $('#lf-out').innerHTML = '<div class="t2" style="margin-bottom:10px">Searching ' + segs.length + ' segment' + (segs.length === 1 ? '' : 's') + ' around ' + esc(city) + '…</div><div class="skel"></div><div class="skel"></div><div class="skel"></div>';
+  var all = [], seen = {}, seenFlag = {}; LF.shown.forEach(function (k) { seen[k] = 1; });
+  var errMsg = null;
+  var chain = segs.reduce(function (p, seg) {
+    return p.then(function () {
+      return api('/api/morning/daily-leads', { method: 'POST', body: { city: city, brands: brands, channel: seg, shown_place_ids: LF.shown, shown_names: [] } })
+        .then(function (d) {
+          (d.leads || []).forEach(function (l) {
+            l.segment = seg; var k = l.place_id || (l.company || '').toLowerCase();
+            // Leads a teammate already has always show (flagged), but only once.
+            if (l.already_contacted) { if (!seenFlag[k]) { seenFlag[k] = 1; all.push(l); } return; }
+            if (!seen[k]) { seen[k] = 1; all.push(l); }
+          });
+        }).catch(function (e) { errMsg = e.message; });
+    });
+  }, Promise.resolve());
+  chain.then(function () {
+    go.disabled = false; go.textContent = 'Find leads';
+    all.sort(function (a, b) { return (b.opportunity_score || 0) - (a.opportunity_score || 0); });
+    var block = /paint|handyman|landscap|lawn care|pressure wash|gutter clean|house clean/i;
+    var clean = all.filter(function (l) {
+      if (l.already_contacted) return false;
+      if (block.test(l.company || '')) return false;
+      if (/window|door/i.test(l.segment) && /garage|overhead door/i.test(l.company || '')) return false;
+      return true;
+    }).slice(0, 10);
+    LF.leads = clean.concat(all.filter(function (l) { return l.already_contacted; }));
+    clean.forEach(function (l) { if (l.place_id) LF.shown.push(l.place_id); });
+    lfSave(LF); mo.disabled = !LF.leads.length;
+    if (!LF.leads.length && errMsg) { $('#lf-out').innerHTML = '<div class="card err">Lead search failed: ' + esc(errMsg) + '</div>'; return; }
+    renderLeads();
+    var outEl = $('#lf-out'); if (outEl) outEl.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    if (clean.length) toast(plural(clean.length, 'new lead') + ' found');
+  });
+}
+function renderLeads() {
+  var el = $('#lf-out'); if (!el) return;
+  if (!LF.leads.length) { el.innerHTML = '<div class="card empty">Pick brands and segments, enter a city, and tap Find leads.</div>'; return; }
+  el.innerHTML = '<div class="h2">' + plural(LF.leads.filter(function (l) { return !l.already_contacted; }).length, 'lead') + ' near ' + esc(LF.city) + '</div>' +
+    '<div class="card list">' + LF.leads.map(function (l, i) {
+      var seg = (LF_SEGMENTS.filter(function (g) { return g[0] === l.segment; })[0] || [0, l.category || ''])[1];
+      var meta = [seg, l.distance_miles != null ? Math.round(l.distance_miles) + ' mi' : '', l.rating ? '★ ' + l.rating + ' (' + (l.reviews || 0) + ')' : ''].filter(Boolean).join(' · ');
+      return '<div><div class="row" style="align-items:flex-start"><div class="grow"><div class="t1">' + esc(l.company) + '</div>' +
+        '<div class="t2">' + esc(meta) + '</div>' + (l.address ? '<div class="t2">' + esc(l.address) + '</div>' : '') +
+        (l.already_contacted ? '<div style="margin-top:4px"><span class="pill warn">Already in RepRoute' + (l.contacted_by ? ' · ' + esc(l.contacted_by) : '') + '</span></div>' : '') + '</div>' +
+        (l.opportunity_score ? '<span class="pill ' + (l.opportunity_score >= 8 ? 'ok' : l.opportunity_score >= 6 ? 'navy' : '') + '">' + l.opportunity_score + '/10</span>' : '') + '</div>' +
+        '<div class="btns" style="margin-top:10px">' +
+        (l.phone ? '<a class="btn sm" href="tel:' + esc(digits(l.phone)) + '">Call</a>' : '') +
+        '<a class="btn sm" href="' + esc(mapsUrl({ address: l.address, company: l.company })) + '" target="_blank" rel="noopener">Go</a>' +
+        (l.already_contacted ? '' : '<button class="btn sm" id="lf-save-' + i + '" onclick="saveLead(' + i + ',false)">Save</button>' +
+          '<button class="btn sm pri" onclick="saveLead(' + i + ',true)">Log visit</button>') + '</div></div>';
+    }).join('') + '</div>' +
+    '<div class="t2" style="margin-top:10px;text-align:center">Saving adds the lead to your accounts. "10 new ones" skips the leads you\'ve already seen.</div>';
+}
+// Save a lead as an account (same endpoint as desktop), then find its id.
+function saveLead(i, thenLog) {
+  var l = LF.leads[i]; if (!l) return;
+  var b = $('#lf-save-' + i); if (b) { b.disabled = true; b.textContent = 'Saving…'; }
+  var cat = /Distributor|Dealer|Lumber|Fasteners|Division 10/.test(l.segment || '') ? 'Distributor' : 'Commercial Contractor';
+  api('/api/ai/leads/save', { method: 'POST', body: { leads: [{
+    company: l.company, category: l.category || cat, city: l.city || '', state: l.state || 'GA', phone: l.phone || null,
+    website: l.website || null, address: l.address || null, products: l.products || null,
+    data_status: 'Unvetted', source: 'Distribution Finder' }] } })
+    .then(function () { return api('/api/m/accounts?scope=mine&limit=5&q=' + encodeURIComponent(l.company)); })
+    .then(function (rows) {
+      var a = rows.filter(function (r) { return (r.company || '').toLowerCase() === (l.company || '').toLowerCase(); })[0] || rows[0];
+      l.saved = true; l.account_id = a && a.id; lfSave(LF);
+      if (b) { b.textContent = '✓ Saved'; }
+      if (!a) { toast('Saved to your accounts'); return; }
+      if (thenLog) location.hash = '#log/' + a.id; else toast('Saved. It\'s in your accounts now.');
+    })
+    .catch(function (e) { if (b) { b.disabled = false; b.textContent = 'Save'; } toast(e.message, true); });
+}
+
 // ════════════════════════════════════════════════════════════════
 // MORE MENU
 // ════════════════════════════════════════════════════════════════
 function openMore() {
   var mgr = ME && ME.role === 'manager';
+  var full = function (page, label) { return '<a href="/app?full=1#go=' + page + '">' + label + '</a>'; };
   openSheet('<h2>' + esc(ME ? ME.name : 'RepRoute') + '</h2><div class="menu">' +
+    '<a href="#leads" onclick="closeSheet()">Lead Finder</a>' +
     '<a href="#accounts" onclick="closeSheet()">Accounts</a>' +
-    '<a href="/app?full=1">Weekly planner, quotes, Fortress promo (full site)</a>' +
-    (mgr ? '<a href="/app?full=1">Team dashboard and commissions (full site)</a>' : '') +
+    '</div><div class="lbl" style="margin:16px 0 4px">On the full site</div><div class="menu">' +
+    full('weekly-planner', 'Weekly Planner') + full('fortress', 'Fortress Promo') + full('reconnect', 'Reconnect') +
+    full('recap', 'Daily Recap') + full('weekly-report', 'Weekly Report') + full('quotes', 'Quotes (full editor)') +
+    full('samples', 'Samples') + full('manufacturers', 'Manufacturers') + full('opportunities', 'Opportunities') + full('deals', 'Deal Pipeline') +
+    (mgr ? full('manager', 'Team Dashboard') + full('commissions', 'Commissions') + full('calendar', 'Team Calendar') : '') +
+    '</div><div class="menu" style="margin-top:16px">' +
     '<button onclick="location.reload()">Refresh</button>' +
     '<button onclick="signOut()">Sign out</button></div>');
 }
