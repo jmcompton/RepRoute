@@ -1,5 +1,8 @@
 require('dotenv').config();
 const express = require('express');
+// Route handlers that throw or reject now reach the error handler below
+// instead of killing the whole server (Express 4 doesn't catch async errors).
+require('express-async-errors');
 const path = require('path');
 const session = require('express-session');
 const pgSession = require('connect-pg-simple')(session);
@@ -52,6 +55,8 @@ const app = express();
 app.use(compression());
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
+// No HTML tags in anything saved (see lib/defang.js).
+app.use(require('./lib/defang').defangBody);
 
 // Serve the service worker with no HTTP caching so browsers pick up SW changes
 // (new cache version, updated fetch strategy) on the very next visit instead of
@@ -63,13 +68,38 @@ app.get('/sw.js', (req, res) => {
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+if (!process.env.SESSION_SECRET) console.warn('[security] SESSION_SECRET is not set; using the built-in fallback. Set it in Railway.');
+app.set('trust proxy', 1); // Railway terminates HTTPS in front of us
 app.use(session({
   store: new pgSession({ pool, tableName: 'sessions' }),
   secret: process.env.SESSION_SECRET || 'reproute-secret-2025',
   resave: false, saveUninitialized: false,
   rolling: true,  // reset expiry on every response — session stays alive as long as rep is active
-  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }  // 7 days; resets on every request with rolling:true
+  // 7 days, renewed on activity. secure:'auto' = HTTPS-only cookie whenever the request came in over HTTPS.
+  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000, sameSite: 'lax', secure: 'auto', httpOnly: true }
 }));
+
+// A login a manager turned off stops working right away, not when its cookie expires.
+let _disabledIds = new Set(), _disabledAt = 0;
+app.use(async (req, res, next) => {
+  const u = req.session && req.session.user;
+  if (!u) return next();
+  if (Date.now() - _disabledAt > 60 * 1000) {
+    _disabledAt = Date.now();
+    try {
+      const r = await pool.query('SELECT id FROM users WHERE disabled_at IS NOT NULL');
+      _disabledIds = new Set(r.rows.map(x => x.id));
+    } catch (e) { /* column missing on first boot: nobody disabled */ }
+  }
+  if (_disabledIds.has(u.id)) {
+    return req.session.destroy(() => {
+      if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'Your login has been turned off.', code: 'AUTH_REQUIRED' });
+      res.redirect('/');
+    });
+  }
+  next();
+});
+app.locals.refreshDisabled = () => { _disabledAt = 0; };
 
 app.use((req, res, next) => { res.locals.user = req.session.user || null; next(); });
 
@@ -163,42 +193,42 @@ app.use('/admin', (req, res, next) => {
 
 app.use('/', authRoutes);
 app.use('/app', requireAuth, dashRoutes);
-app.use('/api/prospects', requireAuth, prospectsRoutes);
-app.use('/api/calls', requireAuth, callsRoutes);
-app.use('/api/ai', requireAuth, aiRoutes);
-app.use('/api/onboarding', requireAuth, onboardingRoutes);
-app.use('/api/weekly', requireAuth, weeklyRoutes);
-app.use('/api/weekly-report', requireAuth, weeklyReportRoutes);
-app.use('/api/planner', requireAuth, plannerRoutes);
-app.use('/api/route-stops', requireAuth, routeStopsRoutes);
-app.use('/api/tasks', requireAuth, tasksRoutes);
-app.use('/api/kept-leads', requireAuth, keptLeadsRoutes);
-app.use('/api/account-dupes', requireAuth, accountDupesRoutes);
+app.use('/api/prospects', requireAuthAPI, prospectsRoutes);
+app.use('/api/calls', requireAuthAPI, callsRoutes);
+app.use('/api/ai', requireAuthAPI, aiRoutes);
+app.use('/api/onboarding', requireAuthAPI, onboardingRoutes);
+app.use('/api/weekly', requireAuthAPI, weeklyRoutes);
+app.use('/api/weekly-report', requireAuthAPI, weeklyReportRoutes);
+app.use('/api/planner', requireAuthAPI, plannerRoutes);
+app.use('/api/route-stops', requireAuthAPI, routeStopsRoutes);
+app.use('/api/tasks', requireAuthAPI, tasksRoutes);
+app.use('/api/kept-leads', requireAuthAPI, keptLeadsRoutes);
+app.use('/api/account-dupes', requireAuthAPI, accountDupesRoutes);
 app.use('/api/manager', requireAuthAPI, requireManagerAPI, managerRoutes);
-app.use('/api/calendar', requireAuth, calendarRoutes);
-app.use('/api/email', requireAuth, emailRoutes);
-app.use('/api/samples', requireAuth, samplesRoutes);
-app.use('/api/places', requireAuth, placesRoutes);
-app.use('/api/morning', requireAuth, morningRoutes);
-app.use('/api/notifications', requireAuth, notificationsRoutes);
-app.use('/api/brand-mappings', requireAuth, brandMappingsRoutes);
+app.use('/api/calendar', requireAuthAPI, calendarRoutes);
+app.use('/api/email', requireAuthAPI, emailRoutes);
+app.use('/api/samples', requireAuthAPI, samplesRoutes);
+app.use('/api/places', requireAuthAPI, placesRoutes);
+app.use('/api/morning', requireAuthAPI, morningRoutes);
+app.use('/api/notifications', requireAuthAPI, notificationsRoutes);
+app.use('/api/brand-mappings', requireAuthAPI, brandMappingsRoutes);
 app.use('/api/quotes', requireAuthAPI, quotesRoutes);
-app.use('/api/zoho',  requireAuth, zohoRoutes);
-app.use('/api/voice', requireAuth, voiceRoutes);
-app.use('/api/time',  requireAuth, timeRoutes);
+app.use('/api/zoho',  requireAuthAPI, requireManagerAPI, zohoRoutes); // imports into any rep's book: managers only
+app.use('/api/voice', requireAuthAPI, voiceRoutes);
+app.use('/api/time',  requireAuthAPI, timeRoutes);
 app.use('/api/commissions', requireAuthAPI, requireManagerAPI, commissionsRoutes);
 app.use('/api/lines', requireAuthAPI, requireManagerAPI, linesRoutes);
 app.use('/api/manufacturers', requireAuthAPI, manufacturersRoutes);
 app.use('/api/admin/demo-data', requireAuthAPI, requireManagerAPI, demoDataRoutes);
 app.use('/api/commission-pdf', requireAuthAPI, commissionPdfRoutes);
 app.use('/api/reconnect', requireAuthAPI, reconnectRoutes);
-app.use('/api/crosssell', requireAuth, crosssellRoutes);
-app.use('/api/fortress', requireAuth, fortressRoutes);
-app.use('/api/recap', requireAuth, recapRoutes);
+app.use('/api/crosssell', requireAuthAPI, crosssellRoutes);
+app.use('/api/fortress', requireAuthAPI, fortressRoutes);
+app.use('/api/recap', requireAuthAPI, recapRoutes);
 app.use('/api/m', requireAuthAPI, mobileRoutes);
 app.use('/api/reports', requireAuthAPI, reportsRoutes);
 app.use('/api/agents', requireAuthAPI, agentsRoutes);
-app.get('/zoho-import', requireAuth, (req, res) =>
+app.get('/zoho-import', requireManager, (req, res) =>
   res.sendFile(path.join(__dirname, 'views', 'zoho-import.html'))
 );
 app.use('/auth', emailRoutes);
@@ -273,6 +303,15 @@ async function weeklyReportCron() {
 }
 setInterval(weeklyReportCron, 30 * 60 * 1000); // check every 30 min
 setTimeout(weeklyReportCron, 45 * 1000);       // initial check 45s after boot
+
+// Last stop for any route error: log it, answer with JSON, keep the server up.
+app.use((err, req, res, next) => {
+  console.error('[error]', req.method, req.originalUrl, err && (err.stack || err.message || err));
+  if (res.headersSent) return next(err);
+  const fk = err && err.code === '23503';
+  res.status(fk ? 409 : 500).json({ error: fk ? 'That record is still linked to other data.' : 'Something went wrong. Try again.' });
+});
+process.on('unhandledRejection', e => console.error('[unhandledRejection]', e && (e.stack || e)));
 
 const PORT = process.env.PORT || 3000;
 initDB().then(async () => {

@@ -479,16 +479,41 @@ router.post('/leads/dedupe', async (req, res) => {
                ROW_NUMBER() OVER (
                  PARTITION BY LOWER(REGEXP_REPLACE(company,'[^a-zA-Z0-9]','','g')), LOWER(city)
                  ORDER BY created_at ASC
-               ) as rn
+               ) as rn,
+               FIRST_VALUE(id) OVER (
+                 PARTITION BY LOWER(REGEXP_REPLACE(company,'[^a-zA-Z0-9]','','g')), LOWER(city)
+                 ORDER BY created_at ASC
+               ) as keep_id
         FROM prospects
         WHERE user_id = $1
       )
-      SELECT id FROM ranked WHERE rn > 1`,
+      SELECT id, keep_id FROM ranked WHERE rn > 1`,
       [uid]
     );
     const dupIds = dupes.rows.map(r => r.id);
     if (dupIds.length === 0) return res.json({ removed: 0, message: 'No duplicates found' });
-    await pool.query('DELETE FROM prospects WHERE id = ANY($1) AND user_id=$2', [dupIds, uid]);
+    // Move each duplicate's visits, contacts, samples, stops etc. onto the
+    // account we keep, then remove the duplicate. Nothing logged is lost.
+    const { MOVE } = require('./account_dupes');
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const d of dupes.rows) {
+        for (const [table, col] of MOVE) {
+          await client.query(`UPDATE ${table} SET ${col} = $1 WHERE ${col} = $2`, [d.keep_id, d.id]);
+        }
+      }
+      await client.query('DELETE FROM account_lines WHERE account_id = ANY($1::int[])', [dupIds]);
+      await client.query('DELETE FROM prospects WHERE id = ANY($1) AND user_id=$2', [dupIds, uid]);
+      const { rebuildAccountLines } = require('../lib/lines-store');
+      for (const k of new Set(dupes.rows.map(d => d.keep_id))) await rebuildAccountLines(client, k);
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw e;
+    } finally {
+      client.release();
+    }
     res.json({ removed: dupIds.length, message: `Cleaned \${dupIds.length} duplicate contacts` });
   } catch(e) {
     console.error('Dedupe error:', e.message);

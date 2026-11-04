@@ -2,7 +2,7 @@ const express = require('express');
 const fetch = require('node-fetch');
 const { pool } = require('../db');
 const { accountKey } = require('../lib/account-key');
-const { geocodeAddress } = require('../lib/geocode');
+const { geocodeAddress, geocodeLookup } = require('../lib/geocode');
 // PLACES_BASE_URL overrides Google's host (used to point tests at a stub).
 const PLACES_SEARCH_URL = (process.env.PLACES_BASE_URL || 'https://places.googleapis.com').replace(/\/$/, '') + '/v1/places:searchText';
 const router = express.Router();
@@ -359,7 +359,7 @@ function isHeavyEquipmentBlocked(name, types) {
 // Returns { primary: bool, secondary: bool }
 const HOME_BASED_SUFFIX_RX = /\b(dr|drive|ln|lane|ct|court|way|cir|circle|pl|place|blvd|boulevard|rd|road)\b\.?(?:\s|,|$)/i;
 const HOME_BASED_UNIT_RX   = /\b(ste|suite|unit|fl|floor|bldg|building)\b\.?\s*\d*|\s#\s*\d+/i;
-const HOME_BASED_CORP_RX   = /\b(llc|inc\.?|corp\.?|co\.|company|group|associates)\b/i;
+const HOME_BASED_CORP_RX   = /\b(llc|inc|corp|co|company|group|associates|supply|supplies|wholesale|distributors?|lumber|building products)\b/i;
 function isHomeBased(address, company, website, types) {
   const hasResidentialSuffix = HOME_BASED_SUFFIX_RX.test(address || '');
   const hasCommercialUnit    = HOME_BASED_UNIT_RX.test(address || '');
@@ -430,7 +430,7 @@ router.get('/', async (req, res) => {
               'new_prospect' as call_reason, p.created_at
        FROM prospects p
        WHERE p.user_id = $1 AND p.priority IN ('High', 'Medium')
-         AND p.id NOT IN (SELECT DISTINCT prospect_id FROM calls WHERE user_id = $1)
+         AND p.id NOT IN (SELECT DISTINCT prospect_id FROM calls WHERE user_id = $1 AND prospect_id IS NOT NULL)
        ORDER BY CASE p.priority WHEN 'High' THEN 1 ELSE 2 END, p.created_at ASC LIMIT 10`,
       [uid]
     );
@@ -747,10 +747,21 @@ router.post('/daily-leads', async (req, res) => {
       centerCoords = { lat: centers[0].lat, lng: centers[0].lng };
     } else {
       // Geocode the city — always use the typed city first, fall back to home base
-      try {
-        const g = await geocodeAddress(city);
-        if (g) { centerCoords = g; console.log(`Geocoded "${city}" → ${g.lat}, ${g.lng}`); }
-      } catch (e) { console.error('Geocode failed:', e.message); }
+      // A typed city that won't geocode is an error, never a silent switch to
+      // the rep's home base (they'd get leads for the wrong town).
+      let geoErr = null, geoMissing = false;
+      if (String(city || '').trim()) {
+        const g = await geocodeLookup(city);
+        if (g.coords) { centerCoords = g.coords; console.log(`Geocoded "${city}" → ${g.coords.lat}, ${g.coords.lng}`); }
+        else if (g.error) geoErr = g.error; else geoMissing = true;
+      }
+      if (geoErr) {
+        console.error('Geocode failed:', geoErr);
+        return res.status(502).json({ error: "Google maps isn't responding right now. Try again in a minute.", code: 'SEARCH_FAILED' });
+      }
+      if (geoMissing) {
+        return res.status(400).json({ error: `Couldn't find "${city}". Try the city and state, like Hoover AL.` });
+      }
       if (!centerCoords && userInfo.home_base_lat && userInfo.home_base_lng) {
         centerCoords = { lat: parseFloat(userInfo.home_base_lat), lng: parseFloat(userInfo.home_base_lng) };
         console.log('Using home base coords as fallback');
@@ -910,11 +921,11 @@ router.post('/daily-leads', async (req, res) => {
           // Home-based business detection — badge + optional score penalty
           const homeBasedResult = isHomeBased(place.formattedAddress || '', company, place.websiteUri || '', place.types || []);
           let homeBasedBadge = false;
+          // Badge only when both signals agree: a residential-looking street AND no
+          // website or store type. "Industrial Blvd" alone is not a house.
           if (homeBasedResult.primary && homeBasedResult.secondary) {
             homeBasedBadge = true;
             opportunityScore = Math.max(1, opportunityScore - 15);
-          } else if (homeBasedResult.primary) {
-            homeBasedBadge = true;
           } else if (homeBasedResult.secondary) {
             opportunityScore = Math.max(1, opportunityScore - 5);
           }
@@ -990,7 +1001,7 @@ router.post('/daily-leads', async (req, res) => {
 
     res.json({
       ok: true,
-      leads: topLeads,
+      leads: require('../lib/defang').defang(topLeads, ''), // Google names are outside text too
       brands_used: brands,
       channel,
       mode: route ? 'route' : 'city',
@@ -1038,16 +1049,30 @@ router.post('/log-call', async (req, res) => {
       );
     }
     if (outcome && outcome.includes('Interested') && !outcome.includes('Not')) {
-      await pool.query("UPDATE prospects SET status='Warm' WHERE id=$1", [prospect_id]);
+      await pool.query("UPDATE prospects SET status='Warm' WHERE id=$1 AND user_id=$2", [prospect_id, uid]);
     } else if (outcome === 'Ready to Order' || outcome === 'Ready to Buy') {
-      await pool.query("UPDATE prospects SET status='Hot' WHERE id=$1", [prospect_id]);
+      await pool.query("UPDATE prospects SET status='Hot' WHERE id=$1 AND user_id=$2", [prospect_id, uid]);
     } else if (outcome && outcome.includes('Not Interested')) {
-      await pool.query("UPDATE prospects SET status='Cold' WHERE id=$1", [prospect_id]);
+      await pool.query("UPDATE prospects SET status='Cold' WHERE id=$1 AND user_id=$2", [prospect_id, uid]);
     }
     res.json({ ok: true });
   } catch(e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// Street View photo through our server so the Google key stays private.
+router.get('/streetview', async (req, res) => {
+  const loc = String(req.query.location || '').slice(0, 300);
+  const key = process.env.GOOGLE_PLACES_API_KEY;
+  if (!loc || !key) return res.status(404).end();
+  try {
+    const r = await fetch(`https://maps.googleapis.com/maps/api/streetview?size=400x300&location=${encodeURIComponent(loc)}&key=${key}`);
+    if (!r.ok) return res.status(502).end();
+    res.set('Content-Type', r.headers.get('content-type') || 'image/jpeg');
+    res.set('Cache-Control', 'private, max-age=86400');
+    r.body.pipe(res);
+  } catch (e) { res.status(502).end(); }
 });
 
 // ─── VERIFY LEAD ─────────────────────────────────────────────────────────────
@@ -1121,7 +1146,7 @@ router.post('/verify-lead', async (req, res) => {
         result.street_view = {
           status: svData.status || 'UNKNOWN',
           image_url: svData.status === 'OK'
-            ? `https://maps.googleapis.com/maps/api/streetview?size=400x300&location=${encodeURIComponent(address)}&key=${PLACES_KEY}`
+            ? `/api/morning/streetview?location=${encodeURIComponent(address)}`  // proxied: the Google key never reaches the browser
             : null
         };
       } catch(e2) {

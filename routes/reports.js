@@ -25,13 +25,16 @@ async function filters(req) {
   let repId = null;
   if (rep === 'me') repId = me.id;
   else if (rep !== 'all') { repId = parseInt(rep); if (!Number.isFinite(repId)) repId = me.id; }
+  // Reps only ever see their own numbers; the team view is for managers.
+  if (me.role !== 'manager') repId = me.id;
   const line = String(req.query.line || '').trim().slice(0, 60);
   return { from, to, repId, line, today: d.t };
 }
 
 // Build the WHERE fragments shared by every query.
 function callWhere(f, alias = 'c') {
-  const p = [f.from, f.to]; const w = [`${alias}.call_date >= $1`, `${alias}.call_date <= $2`];
+  // Notes typed on an account aren't calls or visits; keep them out of the counts.
+  const p = [f.from, f.to]; const w = [`${alias}.call_date >= $1`, `${alias}.call_date <= $2`, `COALESCE(${alias}.call_type,'') <> 'Note'`];
   if (f.repId) { p.push(f.repId); w.push(`${alias}.user_id = $${p.length}`); }
   if (f.line) { p.push('%' + f.line.toLowerCase() + '%'); w.push(`LOWER(COALESCE(${alias}.products_discussed,'')) LIKE $${p.length}`); }
   return { w: w.join(' AND '), p };

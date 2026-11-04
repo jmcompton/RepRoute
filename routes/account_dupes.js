@@ -99,7 +99,7 @@ router.post('/skip', async (req, res) => {
 router.post('/merge', async (req, res) => {
   const uid = req.session.user.id;
   const keepId = parseInt(req.body && req.body.keep_id);
-  const mergeIds = ((req.body && req.body.merge_ids) || []).map(Number).filter(n => Number.isFinite(n) && n !== keepId);
+  const mergeIds = (Array.isArray(req.body && req.body.merge_ids) ? req.body.merge_ids : []).map(Number).filter(n => Number.isFinite(n) && n !== keepId);
   if (!keepId || !mergeIds.length) return res.status(400).json({ error: 'Pick an account to keep and at least one to merge' });
 
   const client = await pool.connect();
@@ -180,3 +180,4 @@ router.post('/merge', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.MOVE = MOVE;

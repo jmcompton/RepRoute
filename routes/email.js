@@ -10,6 +10,9 @@ const SCOPES = 'openid profile email Mail.Read Mail.Send offline_access';
 
 // Step 1: Redirect user to Microsoft login
 router.get('/connect/outlook', (req, res) => {
+  if (!req.session.user) return res.redirect('/');
+  // One-time random state tied to this login, checked on the way back.
+  req.session.outlookState = require('crypto').randomBytes(16).toString('hex');
   const authUrl = 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize?' +
     new URLSearchParams({
       client_id: MICROSOFT_CLIENT_ID,
@@ -17,14 +20,17 @@ router.get('/connect/outlook', (req, res) => {
       redirect_uri: REDIRECT_URI,
       scope: SCOPES,
       response_mode: 'query',
-      state: req.session.user.id.toString()
+      state: req.session.outlookState
     }).toString();
-  res.redirect(authUrl);
+  req.session.save(() => res.redirect(authUrl));
 });
 
 // Step 2: Handle callback, exchange code for tokens
 router.get('/outlook/callback', async (req, res) => {
   const { code, state } = req.query;
+  if (!req.session.user) return res.redirect('/');
+  if (!state || state !== req.session.outlookState) return res.redirect('/app?error=' + encodeURIComponent('Outlook link expired. Try connecting again.'));
+  delete req.session.outlookState;
   if (!code) return res.redirect('/app?error=no_code');
   try {
     const tokenRes = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
@@ -41,7 +47,7 @@ router.get('/outlook/callback', async (req, res) => {
     const tokens = await tokenRes.json();
     if (tokens.error) { console.error('Token error:', JSON.stringify(tokens)); throw new Error(tokens.error_description || tokens.error); }
 
-    const userId = parseInt(state);
+    const userId = req.session.user.id; // never trust the URL for whose account this is
     await pool.query(
       `UPDATE users SET 
         outlook_access_token=$1, 

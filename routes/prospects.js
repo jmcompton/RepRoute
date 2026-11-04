@@ -248,7 +248,23 @@ async function findMatchingAccount(uid, { phone, company, city }) {
 router.get('/match', async (req, res) => {
   try {
     const m = await findMatchingAccount(req.session.user.id, req.query || {});
-    res.json(m || { account: null, match_by: null });
+    const out = m || { account: null, match_by: null };
+    // ?team=1: also say if a teammate already works this account (same name and city).
+    if (!m && req.query.team) {
+      const nameKey = String(req.query.company || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const cityKey = String(req.query.city || '').trim().toLowerCase();
+      if (nameKey) {
+        const t = await pool.query(
+          `SELECT p.id, p.company, p.city, COALESCE(NULLIF(TRIM(u.name),''), u.email) AS rep_name
+             FROM prospects p JOIN users u ON u.id = p.user_id
+            WHERE p.user_id <> $1
+              AND LOWER(REGEXP_REPLACE(p.company, '[^a-zA-Z0-9]', '', 'g')) = $2
+              AND ($3 = '' OR LOWER(TRIM(COALESCE(p.city,''))) = $3)
+            LIMIT 1`, [req.session.user.id, nameKey, cityKey]);
+        if (t.rows.length) out.team_match = t.rows[0];
+      }
+    }
+    res.json(out);
   } catch (err) {
     console.error('[prospects] match error:', err.message);
     res.status(500).json({ error: 'Failed to check for an existing account' });
@@ -406,8 +422,16 @@ router.post('/:id/fill-blanks', async (req, res) => {
 
 // ── DELETE /api/prospects/:id ────────────────────────────────────
 router.delete('/:id', async (req, res) => {
-  await pool.query('DELETE FROM prospects WHERE id=$1 AND user_id=$2',
-    [req.params.id, req.session.user.id]);
+  const id = parseInt(req.params.id);
+  if (!Number.isFinite(id)) return res.status(400).json({ error: 'Bad account id' });
+  // Visits are the team's history (reports, commissions). An account with
+  // logged visits can't be deleted; merge it into the right account instead.
+  const c = await pool.query('SELECT COUNT(*)::int AS n FROM calls WHERE prospect_id=$1', [id]);
+  if (c.rows[0].n) {
+    return res.status(409).json({ error: `This account has ${c.rows[0].n} logged visit${c.rows[0].n === 1 ? '' : 's'}, so it can't be deleted. If it's a duplicate, use Duplicates on the Accounts page to merge it.` });
+  }
+  const r = await pool.query('DELETE FROM prospects WHERE id=$1 AND user_id=$2', [id, req.session.user.id]);
+  if (!r.rowCount) return res.status(404).json({ error: 'Account not found' });
   res.json({ success: true });
 });
 

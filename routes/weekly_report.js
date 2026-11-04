@@ -409,16 +409,17 @@ router.get('/export', async (req, res) => {
 });
 
 // ── Render a report to HTML for email ────────────────────────────
+const _h = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 function renderReportHTML(repName, period_type, start, end, stats, ai) {
   const sec = (title, body) => body && body.trim()
     ? '<h3 style="margin:16px 0 4px;font-size:14px;color:#1e293b">' + title + '</h3>' +
-      '<div style="font-size:13px;color:#334155;white-space:pre-line;line-height:1.5">' + body.replace(/</g, '&lt;') + '</div>'
+      '<div style="font-size:13px;color:#334155;white-space:pre-line;line-height:1.5">' + _h(body) + '</div>'
     : '';
   const lineRows = Object.keys(stats.calls_by_line || {}).map(k =>
-    '<tr><td style="padding:2px 10px 2px 0">' + k + '</td><td>' + stats.calls_by_line[k] + '</td></tr>').join('');
+    '<tr><td style="padding:2px 10px 2px 0">' + _h(k) + '</td><td>' + _h(stats.calls_by_line[k]) + '</td></tr>').join('');
   return '' +
     '<div style="font-family:Arial,sans-serif;max-width:640px;margin:0 auto">' +
-    '<h2 style="color:#0f172a;margin-bottom:2px">' + repName + ' — ' + (period_type === 'month' ? 'Monthly' : 'Weekly') + ' Report</h2>' +
+    '<h2 style="color:#0f172a;margin-bottom:2px">' + _h(repName) + ' — ' + (period_type === 'month' ? 'Monthly' : 'Weekly') + ' Report</h2>' +
     '<div style="color:#64748b;font-size:12px;margin-bottom:12px">' + start + ' to ' + end + '</div>' +
     '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:8px">' +
       '<div><strong style="font-size:22px;color:#0f172a">' + stats.total_calls + '</strong><div style="font-size:11px;color:#64748b">Total Calls</div></div>' +

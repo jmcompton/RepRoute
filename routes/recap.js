@@ -85,10 +85,11 @@ async function gatherTodayActivity(user) {
             p.contact AS contact,
             c.outcome AS outcome,
             c.notes   AS note,
+            c.call_type AS call_type,
             to_char(c.created_at, 'HH12:MI AM') AS time
        FROM calls c
        JOIN prospects p ON c.prospect_id = p.id
-      WHERE c.user_id = $1 AND c.call_date = CURRENT_DATE
+      WHERE c.user_id = $1 AND c.call_date = CURRENT_DATE AND COALESCE(c.call_type,'') <> 'Note'
       ORDER BY c.created_at ASC`,
     [uid]
   );
@@ -97,6 +98,7 @@ async function gatherTodayActivity(user) {
     const contact = (r.contact || '').trim();
     items.push({
       source: 'call',
+      visit: /visit|person|drop/i.test(r.call_type || ''),
       company: company,                                  // raw account name (may be blank)
       name: company || contact || 'Unknown account',     // display / group key (contact fallback)
       contact: contact,
@@ -174,8 +176,8 @@ router.get('/today', async (req, res) => {
     res.json({
       rep: req.session.user.name || 'Rep',
       date: date,
-      call_count: items.filter(i => i.source === 'call').length,
-      visit_count: items.filter(i => i.source === 'fortress').length,
+      call_count: items.filter(i => i.source === 'call' && !i.visit).length,
+      visit_count: items.filter(i => i.source === 'fortress' || i.visit).length,
       groups: groupByName(items)
     });
   } catch (e) {

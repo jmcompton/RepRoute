@@ -59,7 +59,13 @@ function summarize(parsed, filename) {
 }
 
 // POST /api/commission-pdf/preview
-router.post('/preview', upload.single('file'), async (req, res) => {
+// Commission statements belong to the firm: only managers import them.
+function mgrOnly(req, res, next) {
+  if (!req.session.user || req.session.user.role !== 'manager') return res.status(403).json({ error: 'Manager access required' });
+  next();
+}
+
+router.post('/preview', mgrOnly, upload.single('file'), async (req, res) => {
   try {
     if (!req.file || !req.file.buffer) return res.status(400).json({ error: 'No PDF uploaded (field "file").' });
     let parsed;
@@ -76,7 +82,7 @@ router.post('/preview', upload.single('file'), async (req, res) => {
 });
 
 // POST /api/commission-pdf/commit  (optional rep_id override in body, multipart)
-router.post('/commit', upload.single('file'), async (req, res) => {
+router.post('/commit', mgrOnly, upload.single('file'), async (req, res) => {
   try {
     if (!req.file || !req.file.buffer) return res.status(400).json({ error: 'No PDF uploaded (field "file").' });
 

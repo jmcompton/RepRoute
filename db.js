@@ -1,10 +1,24 @@
-const { Pool } = require('pg');
+const { Pool, types } = require('pg');
+
+// DATE columns (call_date, quote_date, next_step_date...) are calendar days.
+// The default parser turns '2026-11-04' into midnight in the server's zone
+// (UTC on Railway), which a browser in Atlanta or Birmingham shows as Nov 3.
+// Noon UTC lands on the same calendar day in every US time zone, and
+// toISOString().slice(0,10) still gives back '2026-11-04'.
+types.setTypeParser(1082, v => (v == null ? null : new Date(v + 'T12:00:00Z')));
 const fs = require('fs');
 const path = require('path');
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+});
+
+// The team works Eastern (Atlanta) and Central (Birmingham). Run every DB
+// session on Eastern time so CURRENT_DATE, NOW()::date and to_char() times
+// match the reps' day instead of flipping to tomorrow at 7 PM (UTC midnight).
+pool.on('connect', client => {
+  client.query("SET TIME ZONE 'America/New_York'").catch(e => console.error('[db] set time zone:', e.message));
 });
 
 // Minimal RFC-4180 CSV parser (handles quoted fields with embedded commas /
@@ -148,6 +162,11 @@ async function initDB() {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS outlook_refresh_token TEXT;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS outlook_token_expiry TIMESTAMPTZ;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_call_goal INTEGER DEFAULT 10;
+    -- Managers can turn a login off (rep leaves) without deleting their history.
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS disabled_at TIMESTAMPTZ;
+    -- "Last visit per account" and "my calls this week" run on every screen.
+    CREATE INDEX IF NOT EXISTS idx_calls_prospect_date ON calls(prospect_id, call_date DESC, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_calls_user_date ON calls(user_id, call_date);
     ALTER TABLE prospects ADD COLUMN IF NOT EXISTS address TEXT;
     ALTER TABLE prospects ADD COLUMN IF NOT EXISTS google_place_id TEXT;
     CREATE INDEX IF NOT EXISTS idx_prospects_place_id ON prospects(user_id, google_place_id);
@@ -274,6 +293,35 @@ async function initDB() {
       END LOOP;
     END $$;
 
+    -- Neutralize any saved HTML tag text (see lib/defang.js). Only touches rows that have one.
+    UPDATE prospects SET company = regexp_replace(company, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE company ~ '<[a-zA-Z/!?]';
+    UPDATE prospects SET contact = regexp_replace(contact, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE contact ~ '<[a-zA-Z/!?]';
+    UPDATE prospects SET city = regexp_replace(city, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE city ~ '<[a-zA-Z/!?]';
+    UPDATE prospects SET address = regexp_replace(address, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE address ~ '<[a-zA-Z/!?]';
+    UPDATE prospects SET notes = regexp_replace(notes, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE notes ~ '<[a-zA-Z/!?]';
+    UPDATE prospects SET products = regexp_replace(products, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE products ~ '<[a-zA-Z/!?]';
+    UPDATE prospects SET title = regexp_replace(title, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE title ~ '<[a-zA-Z/!?]';
+    UPDATE contacts SET name = regexp_replace(name, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE name ~ '<[a-zA-Z/!?]';
+    UPDATE contacts SET title = regexp_replace(title, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE title ~ '<[a-zA-Z/!?]';
+    UPDATE contacts SET email = regexp_replace(email, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE email ~ '<[a-zA-Z/!?]';
+    UPDATE contacts SET phone = regexp_replace(phone, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE phone ~ '<[a-zA-Z/!?]';
+    UPDATE calls SET notes = regexp_replace(notes, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE notes ~ '<[a-zA-Z/!?]';
+    UPDATE calls SET next_step = regexp_replace(next_step, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE next_step ~ '<[a-zA-Z/!?]';
+    UPDATE calls SET products_discussed = regexp_replace(products_discussed, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE products_discussed ~ '<[a-zA-Z/!?]';
+    UPDATE calls SET outcome = regexp_replace(outcome, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE outcome ~ '<[a-zA-Z/!?]';
+    UPDATE quotes SET account_name = regexp_replace(account_name, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE account_name ~ '<[a-zA-Z/!?]';
+    UPDATE quotes SET contact_name = regexp_replace(contact_name, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE contact_name ~ '<[a-zA-Z/!?]';
+    UPDATE quotes SET products = regexp_replace(products, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE products ~ '<[a-zA-Z/!?]';
+    UPDATE quotes SET comments = regexp_replace(comments, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE comments ~ '<[a-zA-Z/!?]';
+    UPDATE planner_items SET note = regexp_replace(note, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE note ~ '<[a-zA-Z/!?]';
+    UPDATE route_stops SET stops = regexp_replace(stops::text, '<([a-zA-Z/!?])', '‹\\1', 'g')::jsonb WHERE stops::text ~ '<[a-zA-Z/!?]';
+
+    UPDATE prospects SET website = '' WHERE website ~* '^\\s*(javascript|data|vbscript):';
+    -- Drive-route logging used to write statuses the edit screen doesn't have.
+    UPDATE prospects SET status = CASE status WHEN 'Hot Lead' THEN 'Hot' WHEN 'Quoted' THEN 'Hot'
+      WHEN 'Not Interested' THEN 'Cold' WHEN 'Sampled' THEN 'Warm' WHEN 'Contacted' THEN 'New' END
+     WHERE status IN ('Hot Lead','Quoted','Not Interested','Sampled','Contacted');
+
     -- Keep a NON-unique index for quote_number lookups.
     CREATE INDEX IF NOT EXISTS idx_quotes_quote_number ON quotes(quote_number);
 
@@ -296,7 +344,7 @@ async function initDB() {
     -- Auto-populate company_type from existing category data (one-time migration)
     UPDATE prospects
     SET company_type = 'Distributor'
-    WHERE company_type IS NULL OR company_type = 'Contractor'
+    WHERE (company_type IS NULL OR company_type = 'Contractor')
       AND category ILIKE ANY(ARRAY[
         '%distributor%','%dealer%','%supply%','%wholesale%',
         '%building material%','%lumber%'

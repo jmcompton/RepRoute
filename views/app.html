@@ -291,8 +291,8 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
 .q-card-meta{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:8px;font-size:12px;color:var(--text2)}
 .q-card-meta b{color:var(--text);font-weight:600}
 .q-card-dates{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:6px;font-size:12px;color:var(--text3)}
-.mob-menu{align-items:center;justify-content:center;width:36px;height:36px;cursor:pointer;flex-shrink:0;border:none;background:none;padding:0}
-.mob-menu span{display:block;width:20px;height:2px;background:var(--navy);border-radius:2px;margin:4px 0}
+.mob-menu{flex-direction:column;align-items:center;justify-content:center;width:36px;height:36px;cursor:pointer;flex-shrink:0;border:none;background:none;padding:0}
+.mob-menu span{display:block;width:20px;height:2px;background:var(--navy);border-radius:2px;margin:2px 0}
 .bottom-nav{position:fixed;bottom:0;left:0;right:0;height:58px;background:var(--white);border-top:1px solid var(--border);z-index:150;justify-content:space-around;align-items:center;padding:0 8px}
 .bn-item{display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;padding:4px 8px;border-radius:8px;border:none;background:none;flex:1}
 .bn-item svg{width:20px;height:20px;stroke:var(--text2);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
@@ -444,7 +444,7 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
     align-items:stretch !important;
   }
   #lead-find-btn { width:100% !important; justify-content:center !important; padding:12px !important; }
-  #lead-city-input { width:100% !important; min-width:0 !important; padding:11px 12px !important; font-size:14px !important; }
+  #lead-city-input { width:100% !important; min-width:0 !important; padding:11px 12px !important; font-size:16px !important; }
   /* seg-pill replaced by inline-styled checkbox labels */
   /* The wrapper that holds input + button */
   #lead-find-btn:has-prev #lead-city-input,
@@ -1576,6 +1576,28 @@ window.addEventListener('load', function() {
 // evening used to get the next day's date.
 // 'Nov 3, 2026' from a date or timestamp, without shifting the day.
 function fmtDay(v){ if(!v) return '—'; var d=String(v).split('T')[0]; var t=new Date(d+'T12:00:00'); return isNaN(t) ? String(v) : t.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
+// Signed out mid-day (cookie expired, login turned off): every /api call now
+// gets a 401. Say so plainly instead of letting a save look like it worked.
+(function(){
+  if (!window.fetch || window._rrFetchWrapped) return;
+  window._rrFetchWrapped = true;
+  var orig = window.fetch.bind(window);
+  window.fetch = function(input, init){
+    return orig(input, init).then(function(r){
+      try {
+        var url = typeof input === 'string' ? input : (input && input.url) || '';
+        if (r.status === 401 && /\/api\//.test(url) && !document.getElementById('rr-signed-out')) {
+          var d = document.createElement('div');
+          d.id = 'rr-signed-out';
+          d.style.cssText = 'position:fixed;left:12px;right:12px;top:12px;z-index:9999;background:#b91c1c;color:#fff;padding:12px 14px;border-radius:8px;font:600 14px/1.35 -apple-system,Segoe UI,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.25);display:flex;gap:10px;align-items:center';
+          d.innerHTML = '<span style="flex:1">You got signed out, so that last change was not saved.</span><a href="/" style="background:#fff;color:#b91c1c;border-radius:6px;padding:8px 12px;text-decoration:none;font-weight:700">Sign in</a>';
+          (document.body || document.documentElement).appendChild(d);
+        }
+      } catch (e) {}
+      return r;
+    });
+  };
+})();
 function localYMD(d){ d = d || new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 </script>
 </head>
@@ -1587,9 +1609,9 @@ function localYMD(d){ d = d || new Date(); return d.getFullYear()+'-'+String(d.g
     <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
     <span>Home</span>
   </button>
-  <button class="bn-item" id="bn-today" data-roles="rep intern" onclick="go('today');setActiveNav('bn-today')">
-    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 10h18M16 2v4M8 2v4"/><path d="M9 15.5l1.75 1.75L14.5 13.5"/></svg>
-    <span>Today</span>
+  <button class="bn-item" id="bn-log" data-roles="rep intern" onclick="openQuickCallLog()">
+    <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/><rect x="3" y="3" width="18" height="18" rx="4"/></svg>
+    <span>Log Call</span>
   </button>
   <button class="bn-item" id="bn-contacts" data-roles="rep intern manager" onclick="go('contacts');setActiveNav('bn-contacts')">
     <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -1890,16 +1912,6 @@ function localYMD(d){ d = d || new Date(); return d.getFullYear()+'-'+String(d.g
               <button onclick="_clearRoute()" style="width:100%;padding:7px;background:transparent;border:1px solid var(--border);border-radius:6px;font-size:11px;font-weight:600;color:var(--text2);cursor:pointer;font-family:inherit">✕ Clear Route</button>
             </div>
           </div>
-            <div id="route-empty" style="padding:24px 16px;text-align:center;color:var(--text3);font-size:12px">
-              Run a lead search to build today's drive route.
-            </div>
-            <div id="route-list" style="display:none"></div>
-            <div id="route-actions" style="display:none;padding:12px 14px;border-top:1px solid var(--border);background:#fafbfc">
-              <div style="display:flex;gap:8px">
-                <button onclick="openRouteInMaps('apple')" style="flex:1;padding:10px;background:#000;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:6px"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg> Apple Maps</button>
-                <button onclick="openRouteInMaps('google')" style="flex:1;padding:10px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:6px"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg> Google Maps</button>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -2309,7 +2321,7 @@ function localYMD(d){ d = d || new Date(); return d.getFullYear()+'-'+String(d.g
           <span style="font-size:10px;font-weight:700;padding:3px 9px;border-radius:10px;background:#d1fae5;color:#065f46">Territory Locked</span>
           <span style="font-size:10px;font-weight:700;padding:3px 9px;border-radius:10px;background:#dbeafe;color:#1e40af">CRM Growth Mode</span>
           <span style="font-size:10px;font-weight:700;padding:3px 9px;border-radius:10px;background:#fef3c7;color:#92400e">Exact Address Dedup</span>
-          <a href="/zoho-import" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:5px 12px;border-radius:8px;background:linear-gradient(135deg,#e44235,#f2a60d);color:#fff;text-decoration:none" title="Import contacts from Zoho CRM">
+          <a href="/zoho-import" data-roles="manager" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:5px 12px;border-radius:8px;background:linear-gradient(135deg,#e44235,#f2a60d);color:#fff;text-decoration:none" title="Import contacts from Zoho CRM">
             <span>📥</span> Import from Zoho
           </a>
         </div>
@@ -4276,6 +4288,10 @@ function applyRoleNav(role) {
   document.querySelectorAll('.bottom-nav .bn-item[data-roles]').forEach(function(el) {
     el.style.display = allowed(el) ? '' : 'none';
   });
+  // Any other link or button marked with data-roles (e.g. the Zoho import link)
+  document.querySelectorAll('a[data-roles]').forEach(function(el) {
+    if (!allowed(el)) el.style.display = 'none';
+  });
   // Mobile "More" menu items that opt into role-gating (e.g. Quotes = rep/manager).
   // Items without data-roles are left untouched (unchanged behavior).
   document.querySelectorAll('#mobile-menu .mm-item[data-roles]').forEach(function(el) {
@@ -4358,6 +4374,16 @@ function go(id) {
   // Home is now the adaptive Today cockpit. Old money-dashboard is retired as a
   // landing surface; both "Home" entry points resolve to the Today cockpit.
   if (id === 'dashboard' || id === 'home') id = 'today';
+  // "Find Leads" buttons all over the app: the Lead Finder lives on Today now.
+  if (id === 'leads') {
+    id = 'today';
+    setTimeout(function(){ var f = document.getElementById('lead-find-btn') || document.getElementById('today-finder-slot'); if (f) f.scrollIntoView({ behavior:'smooth', block:'center' }); }, 600);
+  }
+  // Keep the phone's bottom bar in step with the page actually showing.
+  try {
+    var _bn = { today:'bn-home', contacts:'bn-contacts', calls:'bn-calls', reconnect:'bn-reconnect' }[id] || 'bn-more';
+    document.querySelectorAll('.bn-item').forEach(function(b){ b.classList.toggle('active', b.id === _bn); });
+  } catch (e) {}
   if (window._teamViewActive && id !== 'record') {
     var _lb = document.querySelector('[onclick="logCallForRecord()"]');
     var _ob = document.querySelector('[onclick="writeOutreachForRecord()"]');
@@ -4939,9 +4965,12 @@ function loadProspects() {
   fetch('/api/prospects' + cat)
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      allProspects = Array.isArray(data) ? data : [];
+      // A failed load keeps what's on screen instead of showing "0 records".
+      if (!Array.isArray(data)) { showToast("Couldn't refresh accounts. Pull down or try again."); return; }
+      allProspects = data;
       renderProspects();
-    });
+    })
+    .catch(function(){ showToast("Couldn't reach RepRoute. Check your signal."); });
 }
 
 // handleContactSearch — triggered by search input OR filter dropdowns.
@@ -5213,7 +5242,7 @@ function viewRecord(id) {
       document.getElementById('rec-fields').innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0">' +
         fields.map(function(f) { return '<div class="frow"><div class="flabel">' + f[0] + '</div><div class="fval' + (f[1]==='—'?' empty':'') + '">' + f[1] + '</div></div>'; }).join('') + '</div>';
       var pf = [
-        ['Products',p.products||'—'],['Territory','Atlanta Metro, GA'],
+        ['Products',p.products||'—'],['Territory',[p.city,p.state].filter(Boolean).join(', ')||'—'],
         ['Priority',p.priority||'Medium'],['Source',p.source||'Manual']
       ];
       document.getElementById('rec-prod-fields').innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0">' +
@@ -5456,6 +5485,9 @@ function loadAccountLines(accountId) {
   var body = document.getElementById('rec-lines-body');
   var summary = document.getElementById('rec-lines-summary');
   if (!section || !body) return;
+  // Commission data is manager-only; don't tell a rep "no lines" when he just can't see them.
+  if (((window.currentUser || {}).role) !== 'manager') { section.style.display = 'none'; return; }
+  section.style.display = '';
   body.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:14px 16px">Loading lines…</div>';
   if (summary) summary.textContent = '';
   fetch('/api/lines/account/' + accountId)
@@ -6418,16 +6450,15 @@ function saveContactDetail() {
   function fv(elId) { var e=document.getElementById(elId); return e ? e.value.trim() : ''; }
 
   var data = {};
-  var contact = fv('cd-e-contact'); if (contact)  data.contact  = contact;
-  var title   = fv('cd-e-title');   if (title)    data.title    = title;
-  var phone   = fv('cd-e-phone');   if (phone)    data.phone    = phone;
-  var mobile  = fv('cd-e-mobile');  if (mobile)   data.mobile   = mobile;
-  var email   = fv('cd-e-email');   if (email)    data.email    = email;
-  var address = fv('cd-e-address'); if (address)  data.address  = address;
-  var city    = fv('cd-e-city');    if (city)     data.city     = city;
-  var state   = fv('cd-e-state');   if (state)    data.state    = state;
-  var zip     = fv('cd-e-zip');     if (zip)      data.zip      = zip;
-  var website = fv('cd-e-website'); if (website)  data.website  = website;
+  // Send every field the rep changed, including ones they emptied on purpose.
+  function put(key, elId) {
+    var e = document.getElementById(elId); if (!e) return;
+    var v = e.value.trim(), was = String(currentContactRecord[key] == null ? '' : currentContactRecord[key]).trim();
+    if (v !== was) data[key] = v;
+  }
+  [['contact','cd-e-contact'],['title','cd-e-title'],['phone','cd-e-phone'],['mobile','cd-e-mobile'],['email','cd-e-email'],
+   ['address','cd-e-address'],['city','cd-e-city'],['state','cd-e-state'],['zip','cd-e-zip'],['website','cd-e-website']]
+    .forEach(function(f){ put(f[0], f[1]); });
   var status  = fv('cd-e-status');  if (status)   data.status   = status;
   var notes   = document.getElementById('cd-e-notes');
   if (notes) data.notes = notes.value; // always save notes (may clear it intentionally)
@@ -6507,16 +6538,18 @@ function _afterQuoteSaveFromRecord() {
 }
 
 function logCallForRecord() {
+  var rec = currentRecord;
   go('calls');
-  loadCallProspects();
-  setTimeout(function() {
+  // Select the account once the list is actually built (no fixed timer: on
+  // cell signal the list landed after the timer and the account came up blank).
+  loadCallProspects().then(function() {
     var sel = document.getElementById('call-prospect');
-    if (sel && currentRecord) {
-      for (var i = 0; i < sel.options.length; i++) {
-        if (parseInt(sel.options[i].value) === currentRecord.id) { sel.selectedIndex = i; break; }
-      }
-    }
-  }, 400);
+    if (!sel || !rec) return;
+    var has = [].some.call(sel.options, function(o){ return parseInt(o.value) === rec.id; });
+    window._callPinned = { id: rec.id, label: rec.company + (rec.city ? ' — ' + rec.city : '') };
+    if (!has) { var o = document.createElement('option'); o.value = rec.id; o.textContent = window._callPinned.label; sel.appendChild(o); }
+    sel.value = String(rec.id);
+  });
 }
 
 function writeOutreachForRecord() {
@@ -6585,6 +6618,29 @@ function addProspect() {
   var apState = ((document.getElementById('ap-state') || {value:''}).value || 'GA').trim().toUpperCase();
   var apZip   = (document.getElementById('ap-zip') || {value:''}).value.trim();
   var apStreet = (document.getElementById('ap-street') || {value:''}).value.trim();
+  var apPhone = (document.getElementById('ap-phone') || {value:''}).value.trim();
+  // Duplicate check first: yours (open it) or a teammate's (ask before adding a second copy).
+  if (!window._apDupChecked) {
+    fetch('/api/prospects/match?team=1&company=' + encodeURIComponent(name) + '&city=' + encodeURIComponent(apCity) + '&phone=' + encodeURIComponent(apPhone))
+      .then(function(r){ return r.ok ? r.json() : {}; })
+      .then(function(m){
+        if (m && m.account) {
+          if (confirm('You already have ' + m.account.company + (m.account.city ? ' in ' + m.account.city : '') + '. Open it instead?')) {
+            closeModal('add-prospect'); viewRecord(m.account.id); return;
+          }
+        } else if (m && m.team_match) {
+          if (!confirm(m.team_match.rep_name + ' already has ' + m.team_match.company + (m.team_match.city ? ' in ' + m.team_match.city : '') + '. Add your own copy anyway?')) return;
+        }
+        window._apDupChecked = true; addProspect();
+      })
+      .catch(function(){ window._apDupChecked = true; addProspect(); });
+    return;
+  }
+  window._apDupChecked = false;
+  var apBtn = document.querySelector('[onclick="addProspect()"]');
+  if (apBtn && apBtn.disabled) return;   // second tap while the first is saving
+  if (apBtn) { apBtn.disabled = true; apBtn.textContent = 'Saving…'; }
+  var apDone = function(){ if (apBtn) { apBtn.disabled = false; apBtn.textContent = 'Save Account'; } };
   fetch('/api/prospects', {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({
@@ -6606,7 +6662,15 @@ function addProspect() {
     })
   }).then(function(r) {
     if (!r.ok) throw new Error('HTTP ' + r.status);
-    closeModal('add-prospect'); loadProspects(); loadDashboard(); showToast('Account saved!');
+    return r.json();
+  }).then(function(acct) {
+    apDone();
+    closeModal('add-prospect'); loadProspects(); loadDashboard(); showToast('Account saved. Add a contact next.');
+    // Open the new account so the rep can add the buyer right away.
+    if (acct && acct.id) {
+      if (typeof allProspects !== 'undefined' && !allProspects.some(function(p){ return p.id === acct.id; })) allProspects.unshift(acct);
+      setTimeout(function(){ viewRecord(acct.id); if (typeof setRecTab === 'function') setRecTab('contacts', null); }, 150);
+    }
     ['ap-name','ap-street','ap-city','ap-state','ap-zip','ap-phone','ap-website','ap-products','ap-notes','ap-mfr'].forEach(function(id) {
       var el = document.getElementById(id); if (el) el.value = '';
     });
@@ -6615,6 +6679,7 @@ function addProspect() {
     var aiStatus = document.getElementById('ap-ai-status');
     if (aiStatus) { aiStatus.style.display = 'none'; aiStatus.textContent = ''; }
   }).catch(function() {
+    apDone();
     showToast('Account not saved — check your connection and try again');
   });
 }
@@ -7418,18 +7483,29 @@ function saveLeads() {
 }
 
 function loadCallProspects() {
-  fetch('/api/prospects')
+  return fetch('/api/prospects')
     .then(function(r) { return r.json(); })
     .then(function(ps) {
       var sel = document.getElementById('call-prospect');
-      if (!sel) return;
+      if (!sel || !Array.isArray(ps)) return;
+      var keep = sel.value;
       sel.innerHTML = '<option value="">Select contact...</option>' + ps.map(function(p) { return '<option value="' + p.id + '">' + p.company + (p.city?' — '+p.city:'') + '</option>'; }).join('');
-    });
+      var pin = window._callPinned;
+      if (pin && ![].some.call(sel.options, function(o){ return o.value === String(pin.id); })) {
+        var o = document.createElement('option'); o.value = pin.id; o.textContent = pin.label; sel.appendChild(o);
+      }
+      if (keep) sel.value = keep;
+    })
+    .catch(function(){});
 }
 
 function logCall() {
   var pid = document.getElementById('call-prospect').value;
   if (!pid) { showToast('Select a contact'); return; }
+  var btn = document.querySelector('[onclick="logCall()"]');
+  if (btn && btn.disabled) return;            // no double taps
+  if (btn) { btn.disabled = true; btn._t = btn.textContent; btn.textContent = 'Saving…'; }
+  var done = function(){ if (btn) { btn.disabled = false; btn.textContent = btn._t || 'Save Call'; } };
   fetch('/api/calls', {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({
@@ -7438,11 +7514,15 @@ function logCall() {
       products_discussed:document.getElementById('call-products').value, next_step:document.getElementById('call-nextstep').value,
       next_step_date:document.getElementById('call-nextdate').value, notes:document.getElementById('call-notes').value
     })
-  }).then(function(r) { return r.json().catch(function(){ return null; }); }).then(function(result) {
+  }).then(function(r) { return r.json().catch(function(){ return null; }).then(function(d){ if (!r.ok || !d || d.error) throw new Error((d && d.error) || 'Not saved'); return d; }); }).then(function(result) {
+    done();
     showToast('Call logged!');
     if (typeof agentOfferFollowup === 'function') agentOfferFollowup(result);
     ['call-products','call-nextstep','call-nextdate','call-notes'].forEach(function(id) { var el=document.getElementById(id); if(el) el.value=''; });
     loadCalls(); loadDashboard();
+  }).catch(function(e) {
+    done();  // keep what they typed so they can try again
+    alert((e && e.message && e.message !== 'Failed to fetch') ? e.message : 'Call not saved. Check your signal and try again.');
   });
 }
 
@@ -7775,6 +7855,18 @@ function markObDay(dayKey, completed) {
   });
 }
 
+function mgrAccess(id, enable, name) {
+  if (!confirm((enable ? 'Turn ' + name + "'s login back on?" : 'Turn off ' + name + "'s login? Their accounts and history stay. They're signed out within a minute."))) return;
+  fetch('/api/manager/reps/' + id + '/access', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ enabled: enable }) })
+    .then(function(r){ return r.json(); }).then(function(d){ if (d.error) { alert(d.error); return; } showToast(enable ? 'Login on' : 'Login off'); loadManager(); })
+    .catch(function(){ alert('Not saved. Check your connection.'); });
+}
+function mgrResetPw(id, name) {
+  if (!confirm('Make a new password for ' + name + '?')) return;
+  fetch('/api/manager/reps/' + id + '/password', { method:'POST', headers:{'Content-Type':'application/json'}, body: '{}' })
+    .then(function(r){ return r.json(); }).then(function(d){ if (d.error) { alert(d.error); return; } prompt('New password for ' + name + '. Copy it and text it to them:', d.password); })
+    .catch(function(){ alert('Not saved. Check your connection.'); });
+}
 function loadManager() {
   Promise.all([fetch('/api/manager/reps'), fetch('/api/manager/activity')])
     .then(function(rs) { return Promise.all(rs.map(function(r) { return r.json(); })); })
@@ -7782,10 +7874,10 @@ function loadManager() {
       var reps = results[0]; var activity = results[1];
       document.getElementById('manager-reps').innerHTML = reps.length ? reps.map(function(r) {
         var initials = r.name.split(' ').map(function(w){return w[0];}).join('').slice(0,2).toUpperCase();
-        return '<div class="rep-card"><div class="rep-top"><div class="rep-av">' + initials + '</div><div><div class="rep-name">' + r.name + '</div><div class="rep-meta">📍 ' + (r.territory||'Atlanta Metro') + ' · ' + r.email + '</div></div><button class="btn btn-secondary btn-sm" style="margin-left:auto" onclick="go(\'onboarding\')">Onboarding</button></div><div class="rep-stats"><div class="rs"><div class="rs-val">' + r.prospect_count + '</div><div class="rs-lbl">Contacts</div></div><div class="rs"><div class="rs-val">' + r.hot_count + '</div><div class="rs-lbl"> Hot</div></div><div class="rs"><div class="rs-val">' + r.call_count + '</div><div class="rs-lbl">Calls</div></div><div class="rs"><div class="rs-val">' + r.calls_this_week + '</div><div class="rs-lbl">This Week</div></div></div></div>';
+        return '<div class="rep-card"><div class="rep-top"><div class="rep-av">' + initials + '</div><div><div class="rep-name">' + r.name + '</div><div class="rep-meta">📍 ' + (r.territory||'Atlanta Metro') + ' · ' + r.email + '</div></div><div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">' + (r.disabled_at ? '<span style="font-size:11px;font-weight:700;color:#b91c1c;align-self:center">Login off</span>' : '') + '<button class="btn btn-secondary btn-sm" onclick="mgrResetPw(' + r.id + ',\'' + escHtml(r.name).replace(/'/g,'') + '\')">Reset password</button><button class="btn btn-secondary btn-sm" onclick="mgrAccess(' + r.id + ',' + (r.disabled_at ? 'true' : 'false') + ',\'' + escHtml(r.name).replace(/'/g,'') + '\')">' + (r.disabled_at ? 'Turn login on' : 'Turn login off') + '</button><button class="btn btn-secondary btn-sm" onclick="go(\'onboarding\')">Onboarding</button></div></div><div class="rep-stats"><div class="rs"><div class="rs-val">' + r.prospect_count + '</div><div class="rs-lbl">Contacts</div></div><div class="rs"><div class="rs-val">' + r.hot_count + '</div><div class="rs-lbl"> Hot</div></div><div class="rs"><div class="rs-val">' + r.call_count + '</div><div class="rs-lbl">Calls</div></div><div class="rs"><div class="rs-val">' + r.calls_this_week + '</div><div class="rs-lbl">This Week</div></div></div></div>';
       }).join('') : '<div style="text-align:center;padding:24px;color:var(--text3)">No reps added yet.</div>';
       document.getElementById('manager-activity').innerHTML = activity.length ? activity.map(function(a) {
-        return '<tr><td style="font-weight:600">' + a.rep_name + '</td><td>' + a.company + '</td><td>' + (a.outcome||'—') + '</td><td style="color:var(--text3)">' + (a.call_date||'—') + '</td></tr>';
+        return '<tr><td style="font-weight:600">' + a.rep_name + '</td><td>' + a.company + '</td><td>' + (a.outcome||'—') + '</td><td style="color:var(--text3)">' + fmtDay(a.call_date) + '</td></tr>';
       }).join('') : '<tr><td colspan="4" style="text-align:center;padding:16px;color:var(--text3)">No activity yet.</td></tr>';
     });
 }
@@ -7887,7 +7979,7 @@ function deleteContact() {
   var numId = parseInt(id);
   if (!confirm('Delete ' + name + '? This cannot be undone.')) return;
   fetch('/api/prospects/' + id, { method: 'DELETE' })
-    .then(function(r) { return r.json(); })
+    .then(function(r) { return r.json().then(function(d){ if (!r.ok || d.error) throw new Error(d.error || 'Not deleted'); return d; }); })
     .then(function() {
       // 1. Remove from in-memory prospect cache immediately
       if (typeof allProspects !== 'undefined') {
@@ -7914,7 +8006,7 @@ function deleteContact() {
       go('contacts');
     })
     .catch(function(e) {
-      showToast('Delete failed — please try again');
+      alert((e && e.message) || 'Delete failed. Please try again.');
       console.error('deleteContact error:', e);
     });
 }
@@ -7933,6 +8025,7 @@ function loadPipeline() {
     .then(function(r) { return r.json(); })
     .then(function(prospects) {
       var board = document.getElementById('pipeline-board');
+      if (!Array.isArray(prospects)) { if (board) board.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text3)">Couldn\'t load the pipeline. Try again.</div>'; return; }
       board.innerHTML = pipelineStages.map(function(stage) {
         var cards = prospects.filter(function(p) {
           return (p.pipeline_stage || 'New Lead') === stage.id;
@@ -8060,41 +8153,30 @@ function saveNote() {
       outcome: 'Note Added',
       notes: text
     })
-  }).then(function(r) { return r.json(); })
+  }).then(function(r) { return r.json().catch(function(){ return {}; }).then(function(d){ if (!r.ok || d.error) throw new Error(d.error || 'Not saved'); return d; }); })
   .then(function() {
     input.value = '';
     if (btn) { btn.disabled = false; btn.textContent = '+ Add Note'; }
     showToast('Note saved');
     loadNotes();
-    // Also append to the prospect notes field
-    var existing = currentRecord.notes || '';
+    // The server already appended the note to the account's notes; mirror it
+    // locally instead of writing back an old copy (which wiped newer notes).
     var todayFmt = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
-    var entry = '[' + todayFmt + ']: ' + text;
-    var updated = existing ? existing + '\n' + entry : entry;
-    fetch('/api/prospects/' + currentRecord.id, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ notes: updated })
-    }).then(function(r) { return r.json(); })
-    .then(function(p) {
-      if (p && p.id) {
-        currentRecord.notes = p.notes;
-        // refresh overview fields so Notes row updates live
-        var fval = document.querySelector('.fval.notes-cell');
-        if (fval) fval.innerHTML = '<span style="white-space:pre-wrap">' + (p.notes||'') + '</span>';
-      }
-    });
+    var entry = '[' + todayFmt + ' — Note / Note Added]: ' + text;
+    currentRecord.notes = currentRecord.notes ? currentRecord.notes + '\n' + entry : entry;
   })
-  .catch(function() {
+  .catch(function(e) {
     if (btn) { btn.disabled = false; btn.textContent = '+ Add Note'; }
-    showToast('Error saving note');
+    alert((e && e.message && e.message !== 'Failed to fetch') ? e.message : 'Note not saved. Check your signal and try again.');
   });
 }
 function deleteNote(callId) {
   if (!currentRecord) return;
+  if (!confirm('Delete this note?')) return;
   fetch('/api/calls/' + callId, { method: 'DELETE' })
+    .then(function(r) { return r.json().catch(function(){ return {}; }).then(function(d){ if (!r.ok || d.error) throw new Error(d.error || 'Not deleted'); }); })
     .then(function() { loadNotes(); showToast('Note deleted'); })
-    .catch(function() { showToast('Error deleting note'); });
+    .catch(function(e) { alert((e && e.message) || 'Not deleted'); });
 }
 function loadRecordDeals() {
   var list = document.getElementById('rec-deals-list');
@@ -8133,9 +8215,12 @@ async function loadReports() {
   if (!from.value){ var r=_rptRange('month'); from.value=r[0]; document.getElementById('rpt-to').value=r[1]; }
   if (!_rptTeamLoaded){
     _rptTeamLoaded=true;
-    try {
+    var sel=document.getElementById('rpt-rep');
+    var isMgr=((window.currentUser||{}).role==='manager');
+    if (!isMgr) { sel.closest('label').style.display='none'; sel.value='me'; }
+    else try {
+      sel.value='all'; // Sean's job is the team: open on the team view
       var team=await fetch('/api/m/team').then(function(r){return r.ok?r.json():[];});
-      var sel=document.getElementById('rpt-rep');
       team.forEach(function(u){ var o=document.createElement('option'); o.value=u.id; o.textContent=u.name; sel.appendChild(o); });
     } catch(e) {}
   }
@@ -8146,14 +8231,14 @@ async function loadReports() {
     var d=await res.json();
     if (!res.ok) throw new Error(d.error||('Error '+res.status));
     var k=d.kpis;
-    kp.innerHTML=[[k.visits,'Visits'],[k.accounts_visited,'Accounts visited'],[k.new_accounts,'New accounts'],[k.quotes,'Quotes ('+_rptMoney(k.quote_value)+')'],
+    kp.innerHTML=[[k.visits,'Calls + visits'],[k.accounts_visited,'Accounts visited'],[k.new_accounts,'New accounts'],[k.quotes,'Quotes ('+_rptMoney(k.quote_value)+')'],
       [_rptMoney(k.won_value),'Won'],[k.samples_sent,'Samples left'],[k.followups_overdue,'Follow-ups overdue']]
       .map(function(x){ return '<div class="rpt-kpi"><b>'+x[0]+'</b><span>'+_rptEsc(x[1])+'</span></div>'; }).join('');
     var none='<div class="rpt-empty">Nothing in this range.</div>';
     var maxW=Math.max.apply(null,d.by_week.map(function(w){return w.n;}).concat([1]));
     document.getElementById('rpt-weeks').innerHTML=d.by_week.length?'<div class="rpt-bars">'+d.by_week.map(function(w){
       return '<div class="rpt-bar"><span>'+w.n+'</span><i style="height:'+Math.max(3,Math.round(w.n/maxW*110))+'px"></i><em>'+_rptEsc(w.week.slice(5))+'</em></div>'; }).join('')+'</div>':none;
-    document.getElementById('rpt-reps').innerHTML=d.by_rep.length?'<table class="rpt-t"><thead><tr><th>Rep</th><th>Visits</th><th>Accts</th><th>Quotes</th><th>Won</th><th>Samples</th></tr></thead><tbody>'+
+    document.getElementById('rpt-reps').innerHTML=d.by_rep.length?'<table class="rpt-t"><thead><tr><th>Rep</th><th>Calls+visits</th><th>Accts</th><th>Quotes</th><th>Won</th><th>Samples</th></tr></thead><tbody>'+
       d.by_rep.map(function(r){ return '<tr><td>'+_rptEsc(r.rep)+'</td><td>'+r.visits+'</td><td>'+r.accounts+'</td><td>'+r.quotes+' ('+_rptMoney(r.quote_value)+')</td><td>'+_rptMoney(r.won_value)+'</td><td>'+r.samples+'</td></tr>'; }).join('')+'</tbody></table>':none;
     var lmax=(d.by_line[0]&&d.by_line[0].visits)||1;
     document.getElementById('rpt-lines').innerHTML=d.by_line.length?d.by_line.map(function(l){
@@ -9731,7 +9816,7 @@ function openQuoteDetail(id, _fetched) {
   qdFollowupUI();
   document.getElementById('qd-pdf-name').textContent = '';
   document.getElementById('qd-delete-btn').style.display = 'block';
-  var _nb = document.getElementById('qd-nudge-btn'); if (_nb) _nb.style.display = (q.status === 'Won' || q.status === 'Lost') ? 'none' : 'inline-block';
+  var _nb = document.getElementById('qd-nudge-btn'); var _me = window.currentUser || {}; var _mine = _me.role === 'manager' || q.user_id === _me.id || q.rep_id === _me.id; if (_nb) _nb.style.display = (!_mine || q.status === 'Won' || q.status === 'Lost') ? 'none' : 'inline-block';
   var dropArea = document.getElementById('qd-drop-area');
   dropArea.style.borderColor = 'var(--border)';
   dropArea.style.background = '#fafbfc';
@@ -10778,13 +10863,7 @@ window.verifyBeforeRoute = async function(lead, btn, onConfirmed) {
     var addr = lead.address || '';
     var comp = lead.company || '';
     var homePrimary = lead.homeBased || false;
-    // If homeBased not already flagged, run quick client-side re-check
-    if (!homePrimary) {
-      var hasSuffix  = _HB_SUFFIX.test(addr);
-      var hasUnit    = _HB_UNIT.test(addr);
-      var hasCorpInc = _HB_CORP.test(comp);
-      if (hasSuffix && !hasUnit && !hasCorpInc) homePrimary = true;
-    }
+    // The server already weighs street type, website and Google store type.
     if (homePrimary) {
       warnings.push('Address may be home-based. Call ahead before driving out.');
     }
@@ -11057,13 +11136,13 @@ window._saveRouteStopLog = function(stopIdx) {
 
   // Determine status upgrade from outcome
   var statusMap = {
-    'Reached — Interested':     'Hot Lead',
-    'Reached — Not Interested': 'Not Interested',
-    'Left Voicemail':           'Contacted',
-    'No Answer':                'Contacted',
-    'Appointment Set':          'Hot Lead',
-    'Sample Left':              'Sampled',
-    'Quoted':                   'Quoted'
+    // Same four statuses the rest of the app uses (New / Warm / Hot / Cold),
+    // so editing the account later doesn't knock it back to "New".
+    'Reached — Interested':     'Warm',
+    'Reached — Not Interested': 'Cold',
+    'Appointment Set':          'Hot',
+    'Sample Left':              'Warm',
+    'Quoted':                   'Hot'
   };
   if (statusMap[outcome]) updatePayload.status = statusMap[outcome];
   updatePayload.data_status = 'Contacted';
@@ -12270,13 +12349,13 @@ fetch('/api/notifications/evaluate', { method: 'POST' }).then(function(r){ retur
 
     <div style="font-size:11px;font-weight:700;color:#8a95a3;text-transform:uppercase;letter-spacing:.06em;padding:14px 20px 8px">Communication</div>
 
-    <button onclick="goAndCloseMenu('email')" class="mm-item">
+    <button onclick="goAndCloseMenu('email')" class="mm-item" data-roles="manager">
       <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#1d6aff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="18" height="14" rx="2"/><path d="M2 6l9 7 9-7"/></svg>
       <span>Email</span>
       <svg class="mm-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg>
     </button>
 
-    <button onclick="goAndCloseMenu('calendar')" class="mm-item">
+    <button onclick="goAndCloseMenu('calendar')" class="mm-item" data-roles="manager">
       <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#1d6aff" stroke-width="1.6" stroke-linecap="round"><rect x="2" y="4" width="18" height="16" rx="2"/><path d="M7 2v4M15 2v4M2 10h18"/></svg>
       <span>Team Calendar</span>
       <svg class="mm-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg>
@@ -12302,6 +12381,12 @@ fetch('/api/notifications/evaluate', { method: 'POST' }).then(function(r){ retur
       <svg class="mm-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg>
     </button>
 
+    <button onclick="goAndCloseMenu('weekly-planner')" class="mm-item">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#1d6aff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="16" height="15" rx="2"/><path d="M3 9h16M8 2v4M14 2v4"/></svg>
+      <span>Weekly Planner</span>
+      <svg class="mm-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg>
+    </button>
+
     <button onclick="goAndCloseMenu('reports')" class="mm-item">
       <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#1d6aff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 19V3M3 19h16M7 15v-5M11 15V6M15 15v-3"/></svg>
       <span>Reports</span>
@@ -12320,19 +12405,19 @@ fetch('/api/notifications/evaluate', { method: 'POST' }).then(function(r){ retur
       <svg class="mm-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg>
     </button>
 
-    <button onclick="goAndCloseMenu('command')" class="mm-item">
+    <button onclick="goAndCloseMenu('command')" class="mm-item" data-roles="manager">
       <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#1d6aff" stroke-width="1.6" stroke-linecap="round"><path d="M12 2L10 20M3 7l-2 4 2 4M19 7l2 4-2 4"/></svg>
       <span>AI Command</span>
       <svg class="mm-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg>
     </button>
 
-    <button onclick="goAndCloseMenu('bulk')" class="mm-item">
+    <button onclick="goAndCloseMenu('bulk')" class="mm-item" data-roles="manager">
       <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#1d6aff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="16" height="16" rx="2"/><path d="M8 12h6M11 9v6"/></svg>
       <span>Bulk Import</span>
       <svg class="mm-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg>
     </button>
 
-    <button onclick="goAndCloseMenu('manager')" class="mm-item">
+    <button onclick="goAndCloseMenu('manager')" class="mm-item" data-roles="manager">
       <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#1d6aff" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="3"/><circle cx="15" cy="8" r="3"/><path d="M2 19c0-3 3-5 6-5s6 2 6 5"/><path d="M15 14c3 .5 5 2.5 5 5"/></svg>
       <span>Team Dashboard</span>
       <svg class="mm-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg>
@@ -13162,7 +13247,7 @@ window.loadRecap = function() {
 
       actEl.innerHTML = groups.map(function(g) {
         var rows = (g.items || []).map(function(it) {
-          var tag = it.source === 'fortress' ? 'Fortress visit' : 'Call';
+          var tag = it.source === 'fortress' ? 'Fortress visit' : (it.visit ? 'Visit' : 'Call');
           var meta = [];
           if (it.contact) meta.push(_recapEscape(it.contact));
           if (it.outcome) meta.push(_recapEscape(it.outcome));
@@ -16981,7 +17066,7 @@ function plRenderGrid() {
     appts.forEach(function(a){
       html += '<div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:6px;padding:6px 8px;margin-bottom:6px;font-size:11px">';
       html += '<div style="display:flex;justify-content:space-between;gap:4px"><span style="font-weight:700;color:#3730a3">'+(a.appt_time?plEsc(a.appt_time):'')+' '+plEsc(a.title || a.account_company || 'Appointment')+'</span>';
-      if (!ro) html += '<span style="cursor:pointer;color:#94a3b8" onclick="plDeleteItem('+a.id+')">&times;</span>';
+      if (!ro) html += '<button class="pl-del" aria-label="Remove" onclick="event.stopPropagation();plDeleteItem('+a.id+')">&times;</button>';
       html += '</div>';
       if (a.note) html += '<div style="color:var(--text3);margin-top:2px">'+plEsc(a.note)+'</div>';
       html += '</div>';
@@ -16994,7 +17079,7 @@ function plRenderGrid() {
       html += '<div draggable="'+(ro?'false':'true')+'" ondragstart="plItemDragStart(event,'+s.id+')" style="background:'+(s.visited?'#dcfce7':'#f8fafc')+';border:1px solid '+(s.visited?'#86efac':'var(--border)')+';border-radius:6px;padding:6px 8px;margin-bottom:6px;font-size:11px;cursor:'+(ro?'default':'grab')+'">';
       html += '<div style="display:flex;justify-content:space-between;gap:4px;align-items:center">';
       html += '<span style="font-weight:600;color:var(--navy)">'+(s.visited?'&#10003; ':'')+label+(isAi?' <span style="font-size:9px;font-weight:700;color:#7c3aed;background:#ede9fe;padding:1px 5px;border-radius:8px;vertical-align:middle">AI</span>':'')+'</span>';
-      if (!ro) html += '<span style="cursor:pointer;color:#94a3b8" onclick="plDeleteItem('+s.id+')">&times;</span>';
+      if (!ro) html += '<button class="pl-del" aria-label="Remove" onclick="event.stopPropagation();plDeleteItem('+s.id+')">&times;</button>';
       html += '</div>';
       if (s.visited && s.visit_outcome) html += '<div style="color:#16a34a;margin-top:2px;font-weight:600">'+plEsc(s.visit_outcome)+'</div>';
       else if (s.account_city) html += '<div style="color:var(--text3);margin-top:2px">'+plEsc(s.account_city)+'</div>';
@@ -17063,6 +17148,7 @@ function plMoveItem(id, date) {
     .then(function(r){ return r.json(); }).then(function(){ plLoad(); });
 }
 function plDeleteItem(id) {
+  if (!confirm('Remove this from your plan?')) return;
   fetch('/api/planner/items/' + id, { method:'DELETE' }).then(function(){ plLoad(); });
 }
 
@@ -17098,7 +17184,9 @@ function plRenderPanel() {
 }
 function plPanelClick(id) {
   // tap-to-add to first day when grid is mobile/narrow
-  if (plIsMobile()) plAddStop(id, plState.weekStart);
+  if (!plIsMobile()) return;
+  var t = localYMD(), end = plAddDays(plState.weekStart, 4);
+  plAddStop(id, (t >= plState.weekStart && t <= end) ? t : plState.weekStart);
 }
 function plSearch() {
   var q = document.getElementById('pl-search').value.trim();
@@ -18543,11 +18631,23 @@ function dupMerge(gi) {
 </div>
 <div id="agent-offer" style="display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:84px;z-index:440;background:var(--navy);color:#fff;border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.25);padding:10px 12px 10px 16px;align-items:center;gap:12px;max-width:calc(100vw - 32px);font-size:13px"></div>
 <style>
+body:has(.mo.open) #pwa-install-banner,body:has(#agent-modal[style*="flex"]) #pwa-install-banner{display:none!important}
 #lead-city-input{flex:1;min-width:220px;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;color:var(--navy);background:#fff}
+.pl-del{border:none;background:none;color:#94a3b8;font-size:18px;line-height:1;cursor:pointer;padding:6px 8px;margin:-6px -6px -6px 0;min-width:36px;min-height:36px}
 /* Phone fixes for the original screens */
 @media (max-width:768px){
   #pl-layout{flex-direction:column}
   #pl-panel{width:100%!important;box-sizing:border-box}
+  #pl-grid{width:100%}
+  #page-weekly-report select,#page-weekly-report input{max-width:100%;min-width:0;box-sizing:border-box}
+  #page-weekly-report > div,#page-bulk > div{width:100%;max-width:100%!important;min-width:0;box-sizing:border-box}
+  #page-weekly-report div{min-width:0}
+  #page-weekly-report [style*="grid-template-columns"]{grid-template-columns:1fr!important}
+  #page-weekly-report [style*="display:flex"]{flex-wrap:wrap}
+  #page-weekly-report table{display:block;overflow-x:auto;max-width:100%}
+  #page-bulk [style*="grid-template-columns"]{grid-template-columns:1fr!important}
+  #page-bulk table{display:block;overflow-x:auto;max-width:100%}
+  #qcl-search{padding-left:34px!important}
   #page-contacts > div:first-child{flex-wrap:wrap}
   #lead-city-input{flex:1 1 100%!important;width:100%!important;min-width:0!important;box-sizing:border-box}
   #lead-btn-row{flex-wrap:wrap;width:100%}

@@ -6,6 +6,22 @@ const { accountKey, accountKeySql } = require('../lib/account-key');
 const DEFAULT_FOLLOWUP_MIN = 5000;
 
 // The rep's "no automatic follow-up under $X" threshold (users.quote_followup_min).
+// Who may change a quote: the person who entered it, the rep it's assigned
+// to, or a manager. Everyone can still see the team's quotes.
+async function quoteGuard(req, res) {
+  const me = req.session && req.session.user;
+  if (!me) { res.status(401).json({ error: 'Session expired. Please log in again.' }); return false; }
+  const id = parseInt(req.params.id);
+  if (!Number.isFinite(id)) { res.status(400).json({ error: 'Bad quote id' }); return false; }
+  if (me.role === 'manager') return true;
+  const r = await pool.query('SELECT user_id, rep_id FROM quotes WHERE id=$1', [id]);
+  if (!r.rows.length) { res.status(404).json({ error: 'Quote not found' }); return false; }
+  const q = r.rows[0];
+  if (q.user_id === me.id || q.rep_id === me.id) return true;
+  res.status(403).json({ error: "Only the quote's rep or a manager can change it" });
+  return false;
+}
+
 async function followupMin(uid) {
   const r = await pool.query('SELECT quote_followup_min FROM users WHERE id=$1', [uid]);
   const v = r.rows[0] && r.rows[0].quote_followup_min;
@@ -56,7 +72,12 @@ router.get('/', async (req, res) => {
     };
     const whereClause = (range && rangeFilters[range]) ? `WHERE ${rangeFilters[range]}` : '';
     const result = await pool.query(
-      `SELECT q.*, COALESCE(q.rep_name, u.name) as rep_name
+      // Every column except pdf_data: the list never shows the PDF, and sending
+      // every quote's base64 file on each load made the Quotes page crawl.
+      `SELECT q.id, q.user_id, q.rep_id, q.quote_number, q.customer_number, q.status, q.account_name,
+              q.contact_name, q.amount, q.products, q.comments, q.quote_date, q.follow_up_date,
+              q.follow_up_enabled, q.pdf_filename, q.created_at, q.updated_at,
+              COALESCE(q.rep_name, u.name) as rep_name
        FROM quotes q
        LEFT JOIN users u ON q.user_id = u.id
        ${whereClause}
@@ -103,18 +124,21 @@ router.post('/followups/bulk', async (req, res) => {
     const ids = (Array.isArray(req.body.ids) ? req.body.ids : []).map(Number).filter(Number.isFinite);
     const { action, date } = req.body;
     if (!ids.length) return res.status(400).json({ error: 'No quotes selected' });
+    const me = req.session.user;
+    // Reps can only bulk-change their own quotes.
+    const mine = me.role === 'manager' ? 'TRUE' : '(user_id = ' + parseInt(me.id) + ' OR rep_id = ' + parseInt(me.id) + ')';
     let r;
     if (action === 'dismiss') {
       r = await pool.query(
         `UPDATE quotes SET follow_up_date = NULL, follow_up_enabled = FALSE,
                 status = CASE WHEN status = 'Follow-Up' THEN 'Sent' ELSE status END,
                 updated_at = NOW()
-          WHERE id = ANY($1::int[]) AND status NOT IN ('Won','Lost')`, [ids]);
+          WHERE id = ANY($1::int[]) AND status NOT IN ('Won','Lost') AND ${mine}`, [ids]);
     } else if (action === 'reschedule') {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) return res.status(400).json({ error: 'Pick a follow-up date' });
       r = await pool.query(
         `UPDATE quotes SET follow_up_date = $2, follow_up_enabled = TRUE, updated_at = NOW()
-          WHERE id = ANY($1::int[])`, [ids, date]);
+          WHERE id = ANY($1::int[]) AND ${mine}`, [ids, date]);
     } else {
       return res.status(400).json({ error: 'Unknown action' });
     }
@@ -371,6 +395,7 @@ router.post('/', async (req, res) => {
 
 // PUT update quote — team-wide edit access, persists rep_name
 router.put('/:id', async (req, res) => {
+  if (!(await quoteGuard(req, res))) return;
   try {
     // Guard: always return JSON even if session somehow missing
     if (!req.session || !req.session.user || !req.session.user.id) {
@@ -462,6 +487,7 @@ router.put('/:id', async (req, res) => {
 // save itself into a body-parse 400. This endpoint is best-effort: if it fails,
 // the quote row is already saved and the client tells the rep to retry the PDF.
 router.post('/:id/pdf', async (req, res) => {
+  if (!(await quoteGuard(req, res))) return;
   try {
     if (!req.session || !req.session.user || !req.session.user.id) {
       return res.status(401).json({ error: 'Session expired. Please log in again.' });
@@ -491,8 +517,9 @@ router.post('/:id/pdf', async (req, res) => {
   }
 });
 
-// DELETE quote — team-wide
+// DELETE quote: its rep, whoever entered it, or a manager
 router.delete('/:id', async (req, res) => {
+  if (!(await quoteGuard(req, res))) return;
   try {
     await pool.query('DELETE FROM quotes WHERE id = $1', [req.params.id]);
     res.json({ success: true });
