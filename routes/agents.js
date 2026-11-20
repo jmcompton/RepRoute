@@ -52,8 +52,10 @@ router.post('/after-visit', async (req, res) => {
       `SELECT 1 FROM samples WHERE prospect_id=$1 AND sent_date >= $2::date - 1 LIMIT 1`, [c.prospect_id, c.call_day])).rows.length > 0;
     const quoteSince = (await pool.query(
       `SELECT 1 FROM quotes WHERE prospect_id=$1 AND created_at >= $2::date - 1 LIMIT 1`, [c.prospect_id, c.call_day])).rows.length > 0;
+    const sold = await require('../lib/sell').getLines().catch(() => []);
     const steps = afterVisit.suggest({ outcome: c.outcome, notes: c.notes, next_step: c.next_step, next_step_date: c.next_day,
-      products_discussed: c.products_discussed, call_day: c.call_day }, { sampleToday, quoteSince });
+      products_discussed: c.products_discussed, call_day: c.call_day }, { sampleToday, quoteSince },
+      sold.length ? require('../lib/sell').matchers(sold) : undefined);
     res.json({ call_id: c.id, call_day: c.call_day, prospect_id: c.prospect_id, company: c.company, contact: c.contact || '',
       next_step: c.next_step || '', next_step_date: c.next_day || '', steps });
   } catch (e) {

@@ -908,6 +908,55 @@ async function initDB() {
       return { linked: r.rowCount };
     });
     await runOnce('2026-11-20 pipeline catch-up', async () => require('./lib/pipeline').backfill(pool));
+
+    // "What you sell": the lines the team actively sells, with who buys them.
+    // Every agent reads this (lead hunt, next steps, shelf photos, documents).
+    // Built on the lines table the commission import already fills.
+    await pool.query(`ALTER TABLE lines ADD COLUMN IF NOT EXISTS featured BOOLEAN DEFAULT FALSE`);
+    await pool.query(`ALTER TABLE lines ADD COLUMN IF NOT EXISTS what TEXT`);
+    await pool.query(`ALTER TABLE lines ADD COLUMN IF NOT EXISTS buyer_segments TEXT[] DEFAULT '{}'`);
+    await pool.query(`ALTER TABLE lines ADD COLUMN IF NOT EXISTS competitors TEXT`);
+    await pool.query(`ALTER TABLE lines ADD COLUMN IF NOT EXISTS match_words TEXT`);
+    await pool.query(`ALTER TABLE lines ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0`);
+    await runOnce('2026-11-20 seed what you sell', async () => {
+      const { resolveLine } = require('./lib/lines-store');
+      // Buyer segments come from the Lead Finder pairings Kody tuned.
+      const seed = [
+        ['Soudal', 'Sealants, adhesives and foams. Lead product: Fix All.', ['Lumber / Building Supply', 'Window/Door Installer'], 'soudal, fix all, fixall, sealant'],
+        ['ShurTape', 'Flashing and building tapes.', ['Roofing Contractor', 'Siding Distributor', 'Window/Door Installer'], 'shurtape, shur tape, flashing tape, tape'],
+        ['Alum-A-Pole', 'Pump jack scaffolding and work platforms.', ['Siding Contractor', 'Construction Fasteners'], 'alum-a-pole, alumapole, alum a pole, pump jack, ladder'],
+        ['Fortress', 'Steel deck framing, railing and fencing.', ['Deck Contractor', 'Deck Distributor/Dealer'], 'fortress, railing'],
+        ['BOSS', 'Sealants and roofing products.', ['Roofing Contractor', 'Roofing Distributor'], 'boss']
+      ];
+      const had = (await pool.query('SELECT COUNT(*)::int n FROM lines WHERE featured')).rows[0].n;
+      if (had) return { skipped: 'already set up' };
+      let i = 0;
+      for (const [name, what, segs, words] of seed) {
+        const id = await resolveLine(pool, name);
+        await pool.query(`UPDATE lines SET featured=TRUE, what=COALESCE(what,$2), buyer_segments=$3, match_words=COALESCE(match_words,$4), sort_order=$5 WHERE id=$1`,
+          [id, what, segs, words, i++]);
+      }
+      return { lines: seed.length };
+    });
+
+    // Overnight lead hunt results, one row per rep per Google listing.
+    await pool.query(`CREATE TABLE IF NOT EXISTS leads (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      place_id TEXT NOT NULL,
+      company TEXT NOT NULL, segment TEXT, category TEXT, address TEXT, city TEXT, state TEXT,
+      phone TEXT, website TEXT, lat DOUBLE PRECISION, lng DOUBLE PRECISION,
+      score INTEGER DEFAULT 0, why TEXT, pitch TEXT,
+      status TEXT NOT NULL DEFAULT 'new',
+      prospect_id INTEGER REFERENCES prospects(id) ON DELETE SET NULL,
+      found_at TIMESTAMPTZ DEFAULT NOW(), decided_at TIMESTAMPTZ,
+      UNIQUE (user_id, place_id))`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_leads_user_status ON leads(user_id, status)`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS lead_hunt_runs (
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, run_day DATE NOT NULL,
+      found INTEGER DEFAULT 0, note TEXT, ran_at TIMESTAMPTZ DEFAULT NOW(), PRIMARY KEY (user_id, run_day))`);
+    // Which layout a person uses: 'classic' until they switch to the new one.
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ui_layout TEXT DEFAULT 'classic'`);
   } catch (e) {
     console.error('[migrate] one-time jobs:', e.message);
   }

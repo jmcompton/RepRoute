@@ -599,7 +599,7 @@ async function locateAccountByName(acct, region, placesKey) {
   }
 }
 
-router.post('/daily-leads', async (req, res) => {
+async function dailyLeadsHandler(req, res) {
   const uid = req.session.user.id;
   const PLACES_KEY = process.env.GOOGLE_PLACES_API_KEY;
   if (!PLACES_KEY) return res.status(500).json({ error: 'Google Places API key not configured' });
@@ -992,6 +992,8 @@ router.post('/daily-leads', async (req, res) => {
             website: place.websiteUri || '',
             products: matchingBrands.join(', ') || brands.join(', '),
             place_id: placeId,
+            lat: place.location?.latitude ?? null,
+            lng: place.location?.longitude ?? null,
             territory: route ? 'Along today\'s route' : city,
             opportunity_score: opportunityScore,
             priority: opportunityScore >= 8 ? 'High' : opportunityScore >= 6 ? 'Medium' : 'Low',
@@ -1064,7 +1066,19 @@ router.post('/daily-leads', async (req, res) => {
     console.error('daily-leads error:', e);
     res.status(500).json({ error: e.message });
   }
-});
+}
+router.post('/daily-leads', dailyLeadsHandler);
+
+// The same Lead Finder, called from the overnight lead hunt instead of a phone.
+// → { status, body } exactly as the rep would have gotten it.
+function runDailyLeads(user, body) {
+  return new Promise((resolve, reject) => {
+    const res = { statusCode: 200,
+      status(c) { this.statusCode = c; return this; },
+      json(j) { resolve({ status: this.statusCode, body: j }); return this; } };
+    dailyLeadsHandler({ session: { user }, body: body || {} }, res).catch(reject);
+  });
+}
 
 // ─── LOG CALL ────────────────────────────────────────────────────────────────
 router.post('/log-call', async (req, res) => {
@@ -1208,3 +1222,5 @@ router.post('/verify-lead', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.runDailyLeads = runDailyLeads;
+module.exports.SEGMENT_SEARCH_CONFIG = SEGMENT_SEARCH_CONFIG;

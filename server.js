@@ -197,6 +197,9 @@ app.use('/api/prospects', requireAuthAPI, prospectsRoutes);
 app.use('/api/calls', requireAuthAPI, callsRoutes);
 app.use('/api/documents', requireAuthAPI, require('./routes/documents'));
 app.use('/api/shelf', requireAuthAPI, require('./routes/shelf'));
+app.use('/api/sell', requireAuthAPI, require('./routes/sell'));
+app.use('/api/leads', requireAuthAPI, require('./routes/leads'));
+app.use('/api/accounts-list', requireAuthAPI, require('./routes/accounts-list'));
 app.use('/api/ai', requireAuthAPI, aiRoutes);
 app.use('/api/onboarding', requireAuthAPI, onboardingRoutes);
 app.use('/api/weekly', requireAuthAPI, weeklyRoutes);
@@ -304,6 +307,15 @@ async function weeklyReportCron() {
   } catch (e) { console.error('weekly-report cron error:', e.message); }
 }
 setInterval(weeklyReportCron, 30 * 60 * 1000); // check every 30 min
+
+// Overnight lead hunt: between 2 and 5 a.m. Eastern, once per person per day.
+async function leadHuntCron() {
+  try {
+    const h = parseInt(new Intl.DateTimeFormat('en-US', { hour: 'numeric', hour12: false, timeZone: 'America/New_York' }).format(new Date()));
+    if (h >= 2 && h < 5) await require('./lib/lead-hunt').huntAll();
+  } catch (e) { console.error('lead-hunt cron error:', e.message); }
+}
+if (process.env.NODE_ENV !== 'test') setInterval(leadHuntCron, 20 * 60 * 1000);
 setTimeout(weeklyReportCron, 45 * 1000);       // initial check 45s after boot
 
 // Last stop for any route error: log it, answer with JSON, keep the server up.

@@ -1633,6 +1633,16 @@ function localYMD(d){ d = d || new Date(); return d.getFullYear()+'-'+String(d.g
     <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 0115.5-6M21 12a9 9 0 01-15.5 6"/><polyline points="18 2 18 6 14 6"/><polyline points="6 22 6 18 10 18"/></svg>
     <span>Reconnect</span>
   </button>
+  <button class="bn-item bn2" id="bn2-today" onclick="go('today')">
+    <svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span>Today</span></button>
+  <button class="bn-item bn2" id="bn2-accts" onclick="go('acctlist')">
+    <svg viewBox="0 0 24 24"><path d="M4 21V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v16M15 9h4a1 1 0 0 1 1 1v11M8 8h3M8 12h3M8 16h3M2 21h20"/></svg><span>Accounts</span></button>
+  <button class="bn-item bn2 bn2-mic" id="bn2-log" aria-label="Log a visit" onclick="ui2Log()">
+    <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+  <button class="bn-item bn2" id="bn2-pipe" onclick="go('deals')">
+    <svg viewBox="0 0 24 24"><path d="M4 5h4v14H4zM10 5h4v9h-4zM16 5h4v5h-4z"/></svg><span>Pipeline</span></button>
+  <button class="bn-item bn2" id="bn2-quotes" onclick="go('quotes')">
+    <svg viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/></svg><span>Quotes</span></button>
   <button class="bn-item" id="bn-more" data-roles="rep intern manager" onclick="openMobileMenu()">
     <svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     <span>More</span>
@@ -1659,6 +1669,7 @@ function localYMD(d){ d = d || new Date(); return d.getFullYear()+'-'+String(d.g
     <button class="sb-item" data-roles="rep manager" onclick="go('quotes')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><path d="M3 2h10a1 1 0 011 1v11a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1zM5 7h6M5 9.5h4"/></svg>Quotes</button>
     <button class="sb-item" data-roles="rep manager" onclick="go('opportunities')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M8 1l2 4.5 4.9.4-3.7 3.2 1.1 4.8L8 11.5 3.7 13.9l1.1-4.8L1.1 5.9 6 5.5z"/></svg>Opportunities</button>
     <button class="sb-item" data-roles="rep intern manager" onclick="go('manufacturers')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 14V6l4-2v3l4-2v3l4-2v8z"/><path d="M2 14h12"/></svg>Manufacturers</button>
+    <button class="sb-item" data-roles="rep intern manager" onclick="go('sell')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 5l6-3 6 3-6 3z"/><path d="M2 8l6 3 6-3M2 11l6 3 6-3"/></svg>What you sell</button>
     <button class="sb-item" data-roles="rep intern manager" onclick="go('documents')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M4 1.5h5l3 3v10H4z"/><path d="M9 1.5v3h3M6 8h4M6 11h4"/></svg>Documents</button>
     <button class="sb-item" data-roles="rep intern manager" onclick="go('fortress')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 14V5l3-2 3 2 3-2 3 2v9z"/><path d="M5 14V8M11 14V8M2 11h12"/></svg>Fortress Promo</button>
   </div>
@@ -1690,6 +1701,7 @@ function localYMD(d){ d = d || new Date(); return d.getFullYear()+'-'+String(d.g
       <button onclick="openTerritoryModal()" style="font-size:10px;padding:3px 8px;background:transparent;border:1px solid var(--border);border-radius:4px;color:rgba(255,255,255,.5);cursor:pointer;font-family:inherit">Change</button>
     </div>
     <div class="sb-user"><div class="sb-av" id="s-av">JM</div><div><div class="sb-uname" id="s-name">Loading...</div><div class="sb-urole" id="s-role">Rep</div></div></div>
+    <button class="sb-out" id="sb-layout-btn" onclick="toggleLayout()" style="margin-bottom:6px">Try the new layout</button>
     <button class="sb-out" onclick="signOut()">Sign Out</button>
   </div>
 </aside>
@@ -2813,6 +2825,69 @@ function localYMD(d){ d = d || new Date(); return d.getFullYear()+'-'+String(d.g
   </div>
 
   <!-- DAILY RECAP PAGE -->
+  <div class="page" id="page-acctlist" style="overflow-y:auto;padding-bottom:90px">
+    <div class="a2-wrap">
+      <div class="a2-head">
+        <h1 class="a2-h1">Accounts</h1>
+        <div class="a2-actions">
+          <button type="button" class="a2-btn" onclick="go('newleads')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>Find leads</button>
+          <button type="button" class="a2-btn a2-pri" onclick="openModal('add-prospect')">New account</button>
+        </div>
+      </div>
+      <div class="a2-views" id="a2-views" role="tablist" aria-label="List views"></div>
+      <div class="a2-card">
+        <div class="a2-filters">
+          <label class="a2-search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5b6472" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+            <input id="a2-q" type="search" placeholder="Search name, city, contact or phone" oninput="a2Search()" aria-label="Search accounts"></label>
+          <select id="a2-type" class="a2-sel" onchange="a2Filter()" aria-label="Type"></select>
+          <select id="a2-city" class="a2-sel" onchange="a2Filter()" aria-label="City"></select>
+          <select id="a2-owner" class="a2-sel" onchange="a2Filter()" aria-label="Owner"></select>
+          <select id="a2-stage" class="a2-sel" onchange="a2Filter()" aria-label="Stage"></select>
+          <select id="a2-line" class="a2-sel" onchange="a2Filter()" aria-label="Buys"></select>
+        </div>
+        <div id="a2-body"></div>
+        <div class="a2-foot"><span id="a2-range"></span><span><button type="button" class="a2-btn a2-sm" id="a2-prev" onclick="a2Page(-1)">Previous</button> <button type="button" class="a2-btn a2-sm" id="a2-next" onclick="a2Page(1)">Next</button></span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page" id="page-newleads" style="overflow-y:auto;padding-bottom:90px">
+    <div class="a2-wrap">
+      <button type="button" class="a2-link" onclick="go('acctlist')">All accounts</button>
+      <h1 class="a2-h1" style="margin-top:6px">New leads</h1>
+      <p class="a2-sub">Found overnight. Each one is a business type that buys your lines, in your area, and not in RepRoute yet. Add the good ones to your route and skip the rest.</p>
+      <div class="a2-split">
+        <div class="a2-card" id="nl-list" style="flex:2 1 520px;min-width:0"></div>
+        <div style="flex:1 1 280px;min-width:0;display:flex;flex-direction:column;gap:14px">
+          <div class="a2-card" style="padding:16px 18px">
+            <div class="a2-h2">Find more now</div>
+            <label class="a2-lbl" for="nl-seg">Business type</label>
+            <select id="nl-seg" class="a2-sel" style="width:100%"></select>
+            <button type="button" id="nl-hunt-btn" class="a2-btn a2-pri" style="width:100%;margin-top:12px" onclick="nlHunt()">Search near me</button>
+            <div id="nl-hunt-msg" class="a2-note"></div>
+          </div>
+          <div class="a2-card a2-info" style="padding:14px 16px">
+            <b>How these are picked.</b> RepRoute takes the business types under "Who buys it" on <button type="button" class="a2-link" onclick="go('sell')" style="display:inline;padding:0">What you sell</button>, searches your area every night, skips anyone already in RepRoute, and ranks by fit and distance.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page" id="page-sell" style="overflow-y:auto;padding-bottom:90px">
+    <div class="a2-wrap">
+      <div class="a2-head">
+        <div>
+          <h1 class="a2-h1">What you sell</h1>
+          <p class="a2-sub" style="margin-bottom:0">RepRoute's agents read this page. It is how they know which businesses to find, which lines to spot in your notes and on a shelf, and how to file documents.</p>
+        </div>
+        <button type="button" class="a2-btn a2-pri" id="sell-add-btn" style="display:none" onclick="sellEdit(0)">Add a line</button>
+      </div>
+      <div id="sell-form"></div>
+      <div id="sell-list" class="a2-grid"></div>
+    </div>
+  </div>
+
   <div class="page" id="page-documents" style="overflow-y:auto;padding-bottom:90px">
     <div style="padding:16px;max-width:820px;margin:0 auto">
       <div style="font-size:18px;font-weight:700;color:var(--navy)">Documents</div>
@@ -4351,7 +4426,10 @@ var pageTitles = {
   reconnect: 'Reconnect',
   fortress: 'Fortress Railing Promo',
   recap: 'Daily Recap',
-  documents: 'Documents'
+  documents: 'Documents',
+  acctlist: 'Accounts',
+  newleads: 'New leads',
+  sell: 'What you sell'
 };
 
 // Role-based nav visibility. Returns the normalized role used.
@@ -4531,6 +4609,9 @@ function go(id) {
   if (id === 'today') loadToday();
   if (id === 'samples') loadSamples();
   if (id === 'documents') loadDocuments();
+  if (id === 'acctlist' && typeof loadAcctList === 'function') loadAcctList();
+  if (id === 'newleads' && typeof loadNewLeads === 'function') loadNewLeads();
+  if (id === 'sell' && typeof loadSell === 'function') loadSell();
   if (id === 'time') loadTimeTracker();
   if (id === 'weekly-report') loadWeeklyReport();
   if (id === 'weekly-planner') loadPlanner();
@@ -12874,6 +12955,18 @@ fetch('/api/notifications/evaluate', { method: 'POST' }).then(function(r){ retur
       <svg class="mm-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg>
     </button>
 
+    <button onclick="goAndCloseMenu('sell')" class="mm-item">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#1d6aff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l8-4 8 4-8 4z"/><path d="M3 11l8 4 8-4M3 15l8 4 8-4"/></svg>
+      <span>What you sell</span>
+      <svg class="mm-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg>
+    </button>
+
+    <button onclick="closeMobileMenu();toggleLayout()" class="mm-item" id="mm-layout-btn">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#1d6aff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="16" height="16" rx="3"/><path d="M8 3v16"/></svg>
+      <span id="mm-layout-label">Try the new layout</span>
+      <svg class="mm-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg>
+    </button>
+
     <button onclick="goAndCloseMenu('documents')" class="mm-item">
       <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#1d6aff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2h8l4 4v14H5z"/><path d="M13 2v4h4M8 11h6M8 15h6"/></svg>
       <span>Documents</span>
@@ -19555,5 +19648,463 @@ textarea.ag-in{min-height:220px;line-height:1.5;resize:vertical}
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run); else run();
 })();
 </script>
+<style>
+/* ── New layout (body.ui2). The classic layout is untouched without it. ── */
+.sb2{display:none;padding:4px 10px 8px}
+body.ui2 .sb2{display:block}
+body.ui2:not(.ui2-more) .sidebar .sb-section{display:none !important}
+body.ui2 .sidebar .ui2-dup{display:none !important}
+.sb2-log{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:40px;margin:2px 0 10px;border:none;border-radius:8px;background:#1d6aff;color:#fff;font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+.sb2-log:hover{background:#1558d6}
+.sb2-item{display:flex;align-items:center;gap:10px;width:100%;min-height:40px;padding:0 10px;border:none;background:none;color:rgba(255,255,255,.72);font:inherit;font-size:14px;border-radius:7px;cursor:pointer;text-align:left}
+.sb2-item:hover{background:rgba(255,255,255,.06);color:#fff}
+.sb2-item.on{background:rgba(255,255,255,.11);color:#fff;font-weight:600}
+.sb2-item svg{width:17px;height:17px;flex-shrink:0}
+.sb2-badge{margin-left:auto;font-size:11px;font-weight:700;background:#9fc0ff;color:#0f1b2d;border-radius:999px;padding:1px 8px}
+.sb2-more{margin-top:6px;border-top:1px solid rgba(255,255,255,.08);padding-top:6px}
+.bottom-nav .bn-item.bn2{display:none}
+body.ui2 .bottom-nav .bn-item:not(.bn2){display:none !important}
+body.ui2 .bottom-nav .bn-item.bn2{display:flex}
+body.ui2.ui2-intern .bottom-nav #bn2-quotes{display:none}
+.bottom-nav .bn-item.bn2.active svg{stroke:#1d6aff}.bottom-nav .bn-item.bn2.active span{color:#1d6aff;font-weight:700}
+.bottom-nav .bn2-mic{flex:0 0 auto;width:54px;height:54px;margin-top:-20px;border-radius:50%;background:#1d6aff !important;justify-content:center;box-shadow:0 6px 16px rgba(29,106,255,.35)}
+.bottom-nav .bn2-mic svg{stroke:#fff !important;width:24px;height:24px}
+
+.a2-wrap{max-width:1180px;width:100%;min-width:0;flex:1 1 auto;box-sizing:border-box;margin:0 auto;padding:20px 24px 40px;display:flex;flex-direction:column;gap:14px}
+.a2-wrap>*{min-width:0}
+body.ui2 #vcl-float-btn{display:none !important}
+.a2-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+.a2-h1{margin:0;font-size:26px;font-weight:700;color:var(--navy);letter-spacing:-.01em}
+.a2-h2{font-size:16px;font-weight:700;color:var(--navy);margin-bottom:8px}
+.a2-sub{margin:4px 0 6px;font-size:14px;color:var(--text2);max-width:760px;line-height:1.45}
+.a2-actions{display:flex;gap:8px;flex-wrap:wrap}
+.a2-btn{min-height:40px;display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:0 14px;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--navy);font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+.a2-btn:hover{background:#f6f8fb}
+.a2-btn.a2-pri{background:#1d6aff;border-color:#1d6aff;color:#fff}.a2-btn.a2-pri:hover{background:#1558d6}
+.a2-btn.a2-sm{min-height:34px;padding:0 12px;font-size:13px}
+.a2-btn:disabled{opacity:.55;cursor:default}
+.a2-link{border:none;background:none;color:#1d6aff;font:inherit;font-size:14px;font-weight:600;cursor:pointer;padding:4px 0;text-align:left}
+.a2-views{display:flex;gap:8px;flex-wrap:wrap}
+.a2-view{min-height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--border);background:#fff;color:var(--navy);font:inherit;font-size:13.5px;font-weight:600;cursor:pointer}
+.a2-view.on{background:#0f1b2d;border-color:#0f1b2d;color:#fff}
+.a2-view.lead{background:#eaf0fe;border-color:#c9d8fb;color:#1d4fbf}
+.a2-card{background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.a2-filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--border)}
+.a2-search{flex:1 1 240px;display:flex;align-items:center;gap:8px;min-height:40px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:#fff}
+.a2-search input{flex:1;border:none;outline:none;font:inherit;font-size:14px;min-width:0;background:transparent}
+.a2-sel{min-height:40px;padding:0 10px;border:1px solid var(--border);border-radius:8px;background:#fff;font:inherit;font-size:14px;color:var(--navy);max-width:200px}
+.a2-tbl{width:100%;border-collapse:collapse;font-size:14px;min-width:900px}
+.a2-tbl th{background:#f8f9fb;text-align:left;color:#3d4654;font-weight:700;padding:0;white-space:nowrap}
+.a2-tbl th button{width:100%;text-align:left;border:none;background:none;font:inherit;font-weight:700;color:inherit;padding:10px 10px;cursor:pointer}
+.a2-tbl td{padding:11px 10px;border-top:1px solid #eef1f5;color:#3d4654;vertical-align:middle}
+.a2-tbl tr.a2-row{cursor:pointer}.a2-tbl tr.a2-row:hover td{background:#f8fafd}
+.a2-name{font-weight:600;color:#1d4fbf !important}
+.a2-chip{display:inline-block;font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.a2-scroll{overflow-x:auto}
+.a2-list{display:none}
+.a2-item{display:flex;align-items:center;gap:10px;width:100%;min-height:62px;padding:10px 16px;border:none;border-top:1px solid #eef1f5;background:#fff;font:inherit;text-align:left;cursor:pointer}
+.a2-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--border);font-size:13px;color:var(--text2)}
+.a2-empty{padding:28px 16px;text-align:center;color:var(--text3);font-size:14px}
+.a2-split{display:flex;flex-wrap:wrap;gap:18px;align-items:flex-start}
+.a2-lbl{display:block;font-size:12px;font-weight:700;color:var(--text2);margin:6px 0 6px}
+.a2-note{font-size:13px;color:var(--text2);margin-top:10px}
+.a2-info{background:#eef4ff;border-color:#d6e4ff;font-size:13.5px;color:#1f2937;line-height:1.5}
+.nl-row{display:flex;flex-wrap:wrap;gap:14px;padding:16px 18px;border-top:1px solid #eef1f5}
+.nl-row:first-child{border-top:none}
+.nl-tag{font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;background:#f1f3f6;color:#3d4654}
+.nl-acts{display:flex;flex-direction:column;gap:7px;flex:0 0 150px}
+.a2-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.sell-card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:9px}
+.sell-k{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em}
+.sell-v{font-size:14px;color:var(--navy);margin-top:2px}
+.sell-form{background:#fff;border:1px solid #c9d8fb;border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:10px;margin-bottom:6px}
+.sell-form input[type=text],.sell-form textarea{width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid var(--border);border-radius:7px;font:inherit;font-size:16px}
+.sell-segs{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:4px 12px}
+.sell-segs label{display:flex;align-items:center;gap:8px;font-size:14px;min-height:34px;cursor:pointer}
+@media(max-width:768px){
+  .a2-wrap{padding:14px 12px 30px}
+  .a2-h1{font-size:23px}
+  .a2-scroll{display:none}.a2-list{display:block}
+  .a2-sel{flex:1 1 45%;max-width:none}
+  .a2-views{flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px}
+  .a2-view{flex-shrink:0}
+  .nl-acts{flex:1 1 100%;flex-direction:row}
+  .nl-acts .a2-btn{flex:1}
+}
+</style>
+<script>
+// ── New layout: menus, Accounts list, New leads, What you sell ──
+(function() {
+  function esc(x) { return String(x == null ? '' : x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function J(url, opts) {
+    return fetch(url, opts).then(function(r) { return r.json().catch(function() { return {}; }).then(function(d) { if (!r.ok) throw new Error(d.error || 'Something went wrong'); return d; }); });
+  }
+  function post(url, body) { return J(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) }); }
+  function toast(m) { if (typeof showToast === 'function') showToast(m); }
+  var ICON = {
+    today: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>',
+    accts: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v16M15 9h4a1 1 0 0 1 1 1v11M8 8h3M8 12h3M8 16h3M2 21h20"/></svg>',
+    pipe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 5h4v14H4zM10 5h4v9h-4zM16 5h4v5h-4z"/></svg>',
+    quotes: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/></svg>',
+    more: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>',
+    mic: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>'
+  };
+  var SB2_PAGE = { today: 'today', acctlist: 'accts', newleads: 'accts', record: 'accts', deals: 'pipe', quotes: 'quotes' };
+  var BN2 = { today: 'bn2-today', acctlist: 'bn2-accts', newleads: 'bn2-accts', record: 'bn2-accts', deals: 'bn2-pipe', quotes: 'bn2-quotes' };
+
+  function isNew() { return document.body.classList.contains('ui2'); }
+  window.ui2Log = function() {
+    if (typeof VCL_open === 'function') VCL_open(); else if (typeof openQuickCallLog === 'function') openQuickCallLog();
+  };
+
+  function buildSidebar() {
+    var sb = document.querySelector('.sidebar'); if (!sb || document.getElementById('sb2')) return;
+    var box = document.createElement('div'); box.className = 'sb2'; box.id = 'sb2';
+    box.innerHTML =
+      '<button type="button" class="sb2-log" onclick="ui2Log()">' + ICON.mic + 'Log a visit</button>' +
+      '<button type="button" class="sb2-item" data-p="today" onclick="go(\'today\')">' + ICON.today + 'Today</button>' +
+      '<button type="button" class="sb2-item" data-p="accts" onclick="go(\'acctlist\')">' + ICON.accts + 'Accounts<span class="sb2-badge" id="sb2-leads" style="display:none"></span></button>' +
+      '<button type="button" class="sb2-item" data-p="pipe" onclick="go(\'deals\')">' + ICON.pipe + 'Pipeline</button>' +
+      '<button type="button" class="sb2-item" data-p="quotes" id="sb2-quotes" onclick="go(\'quotes\')">' + ICON.quotes + 'Quotes</button>' +
+      '<div class="sb2-more"><button type="button" class="sb2-item" id="sb2-more-btn" aria-expanded="false" onclick="ui2More()">' + ICON.more + 'More</button></div>';
+    var after = sb.querySelector('.sb-search-wrap') || sb.querySelector('.sb-brand');
+    after.parentNode.insertBefore(box, after.nextSibling);
+    // The four main places are on top already, so hide them inside More.
+    sb.querySelectorAll('.sb-section .sb-item').forEach(function(b) {
+      var oc = b.getAttribute('onclick') || '';
+      if (/go\('(dashboard|today|contacts|deals|quotes)'\)/.test(oc)) b.classList.add('ui2-dup');
+    });
+  }
+  window.ui2More = function(force) {
+    var open = typeof force === 'boolean' ? force : !document.body.classList.contains('ui2-more');
+    document.body.classList.toggle('ui2-more', open);
+    var b = document.getElementById('sb2-more-btn'); if (b) b.setAttribute('aria-expanded', open ? 'true' : 'false');
+  };
+
+  function applyLayout(layout) {
+    var on = layout === 'new';
+    document.body.classList.toggle('ui2', on);
+    var role = (window.__userData && window.__userData.role) || 'rep';
+    document.body.classList.toggle('ui2-intern', role === 'intern');
+    var q = document.getElementById('sb2-quotes'); if (q) q.style.display = role === 'intern' ? 'none' : '';
+    var lb = document.getElementById('sb-layout-btn'); if (lb) lb.textContent = on ? 'Back to the classic layout' : 'Try the new layout';
+    var ml = document.getElementById('mm-layout-label'); if (ml) ml.textContent = on ? 'Back to the classic layout' : 'Try the new layout';
+    if (on) refreshLeadBadge();
+    overnightStrip();
+  }
+  window.toggleLayout = function() {
+    var next = isNew() ? 'classic' : 'new';
+    J('/api/accounts-list/layout', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ layout: next }) })
+      .then(function(d) {
+        if (window.__userData) window.__userData.ui_layout = d.layout;
+        applyLayout(d.layout);
+        go(d.layout === 'new' ? 'today' : 'today');
+        toast(d.layout === 'new' ? 'New layout on. Switch back any time under More.' : 'Classic layout on.');
+      }).catch(function(e) { toast(e.message); });
+  };
+
+  function syncNav(id) {
+    var key = SB2_PAGE[id] || '';
+    document.querySelectorAll('.sb2-item[data-p]').forEach(function(b) { b.classList.toggle('on', b.getAttribute('data-p') === key); });
+    if (isNew()) {
+      var bn = BN2[id] || '';
+      document.querySelectorAll('.bottom-nav .bn2').forEach(function(b) { b.classList.toggle('active', b.id === bn); });
+      if (!key) ui2More(true);
+    }
+  }
+  var _go = window.go;
+  window.go = function(id) {
+    if (isNew() && id === 'contacts') id = 'acctlist';
+    if (isNew() && id === 'leads') id = 'newleads';
+    _go(id);
+    syncNav(id === 'dashboard' || id === 'home' ? 'today' : id);
+    if (id === 'today' || id === 'dashboard' || id === 'home') overnightStrip();
+    if (typeof closeSidebar === 'function' && window.innerWidth <= 768) closeSidebar();
+  };
+
+  function refreshLeadBadge() {
+    J('/api/leads/count').then(function(d) {
+      var b = document.getElementById('sb2-leads'); if (!b) return;
+      b.textContent = d.count + ' new'; b.style.display = d.count ? '' : 'none';
+    }).catch(function() {});
+  }
+  window.ui2RefreshLeads = refreshLeadBadge;
+
+  // Today: what the overnight hunt found, right at the top.
+  function overnightStrip() {
+    var brief = document.getElementById('today-brief'); if (!brief) return;
+    var el = document.getElementById('ui2-overnight');
+    if (!isNew()) { if (el) el.remove(); return; }
+    J('/api/leads/count').then(function(d) {
+      el = document.getElementById('ui2-overnight');
+      if (!d.count || !isNew()) { if (el) el.remove(); return; }
+      if (!el) { el = document.createElement('button'); el.type = 'button'; el.id = 'ui2-overnight'; brief.parentNode.insertBefore(el, brief); }
+      el.setAttribute('onclick', "go('newleads')");
+      el.style.cssText = 'order:-1;display:flex;align-items:center;gap:12px;width:100%;box-sizing:border-box;margin:0 0 12px;padding:14px 16px;border:none;border-radius:12px;background:#0f1b2d;color:#fff;font:inherit;text-align:left;cursor:pointer';
+      el.innerHTML = '<span style="flex:1"><span style="display:block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#9fc0ff">Found overnight</span>' +
+        '<span style="display:block;font-size:15px;margin-top:2px">' + d.count + ' new lead' + (d.count === 1 ? '' : 's') + ' that buy your lines</span></span>' +
+        '<span style="font-size:14px;font-weight:700;color:#9fc0ff;white-space:nowrap">See them</span>';
+    }).catch(function() {});
+  }
+
+  // ── Opening any account from a list, and the Recently viewed list ──
+  function remember(id) {
+    try {
+      var a = JSON.parse(localStorage.getItem('rr_recent_accounts') || '[]').filter(function(x) { return x !== id; });
+      a.unshift(id); localStorage.setItem('rr_recent_accounts', JSON.stringify(a.slice(0, 30)));
+    } catch (e) {}
+  }
+  function recent() { try { return JSON.parse(localStorage.getItem('rr_recent_accounts') || '[]'); } catch (e) { return []; } }
+  window.openAccount = function(id, mine) {
+    id = parseInt(id); remember(id);
+    if (mine && typeof viewRecord === 'function') { viewRecord(id); return; }
+    var have = (window._teamContactsCache || []).some(function(x) { return String(x.id) === String(id); });
+    var open = function() { if (typeof viewTeamRecord === 'function') viewTeamRecord(id); };
+    if (have) { open(); return; }
+    J('/api/prospects/team').then(function(rows) { window._teamContactsCache = rows; open(); }).catch(function() { toast('Couldn\'t open that account'); });
+  };
+  ['viewRecord', 'viewTeamRecord'].forEach(function(fn) {
+    var orig = window[fn]; if (typeof orig !== 'function') return;
+    window[fn] = function(id) { remember(parseInt(id)); return orig.apply(this, arguments); };
+  });
+
+  // ── Accounts list ──
+  var A = { view: 'all', q: '', type: '', city: '', owner: '', stage: '', line: '', sort: 'name', dir: 'asc', page: 1, per: 50 };
+  var STAGE = { 'New Lead': ['#f1f3f6', '#3d4654'], 'Contacted': ['#eef2ff', '#3b3fb0'], 'Sampled': ['#e7f5ec', '#166534'],
+    'Quoted': ['#eaf0fe', '#1d4fbf'], 'Closed Won': ['#e6f4ea', '#14532d'], 'Closed Lost': ['#fdecea', '#9b1c1c'] };
+  function chip(stage) { var c = STAGE[stage] || STAGE['New Lead']; return '<span class="a2-chip" style="background:' + c[0] + ';color:' + c[1] + '">' + esc(stage) + '</span>'; }
+  function money(n) { return n ? '$' + Math.round(n).toLocaleString('en-US') : ''; }
+  function shortDay(ymd) { if (!ymd) return ''; var d = new Date(ymd + 'T12:00:00'); return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: d.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' }); }
+  function lastVisit(r) {
+    if (!r.last_visit) return '<span style="color:var(--text3)">Never</span>';
+    var cold = r.days_since >= 45;
+    return '<span style="' + (cold ? 'color:#8a4a0b;font-weight:600' : '') + '">' + (cold ? r.days_since + ' days ago' : esc(shortDay(r.last_visit))) + '</span>';
+  }
+  var facetsLoaded = false;
+  function fillSelect(id, label, opts, cur) {
+    var el = document.getElementById(id); if (!el) return;
+    el.innerHTML = '<option value="">' + esc(label) + '</option>' + opts.map(function(o) {
+      return '<option value="' + esc(o.v) + '"' + (String(o.v) === String(cur) ? ' selected' : '') + '>' + esc(o.t) + '</option>';
+    }).join('');
+  }
+  function loadFacets() {
+    return J('/api/accounts-list/facets').then(function(f) {
+      var c = f.counts || {};
+      var views = [['all', 'All accounts', c.all], ['mine', 'My accounts', c.mine], ['leads', 'New leads', c.leads], ['cold', 'Going cold', c.cold], ['recent', 'Recently viewed', null]];
+      document.getElementById('a2-views').innerHTML = views.map(function(v) {
+        var cls = 'a2-view' + (v[0] === 'leads' ? ' lead' : '') + (A.view === v[0] ? ' on' : '');
+        return '<button type="button" role="tab" aria-selected="' + (A.view === v[0]) + '" class="' + cls + '" onclick="a2View(\'' + v[0] + '\')">' + esc(v[1]) + (v[2] != null ? ' · ' + v[2] : '') + '</button>';
+      }).join('');
+      if (!facetsLoaded) {
+        fillSelect('a2-type', 'Type: any', (f.types || []).map(function(t) { return { v: t.v, t: t.v }; }), A.type);
+        fillSelect('a2-city', 'City: any', (f.cities || []).map(function(t) { return { v: t.v, t: t.v }; }), A.city);
+        fillSelect('a2-owner', 'Owner: anyone', (f.owners || []).map(function(t) { return { v: t.id, t: t.name }; }), A.owner);
+        fillSelect('a2-stage', 'Stage: any', (f.stages || []).map(function(t) { return { v: t, t: t }; }), A.stage);
+        fillSelect('a2-line', 'Buys: any line', (f.lines || []).map(function(t) { return { v: t.id, t: 'Buys ' + t.name }; }), A.line);
+        facetsLoaded = true;
+      }
+    }).catch(function() {});
+  }
+  function loadRows() {
+    var body = document.getElementById('a2-body');
+    if (!body.innerHTML) body.innerHTML = '<div class="a2-empty">Loading...</div>';
+    var qs = ['view', 'q', 'type', 'city', 'owner', 'stage', 'line', 'sort', 'dir', 'page', 'per'].map(function(k) { return k + '=' + encodeURIComponent(A[k]); }).join('&');
+    if (A.view === 'recent') qs += '&ids=' + recent().join(',');
+    var mine = A.view;
+    return J('/api/accounts-list?' + qs).then(function(d) {
+      if (mine !== A.view) return;
+      var rows = d.rows || [];
+      var cols = [['name', 'Account name'], ['type', 'Type'], ['city', 'City'], ['owner', 'Owner'], ['stage', 'Stage'], ['last_visit', 'Last visit'], ['open_quotes', 'Open quotes']];
+      var head = '<tr>' + cols.map(function(c) {
+        var on = A.sort === c[0], arrow = on ? (A.dir === 'asc' ? ' ↑' : ' ↓') : '';
+        return '<th scope="col"' + (c[0] === 'open_quotes' ? ' style="text-align:right"' : '') + ' aria-sort="' + (on ? (A.dir === 'asc' ? 'ascending' : 'descending') : 'none') + '"><button type="button" onclick="a2Sort(\'' + c[0] + '\')"' + (c[0] === 'open_quotes' ? ' style="text-align:right"' : '') + '>' + c[1] + arrow + '</button></th>';
+      }).join('') + '</tr>';
+      var trs = rows.map(function(r) {
+        return '<tr class="a2-row" tabindex="0" onclick="openAccount(' + r.id + ',' + (r.mine ? 'true' : 'false') + ')" onkeydown="if(event.key===\'Enter\')openAccount(' + r.id + ',' + (r.mine ? 'true' : 'false') + ')">' +
+          '<td class="a2-name">' + esc(r.company) + '</td><td>' + esc(r.category || '') + '</td><td>' + esc(r.city || '') + '</td>' +
+          '<td>' + (r.mine ? 'You' : esc(r.owner || '')) + '</td><td>' + chip(r.stage) + '</td><td>' + lastVisit(r) + '</td>' +
+          '<td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--navy);font-weight:600">' + money(r.open_amount) + '</td></tr>';
+      }).join('');
+      var items = rows.map(function(r) {
+        return '<button type="button" class="a2-item" onclick="openAccount(' + r.id + ',' + (r.mine ? 'true' : 'false') + ')">' +
+          '<span style="flex:1;min-width:0"><span style="display:block;font-size:15px;font-weight:600;color:var(--navy)">' + esc(r.company) + '</span>' +
+          '<span style="display:block;font-size:12.5px;color:var(--text2)">' + esc([r.city, r.mine ? 'You' : r.owner].filter(Boolean).join(' · ')) + ' · ' + lastVisit(r) + '</span></span>' + chip(r.stage) + '</button>';
+      }).join('');
+      var empty = A.view === 'recent' ? 'Accounts you open show up here.' : (A.q || A.type || A.city || A.owner || A.stage || A.line) ? 'No accounts match. Try fewer filters.' : 'No accounts here yet.';
+      body.innerHTML = rows.length
+        ? '<div class="a2-scroll"><table class="a2-tbl"><thead>' + head + '</thead><tbody>' + trs + '</tbody></table></div><div class="a2-list">' + items + '</div>'
+        : '<div class="a2-empty">' + empty + '</div>';
+      var from = d.total ? (d.page - 1) * d.per + 1 : 0, to = Math.min(d.page * d.per, d.total);
+      document.getElementById('a2-range').textContent = d.total ? from + ' to ' + to + ' of ' + d.total : '';
+      document.getElementById('a2-prev').disabled = d.page <= 1;
+      document.getElementById('a2-next').disabled = to >= d.total;
+    }).catch(function(e) { body.innerHTML = '<div class="a2-empty">' + esc(e.message) + '</div>'; });
+  }
+  window.loadAcctList = function() { loadFacets(); return loadRows(); };
+  window.a2View = function(v) {
+    if (v === 'leads') { go('newleads'); return; }
+    A.view = v; A.page = 1;
+    document.querySelectorAll('#a2-views .a2-view').forEach(function(b) {
+      var on = (b.getAttribute('onclick') || '').indexOf("'" + v + "'") >= 0; b.classList.toggle('on', on); b.setAttribute('aria-selected', on);
+    });
+    loadRows();
+  };
+  var searchTimer = null;
+  window.a2Search = function() { clearTimeout(searchTimer); searchTimer = setTimeout(function() { A.q = document.getElementById('a2-q').value.trim(); A.page = 1; loadRows(); }, 250); };
+  window.a2Filter = function() {
+    ['type', 'city', 'owner', 'stage', 'line'].forEach(function(k) { A[k] = document.getElementById('a2-' + k).value; });
+    A.page = 1; loadRows();
+  };
+  window.a2Sort = function(k) { if (A.sort === k) A.dir = A.dir === 'asc' ? 'desc' : 'asc'; else { A.sort = k; A.dir = (k === 'last_visit' || k === 'open_quotes') ? 'desc' : 'asc'; } A.page = 1; loadRows(); };
+  window.a2Page = function(n) { A.page = Math.max(1, A.page + n); loadRows(); var pg = document.getElementById('page-acctlist'); if (pg) pg.scrollTop = 0; };
+
+  // ── New leads ──
+  var segLabels = {};
+  function loadSegments() {
+    return J('/api/sell').then(function(d) {
+      var mine = [], all = d.segments || [];
+      (d.lines || []).forEach(function(l) { (l.buyer_segments || []).forEach(function(s) { if (mine.indexOf(s) < 0) mine.push(s); }); });
+      var el = document.getElementById('nl-seg'); if (!el) return d;
+      var opt = function(s) { return '<option value="' + esc(s) + '">' + esc(segLabel(s)) + '</option>'; };
+      el.innerHTML = (mine.length ? '<optgroup label="Buys your lines">' + mine.map(opt).join('') + '</optgroup>' : '') +
+        '<optgroup label="Other types">' + all.filter(function(s) { return mine.indexOf(s) < 0; }).map(opt).join('') + '</optgroup>';
+      return d;
+    });
+  }
+  function segLabel(s) {
+    var m = { 'Lumber / Building Supply': 'Lumber and building supply', 'Window/Door Installer': 'Window and door dealers and installers',
+      'Deck Distributor/Dealer': 'Deck supply dealers', 'Construction Fasteners': 'Contractor tool and fastener supply', 'Rebar / Concrete Supply': 'Rebar and concrete supply' };
+    return m[s] || s;
+  }
+  window.loadNewLeads = function() {
+    var box = document.getElementById('nl-list');
+    box.innerHTML = '<div class="a2-empty">Loading...</div>';
+    loadSegments().catch(function() {});
+    return J('/api/leads').then(function(d) {
+      var L = d.leads || [];
+      if (!L.length) {
+        var lr = d.last_run;
+        box.innerHTML = '<div class="a2-empty">No new leads right now.' + (lr && lr.note ? '<br><span style="font-size:13px">Last search: ' + esc(lr.note) + '</span>' : '<br><span style="font-size:13px">New ones come in overnight, or search now on the right.</span>') + '</div>';
+        refreshLeadBadge(); return;
+      }
+      box.innerHTML = L.map(function(l) {
+        return '<div class="nl-row" id="nl-' + l.id + '"><div style="flex:1 1 300px;min-width:0">' +
+          '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px"><span style="font-size:16px;font-weight:700;color:var(--navy)">' + esc(l.company) + '</span><span class="nl-tag">' + esc(l.segment_label || l.segment || '') + '</span></div>' +
+          '<div style="font-size:13px;color:var(--text2);margin-top:3px">' + esc(l.address || l.city || '') + (l.phone ? ' · <a href="tel:' + esc(l.phone.replace(/[^0-9+]/g, '')) + '">' + esc(l.phone) + '</a>' : '') + (l.website ? ' · <a href="' + esc(l.website) + '" target="_blank" rel="noopener">Website</a>' : '') + '</div>' +
+          '<div style="font-size:14px;color:#1f2937;margin-top:7px;line-height:1.45"><b>Why it fits:</b> ' + esc(l.why || '') + '</div>' +
+          (l.pitch ? '<div style="font-size:13px;color:#1d4fbf;margin-top:4px">Pitch: ' + esc(l.pitch) + '</div>' : '') +
+          '</div><div class="nl-acts">' +
+          '<button type="button" class="a2-btn a2-pri a2-sm" onclick="nlAct(' + l.id + ',\'route\',this)">Add to route</button>' +
+          '<button type="button" class="a2-btn a2-sm" onclick="nlAct(' + l.id + ',\'save\',this)">Save as account</button>' +
+          '<button type="button" class="a2-link" style="font-size:13px;color:var(--text2);text-align:center" onclick="nlAct(' + l.id + ',\'skip\',this)">Not a fit</button>' +
+          '</div></div>';
+      }).join('');
+      refreshLeadBadge();
+    }).catch(function(e) { box.innerHTML = '<div class="a2-empty">' + esc(e.message) + '</div>'; });
+  };
+  window.nlAct = function(id, what, btn) {
+    var row = document.getElementById('nl-' + id);
+    if (btn) btn.disabled = true;
+    post('/api/leads/' + id + '/' + what).then(function(d) {
+      if (what === 'route') toast('Added to your plan for ' + new Date(d.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }));
+      else if (what === 'save') toast('Saved as an account');
+      if (row) row.remove();
+      var box = document.getElementById('nl-list');
+      if (box && !box.querySelector('.nl-row')) loadNewLeads(); else refreshLeadBadge();
+    }).catch(function(e) { if (btn) btn.disabled = false; toast(e.message); });
+  };
+  window.nlHunt = function() {
+    var btn = document.getElementById('nl-hunt-btn'), msg = document.getElementById('nl-hunt-msg');
+    var seg = document.getElementById('nl-seg').value;
+    btn.disabled = true; btn.textContent = 'Searching...'; msg.textContent = '';
+    post('/api/leads/hunt', { segment: seg }).then(function(d) {
+      msg.textContent = d.found ? d.found + ' new lead' + (d.found === 1 ? '' : 's') + ' added.' :
+        d.note === 'no location' ? 'Set a home base (Change territory) or add addresses to a few accounts so RepRoute knows where you work.' :
+        'Nothing new for that type nearby. Try another type.';
+      loadNewLeads();
+    }).catch(function(e) { msg.textContent = e.message; })
+      .then(function() { btn.disabled = false; btn.textContent = 'Search near me'; });
+  };
+
+  // ── What you sell ──
+  var SELL = { lines: [], segments: [], can_edit: false };
+  window.loadSell = function() {
+    var list = document.getElementById('sell-list');
+    list.innerHTML = '<div class="a2-empty">Loading...</div>';
+    document.getElementById('sell-form').innerHTML = '';
+    return J('/api/sell').then(function(d) {
+      SELL = d;
+      document.getElementById('sell-add-btn').style.display = d.can_edit ? '' : 'none';
+      if (!d.lines.length) { list.innerHTML = '<div class="a2-empty">No lines yet.' + (d.can_edit ? ' Add the first one.' : ' A manager adds them here.') + '</div>'; return; }
+      list.innerHTML = d.lines.map(function(l) {
+        var segs = (l.buyer_segments || []).map(segLabel).join(', ');
+        return '<article class="sell-card"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">' +
+          '<h2 style="margin:0;font-size:18px;font-weight:700;color:var(--navy)">' + esc(l.name) + '</h2>' +
+          (d.can_edit ? '<button type="button" class="a2-link" onclick="sellEdit(' + l.id + ')">Edit</button>' : '') + '</div>' +
+          (l.what ? '<div style="font-size:14px;color:var(--text2)">' + esc(l.what) + '</div>' : '') +
+          '<div><div class="sell-k">Who buys it</div><div class="sell-v">' + (segs ? esc(segs) : '<span style="color:var(--text3)">Not set. The lead hunt skips this line until it is.</span>') + '</div></div>' +
+          '<div><div class="sell-k">Up against</div><div class="sell-v">' + (l.competitors ? esc(l.competitors) : '<span style="color:var(--text3)">Not set</span>') + '</div></div>' +
+          '<div><div class="sell-k">Words reps use for it</div><div class="sell-v">' + esc(l.match_words || l.name) + '</div></div>' +
+          '</article>';
+      }).join('');
+    }).catch(function(e) { list.innerHTML = '<div class="a2-empty">' + esc(e.message) + '</div>'; });
+  };
+  window.sellEdit = function(id) {
+    var l = id ? SELL.lines.filter(function(x) { return x.id === id; })[0] : { name: '', what: '', competitors: '', match_words: '', buyer_segments: [] };
+    if (!l) return;
+    var f = document.getElementById('sell-form');
+    f.innerHTML = '<div class="sell-form">' +
+      '<div class="a2-h2" style="margin:0">' + (id ? 'Edit ' + esc(l.name) : 'Add a line') + '</div>' +
+      (id ? '' : '<label class="a2-lbl" for="sf-name">Line name</label><input type="text" id="sf-name" placeholder="e.g. Tremco">') +
+      '<label class="a2-lbl" for="sf-what">What it is</label><input type="text" id="sf-what" value="' + esc(l.what || '') + '" placeholder="e.g. Sealants and adhesives. Lead product: Fix All.">' +
+      '<div class="a2-lbl">Who buys it (the lead hunt searches for these)</div><div class="sell-segs">' +
+      SELL.segments.map(function(s, i) {
+        return '<label><input type="checkbox" class="sf-seg" value="' + esc(s) + '"' + ((l.buyer_segments || []).indexOf(s) >= 0 ? ' checked' : '') + '>' + esc(segLabel(s)) + '</label>';
+      }).join('') + '</div>' +
+      '<label class="a2-lbl" for="sf-comp">Up against (competitor brands, comma between)</label><input type="text" id="sf-comp" value="' + esc(l.competitors || '') + '">' +
+      '<label class="a2-lbl" for="sf-words">Words reps use for it (comma between)</label><input type="text" id="sf-words" value="' + esc(l.match_words || '') + '" placeholder="e.g. fix all, sealant">' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px"><button type="button" class="a2-btn a2-pri" onclick="sellSave(' + (id || 0) + ')">Save</button>' +
+      '<button type="button" class="a2-btn" onclick="document.getElementById(\'sell-form\').innerHTML=\'\'">Cancel</button>' +
+      (id ? '<button type="button" class="a2-btn" style="margin-left:auto;color:#b42318" onclick="sellRemove(' + id + ')">Take off this page</button>' : '') + '</div></div>';
+    f.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  window.sellSave = function(id) {
+    var body = {
+      what: document.getElementById('sf-what').value, competitors: document.getElementById('sf-comp').value,
+      match_words: document.getElementById('sf-words').value,
+      buyer_segments: [].map.call(document.querySelectorAll('.sf-seg:checked'), function(c) { return c.value; })
+    };
+    var req = id ? J('/api/sell/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+                 : post('/api/sell', Object.assign({ name: document.getElementById('sf-name').value }, body));
+    req.then(function() { toast('Saved'); loadSell(); }).catch(function(e) { toast(e.message); });
+  };
+  window.sellRemove = function(id) {
+    if (!confirm('Take this line off What you sell? The agents stop using it. Its sales history stays.')) return;
+    J('/api/sell/' + id, { method: 'DELETE' }).then(function() { toast('Removed'); loadSell(); }).catch(function(e) { toast(e.message); });
+  };
+
+  // ── Start ──
+  function start() {
+    buildSidebar();
+    // On a phone the top-left menu opens the full menu in the new layout.
+    var mb = document.querySelector('.mob-menu');
+    if (mb) mb.addEventListener('click', function(e) {
+      if (isNew() && window.innerWidth <= 768 && typeof openMobileMenu === 'function') { e.stopImmediatePropagation(); e.preventDefault(); closeSidebar && closeSidebar(); openMobileMenu(); }
+    }, true);
+    var tries = 0;
+    var t = setInterval(function() {
+      tries++;
+      if (window.__userData || tries > 60) {
+        clearInterval(t);
+        applyLayout(window.__userData && window.__userData.ui_layout);
+        var active = document.querySelector('.page.active');
+        syncNav(active ? active.id.replace('page-', '') : 'today');
+      }
+    }, 150);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
+})();
+</script>
+
 </body>
 </html>

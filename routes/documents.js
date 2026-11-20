@@ -13,7 +13,11 @@ const TYPES = {
   'application/vnd.ms-excel': 'xls', 'application/msword': 'doc', 'text/csv': 'csv'
 };
 const KINDS = ['Spec sheet', 'Price sheet', 'Brochure', 'Install guide', 'Warranty', 'Other'];
-const LINES = ['Soudal', 'ShurTape', 'Alum-A-Pole', 'Fortress', 'BOSS', 'General'];
+// Lines come from "What you sell", plus General for everything else.
+async function linesList() {
+  try { const l = await require('../lib/sell').getLines(); if (l.length) return l.map(x => x.name).concat('General'); } catch (e) {}
+  return ['Soudal', 'ShurTape', 'Alum-A-Pole', 'Fortress', 'BOSS', 'General'];
+}
 
 let ready = null;
 function ensure() {
@@ -36,7 +40,7 @@ const LIST_COLS = `d.id, d.name, d.line, d.kind, d.filename, d.mime, d.size, d.c
 
 router.get('/', async (req, res) => {
   const r = await pool.query(`SELECT ${LIST_COLS} FROM documents d LEFT JOIN users u ON u.id = d.uploaded_by ORDER BY d.line NULLS LAST, d.name`);
-  res.json({ documents: r.rows, kinds: KINDS, lines: LINES });
+  res.json({ documents: r.rows, kinds: KINDS, lines: await linesList() });
 });
 
 // Upload as JSON: { name, line, kind, filename, mime, data (base64) }
@@ -50,7 +54,7 @@ router.post('/', async (req, res) => {
   const buf = Buffer.from(String(b.data || ''), 'base64');
   if (!buf.length) return res.status(400).json({ error: 'The file was empty' });
   if (buf.length > MAX_BYTES) return res.status(400).json({ error: 'That file is over 10 MB' });
-  const line = LINES.includes(b.line) ? b.line : 'General';
+  const line = (await linesList()).includes(b.line) ? b.line : 'General';
   const kind = KINDS.includes(b.kind) ? b.kind : 'Other';
   const r = await pool.query(
     `INSERT INTO documents (name, line, kind, filename, mime, size, data, uploaded_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)

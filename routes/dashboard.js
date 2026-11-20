@@ -40,8 +40,10 @@ router.get('/data', async (req, res) => {
        ORDER BY c.next_step_date ASC
        LIMIT 20`, [uid]);
 
+    const lay = await pool.query('SELECT ui_layout FROM users WHERE id=$1', [uid]).catch(() => ({ rows: [] }));
+    const user = Object.assign({}, req.session.user, { ui_layout: (lay.rows[0] && lay.rows[0].ui_layout) || 'classic' });
     res.json({
-      user: req.session.user,
+      user,
       stats: {
         prospects: prospects.rows[0].count,
         hot: hot.rows[0].count,

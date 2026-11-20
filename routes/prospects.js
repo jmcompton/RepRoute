@@ -215,10 +215,11 @@ async function insertProspect(uid, body) {
      address || null, google_place_id || null, ds, manufacturer_assoc || null,
      title || null, mobile || null, zip || null]
   );
-  // Geocode the street address in the background so the planner can route to it.
-  if (address) geocodeProspect(pool, result.rows[0].id, address);
-  // No address but the rep logged it while standing there: use their GPS point.
-  else if (Number.isFinite(Number(body.lat)) && Number.isFinite(Number(body.lng)) && body.lat !== null && body.lng !== null && body.lat !== '' && body.lng !== '') {
+  // Known coordinates (the rep's GPS point, or Google's pin for a lead) win;
+  // otherwise geocode the street address in the background for the planner.
+  const hasCoords = Number.isFinite(Number(body.lat)) && Number.isFinite(Number(body.lng)) && body.lat !== null && body.lng !== null && body.lat !== '' && body.lng !== '' && body.lat !== undefined && body.lng !== undefined;
+  if (address && !hasCoords) geocodeProspect(pool, result.rows[0].id, address);
+  else if (hasCoords) {
     await pool.query('UPDATE prospects SET lat=$1, lng=$2, geocoded_at=NOW() WHERE id=$3', [Number(body.lat), Number(body.lng), result.rows[0].id]);
     result.rows[0].lat = Number(body.lat); result.rows[0].lng = Number(body.lng);
   }
@@ -782,3 +783,4 @@ module.exports = router;
 // accounts classify identically to manually/AI-created ones. Additive export.
 module.exports.resolveCompanyType = resolveCompanyType;
 module.exports.findMatchingAccount = findMatchingAccount;
+module.exports.insertProspect = insertProspect;

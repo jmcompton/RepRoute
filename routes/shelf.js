@@ -8,7 +8,15 @@ const router = express.Router();
 
 const MAX_BYTES = 6 * 1024 * 1024;
 const TYPES = ['image/jpeg', 'image/png', 'image/webp'];
-const OUR_LINES = ['Soudal', 'ShurTape', 'Alum-A-Pole', 'Fortress', 'BOSS'];
+const FALLBACK_LINES = ['Soudal', 'ShurTape', 'Alum-A-Pole', 'Fortress', 'BOSS'];
+// Our lines and their competitors come from "What you sell".
+async function ourLines() {
+  try {
+    const l = await require('../lib/sell').getLines();
+    if (l.length) return { names: l.map(x => x.name), competitors: [...new Set(l.flatMap(x => String(x.competitors || '').split(',').map(c => c.trim()).filter(Boolean)))] };
+  } catch (e) {}
+  return { names: FALLBACK_LINES, competitors: [] };
+}
 
 let ready = null;
 function ensure() {
@@ -25,9 +33,9 @@ function ensure() {
 }
 router.use(async (req, res, next) => { try { await ensure(); next(); } catch (e) { res.status(500).json({ error: e.message }); } });
 
-const PROMPT = `This is a photo of a store shelf or display at a building supply dealer.
+function prompt(ours) { return `This is a photo of a store shelf or display at a building supply dealer.
 List every product you can actually read. Do not guess at anything you can't read.
-Our lines are: ${OUR_LINES.join(', ')}.
+Our lines are: ${ours.names.join(', ')}.${ours.competitors.length ? ' Competitors to watch for: ' + ours.competitors.join(', ') + '.' : ''}
 Return ONLY a JSON object:
 {
   "items": [{"brand": "", "product": "", "size": "", "price": "", "facings": 0, "ours": false}],
@@ -36,16 +44,16 @@ Return ONLY a JSON object:
   "empty_spots": "",
   "summary": ""
 }
-Rules: price only if a tag is readable, as written (e.g. "$8.97"), else "". facings is how many fronts of that item are visible, 0 if unsure. ours is true only for our lines. empty_spots notes any visible gaps or out-of-stock spots, else "". summary is one or two plain sentences a sales rep would want, no fluff.`;
+Rules: price only if a tag is readable, as written (e.g. "$8.97"), else "". facings is how many fronts of that item are visible, 0 if unsure. ours is true only for our lines. empty_spots notes any visible gaps or out-of-stock spots, else "". summary is one or two plain sentences a sales rep would want, no fluff.`; }
 
-function clean(reading) {
+function clean(reading, names = FALLBACK_LINES) {
   const s = v => String(v == null ? '' : v).trim().slice(0, 120);
   const items = (Array.isArray(reading.items) ? reading.items : []).slice(0, 80).map(i => ({
     brand: s(i.brand), product: s(i.product), size: s(i.size), price: s(i.price),
     facings: Math.max(0, Math.min(99, parseInt(i.facings) || 0)),
-    ours: OUR_LINES.some(l => s(i.brand).toLowerCase().includes(l.toLowerCase()))
+    ours: names.some(l => s(i.brand).toLowerCase().includes(l.toLowerCase()))
   })).filter(i => i.brand || i.product);
-  const ours = [...new Set(items.filter(i => i.ours).map(i => OUR_LINES.find(l => i.brand.toLowerCase().includes(l.toLowerCase()))))];
+  const ours = [...new Set(items.filter(i => i.ours).map(i => names.find(l => i.brand.toLowerCase().includes(l.toLowerCase()))))];
   const comp = [...new Set(items.filter(i => !i.ours && i.brand).map(i => i.brand))];
   return { items, our_lines_seen: ours, competitor_brands: comp, empty_spots: s(reading.empty_spots).slice(0, 300), summary: String(reading.summary || '').trim().slice(0, 500) };
 }
@@ -53,8 +61,9 @@ function clean(reading) {
 async function readPhoto(id) {
   const p = (await pool.query('SELECT mime, data FROM shelf_photos WHERE id=$1', [id])).rows[0];
   try {
-    const text = await llm.vision({ image: p.data.toString('base64'), mediaType: p.mime, prompt: PROMPT });
-    const reading = clean(llm.parseJson(text));
+    const ours = await ourLines();
+    const text = await llm.vision({ image: p.data.toString('base64'), mediaType: p.mime, prompt: prompt(ours) });
+    const reading = clean(llm.parseJson(text), ours.names);
     if (!reading.items.length && !reading.summary) throw new Error('Nothing readable in the photo');
     await pool.query('UPDATE shelf_photos SET reading=$2, read_error=NULL WHERE id=$1', [id, reading]);
   } catch (e) {
