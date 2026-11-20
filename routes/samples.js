@@ -1,5 +1,6 @@
 const express = require('express');
 const { pool } = require('../db');
+const pipeline = require('../lib/pipeline');
 const router = express.Router();
 
 // Reps see and change their own samples; managers see the team.
@@ -37,6 +38,7 @@ router.post('/', async (req, res) => {
       RETURNING *`,
       [userId, prospect_id, product_line, quantity || 1, notes || '', sent_date || null]
     );
+    await pipeline.advance(pool, prospect_id, 'Sampled');
     res.json(result.rows[0]);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

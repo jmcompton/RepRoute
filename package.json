@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node test/commission-pdf.test.js && node test/planner-schema.test.js"
+    "test": "node test/commission-pdf.test.js && node test/planner-schema.test.js && node test/voice-extract.test.js",
+    "test:e2e": "node test/e2e-voice.test.js && node test/e2e-pipeline.test.js && node test/e2e-cold.test.js && node test/e2e-leads.test.js && node test/e2e-notes.test.js && node test/migrations.test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

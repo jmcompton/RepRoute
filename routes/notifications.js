@@ -1,10 +1,27 @@
 const express = require('express');
 const { pool } = require('../db');
 const router = express.Router();
+const { coldAccounts } = require('../lib/going-cold');
 
 // Core evaluation engine — scans database and creates notifications
 async function evaluateForUser(userId) {
   const created = [];
+
+  // Notices that are already handled stop showing: a quote that was closed or
+  // rescheduled, or a follow-up the rep has since visited.
+  try {
+    await pool.query(
+      `UPDATE notifications n SET status='dismissed', dismissed_at=NOW()
+        WHERE n.user_id=$1 AND n.status='unread' AND n.type='quote_followup'
+          AND NOT EXISTS (SELECT 1 FROM quotes q
+                           WHERE q.id = NULLIF(split_part(n.unique_key,'_',3),'')::int
+                             AND q.status NOT IN ('Won','Lost')
+                             AND q.follow_up_date IS NOT NULL AND q.follow_up_date::date <= CURRENT_DATE)`, [userId]);
+    await pool.query(
+      `UPDATE notifications n SET status='dismissed', dismissed_at=NOW()
+        WHERE n.user_id=$1 AND n.status='unread' AND n.type IN ('followup_today','followup_overdue')
+          AND EXISTS (SELECT 1 FROM calls c WHERE c.prospect_id = n.prospect_id AND c.created_at > n.created_at)`, [userId]);
+  } catch (e) { console.error('[notifications] cleanup:', e.message); }
 
   // RULE 1: Follow-ups due today (today urgency)
   const dueToday = await pool.query(`
@@ -94,36 +111,34 @@ async function evaluateForUser(userId) {
     } catch(e) { console.error(e.message); }
   }
 
-  // RULE 4: Long-silent prospects (30+ days, FYI only)
-  const longSilent = await pool.query(`
-    SELECT p.id, p.company,
-           CURRENT_DATE - COALESCE(MAX(c.call_date), p.created_at::date) as days_silent
-    FROM prospects p
-    LEFT JOIN calls c ON c.prospect_id = p.id AND c.user_id = $1
-    WHERE p.user_id = $1 AND p.status != 'Cold'
-    GROUP BY p.id, p.company, p.created_at
-    HAVING CURRENT_DATE - COALESCE(MAX(c.call_date), p.created_at::date) >= 30
-       AND CURRENT_DATE - COALESCE(MAX(c.call_date), p.created_at::date) < 60
-    LIMIT 5
-  `, [userId]);
-
-  for (const row of longSilent.rows) {
-    const key = `long_silent_${row.id}_${new Date().toISOString().split('T')[0].slice(0,7)}`;
+  // RULE 4: Going cold (shared rule with the morning brief and win-back,
+  // see lib/going-cold.js). One notice per account per quiet stretch: the key
+  // carries the last visit date, so a new visit ends it and a later quiet
+  // stretch starts a fresh one.
+  const cold = await coldAccounts({ userId, limit: 8 });
+  const coldKeys = cold.map(row => `going_cold_${row.id}_${row.last_visit}`);
+  for (const row of cold) {
     try {
       const r = await pool.query(`
         INSERT INTO notifications (user_id, prospect_id, type, urgency, title, body, action_url, unique_key)
-        VALUES ($1, $2, 'long_silent', 'fyi', $3, $4, $5, $6)
+        VALUES ($1, $2, 'going_cold', 'fyi', $3, $4, $5, $6)
         ON CONFLICT (unique_key) DO NOTHING
         RETURNING id
       `, [userId, row.id,
-          `${row.company} hasn't been touched in ${row.days_silent} days`,
-          `Worth a check-in?`,
+          `${row.company}: no visit in ${row.days_cold} days`,
+          row.owner && row.last_visit ? `Last visit ${row.last_visit}. Worth a check-in?` : 'Worth a check-in?',
           `/app#prospect/${row.id}`,
-          key]);
-      if (r.rows.length) created.push({ type: 'long_silent', company: row.company });
+          `going_cold_${row.id}_${row.last_visit}`]);
+      if (r.rows.length) created.push({ type: 'going_cold', company: row.company });
     } catch(e) { console.error(e.message); }
   }
-
+  // Clear going-cold notices that no longer apply (visited since, dismissed on
+  // Reconnect) and the old monthly "hasn't been touched" ones that repeated.
+  await pool.query(
+    `UPDATE notifications SET status='dismissed', dismissed_at=NOW()
+      WHERE user_id=$1 AND status='unread'
+        AND (type='long_silent' OR (type='going_cold' AND NOT (unique_key = ANY($2::text[]))))`,
+    [userId, coldKeys]);
 
   // RULE 5: Quote follow-ups due today or overdue
   const quoteDue = await pool.query(`

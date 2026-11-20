@@ -2,6 +2,24 @@ const express = require('express');
 const { pool } = require('../db');
 const router = express.Router();
 
+
+// Follow-ups set on logged visits ("come back early December") show on the
+// rep's calendar that day. One per account: a later visit replaces it.
+async function followUpEvents(userId) {
+  const r = await pool.query(
+    `SELECT DISTINCT ON (c.prospect_id) c.id, c.prospect_id, c.next_step, c.next_step_date::text AS d, p.company, p.city
+       FROM calls c JOIN prospects p ON p.id = c.prospect_id
+      WHERE c.user_id = $1 AND c.next_step_date IS NOT NULL
+        AND c.next_step_date >= (timezone('America/New_York', NOW())::date - 30)
+      ORDER BY c.prospect_id, c.call_date DESC, c.id DESC`, [userId]);
+  return r.rows.filter(x => x.d).map(x => ({
+    id: 'fu-' + x.id, user_id: userId, title: 'Follow up: ' + x.company,
+    description: x.next_step || '', location: x.city || '',
+    start_time: x.d, end_time: null, all_day: true, event_type: 'followup',
+    creator_name: 'Visit log', prospect_id: x.prospect_id, readonly: true
+  }));
+}
+
 router.get('/events', async (req, res) => {
   const { filter } = req.query;
   const userId = req.session.user.id;
@@ -17,7 +35,9 @@ router.get('/events', async (req, res) => {
         `SELECT e.*, u.name as creator_name FROM calendar_events e JOIN users u ON e.user_id = u.id ORDER BY e.start_time ASC`
       );
     }
-    res.json(result.rows);
+    let followUps = [];
+    try { followUps = await followUpEvents(userId); } catch (e) { console.error('[calendar] follow-ups:', e.message); }
+    res.json(result.rows.concat(followUps));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -81,6 +101,19 @@ router.get('/feed/:token', async (req, res) => {
       if (event.location) ical.push(`LOCATION:${escapeIcal(event.location)}`);
       ical.push('END:VEVENT');
     }
+    // This rep's own visit follow-ups, as all-day events.
+    try {
+      for (const f of await followUpEvents(userResult.rows[0].id)) {
+        const day = f.start_time.replace(/-/g, '');
+        ical.push('BEGIN:VEVENT');
+        ical.push(`UID:followup-${f.id}@comptongroupllc.com`);
+        ical.push(`DTSTAMP:${formatICalDate(new Date())}`);
+        ical.push(`DTSTART;VALUE=DATE:${day}`);
+        ical.push(`SUMMARY:${escapeIcal(f.title)}`);
+        if (f.description) ical.push(`DESCRIPTION:${escapeIcal(f.description)}`);
+        ical.push('END:VEVENT');
+      }
+    } catch (e) { console.error('[calendar] feed follow-ups:', e.message); }
     ical.push('END:VCALENDAR');
     res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
     res.send(ical.join('\r\n'));

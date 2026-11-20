@@ -2,6 +2,31 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
 const { accountKey, accountKeySql } = require('../lib/account-key');
+const pipeline = require('../lib/pipeline');
+
+// The account a quote belongs to, by id. Prefers the quoting rep's own account
+// with that name, then the team's oldest one. null when there's no account yet.
+async function quoteAccountId(name, repId) {
+  const key = accountKey(name);
+  if (!key) return null;
+  const r = await pool.query(
+    `SELECT id FROM prospects WHERE ${accountKeySql('company')} = $1
+      ORDER BY (user_id = $2) DESC, id ASC LIMIT 1`, [key, repId || 0]);
+  return r.rows.length ? r.rows[0].id : null;
+}
+
+// Keep the quote's account link and the account's pipeline stage current.
+async function afterQuoteSave(q) {
+  if (!q || !q.id) return;
+  try {
+    const pid = await quoteAccountId(q.account_name, q.rep_id || q.user_id);
+    if (pid !== q.prospect_id) {
+      await pool.query('UPDATE quotes SET prospect_id=$1 WHERE id=$2', [pid, q.id]);
+      q.prospect_id = pid;
+    }
+    if (pid) await pipeline.advance(pool, pid, q.status === 'Won' ? 'Closed Won' : 'Quoted');
+  } catch (e) { console.error('[quotes] link account:', e.message); }
+}
 
 const DEFAULT_FOLLOWUP_MIN = 5000;
 
@@ -355,6 +380,7 @@ router.post('/', async (req, res) => {
         ]
       );
       const savedQuote = upd.rows[0];
+      await afterQuoteSave(savedQuote);
       console.log('[quotes] POST override → updated existing quote id=' + savedQuote.id + ' account=' + savedQuote.account_name);
       return res.json({ success: true, quote: savedQuote, updated_existing: true });
     }
@@ -385,6 +411,7 @@ router.post('/', async (req, res) => {
       ]
     );
     const savedQuote = result.rows[0];
+    await afterQuoteSave(savedQuote);
     console.log('[quotes] POST created quote id=' + savedQuote.id + ' account=' + savedQuote.account_name + ' rep=' + savedQuote.rep_name);
     res.json({ success: true, quote: savedQuote });
   } catch (e) {
@@ -473,12 +500,31 @@ router.put('/:id', async (req, res) => {
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Quote not found' });
     const savedQuote = result.rows[0];
+    await afterQuoteSave(savedQuote);
     console.log('[quotes] PUT updated quote id=' + savedQuote.id + ' account=' + savedQuote.account_name);
     res.json({ success: true, quote: savedQuote });
   } catch (e) {
     console.error('[quotes] PUT /api/quotes/:id error:', e.message, e.stack);
     res.status(500).json({ error: e.message || 'Failed to update quote' });
   }
+});
+
+// POST /:id/status { status: 'Won' | 'Lost' | 'Sent' } — one tap from the
+// quote screen, without re-saving the whole form. Closing a quote clears its
+// follow-up so it stops showing as due.
+router.post('/:id/status', async (req, res) => {
+  if (!(await quoteGuard(req, res))) return;
+  const status = String((req.body || {}).status || '');
+  if (!['Won', 'Lost', 'Sent'].includes(status)) return res.status(400).json({ error: 'Status must be Won, Lost or Sent' });
+  const closed = status !== 'Sent';
+  const r = await pool.query(
+    `UPDATE quotes SET status=$2, updated_at=NOW(),
+            follow_up_date = CASE WHEN $3 THEN NULL ELSE follow_up_date END,
+            follow_up_enabled = CASE WHEN $3 THEN FALSE ELSE follow_up_enabled END
+      WHERE id=$1 RETURNING *`, [parseInt(req.params.id), status, closed]);
+  if (!r.rows.length) return res.status(404).json({ error: 'Quote not found' });
+  await afterQuoteSave(r.rows[0]);
+  res.json({ success: true, quote: r.rows[0] });
 });
 
 // POST /:id/pdf — attach (or clear) a quote's PDF as a SEPARATE step from the

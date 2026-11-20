@@ -151,6 +151,9 @@ const SEGMENT_SEARCH_CONFIG = {
     { query: 'replacement window installer exterior', score: 9, category: 'Window/Door Installer' },
     { query: 'entry door replacement contractor exterior', score: 9, category: 'Window/Door Installer' },
     { query: 'new construction window installer', score: 8, category: 'Window/Door Installer' },
+    { query: 'window and door dealer showroom', score: 10, category: 'Window/Door Installer' },
+    { query: 'Pella Andersen window dealer', score: 9, category: 'Window/Door Installer' },
+    { query: 'millwork windows doors supplier', score: 9, category: 'Window/Door Installer' },
   ],
   'Deck Contractor': [
     { query: 'deck builder contractor', score: 10, category: 'Deck Contractor' },
@@ -191,12 +194,25 @@ const SEGMENT_SEARCH_CONFIG = {
     { query: 'fascia board replacement contractor', score: 9, category: 'Cornice Contractor' },
     { query: 'aluminum soffit fascia contractor', score: 8, category: 'Cornice Contractor' },
   ],
+  // Kody (Oct 27): for Alum-A-Pole, the buyers are construction tool stores,
+  // siding sellers and ladder/scaffold sellers. "fastener" on its own pulled
+  // nut-and-bolt makers, so it's no longer the lead query.
   'Construction Fasteners': [
-    { query: 'roofing contractor fasteners supplier', score: 10, category: 'Construction Fasteners' },
-    { query: 'construction fastener supplier dealer', score: 10, category: 'Construction Fasteners' },
-    { query: 'framing contractor supplies hardware store', score: 10, category: 'Construction Fasteners' },
-    { query: 'roofing nail supplier contractor supply', score: 9, category: 'Construction Fasteners' },
-    { query: 'deck screw supplier contractor hardware', score: 9, category: 'Construction Fasteners' },
+    { query: 'construction tool supply store', score: 10, category: 'Construction Fasteners' },
+    { query: 'contractor tool and fastener supply', score: 10, category: 'Construction Fasteners' },
+    { query: 'ladder and scaffolding supplier', score: 10, category: 'Construction Fasteners' },
+    { query: 'siding supply store', score: 9, category: 'Construction Fasteners' },
+    { query: 'roofing and siding supply', score: 9, category: 'Construction Fasteners' },
+    { query: 'roofing nail supplier contractor supply', score: 8, category: 'Construction Fasteners' },
+  ],
+  // Kody (Oct 27): fiberglass rebar sells through anyone who sells rebar,
+  // plus concrete and masonry supply houses.
+  'Rebar / Concrete Supply': [
+    { query: 'rebar supplier', score: 10, category: 'Rebar / Concrete Supply' },
+    { query: 'concrete supply store', score: 10, category: 'Rebar / Concrete Supply' },
+    { query: 'concrete accessories and rebar supply', score: 10, category: 'Rebar / Concrete Supply' },
+    { query: 'masonry supply', score: 9, category: 'Rebar / Concrete Supply' },
+    { query: 'fiberglass rebar supplier', score: 8, category: 'Rebar / Concrete Supply' },
   ],
   // Spray foam insulation / SPF roofing installers. Queries lead with "spray foam"
   // so Google doesn't drift into generic fiberglass/blown-in insulation shops.
@@ -238,6 +254,20 @@ const SEGMENT_SEARCH_CONFIG = {
 //   block — name patterns that are clearly the wrong business (dropped)
 //   boost — name/type signals that confirm the right business (+1 score)
 const SEGMENT_RELEVANCE = {
+  // Window/door: flashing tape goes to window and door installers and dealers,
+  // not garage/dock door shops, parts stores or general remodelers.
+  'Window/Door Installer': {
+    block: /garage|overhead|dock\s*(&|and)?\s*door|door\s*4\s*life|gate|roll.?up|parts|auto|remodel|renovat|handyman|home services|kitchen|bath|cabinet|flooring|\bpaint/i,
+    boost: /window|millwork|pella|andersen|marvin|jeld.?wen|pgt|anlin|simonton|milgard|door (and|&) window|window (and|&) door/i,
+  },
+  'Construction Fasteners': {
+    block: /\bbolts?\b|\bnuts?\b|fulfillment|distribution center|liquidat|outlet|manufactur|machin|bearing|hydraulic|automotive|\bauto\b|marine|electric(al)? supply|plumbing supply/i,
+    boost: /tool|ladder|scaffold|siding|roofing supply|contractor supply|fastener|hilti|ross tool|southerncarlson|carlson|white cap|beacon/i,
+  },
+  'Rebar / Concrete Supply': {
+    block: /ready.?mix|concrete (contractor|construction|repair|leveling|cutting|pumping|coating|polish)|driveway|foundation repair|stamped|pump(ing)?\b|paving|asphalt|countertop/i,
+    boost: /rebar|concrete supply|masonry supply|concrete accessor|building supply|steel|reinforc|forming/i,
+  },
   // Deck supply: drop deck builders/installers (that's the Deck Contractor pill).
   'Deck Distributor/Dealer': {
     block: /\b(decks?|patios?|fences?|outdoor living)\s*(&\s*\w+\s*)?(builders?|contractors?|construction|installers?|installation|pros?|masters?|design(s|ers)?|guys?|company|co\b)|handyman|remodel|(power|pressure) ?wash|staining|\bpainting\b/i,
@@ -262,7 +292,7 @@ const SEGMENT_RELEVANCE = {
 // dealers mostly furnish-and-install, so Google often types them general_contractor
 // or construction_company — the Dealer filter would wrongly drop real ones.
 // Glass shops: Google types many as building_materials_store, which the Contractor filter would drop.
-const CHANNEL_FILTER_EXEMPT = new Set(['Division 10 Dealer', 'Glass Shop']);
+const CHANNEL_FILTER_EXEMPT = new Set(['Division 10 Dealer', 'Glass Shop', 'Rebar / Concrete Supply', 'Window/Door Installer']);
 
 // Legacy PRODUCT_SEARCH_CONFIG kept for backwards compat (not used by current UI)
 const PRODUCT_SEARCH_CONFIG = {
@@ -598,13 +628,18 @@ router.post('/daily-leads', async (req, res) => {
     'Spray Foam Contractor': 'Contractor',
     'Division 10 Dealer':    'Dealer',
     'Glass Shop':            'Contractor',
+    'Rebar / Concrete Supply': 'Dealer',
     'Contractor':            'Contractor',
     'Dealer':                'Dealer',
   };
   const rawChannel = (req.body.channel || 'Contractor').trim();
   const channel = SEGMENT_TO_CHANNEL[rawChannel] || 'Contractor';
   console.log(`[daily-leads] uid=${req.session.user.id} rawChannel="${rawChannel}" → channel="${channel}" city=${req.body.city}`);
-  const radiusMiles = parseInt(req.body.radius_miles) || 50; // Default 50mi vs old 5mi
+  const radiusMiles = Math.min(Math.max(parseInt(req.body.radius_miles) || 50, 1), 60); // Default 50mi vs old 5mi
+  // Near me: the phone's GPS point and a distance, instead of a typed city.
+  const nearLat = parseFloat(req.body.lat), nearLng = parseFloat(req.body.lng);
+  const nearMe = !req.body.route_date && Number.isFinite(nearLat) && Number.isFinite(nearLng) &&
+                 Math.abs(nearLat) <= 90 && Math.abs(nearLng) <= 180;
   // Along-today's-route mode: route_date = the phone's local date. Leads are
   // searched around each planned stop and kept only if they're close to the
   // route; route_radius_miles = how far off a stop a lead may be (default 8).
@@ -745,6 +780,15 @@ router.post('/daily-leads', async (req, res) => {
         }));
       }
       centerCoords = { lat: centers[0].lat, lng: centers[0].lng };
+    } else if (nearMe) {
+      centerCoords = { lat: nearLat, lng: nearLng };
+      const biasM = Math.min(radiusMiles * 1609.34, 50000);
+      const seenQ = new Set();
+      for (const config of segmentQueries) {
+        if (seenQ.has(config.query)) continue;
+        seenQ.add(config.query);
+        plans.push({ textQuery: config.query, bias: { circle: { center: { latitude: nearLat, longitude: nearLng }, radius: biasM } }, centerIdx: 0, config });
+      }
     } else {
       // Geocode the city — always use the typed city first, fall back to home base
       // A typed city that won't geocode is an error, never a silent switch to
@@ -1004,7 +1048,7 @@ router.post('/daily-leads', async (req, res) => {
       leads: require('../lib/defang').defang(topLeads, ''), // Google names are outside text too
       brands_used: brands,
       channel,
-      mode: route ? 'route' : 'city',
+      mode: route ? 'route' : (nearMe ? 'near' : 'city'),
       radius_miles: route ? routeRadius : radiusMiles,
       center: { city, coords: centerCoords },
       route: route ? {
@@ -1039,6 +1083,7 @@ router.post('/log-call', async (req, res) => {
        VALUES ($1,$2,timezone($$America/New_York$$, NOW())::date,$3,$4,$5,$6,$7)`,
       [uid, prospect_id, 'In-Person Visit', outcome || '', next_step || '', next_step_date || null, notes || null]
     );
+    await require('../lib/pipeline').advance(pool, prospect_id, require('../lib/pipeline').stageForOutcome(outcome));
     // Sync notes to prospect record if provided
     if (notes && notes.trim()) {
       const todayFmt = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });

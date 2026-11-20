@@ -1172,6 +1172,7 @@ router.post('/items/:id/done', async (req, res) => {
            VALUES ($1,$2,timezone($$America/New_York$$, NOW())::date,'Visit','Visited')`,
           [repId, acctId]
         );
+        await require('../lib/pipeline').advance(pool, acctId, 'Contacted');
         await pool.query(
           `UPDATE prospects
               SET data_status = CASE WHEN data_status = 'Unvetted' THEN 'Contacted' ELSE data_status END,

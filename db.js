@@ -45,6 +45,14 @@ function parseCsv(text) {
     .map(r => { const o = {}; headers.forEach((h, idx) => { o[h] = (r[idx] != null ? r[idx] : '').trim(); }); return o; });
 }
 
+async function runOnce(name, fn) {
+  const done = await pool.query('SELECT 1 FROM app_migrations WHERE name=$1', [name]);
+  if (done.rows.length) return;
+  const result = await fn();
+  await pool.query('INSERT INTO app_migrations (name, result) VALUES ($1, $2) ON CONFLICT DO NOTHING', [name, JSON.stringify(result || {})]);
+  console.log('[migrate] ran once:', name, JSON.stringify(result || {}));
+}
+
 async function initDB() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
@@ -293,23 +301,6 @@ async function initDB() {
       END LOOP;
     END $$;
 
-    -- Neutralize any saved HTML tag text (see lib/defang.js). Only touches rows that have one.
-    UPDATE prospects SET company = regexp_replace(company, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE company ~ '<[a-zA-Z/!?]';
-    UPDATE prospects SET contact = regexp_replace(contact, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE contact ~ '<[a-zA-Z/!?]';
-    UPDATE prospects SET city = regexp_replace(city, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE city ~ '<[a-zA-Z/!?]';
-    UPDATE prospects SET address = regexp_replace(address, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE address ~ '<[a-zA-Z/!?]';
-    UPDATE prospects SET notes = regexp_replace(notes, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE notes ~ '<[a-zA-Z/!?]';
-    UPDATE prospects SET products = regexp_replace(products, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE products ~ '<[a-zA-Z/!?]';
-    UPDATE prospects SET title = regexp_replace(title, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE title ~ '<[a-zA-Z/!?]';
-    UPDATE contacts SET name = regexp_replace(name, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE name ~ '<[a-zA-Z/!?]';
-    UPDATE contacts SET title = regexp_replace(title, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE title ~ '<[a-zA-Z/!?]';
-    UPDATE contacts SET email = regexp_replace(email, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE email ~ '<[a-zA-Z/!?]';
-    UPDATE contacts SET phone = regexp_replace(phone, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE phone ~ '<[a-zA-Z/!?]';
-    UPDATE calls SET notes = regexp_replace(notes, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE notes ~ '<[a-zA-Z/!?]';
-    UPDATE calls SET next_step = regexp_replace(next_step, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE next_step ~ '<[a-zA-Z/!?]';
-    UPDATE calls SET products_discussed = regexp_replace(products_discussed, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE products_discussed ~ '<[a-zA-Z/!?]';
-    UPDATE calls SET outcome = regexp_replace(outcome, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE outcome ~ '<[a-zA-Z/!?]';
-    UPDATE quotes SET account_name = regexp_replace(account_name, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE account_name ~ '<[a-zA-Z/!?]';
     UPDATE quotes SET contact_name = regexp_replace(contact_name, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE contact_name ~ '<[a-zA-Z/!?]';
     UPDATE quotes SET products = regexp_replace(products, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE products ~ '<[a-zA-Z/!?]';
     UPDATE quotes SET comments = regexp_replace(comments, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE comments ~ '<[a-zA-Z/!?]';
@@ -833,6 +824,96 @@ async function initDB() {
     }
   } catch (e) {
     console.error('[migrate] fortress promo seed skipped:', e.message);
+  }
+
+  // One-time data jobs. Each runs once per database, recorded in app_migrations.
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS app_migrations (name TEXT PRIMARY KEY, ran_at TIMESTAMPTZ DEFAULT NOW(), result JSONB)`);
+    await pool.query(`ALTER TABLE quotes ADD COLUMN IF NOT EXISTS prospect_id INTEGER REFERENCES prospects(id) ON DELETE SET NULL`);
+    // Kody's field notes: when the buyer is actually there, and what this branch does.
+    await pool.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS best_time TEXT`);
+    await pool.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS specialty TEXT`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_quotes_prospect ON quotes(prospect_id)`);
+    // Junk that got saved as accounts (meeting notes from an import, a test
+    // account) and a test visit. Each row is copied into archived_records
+    // first, so nothing is lost. Only removed when nothing hangs off it.
+    await pool.query(`CREATE TABLE IF NOT EXISTS archived_records (
+      id SERIAL PRIMARY KEY, table_name TEXT NOT NULL, original_id INTEGER, data JSONB NOT NULL,
+      reason TEXT, archived_at TIMESTAMPTZ DEFAULT NOW())`);
+    await runOnce('2026-11-20 archive junk accounts', async () => {
+      const junk = await pool.query(`
+        SELECT p.* FROM prospects p
+         WHERE (p.company LIKE '03-27 Consultation:%'
+             OR p.company LIKE '03-30 Failed Initial Test of Zapier%'
+             OR p.company = '04-05 Demonstration and Strategy for an AI-Powered NIL Agent Platform'
+             OR p.company LIKE '04-06 Meeting: Dealer Conversion Incentives%'
+             OR p.company = '2026-03-30 09:26:05'
+             OR p.company = 'ZZ TEST Manufacturer (delete me)')
+           AND NOT EXISTS (SELECT 1 FROM calls c WHERE c.prospect_id = p.id)
+           AND NOT EXISTS (SELECT 1 FROM samples s WHERE s.prospect_id = p.id)
+           AND NOT EXISTS (SELECT 1 FROM quotes q WHERE q.prospect_id = p.id)
+           AND NOT EXISTS (SELECT 1 FROM commission_lines l WHERE l.account_id = p.id)`);
+      for (const row of junk.rows) {
+        await pool.query(`INSERT INTO archived_records (table_name, original_id, data, reason) VALUES ('prospects',$1,$2,'junk account (Nov 20 audit)')`, [row.id, JSON.stringify(row)]);
+        await pool.query('DELETE FROM prospects WHERE id=$1', [row.id]);
+      }
+      const tc = await pool.query(`SELECT * FROM calls WHERE notes = 'TEST call from Claude, delete'`);
+      for (const row of tc.rows) {
+        await pool.query(`INSERT INTO archived_records (table_name, original_id, data, reason) VALUES ('calls',$1,$2,'test visit (Nov 20 audit)')`, [row.id, JSON.stringify(row)]);
+        await pool.query('DELETE FROM calls WHERE id=$1', [row.id]);
+      }
+      return { accounts: junk.rows.map(r => r.company), test_visits: tc.rows.length };
+    });
+    // Free fill: accounts with a full street address but no city get the city
+    // and state from that address ("12 Main St, Toccoa, GA 30577").
+    await runOnce('2026-11-20 city from address', async () => {
+      const r = await pool.query(`
+        UPDATE prospects SET
+          city  = TRIM(m[1]),
+          state = COALESCE(NULLIF(TRIM(state),''), m[2])
+          FROM (SELECT id AS pid, regexp_match(address, ',\\s*([A-Za-z][A-Za-z .''-]{1,38}[A-Za-z]),\\s*([A-Z]{2})\\s*(\\d{5})?(-\\d{4})?\\s*(,\\s*(USA|US|United States))?\\s*$') AS m
+                  FROM prospects WHERE (city IS NULL OR TRIM(city)='') AND address IS NOT NULL) x
+         WHERE prospects.id = x.pid AND x.m IS NOT NULL`);
+      return { filled: r.rowCount };
+    });
+    await runOnce('2026-11-20 link quotes to accounts', async () => {
+      const { accountKeySql } = require('./lib/account-key');
+      const r = await pool.query(`
+        UPDATE quotes q SET prospect_id = m.id
+          FROM (SELECT DISTINCT ON (q2.id) q2.id AS qid, p.id
+                  FROM quotes q2 JOIN prospects p ON ${accountKeySql('p.company')} = ${accountKeySql('q2.account_name')}
+                 ORDER BY q2.id, (p.user_id = COALESCE(q2.rep_id, q2.user_id)) DESC, p.id ASC) m
+         WHERE q.id = m.qid AND q.prospect_id IS NULL`);
+      return { linked: r.rowCount };
+    });
+    await runOnce('2026-11-20 pipeline catch-up', async () => require('./lib/pipeline').backfill(pool));
+  } catch (e) {
+    console.error('[migrate] one-time jobs:', e.message);
+  }
+
+  // Neutralize any saved HTML tag text (see lib/defang.js). Only touches rows that have one.
+  // Runs last so every column it touches exists, including on a brand-new database.
+  try {
+    await pool.query(`
+    UPDATE prospects SET company = regexp_replace(company, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE company ~ '<[a-zA-Z/!?]';
+    UPDATE prospects SET contact = regexp_replace(contact, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE contact ~ '<[a-zA-Z/!?]';
+    UPDATE prospects SET city = regexp_replace(city, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE city ~ '<[a-zA-Z/!?]';
+    UPDATE prospects SET address = regexp_replace(address, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE address ~ '<[a-zA-Z/!?]';
+    UPDATE prospects SET notes = regexp_replace(notes, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE notes ~ '<[a-zA-Z/!?]';
+    UPDATE prospects SET products = regexp_replace(products, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE products ~ '<[a-zA-Z/!?]';
+    UPDATE prospects SET title = regexp_replace(title, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE title ~ '<[a-zA-Z/!?]';
+    UPDATE contacts SET name = regexp_replace(name, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE name ~ '<[a-zA-Z/!?]';
+    UPDATE contacts SET title = regexp_replace(title, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE title ~ '<[a-zA-Z/!?]';
+    UPDATE contacts SET email = regexp_replace(email, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE email ~ '<[a-zA-Z/!?]';
+    UPDATE contacts SET phone = regexp_replace(phone, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE phone ~ '<[a-zA-Z/!?]';
+    UPDATE calls SET notes = regexp_replace(notes, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE notes ~ '<[a-zA-Z/!?]';
+    UPDATE calls SET next_step = regexp_replace(next_step, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE next_step ~ '<[a-zA-Z/!?]';
+    UPDATE calls SET products_discussed = regexp_replace(products_discussed, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE products_discussed ~ '<[a-zA-Z/!?]';
+    UPDATE calls SET outcome = regexp_replace(outcome, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE outcome ~ '<[a-zA-Z/!?]';
+    UPDATE quotes SET account_name = regexp_replace(account_name, '<([a-zA-Z/!?])', '‹\\1', 'g') WHERE account_name ~ '<[a-zA-Z/!?]';
+    `);
+  } catch (e) {
+    console.error('[migrate] defang cleanup skipped:', e.message);
   }
 
   console.log('Database initialized');

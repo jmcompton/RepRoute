@@ -1,5 +1,6 @@
 const express = require('express');
 const { pool } = require('../db');
+const pipeline = require('../lib/pipeline');
 const router = express.Router();
 
 router.get('/', async (req, res) => {
@@ -9,6 +10,23 @@ router.get('/', async (req, res) => {
      FROM calls c JOIN prospects p ON c.prospect_id=p.id
      WHERE c.user_id=$1 ORDER BY c.call_date DESC`, [uid]);
   res.json(result.rows);
+});
+
+// GET /api/calls/search?q=MoistureShield — every visit note on the team that
+// mentions a word, newest first, with the account it was at. (Kody, Oct 27.)
+router.get('/search', async (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (q.length < 2) return res.json({ q, results: [] });
+  const like = '%' + q.replace(/[\\%_]/g, m => '\\' + m) + '%';
+  const r = await pool.query(
+    `SELECT c.id, c.call_date::text AS call_date, c.call_type, c.outcome, c.prospect_id,
+            p.company, p.city, COALESCE(NULLIF(TRIM(u.name),''), u.email) AS rep,
+            c.notes, c.next_step, c.products_discussed
+       FROM calls c JOIN prospects p ON p.id = c.prospect_id LEFT JOIN users u ON u.id = c.user_id
+      WHERE c.notes ILIKE $1 OR c.next_step ILIKE $1 OR c.products_discussed ILIKE $1
+      ORDER BY c.call_date DESC NULLS LAST, c.id DESC LIMIT 100`, [like]);
+  const accounts = new Set(r.rows.map(x => x.prospect_id)).size;
+  res.json({ q, accounts, results: r.rows });
 });
 
 router.post('/', async (req, res) => {
@@ -68,6 +86,7 @@ router.post('/', async (req, res) => {
         [uid, prospect_id, String(products_discussed || '').trim() || 'Sample', 'From visit log', call_date || null]);
     } catch (e) { console.error('[calls] sample from visit:', e.message); }
   }
+  await pipeline.advance(pool, prospect_id, pipeline.stageForOutcome(outcome));
   res.json(result.rows[0]);
   } catch (err) {
     console.error('[calls] POST error:', err.message);

@@ -212,6 +212,11 @@ async function insertProspect(uid, body) {
   );
   // Geocode the street address in the background so the planner can route to it.
   if (address) geocodeProspect(pool, result.rows[0].id, address);
+  // No address but the rep logged it while standing there: use their GPS point.
+  else if (Number.isFinite(Number(body.lat)) && Number.isFinite(Number(body.lng)) && body.lat !== null && body.lng !== null && body.lat !== '' && body.lng !== '') {
+    await pool.query('UPDATE prospects SET lat=$1, lng=$2, geocoded_at=NOW() WHERE id=$3', [Number(body.lat), Number(body.lng), result.rows[0].id]);
+    result.rows[0].lat = Number(body.lat); result.rows[0].lng = Number(body.lng);
+  }
   return result.rows[0];
 }
 
@@ -541,8 +546,10 @@ router.post('/enrich-missing', async (req, res) => {
     // Once enrichAccount stamps enrich_attempted_at, they leave this queue even
     // if Places found nothing — so the loop terminates instead of spinning on
     // businesses that can't be matched. Re-eligible after 30 days.
+    // Missing a phone, a city or an address: over half the team's accounts
+    // had no city, which breaks along-route search and duplicate matching.
     const QUEUE_WHERE =
-      `user_id=$1 AND (phone IS NULL OR TRIM(phone)='')
+      `user_id=$1 AND ((phone IS NULL OR TRIM(phone)='') OR (city IS NULL OR TRIM(city)='') OR (address IS NULL OR TRIM(address)=''))
        AND (enrich_attempted_at IS NULL OR enrich_attempted_at < NOW() - INTERVAL '30 days')`;
 
     const blanks = await pool.query(
@@ -609,6 +616,25 @@ router.get('/:id/contacts', async (req, res) => {
     console.error('GET contacts error:', e.message);
     res.status(500).json({ error: e.message });
   }
+});
+
+// GET/PUT /api/prospects/:id/field-notes — shared knowledge about an account
+// any rep can read and add to: when the buyer is actually there ("Tuesdays at
+// 10") and what this branch does ("trusses only" vs "big decking program").
+router.get('/:id/field-notes', async (req, res) => {
+  const pid = await teamAccount(req, req.params.id);
+  if (!pid) return res.status(404).json({ error: 'Account not found' });
+  const r = await pool.query('SELECT best_time, specialty FROM prospects WHERE id=$1', [pid]);
+  res.json(r.rows[0] || {});
+});
+router.put('/:id/field-notes', async (req, res) => {
+  const pid = await teamAccount(req, req.params.id);
+  if (!pid) return res.status(404).json({ error: 'Account not found' });
+  const clip = v => (v == null ? null : String(v).trim().slice(0, 500) || null);
+  const b = req.body || {};
+  const r = await pool.query('UPDATE prospects SET best_time=$2, specialty=$3 WHERE id=$1 RETURNING best_time, specialty',
+    [pid, clip(b.best_time), clip(b.specialty)]);
+  res.json(r.rows[0]);
 });
 
 // POST /api/prospects/:id/contacts — add a contact under an account.

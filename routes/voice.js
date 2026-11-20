@@ -4,7 +4,6 @@ const { pool } = require('../db');
 const router = express.Router();
 
 const CLAUDE_API = 'https://api.anthropic.com/v1/messages';
-const MODEL = 'claude-haiku-4-5-20251001';
 // Card reading: same Sonnet model the rest of RepRoute already runs on
 // (was pinned to an older Opus model, and errors were hidden from the rep).
 const CARD_MODEL = 'claude-sonnet-4-6';
@@ -64,134 +63,85 @@ function voiceScore(spoken, company) {
 }
 
 // ── POST /api/voice/process ──────────────────────────────────────
-// Extract structured data from a transcript using Anthropic
+// Turn the spoken note into fields (see lib/voice-extract.js for what it
+// guards against). too_short:true means the app must not save it as a visit.
+const llm = require('../lib/llm');
+const vx = require('../lib/voice-extract');
+const { reverseGeocode, milesBetween } = require('../lib/geocode');
+
 router.post('/process', async (req, res) => {
-  const { transcript } = req.body;
-  if (!transcript || !transcript.trim()) {
-    return res.status(400).json({ error: 'Transcript required' });
-  }
-
-  const prompt = `You are a CRM data extraction assistant for a building products manufacturer's rep. Extract key information from this sales call transcript.
-
-TRANSCRIPT:
-"${transcript.trim().substring(0, 4000)}"
-
-Extract and return ONLY a JSON object with exactly these fields:
-- account_name: The company/business name mentioned (null if not mentioned). Extract verbatim as spoken.
-- contact_name: First name only of the person spoken with at the account (null if not mentioned). First name only.
-- summary: Clean 2-3 sentence summary of what was discussed, outcomes, and any products mentioned.
-- outcome: Must be exactly one of: "Left Voicemail" | "Dropped In - Interested" | "Dropped In - Not Interested" | "Left Sample" | "Ready to Order" | "Follow-up Needed" | "Not Available" | "Phone - Interested" | "Phone - Not Interested" | "Order Placed" | "Demo Scheduled" | "Other"
-- next_steps: Specific next action to take, verbatim if mentioned (null if none mentioned)
-
-Choose the outcome that best matches what was described. Default to "Other" if unclear.
-
-Return ONLY valid JSON, no markdown, no backticks, no explanation:
-{"account_name":null,"contact_name":null,"summary":"...","outcome":"Other","next_steps":null}`;
-
+  const transcript = String((req.body || {}).transcript || '').trim();
+  if (!transcript) return res.status(400).json({ error: 'Transcript required' });
+  const today = vx.todayYMD();
+  if (vx.wordCount(transcript) < vx.MIN_WORDS) return res.json(vx.finalize({}, transcript, today));
   try {
-    const response = await fetch(CLAUDE_API, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 800,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
-
-    const data = await response.json();
-    if (data.error) {
-      console.error('[voice/process] API error:', data.error.message);
-      // Graceful fallback, but tell the app so the rep isn't left guessing
-      return res.json({
-        account_name: null, contact_name: null,
-        summary: transcript.trim().substring(0, 400),
-        outcome: 'Other', next_steps: null,
-        _ai_error: data.error.message || 'AI unavailable'
-      });
-    }
-
-    const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
-    const start = text.indexOf('{');
-    const end = text.lastIndexOf('}');
-
-    if (start === -1 || end === -1) {
-      return res.json({
-        account_name: null, contact_name: null,
-        summary: transcript.trim().substring(0, 400),
-        outcome: 'Other', next_steps: null
-      });
-    }
-
-    try {
-      const extracted = JSON.parse(text.substring(start, end + 1));
-      res.json(extracted);
-    } catch (parseErr) {
-      res.json({
-        account_name: null, contact_name: null,
-        summary: transcript.trim().substring(0, 400),
-        outcome: 'Other', next_steps: null
-      });
-    }
+    const text = await llm.complete({ prompt: vx.buildPrompt(transcript, today), maxTokens: 1200, timeoutMs: 30000 });
+    return res.json(vx.finalize(llm.parseJson(text), transcript, today));
   } catch (e) {
-    console.error('[voice/process] error:', e.message);
-    // Never fail — return transcript as summary
-    res.json({
-      account_name: null, contact_name: null,
-      summary: transcript.trim().substring(0, 400),
-      outcome: 'Other', next_steps: null
-    });
+    console.error('[voice/process] AI error:', e.message);
+    const out = vx.finalize({}, transcript, today);
+    out._ai_error = 'AI unavailable';
+    return res.json(out);
   }
 });
 
-// ── GET /api/voice/match-account?name= ──────────────────────────
-// Fuzzy match a spoken account name against the user's prospects
+// ── GET /api/voice/where?lat=&lng= ───────────────────────────────
+// City and state for where the rep is standing, to fill new accounts.
+router.get('/where', async (req, res) => {
+  const g = await reverseGeocode(req.query.lat, req.query.lng);
+  res.json(g || {});
+});
+
+// ── GET /api/voice/match-account?name=&city=&lat=&lng= ───────────
+// Matches the spoken name against EVERY active rep's accounts, not just the
+// caller's: a rep logging a visit at a teammate's account used to create a
+// second copy of it. Location decides between branches with the same name
+// (a Beacon in Gainesville is not the Beacon in Toccoa).
 router.get('/match-account', async (req, res) => {
   const uid = req.session.user.id;
-  const { name } = req.query;
-  if (!name || !name.trim()) return res.json({ matches: [], best_match: null });
-
+  const name = String(req.query.name || '').trim();
+  if (!name) return res.json({ matches: [], best_match: null });
+  const city = String(req.query.city || '').trim().toLowerCase();
+  const lat = parseFloat(req.query.lat), lng = parseFloat(req.query.lng);
+  const here = Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
   try {
-    // Get all distinct company names for this user
     const result = await pool.query(
-      `SELECT DISTINCT ON (LOWER(TRIM(company)))
-              id, company, city, state, category, company_type
-       FROM prospects
-       WHERE user_id = $1
-       ORDER BY LOWER(TRIM(company)), id ASC`,
-      [uid]
-    );
+      `SELECT p.id, p.user_id, p.company, p.city, p.state, p.category, p.company_type, p.lat, p.lng,
+              COALESCE(NULLIF(TRIM(u.name),''), u.email) AS owner_name
+         FROM prospects p JOIN users u ON u.id = p.user_id
+        WHERE u.disabled_at IS NULL AND p.company IS NOT NULL AND TRIM(p.company) <> ''`);
 
-    const accounts = result.rows;
-
-    // Score each account (see voiceScore above). Collapse spelling variants of
-    // the same account ("CRS Inc" / "CRS, Inc.") so the picker isn't padded.
+    // One entry per account (name + city); prefer the caller's own row.
     const byKey = new Map();
-    accounts.forEach(a => {
+    for (const a of result.rows) {
       const { sim, exact } = voiceScore(name, a.company);
-      if (sim < 0.60) return;
-      const k = voiceKey(a.company);
+      if (sim < 0.60) continue;
+      const aCity = String(a.city || '').trim().toLowerCase();
+      let score = sim, dist = null;
+      if (here && a.lat != null && a.lng != null) {
+        dist = milesBetween(here, { lat: Number(a.lat), lng: Number(a.lng) });
+        if (dist <= 15) score += 0.06; else if (dist > 60) score -= 0.15;
+      }
+      if (city && aCity) score += aCity === city ? 0.05 : -0.08;
+      if (a.user_id === uid) score += 0.02;
+      // Same name but clearly another branch: not an exact hit.
+      const farAway = (dist != null && dist > 25) || (dist == null && city && aCity && aCity !== city);
+      const k = voiceKey(a.company) + '|' + aCity;
       const prev = byKey.get(k);
-      if (prev && prev.sim >= sim) return;
-      byKey.set(k, {
-        id: a.id, company: a.company,
-        city: a.city || '', state: a.state || '', category: a.category || '',
-        sim, exact
-      });
-    });
-
-    const matches = [...byKey.values()]
-      .sort((a, b) => b.sim - a.sim)
-      .slice(0, 5);
-
-    const best_match = matches.length > 0 && matches[0].sim >= 0.70 ? matches[0] : null;
-    const exact = matches.length > 0 && matches[0].exact ? matches[0] : null;
-
-    res.json({ matches, best_match, exact });
+      const cand = {
+        id: a.id, company: a.company, city: a.city || '', state: a.state || '', category: a.category || '',
+        owner_name: a.owner_name, is_mine: a.user_id === uid,
+        distance_mi: dist == null ? null : Math.round(dist * 10) / 10,
+        sim: Math.max(0, Math.min(score, 0.99)), exact: exact && !farAway
+      };
+      if (!prev || cand.sim > prev.sim || (cand.sim === prev.sim && cand.is_mine && !prev.is_mine)) byKey.set(k, cand);
+    }
+    const matches = [...byKey.values()].sort((a, b) => b.sim - a.sim).slice(0, 5);
+    const exactHits = matches.filter(m => m.exact);
+    // Two exact hits in different places means branches: let the rep pick.
+    const exactOne = exactHits.length === 1 ? exactHits[0] : null;
+    const best_match = matches.length && matches[0].sim >= 0.70 ? matches[0] : null;
+    res.json({ matches, best_match, exact: exactOne });
   } catch (e) {
     console.error('[voice/match-account] error:', e.message);
     res.status(500).json({ error: e.message });
@@ -204,12 +154,12 @@ router.get('/account-names', async (req, res) => {
   const uid = req.session.user.id;
   try {
     const r = await pool.query(
-      `SELECT DISTINCT ON (LOWER(TRIM(company))) TRIM(company) AS company
-         FROM prospects
-        WHERE user_id = $1 AND company IS NOT NULL AND TRIM(company) <> ''
-        ORDER BY LOWER(TRIM(company))
-        LIMIT 5000`,
-      [uid]
+      `SELECT DISTINCT ON (LOWER(TRIM(p.company))) TRIM(p.company) AS company
+         FROM prospects p JOIN users u ON u.id = p.user_id
+        WHERE u.disabled_at IS NULL AND p.company IS NOT NULL AND TRIM(p.company) <> ''
+        ORDER BY LOWER(TRIM(p.company))
+        LIMIT 8000`,
+      []
     );
     res.json(r.rows.map(x => x.company));
   } catch (e) {

@@ -132,30 +132,8 @@ async function draftOrTemplate(tag, system, prompt, fallback) {
   }
 }
 
-// Accounts that have gone cold: visited before, nothing in `days`+ days.
-// Bigger buyers (from commission data) first, then longest gone.
-async function coldAccounts({ userId, team, days = 60, limit = 15 }) {
-  const r = await pool.query(
-    `SELECT p.id, p.company, p.city, p.phone, p.user_id,
-            COALESCE(NULLIF(TRIM(u.name),''), u.email) AS owner,
-            lc.call_date::text AS last_visit, lc.outcome AS last_outcome, LEFT(lc.notes, 200) AS last_notes,
-            lc.products_discussed AS last_lines,
-            ((NOW() AT TIME ZONE '${TZ}')::date - lc.call_date) AS days_cold,
-            COALESCE(al.sales, 0)::float AS sales, al.lines
-       FROM prospects p
-       JOIN LATERAL (SELECT call_date, outcome, notes, products_discussed FROM calls c
-                      WHERE c.prospect_id = p.id ORDER BY call_date DESC, id DESC LIMIT 1) lc ON TRUE
-       LEFT JOIN users u ON u.id = p.user_id
-       LEFT JOIN LATERAL (SELECT SUM(x.total_sales) AS sales, STRING_AGG(l.name, ', ' ORDER BY x.total_sales DESC NULLS LAST) AS lines
-                            FROM account_lines x JOIN lines l ON l.id = x.line_id WHERE x.account_id = p.id) al ON TRUE
-      WHERE lc.call_date <= (NOW() AT TIME ZONE '${TZ}')::date - $1::int
-        AND COALESCE(p.reconnect_dismissed, FALSE) = FALSE
-        AND (p.reconnect_snoozed_until IS NULL OR p.reconnect_snoozed_until < NOW())
-        ${team ? '' : 'AND p.user_id = $3'}
-      ORDER BY COALESCE(al.sales, 0) DESC, lc.call_date ASC
-      LIMIT $2`, team ? [days, limit] : [days, limit, userId]);
-  return r.rows;
-}
+// Going-cold accounts: one shared rule, see lib/going-cold.js.
+const { coldAccounts, COLD_DAYS } = require('../lib/going-cold');
 
 // ── GET /api/agents/brief?date=&refresh=1 ────────────────────────
 // The rep's morning plan: 3-5 things that matter most today, in order.
@@ -178,8 +156,8 @@ router.get('/brief', async (req, res) => {
                    ORDER BY c.prospect_id, c.call_date DESC, c.id DESC) x
                   WHERE x.user_id=$1 AND x.due IS NOT NULL AND x.due <= $2 ORDER BY x.due LIMIT 8`, [me.id, today]),
       pool.query(`SELECT q.id, q.account_name AS company, q.amount::float AS amount, q.products, q.follow_up_date::text AS due,
-                         (SELECT id FROM prospects p WHERE LOWER(REGEXP_REPLACE(p.company,'[^a-zA-Z0-9]','','g')) =
-                                 LOWER(REGEXP_REPLACE(q.account_name,'[^a-zA-Z0-9]','','g')) LIMIT 1) AS account_id
+                         COALESCE(q.prospect_id, (SELECT id FROM prospects p WHERE LOWER(REGEXP_REPLACE(p.company,'[^a-zA-Z0-9]','','g')) =
+                                 LOWER(REGEXP_REPLACE(q.account_name,'[^a-zA-Z0-9]','','g')) LIMIT 1)) AS account_id
                     FROM quotes q WHERE (q.user_id=$1 OR q.rep_id=$1) AND q.status NOT IN ('Won','Lost')
                      AND q.follow_up_date IS NOT NULL AND q.follow_up_date <= $2
                    ORDER BY q.amount DESC NULLS LAST LIMIT 6`, [me.id, today]),
@@ -190,7 +168,7 @@ router.get('/brief', async (req, res) => {
                    ORDER BY s.follow_up_date LIMIT 6`, [me.id, today]),
       pool.query(`SELECT COUNT(*)::int AS n FROM calls WHERE user_id=$1 AND call_date = $2::date - 1`, [me.id, today])
     ]);
-    const cold = await coldAccounts({ userId: me.id, team: false, days: 60, limit: 3 });
+    const cold = await coldAccounts({ userId: me.id, team: false, limit: 3 });
 
     // Rule-based plan: always available, and the AI's guard rails.
     const items = [];
@@ -243,10 +221,10 @@ Return ONLY JSON: {"headline":"...","items":[{"n":<fact number>,"text":"..."}]}`
   }
 });
 
-// ── GET /api/agents/winback?scope=mine|team&days=60 ──────────────
+// ── GET /api/agents/winback?scope=mine|team&days=45 ──────────────
 router.get('/winback', async (req, res) => {
   try {
-    const days = Math.min(Math.max(parseInt(req.query.days) || 60, 21), 365);
+    const days = Math.min(Math.max(parseInt(req.query.days) || COLD_DAYS, 21), 365);
     const rows = await coldAccounts({ userId: req.session.user.id, team: req.query.scope === 'team', days, limit: 25 });
     res.json({ days, accounts: rows });
   } catch (e) {
@@ -300,8 +278,8 @@ router.post('/quote-nudge', async (req, res) => {
   try {
     const q = (await pool.query(
       `SELECT q.*, q.quote_date::text AS qd, q.follow_up_date::text AS fu,
-              (SELECT id FROM prospects p WHERE LOWER(REGEXP_REPLACE(p.company,'[^a-zA-Z0-9]','','g')) =
-                      LOWER(REGEXP_REPLACE(q.account_name,'[^a-zA-Z0-9]','','g')) LIMIT 1) AS account_id
+              COALESCE(q.prospect_id, (SELECT id FROM prospects p WHERE LOWER(REGEXP_REPLACE(p.company,'[^a-zA-Z0-9]','','g')) =
+                      LOWER(REGEXP_REPLACE(q.account_name,'[^a-zA-Z0-9]','','g')) LIMIT 1)) AS account_id
          FROM quotes q WHERE q.id = $1`, [id])).rows[0];
     if (!q) return res.status(404).json({ error: 'Quote not found' });
     if (me.role !== 'manager' && q.user_id !== me.id && q.rep_id !== me.id) return res.status(403).json({ error: 'Not your quote' });

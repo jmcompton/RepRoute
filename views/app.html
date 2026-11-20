@@ -764,6 +764,10 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
     border-right:1px solid #1e2028 !important;
     min-width:84px !important;
   }
+  /* Two by two on a phone so the status (and its date) is never cut off. */
+  #page-record .rec-quick { display:grid !important; grid-template-columns:1fr 1fr !important; overflow:visible !important; }
+  #page-record .rec-quick > div { min-width:0 !important; border-bottom:1px solid #1e2028 !important; }
+  #page-record .rq-val { overflow-wrap:anywhere !important; }
   #page-record .rq-label { color:rgba(255,255,255,.4) !important; font-size:9px !important; text-transform:uppercase !important; letter-spacing:.04em !important; }
   #page-record .rq-val   { color:#fff !important; font-size:12px !important; }
 
@@ -1223,9 +1227,10 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-seri
   #rec-mobile-extra-tabs .rl-item {
     display:inline-flex !important;
     align-items:center !important;
+    justify-content:center !important;
     gap:4px !important;
-    flex-shrink:0 !important;
-    padding:11px 16px !important;
+    flex:1 1 auto !important;
+    padding:11px 8px !important;
     font-size:12px !important;
     color:rgba(255,255,255,.5) !important;
     border-bottom:2px solid transparent !important;
@@ -1790,6 +1795,12 @@ function localYMD(d){ d = d || new Date(); return d.getFullYear()+'-'+String(d.g
             <label class="lead-brand-pill" data-brand="Alum-A-Pole" style="cursor:pointer;background:#d1fae5;color:#065f46;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:flex;align-items:center;gap:5px;border:2px solid transparent">
               <input type="checkbox" value="Alum-A-Pole" style="margin:0;accent-color:#065f46"> Alum-A-Pole
             </label>
+            <label class="lead-brand-pill" data-brand="Soudal" style="cursor:pointer;background:#fef3c7;color:#92400e;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:flex;align-items:center;gap:5px;border:2px solid transparent">
+              <input type="checkbox" value="Soudal" style="margin:0;accent-color:#92400e"> Soudal
+            </label>
+            <label class="lead-brand-pill" data-brand="Fortress" style="cursor:pointer;background:#e5e7eb;color:#1f2937;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:flex;align-items:center;gap:5px;border:2px solid transparent">
+              <input type="checkbox" value="Fortress" style="margin:0;accent-color:#1f2937"> Fortress
+            </label>
           </div>
 
           <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Segments <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#059669">&#9650; Distributors &amp; Dealers prioritized</span></div>
@@ -1833,6 +1844,9 @@ function localYMD(d){ d = d || new Date(); return d.getFullYear()+'-'+String(d.g
             <label style="cursor:pointer;background:#cffafe;color:#0e7490;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;user-select:none;border:1.5px solid #67e8f9">
               <input type="checkbox" name="seg" value="Glass Shop" style="margin:0;accent-color:#0e7490"> Glass Shops
             </label>
+            <label style="cursor:pointer;background:#f1f5f9;color:#334155;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;user-select:none;border:1.5px solid #cbd5e1">
+              <input type="checkbox" name="seg" value="Rebar / Concrete Supply" style="margin:0;accent-color:#334155"> Rebar / Concrete Supply
+            </label>
           </div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -1841,6 +1855,12 @@ function localYMD(d){ d = d || new Date(); return d.getFullYear()+'-'+String(d.g
             <button onclick="window._lfRouteMode=false;runDailyLeads()" id="lead-find-btn" style="padding:10px 22px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">
               Find Today's Leads
             </button>
+            <button onclick="leadsNearMe()" id="lead-near-btn" title="Search around where you are now" style="padding:10px 14px;background:var(--surface);color:var(--navy);border:1px solid var(--border);border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">
+              📍 Near Me
+            </button>
+            <select id="lead-near-radius" aria-label="Distance for Near Me" style="padding:9px 8px;border:1px solid var(--border);border-radius:6px;font-size:16px;background:#fff;color:var(--navy)">
+              <option value="5">5 mi</option><option value="10">10 mi</option><option value="15" selected>15 mi</option><option value="25">25 mi</option><option value="50">50 mi</option>
+            </select>
             <button onclick="window._lfRouteMode=true;runDailyLeads()" id="lead-route-btn" title="Search around each stop on today's route" style="padding:10px 16px;background:var(--navy);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">
               Along Today's Route
             </button>
@@ -1982,12 +2002,19 @@ function localYMD(d){ d = d || new Date(); return d.getFullYear()+'-'+String(d.g
       </select>
       <div style="display:flex;gap:6px;margin-left:auto">
         <button class="btn btn-secondary btn-sm" id="btn-add-contact" onclick="openModal('add-prospect')">+ New</button>
-        <button class="btn btn-secondary btn-sm" id="btn-enrich-phones" onclick="findMissingPhones()" title="Auto-fill missing phone numbers &amp; addresses via Google Places">📞 Find phone #s</button>
+        <button class="btn btn-secondary btn-sm" id="btn-enrich-phones" onclick="findMissingPhones()" title="Fill in missing phone numbers, addresses and cities from Google">📞 Fill missing details</button>
         <button class="btn btn-primary btn-sm" onclick="go('leads')">Find Leads</button>
-        <button class="btn btn-sm" onclick="go('bulk')" style="background:var(--navy);color:#00FF87;border:none;font-weight:700;padding:6px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit">Bulk Import</button>
+        <button class="btn btn-sm role-gated" data-roles="manager" onclick="go('bulk')" style="background:var(--navy);color:#00FF87;border:none;font-weight:700;padding:6px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit">Bulk Import</button>
         <button id="view-route-btn" onclick="go('leads')" style="display:none;padding:6px 12px;background:#059669;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">View Route (<span id="view-route-count">0</span>)</button>
       </div>
     </div>
+    <!-- Search every visit note on the team for a word (Kody: "which accounts carry MoistureShield?") -->
+    <div id="notes-search-bar" style="padding:8px 16px;border-bottom:1px solid var(--border);background:#fff;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input id="notes-search-input" type="search" placeholder="Search all visit notes, e.g. MoistureShield" onkeydown="if(event.key==='Enter')searchVisitNotes()"
+        style="flex:1;min-width:200px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:16px;font-family:inherit">
+      <button class="btn btn-secondary btn-sm" onclick="searchVisitNotes()" style="min-height:36px">Search notes</button>
+    </div>
+    <div id="notes-search-results" style="display:none;padding:8px 16px;background:#fafbfc;border-bottom:1px solid var(--border)"></div>
 
     <div class="contacts-split">
     <!-- MY CONTACTS tab -->
@@ -2148,13 +2175,25 @@ function localYMD(d){ d = d || new Date(); return d.getFullYear()+'-'+String(d.g
           <div class="rl-item" onclick="setRecTab('outreach',this)">Emails</div>
         </div>
         <div class="rec-quick">
-          <div><div class="rq-label">Contact Owner</div><div class="rq-val">You</div></div>
+          <div><div class="rq-label">Contact Owner</div><div class="rq-val" id="rq-owner">You</div></div>
           <div><div class="rq-label">Email</div><div class="rq-val" id="rq-email">—</div></div>
           <div><div class="rq-label">Phone</div><div class="rq-val" id="rq-phone">—</div></div>
           <div><div class="rq-label">Status</div><div class="rq-val" id="rq-status">—</div></div>
         </div>
         <div class="rec-body">
           <div id="rec-tab-overview">
+            <div class="rec-sec" id="rec-fieldnotes-section">
+              <div class="rec-sec-hdr"><span class="rec-sec-title">Field notes</span><span id="rec-fn-status" style="font-size:11px;color:var(--text3)"></span></div>
+              <div class="rec-sec-body" style="display:grid;gap:10px">
+                <label style="font-size:11px;font-weight:600;color:var(--text3)">Best time to catch them
+                  <input id="rec-fn-best" type="text" maxlength="500" placeholder="e.g. Buyer only in Tuesdays at 10" style="display:block;width:100%;box-sizing:border-box;margin-top:4px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:16px;font-family:inherit">
+                </label>
+                <label style="font-size:11px;font-weight:600;color:var(--text3)">What this branch does
+                  <input id="rec-fn-spec" type="text" maxlength="500" placeholder="e.g. Trusses only / big decking program" style="display:block;width:100%;box-sizing:border-box;margin-top:4px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:16px;font-family:inherit">
+                </label>
+                <div><button class="btn btn-secondary btn-sm" onclick="saveFieldNotes()" style="min-height:36px">Save field notes</button></div>
+              </div>
+            </div>
             <div class="rec-sec">
               <div class="rec-sec-hdr"><span class="rec-sec-title">Contact Information</span><span style="font-size:11.5px;color:var(--blue);cursor:pointer">Edit</span></div>
               <div class="rec-sec-body" id="rec-fields"></div>
@@ -2734,7 +2773,7 @@ function localYMD(d){ d = d || new Date(); return d.getFullYear()+'-'+String(d.g
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
         <div>
           <div style="font-size:15px;font-weight:700;color:var(--navy)">Deal Pipeline</div>
-          <div style="font-size:12px;color:var(--text3);margin-top:2px">Drag contacts between stages to track progress</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px">Cards move on their own when you log visits, samples and quotes. Use Move to change one.</div>
         </div>
         <button class="btn btn-primary btn-sm" onclick="go('contacts')">+ Add Contact</button>
       </div>
@@ -3148,6 +3187,8 @@ function localYMD(d){ d = d || new Date(); return d.getFullYear()+'-'+String(d.g
       <div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:#fafbfc;border-radius:0 0 8px 8px">
         <button id="qd-delete-btn" onclick="deleteCurrentQuote()" style="display:none;padding:7px 14px;background:transparent;border:1px solid var(--red);color:var(--red);border-radius:5px;font-size:12px;font-weight:600;cursor:pointer">Delete</button>
         <button id="qd-nudge-btn" onclick="agentQuoteNudge(currentQuoteId)" style="display:none;margin-left:8px;padding:7px 14px;background:transparent;border:1px solid var(--border);color:var(--navy);border-radius:5px;font-size:12px;font-weight:600;cursor:pointer">✉ Draft follow-up</button>
+        <button id="qd-won-btn" onclick="quickQuoteStatus('Won')" style="display:none;margin-left:8px;min-height:36px;padding:7px 14px;background:#e6f4ec;border:1px solid #1a7f4b;color:#1a7f4b;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">Won</button>
+        <button id="qd-lost-btn" onclick="quickQuoteStatus('Lost')" style="display:none;margin-left:6px;min-height:36px;padding:7px 14px;background:#fdecea;border:1px solid #c0392b;color:#c0392b;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">Lost</button>
         <div style="display:flex;gap:8px;margin-left:auto">
           <button onclick="closeQuoteDetail()" style="padding:7px 16px;background:transparent;border:1px solid var(--border);border-radius:5px;font-size:12px;cursor:pointer;color:var(--text2)">Cancel</button>
           <button onclick="saveQuote()" style="padding:7px 18px;background:var(--blue);color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer" id="qd-save-btn">Save Quote</button>
@@ -4289,7 +4330,7 @@ function applyRoleNav(role) {
     el.style.display = allowed(el) ? '' : 'none';
   });
   // Any other link or button marked with data-roles (e.g. the Zoho import link)
-  document.querySelectorAll('a[data-roles]').forEach(function(el) {
+  document.querySelectorAll('a[data-roles], .role-gated[data-roles]').forEach(function(el) {
     if (!allowed(el)) el.style.display = 'none';
   });
   // Mobile "More" menu items that opt into role-gating (e.g. Quotes = rep/manager).
@@ -5190,6 +5231,52 @@ function clearContactSelection() {
   if (aside) aside.style.display = 'none';
 }
 
+// Field notes: shared by the whole team on every account.
+function loadFieldNotes(id) {
+  window._fnId = id;
+  var b = document.getElementById('rec-fn-best'), sp = document.getElementById('rec-fn-spec'), st = document.getElementById('rec-fn-status');
+  if (b) b.value = ''; if (sp) sp.value = ''; if (st) st.textContent = '';
+  fetch('/api/prospects/' + id + '/field-notes').then(function(r) { return r.ok ? r.json() : {}; }).then(function(d) {
+    if (window._fnId !== id) return;
+    if (b) b.value = d.best_time || ''; if (sp) sp.value = d.specialty || '';
+  }).catch(function() {});
+}
+function saveFieldNotes() {
+  var id = window._fnId; if (!id) return;
+  var st = document.getElementById('rec-fn-status');
+  fetch('/api/prospects/' + id + '/field-notes', {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ best_time: (document.getElementById('rec-fn-best') || {}).value || '', specialty: (document.getElementById('rec-fn-spec') || {}).value || '' })
+  }).then(function(r) { if (!r.ok) throw new Error(); if (st) st.textContent = 'Saved'; showToast('Field notes saved'); })
+    .catch(function() { showToast('Couldn\'t save. Try again.'); });
+}
+
+// Search every visit note on the team for a word.
+function searchVisitNotes() {
+  var q = ((document.getElementById('notes-search-input') || {}).value || '').trim();
+  var box = document.getElementById('notes-search-results');
+  if (!box) return;
+  if (q.length < 2) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  box.textContent = 'Searching...';
+  fetch('/api/calls/search?q=' + encodeURIComponent(q)).then(function(r) { return r.json(); }).then(function(d) {
+    var rows = (d && d.results) || [];
+    var esc = function(x) { return String(x || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+    if (!rows.length) { box.innerHTML = 'No visit notes mention "' + esc(q) + '".'; return; }
+    box.innerHTML = '<div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:6px">' + rows.length + ' note' + (rows.length === 1 ? '' : 's') + ' at ' + d.accounts + ' account' + (d.accounts === 1 ? '' : 's') +
+      ' <a href="#" onclick="document.getElementById(\'notes-search-results\').style.display=\'none\';return false" style="font-weight:400;margin-left:8px">Close</a></div>' +
+      rows.map(function(c) {
+        var text = esc(c.notes || c.next_step || c.products_discussed || '');
+        var rx = new RegExp(esc(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'ig');
+        text = text.replace(rx, function(m) { return '<mark>' + m + '</mark>'; });
+        return '<div onclick="viewTeamRecord(' + c.prospect_id + ')" style="padding:8px 10px;margin-bottom:6px;background:#fff;border:1px solid var(--border);border-radius:6px;cursor:pointer">' +
+          '<div style="font-size:13px;font-weight:700;color:var(--navy)">' + esc(c.company) + (c.city ? ' <span style="font-weight:400;color:var(--text3)">· ' + esc(c.city) + '</span>' : '') + '</div>' +
+          '<div style="font-size:11px;color:var(--text3)">' + esc(c.call_date) + ' · ' + esc(c.rep) + (c.outcome ? ' · ' + esc(c.outcome) : '') + '</div>' +
+          '<div style="font-size:12px;color:var(--text2);margin-top:3px;white-space:pre-wrap">' + text.slice(0, 600) + '</div></div>';
+      }).join('');
+  }).catch(function() { box.textContent = 'Search failed. Try again.'; });
+}
+
 function viewRecord(id) {
   fetch('/api/prospects')
     .then(function(r) { return r.json(); })
@@ -5198,6 +5285,7 @@ function viewRecord(id) {
       if (!p) return;
       currentRecord = p;
       go('record');
+      loadFieldNotes(p.id);
       var initials = p.company.split(' ').map(function(w) { return w[0]; }).join('').toUpperCase().slice(0,2);
       document.getElementById('rec-avatar').textContent = initials;
       document.getElementById('rec-title').textContent = p.company;
@@ -5227,6 +5315,8 @@ function viewRecord(id) {
       // People (contact name/title/email/mobile) now live in the Contacts tab,
       // sourced from the contacts table — they are NOT repeated in this business
       // grid so the same person isn't shown twice. Business facts stay here.
+      var ownEl = document.getElementById('rq-owner');
+      if (ownEl) ownEl.textContent = 'You';
       var fields = [
         ['Contact Owner','You'],['Company Type',ctRecBadge],
         ['Account Name',p.company],
@@ -8048,6 +8138,14 @@ function loadPipeline() {
               (p.phone ? '<div class="pipe-card-meta">' + p.phone + '</div>' : '') +
               '<span class="pipe-card-badge" style="background:' + stage.bg + ';color:' + stage.color + '">' +
               (p.priority||'Medium') + '</span>' +
+              // Tap-to-move: phones can't drag cards.
+              '<select class="pipe-move" aria-label="Move to stage" onclick="event.stopPropagation()" onchange="moveCard(' + p.id + ',this.value)" ' +
+                'style="margin-top:8px;width:100%;min-height:36px;font-size:16px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text2)">' +
+                '<option value="">Move to…</option>' +
+                pipelineStages.filter(function(st) { return st.id !== stage.id; }).map(function(st) {
+                  return '<option value="' + st.id + '">' + st.label + '</option>';
+                }).join('') +
+              '</select>' +
               '</div>';
           }).join('') +
           '</div></div>';
@@ -8056,6 +8154,18 @@ function loadPipeline() {
 }
 
 var draggedId = null;
+
+function moveCard(id, stage) {
+  if (!stage) return;
+  fetch('/api/prospects/' + id, {
+    method: 'PUT', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ pipeline_stage: stage })
+  }).then(function(r) {
+    if (!r.ok) throw new Error();
+    showToast('Moved to ' + stage);
+    loadPipeline();
+  }).catch(function() { showToast('Couldn\'t move that card. Try again.'); loadPipeline(); });
+}
 
 function dragCard(event, id) {
   draggedId = id;
@@ -9777,6 +9887,23 @@ function openNewQuoteModal() {
   quotePdfPhone = null; quotePdfEmail = null;
 }
 
+// One tap to close out a quote: Won moves the account to Closed Won, and either
+// one clears the follow-up so it stops showing as due.
+function quickQuoteStatus(status) {
+  if (!currentQuoteId) return;
+  fetch('/api/quotes/' + currentQuoteId + '/status', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: status })
+  }).then(function(r) { return r.json().then(function(d) { if (!r.ok || d.error) throw new Error(d.error || 'Failed'); return d; }); })
+    .then(function(d) {
+      var i = (allQuotes || []).findIndex(function(x) { return x.id === currentQuoteId; });
+      if (i >= 0 && d.quote) allQuotes[i] = Object.assign(allQuotes[i], d.quote);
+      showToast('Marked ' + status);
+      closeQuoteDetail();
+      if (typeof loadQuotes === 'function') loadQuotes();
+    })
+    .catch(function(e) { showToast(e.message || 'Couldn\'t update the quote'); });
+}
+
 function openQuoteDetail(id, _fetched) {
   var q = _fetched || allQuotes.find(function(x){ return x.id === id; }) ||
     ((window._qFollowups && window._qFollowups.all) || []).find(function(x){ return x.id === id; }) ||
@@ -9817,6 +9944,7 @@ function openQuoteDetail(id, _fetched) {
   document.getElementById('qd-pdf-name').textContent = '';
   document.getElementById('qd-delete-btn').style.display = 'block';
   var _nb = document.getElementById('qd-nudge-btn'); var _me = window.currentUser || {}; var _mine = _me.role === 'manager' || q.user_id === _me.id || q.rep_id === _me.id; if (_nb) _nb.style.display = (!_mine || q.status === 'Won' || q.status === 'Lost') ? 'none' : 'inline-block';
+  ['qd-won-btn','qd-lost-btn'].forEach(function(bid) { var b = document.getElementById(bid); if (b) b.style.display = (!_mine || q.status === 'Won' || q.status === 'Lost') ? 'none' : 'inline-block'; });
   var dropArea = document.getElementById('qd-drop-area');
   dropArea.style.borderColor = 'var(--border)';
   dropArea.style.background = '#fafbfc';
@@ -10468,11 +10596,11 @@ function renderCalendar(events) {
   var myUserId = window.__userData ? window.__userData.id : null;
   var fcEvents = events.map(function(e) {
     var isMine = myUserId && e.user_id === myUserId;
-    var color = eventTypeColors[e.event_type] || eventTypeColors.general;
+    var color = e.event_type === 'followup' ? '#C9A84C' : (eventTypeColors[e.event_type] || eventTypeColors.general);
     return {
-      id: e.id, title: e.title, start: e.start_time, end: e.end_time,
+      id: e.id, title: e.title, start: e.start_time, end: e.end_time || undefined, allDay: !!e.all_day,
       backgroundColor: color, borderColor: color,
-      extendedProps: { description: e.description, location: e.location, event_type: e.event_type, creator_name: e.creator_name, user_id: e.user_id, isMine: isMine }
+      extendedProps: { description: e.description, location: e.location, event_type: e.event_type, creator_name: e.creator_name, user_id: e.user_id, isMine: isMine && !e.readonly, prospect_id: e.prospect_id }
     };
   });
   if (calendarInstance) { calendarInstance.destroy(); calendarInstance = null; }
@@ -11452,6 +11580,24 @@ function optimizeRouteOrder(stops) {
 }
 
 
+// Near Me: search around the phone's location within the chosen distance.
+window.leadsNearMe = function() {
+  if (!navigator.geolocation) { alert('This phone won\'t share its location. Type a city instead.'); return; }
+  var b = document.getElementById('lead-near-btn');
+  if (b) { b.disabled = true; b.textContent = 'Finding you...'; }
+  navigator.geolocation.getCurrentPosition(function(pos) {
+    if (b) { b.disabled = false; b.textContent = '📍 Near Me'; }
+    var r = parseInt((document.getElementById('lead-near-radius') || {}).value) || 15;
+    window._lfNear = { lat: pos.coords.latitude, lng: pos.coords.longitude, radius: r };
+    var ci = document.getElementById('lead-city-input'); if (ci) ci.value = '';
+    window._lfRouteMode = false;
+    runDailyLeads();
+  }, function() {
+    if (b) { b.disabled = false; b.textContent = '📍 Near Me'; }
+    alert('Couldn\'t get your location. Allow location for RepRoute, or type a city.');
+  }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 120000 });
+};
+
 // getSelectedSegments — reads checked boxes from the segment pill row
 window.getSelectedSegments = function() {
   var checked = [];
@@ -11466,7 +11612,7 @@ window.getSelectedBrands = function() {
   document.querySelectorAll('#lead-brand-row input[type="checkbox"]:checked').forEach(function(cb) {
     checked.push(cb.value);
   });
-  return checked.length ? checked : ['BOSS Products', 'ShurTape', 'Alum-A-Pole'];
+  return checked.length ? checked : ['BOSS Products', 'ShurTape', 'Alum-A-Pole', 'Soudal', 'Fortress'];
 };
 
 
@@ -11483,7 +11629,9 @@ window.runDailyLeads = function() {
   var city = document.getElementById('lead-city-input')?.value?.trim() || '';
 
   var routeMode = !!window._lfRouteMode;
-  if (!city && !routeMode) { alert('Please enter a city first (e.g. Norcross GA)'); return; }
+  var near = (!routeMode && window._lfNear) ? window._lfNear : null;
+  if (!city && !routeMode && !near) { alert('Enter a city (e.g. Norcross GA) or tap Near Me'); return; }
+  if (city) near = null; // a typed city wins over Near Me
 
   var segments = getSelectedSegments();
   if (!segments.length) { alert('Please select at least one segment.'); return; }
@@ -11514,7 +11662,10 @@ window.runDailyLeads = function() {
         shown_place_ids: Array.from(seenIds),
         shown_names: window._shownNames || [],
         route_date: routeMode ? localYMD() : undefined,
-        route_radius_miles: routeMode ? 8 : undefined
+        route_radius_miles: routeMode ? 8 : undefined,
+        lat: near ? near.lat : undefined,
+        lng: near ? near.lng : undefined,
+        radius_miles: near ? near.radius : undefined
       })
     })
     .then(function(r) { return r.json(); })
@@ -13367,6 +13518,7 @@ window.logout = window.logout || function() {
 
 <script>
 window.viewTeamRecord = function(prospectId) {
+  if (typeof loadFieldNotes === 'function') loadFieldNotes(prospectId);
   var rows = window._teamContactsCache || [];
   var p = rows.find(function(x){ return String(x.id) === String(prospectId); });
   if (!p) { if (typeof showToast === 'function') showToast('Contact not found'); return; }
@@ -13433,6 +13585,8 @@ window.viewTeamRecord = function(prospectId) {
 
   console.log('[TeamContacts] viewing record', prospectId, p.company, '| contacted:', isContactedRec);
 
+  var ownerEl = document.getElementById('rq-owner');
+  if (ownerEl) ownerEl.textContent = p.rep_name || 'Teammate';
   var fieldsEl = document.getElementById('rec-fields');
   if (fieldsEl) {
     var fields = [
@@ -13769,6 +13923,13 @@ window.openQuickCallLog = function() {
   }
 
   openModal('quick-call');
+  // Opened from an account's page: start on that account instead of a blank search.
+  var recPage = document.getElementById('page-record');
+  var onRecord = recPage && recPage.classList.contains('active') && window.currentRecord && currentRecord.id;
+  if (onRecord && typeof qclSelectCrmCompany === 'function') {
+    qclSelectCrmCompany(currentRecord.id, currentRecord.company || '', currentRecord.city || '', currentRecord.category || '', currentRecord.phone || '');
+    return;
+  }
   setTimeout(function() {
     var inp = document.getElementById('qcl-search');
     if (inp) inp.focus();
@@ -15549,9 +15710,58 @@ window.BCS = (function() {
   }
 
   // ── Manual fallback (no speech API) ───────────────────────────
-  function showManualFallback() {
+  // Where the rep is standing (GPS + city), used to match the right branch and
+  // to fill the city on new accounts. Never blocks the log for long.
+  function vclLocate() {
+    if (VCL.here && Date.now() - VCL.here.at < 5 * 60 * 1000) return Promise.resolve(VCL.here);
+    if (!navigator.geolocation) return Promise.resolve({});
+    return new Promise(function(resolve) {
+      var done = false;
+      var timer = setTimeout(function() { if (!done) { done = true; resolve({}); } }, 5000);
+      navigator.geolocation.getCurrentPosition(function(pos) {
+        var here = { lat: pos.coords.latitude, lng: pos.coords.longitude, at: Date.now() };
+        fetch('/api/voice/where?lat=' + here.lat + '&lng=' + here.lng)
+          .then(function(r) { return r.json(); }).catch(function() { return {}; })
+          .then(function(w) {
+            here.city = (w && w.city) || ''; here.state = (w && w.state) || '';
+            VCL.here = here;
+            if (!done) { done = true; clearTimeout(timer); resolve(here); }
+          });
+      }, function() { if (!done) { done = true; clearTimeout(timer); resolve({}); } },
+      { enableHighAccuracy: false, maximumAge: 300000, timeout: 4500 });
+    });
+  }
+  function vclLocQuery(city) {
+    var h = VCL.here || {};
+    var q = '';
+    if (h.lat != null && h.lng != null) q += '&lat=' + h.lat + '&lng=' + h.lng;
+    var c = city || h.city || '';
+    if (c) q += '&city=' + encodeURIComponent(c);
+    return q;
+  }
+
+  // The recording only caught a few words: never save that as a visit.
+  function showTooShort(transcript) {
+    showScreen('recording');
+    showManualFallback(true);
     var screen = $id('vcl-screen-recording');
     if (!screen) return;
+    var head = screen.querySelector('div');
+    if (head) head.innerHTML =
+      '<div style="font-size:44px;margin-bottom:12px">🎙️</div>' +
+      '<div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:8px">Only caught a few words</div>' +
+      '<div style="font-size:13px;color:rgba(255,255,255,.5);line-height:1.5">Say who you saw and what happened, or type it below. Nothing was saved.</div>' +
+      '<button onclick="VCL_close();setTimeout(VCL_open,150)" style="margin-top:12px;padding:10px 16px;background:transparent;border:1px solid rgba(255,255,255,.3);border-radius:10px;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Record again</button>';
+    var ta = $id('vcl-manual-text');
+    if (ta) ta.value = transcript || '';
+  }
+
+  function showManualFallback(force) {
+    var screen = $id('vcl-screen-recording');
+    if (!screen) return;
+    // A late speech-recognition error must not wipe notes already showing
+    // (or the "only caught a few words" message).
+    if (!force && $id('vcl-manual-text') && screen.contains($id('vcl-manual-text'))) return;
     screen.innerHTML =
       '<div style="text-align:center;padding:20px 0 16px">' +
         '<div style="font-size:44px;margin-bottom:12px">⌨️</div>' +
@@ -15591,6 +15801,12 @@ window.BCS = (function() {
     VCL.cardExtracted = null;
 
     openModal();
+    // Typed-notes fallback replaces the recording screen; put the recorder back.
+    var recScreen = $id('vcl-screen-recording');
+    if (recScreen) {
+      if (!VCL._recHTML && !$id('vcl-manual-text')) VCL._recHTML = recScreen.innerHTML;
+      else if (VCL._recHTML && $id('vcl-manual-text')) recScreen.innerHTML = VCL._recHTML;
+    }
     showScreen('recording');
 
     // Reset recording UI — including stop button which may have been disabled in a prior session
@@ -15704,6 +15920,7 @@ window.BCS = (function() {
 
   function processTranscript(transcript) {
     showScreen('processing');
+    var locP = vclLocate();
 
     fetch('/api/voice/process', {
       method: 'POST',
@@ -15714,6 +15931,7 @@ window.BCS = (function() {
     .then(function(data) {
       VCL.extracted = data;
       VCL.extracted._rawTranscript = transcript;
+      if (data.too_short) { showTooShort(transcript); return; }
       if (data._ai_error && typeof showToast === 'function') {
         showToast('AI couldn\'t read this call — type the account name below', 4000);
       }
@@ -15727,8 +15945,10 @@ window.BCS = (function() {
         return;
       }
 
-      // Match account name against CRM
-      return fetch('/api/voice/match-account?name=' + encodeURIComponent(data.account_name))
+      // Match account name against every rep's accounts, near where the rep is
+      return locP.then(function() {
+        return fetch('/api/voice/match-account?name=' + encodeURIComponent(data.account_name) + vclLocQuery(data.account_city));
+      })
         .then(function(r) { return r.json(); })
         .then(function(matchData) {
           handleAccountMatches(matchData);
@@ -15777,7 +15997,7 @@ window.BCS = (function() {
 
     } else if (VCL.extracted && VCL.extracted.account_name) {
       // Zero matches above threshold — it's a new account
-      VCL.selectedAccount = { id: null, company: VCL.extracted.account_name, city: '', state: 'GA', category: 'Unknown', isNew: true };
+      VCL.selectedAccount = vclNewAccount();
       VCL.accountContacts = [];
       resolveContact();
 
@@ -15796,10 +16016,12 @@ window.BCS = (function() {
       resolveContact();
       return;
     }
-    fetch('/api/voice/account-contacts?company=' + encodeURIComponent(VCL.selectedAccount.company))
+    fetch('/api/prospects/' + VCL.selectedAccount.id + '/contacts')
       .then(function(r) { return r.json(); })
       .then(function(contacts) {
-        VCL.accountContacts = Array.isArray(contacts) ? contacts : [];
+        VCL.accountContacts = (Array.isArray(contacts) ? contacts : []).map(function(c) {
+          return { id: c.id, contact: c.name, phone: c.phone, email: c.email, title: c.title };
+        });
         resolveContact();
       })
       .catch(function() {
@@ -15863,7 +16085,9 @@ window.BCS = (function() {
       html +=
         '<button onclick="VCL_pickAccount(' + i + ')" style="text-align:left;width:100%;padding:13px 15px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:10px;cursor:pointer;color:#fff;font-family:inherit;transition:background .1s" onmouseover="this.style.background=\'rgba(255,255,255,.12)\'" onmouseout="this.style.background=\'rgba(255,255,255,.07)\'">' +
           '<div style="font-size:14px;font-weight:600">' + vclEsc(m.company) + '</div>' +
-          '<div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:3px">' + vclEsc(m.city || '') + (m.city ? ' · ' : '') + pct + '% match</div>' +
+          '<div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:3px">' + vclEsc(m.city || 'No city') +
+            (m.distance_mi != null ? ' · ' + m.distance_mi + ' mi away' : '') +
+            ' · ' + (m.is_mine ? 'Your account' : vclEsc(m.owner_name || 'Team') + '\'s account') + '</div>' +
         '</button>';
     });
     // "Create new" option
@@ -15883,8 +16107,14 @@ window.BCS = (function() {
     loadContactsThenResolve();
   };
 
+  function vclNewAccount() {
+    var ex = VCL.extracted || {}, h = VCL.here || {};
+    return { id: null, company: ex.account_name || '', city: ex.account_city || h.city || '',
+             state: (ex.account_city && ex.account_city !== h.city) ? 'GA' : (h.state || 'GA'), category: 'Unknown', isNew: true };
+  }
+
   window.VCL_pickNewAccount = function() {
-    VCL.selectedAccount = { id: null, company: (VCL.extracted || {}).account_name || '', city: '', state: 'GA', category: 'Unknown', isNew: true };
+    VCL.selectedAccount = vclNewAccount();
     VCL.accountContacts = [];
     resolveContact();
   };
@@ -16086,11 +16316,24 @@ window.BCS = (function() {
         '<label style="' + labelStyle + '">Summary / Notes</label>' +
         '<textarea id="vcl-cf-summary" rows="4" style="' + fieldStyle + ';resize:vertical;line-height:1.5">' + vclEsc(ex.summary || '') + '</textarea>' +
       '</div>' +
-      // Next steps
-      '<div style="margin-bottom:8px">' +
+      // Next steps + when
+      '<div style="margin-bottom:13px">' +
         '<label style="' + labelStyle + '">Next Steps</label>' +
         '<input id="vcl-cf-nextstep" type="text" value="' + vclEsc(ex.next_steps || '') + '" placeholder="e.g. Send samples, Call Friday" style="' + fieldStyle + '">' +
+      '</div>' +
+      '<div style="margin-bottom:8px">' +
+        '<label style="' + labelStyle + '">Follow up on</label>' +
+        '<input id="vcl-cf-nextdate" type="date" value="' + vclEsc(ex.next_step_date || '') + '" style="' + fieldStyle + '">' +
+        '<div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:4px">Shows on your Today list and the calendar that day.</div>' +
       '</div>';
+
+    // Fill what we already know: where the rep is for a new account, and the
+    // contact's role if it was said.
+    if (acct && acct.isNew) {
+      if ($id('vcl-cf-city') && acct.city) $id('vcl-cf-city').value = acct.city;
+      if ($id('vcl-cf-state') && acct.state) $id('vcl-cf-state').value = acct.state;
+    }
+    if ($id('vcl-cf-title') && ex.contact_title && cont && cont.isNew) $id('vcl-cf-title').value = ex.contact_title;
   }
 
   // ── STEP 6: Save ───────────────────────────────────────────────
@@ -16102,6 +16345,7 @@ window.BCS = (function() {
     var outcome   = ($id('vcl-cf-outcome') || {}).value || '';
     var summary   = (($id('vcl-cf-summary') || {}).value || '').trim();
     var nextStep  = (($id('vcl-cf-nextstep') || {}).value || '').trim();
+    var nextDate  = (($id('vcl-cf-nextdate') || {}).value || '').trim();
 
     if (!account) {
       var el = $id('vcl-cf-account');
@@ -16144,11 +16388,12 @@ window.BCS = (function() {
 
         // Build contact field updates from the form (form is source of truth —
         // applyCardToConfirm already merged card data into the form fields)
+        // Person details (title, phone, email) went onto the contact when it was
+        // added; the account only takes the business's own details.
         var contactUpdates = {};
-        if (cfTitle)   contactUpdates.title   = cfTitle;
-        if (cfPhone)   contactUpdates.phone   = cfPhone;
-        if (cfMobile)  contactUpdates.mobile  = cfMobile;
-        if (cfEmail)   contactUpdates.email   = cfEmail;
+        var personOnAccount = !(cont && !cont.isNone);
+        if (personOnAccount && cfPhone)  contactUpdates.phone  = cfPhone;
+        if (personOnAccount && cfEmail)  contactUpdates.email  = cfEmail;
         if (cfAddress) contactUpdates.address = cfAddress;
         if (cfCity)    contactUpdates.city    = cfCity;
         if (cfState)   contactUpdates.state   = cfState;
@@ -16175,9 +16420,9 @@ window.BCS = (function() {
               call_date:         callDate,
               call_type:         callType,
               outcome:           outcome,
-              products_discussed: '',
+              products_discussed: (VCL.extracted && VCL.extracted.products) || '',
               next_step:         nextStep || null,
-              next_step_date:    null,
+              next_step_date:    nextDate || null,
               notes:             summary || null
             })
           }).then(function(r) { return r.json(); });
@@ -16208,46 +16453,43 @@ window.BCS = (function() {
 
   // Resolve the prospect_id to log the call against
   // extraFields = {title,phone,mobile,email,address,city,state,zip,website} from the form
+  // Visits are always logged on the ACCOUNT. A person named at an existing
+  // account is added to that account's contact list (it used to create a
+  // second copy of the account under the rep's name).
   function getOrCreateProspectId(account, contName, acct, cont, isExistingAcct, extraFields) {
     var ef = extraFields || {};
-    if (isExistingAcct) {
-      // Existing account
-      if (cont && !cont.isNew && !cont.isNone && cont.id) {
-        // Existing contact — use their prospect_id directly (fill-blanks called in VCL_save)
-        return Promise.resolve(cont.id);
-      } else if (cont && cont.isNew && contName) {
-        // New contact under existing account — create new prospect record with all fields
-        return createContactUnderAccount(account, contName, acct, ef);
-      } else {
-        // No contact or "no contact" — use the account's prospect id
-        return Promise.resolve(acct.id);
-      }
-    } else {
-      // New account (or edited name). Check first whether the name typed is an
-      // account the rep already has — if so, log under it instead of creating
-      // a duplicate.
-      return fetch('/api/voice/match-account?name=' + encodeURIComponent(account))
-        .then(function(r) { return r.json(); })
-        .catch(function() { return {}; })
-        .then(function(md) {
-          var ex = md && md.exact;
-          if (!ex || !ex.id) return createNewAccountProspect(account, contName, ef);
-          var existing = { id: ex.id, company: ex.company, city: ex.city || '', state: ex.state || '', category: ex.category || '', isNew: false };
-          if (!contName) return existing.id;
-          // Contact named — reuse a matching contact at that account, else add one
-          return fetch('/api/voice/account-contacts?company=' + encodeURIComponent(existing.company))
-            .then(function(r) { return r.json(); })
-            .catch(function() { return []; })
-            .then(function(contacts) {
-              var want = contName.trim().toLowerCase();
-              var hit = (Array.isArray(contacts) ? contacts : []).filter(function(c) {
-                var full = (c.contact || '').trim().toLowerCase();
-                return full && (full === want || full.split(' ')[0] === want);
-              })[0];
-              return hit ? hit.id : createContactUnderAccount(existing.company, contName, existing, ef);
-            });
-        });
+    function withContact(acctId) {
+      if (!(cont && cont.isNew && contName)) return Promise.resolve(acctId);
+      return addContactToAccount(acctId, contName, ef).then(function() { return acctId; });
     }
+    if (isExistingAcct) return withContact(acct.id);
+    // New account (or edited name). Check every rep's accounts near here first.
+    return fetch('/api/voice/match-account?name=' + encodeURIComponent(account) + vclLocQuery(ef.city))
+      .then(function(r) { return r.json(); })
+      .catch(function() { return {}; })
+      .then(function(md) {
+        var ex = md && md.exact;
+        if (!ex || !ex.id) return createNewAccountProspect(account, contName, ef);
+        if (!contName) return ex.id;
+        return fetch('/api/prospects/' + ex.id + '/contacts')
+          .then(function(r) { return r.json(); }).catch(function() { return []; })
+          .then(function(list) {
+            var want = contName.trim().toLowerCase();
+            var hit = (Array.isArray(list) ? list : []).some(function(c) {
+              var full = (c.name || '').trim().toLowerCase();
+              return full && (full === want || full.split(' ')[0] === want.split(' ')[0]);
+            });
+            return hit ? ex.id : addContactToAccount(ex.id, contName, ef).then(function() { return ex.id; });
+          });
+      });
+  }
+
+  function addContactToAccount(acctId, name, ef) {
+    ef = ef || {};
+    return fetch('/api/prospects/' + acctId + '/contacts', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name, title: ef.title || null, phone: ef.phone || ef.mobile || null, email: ef.email || null })
+    }).then(function(r) { return r.json(); }).catch(function() { return null; });
   }
 
   function createNewAccountProspect(company, contactName, ef) {
@@ -16268,6 +16510,8 @@ window.BCS = (function() {
         website:  ef.website || null,
         title:    ef.title   || null,
         contact:  contactName || null,
+        lat:      (VCL.here && VCL.here.lat != null) ? VCL.here.lat : null,
+        lng:      (VCL.here && VCL.here.lng != null) ? VCL.here.lng : null,
         source:   'Voice Logger',
         status:   'New',
         priority: 'Medium'
@@ -16276,36 +16520,6 @@ window.BCS = (function() {
     .then(function(r) { return r.json(); })
     .then(function(p) {
       if (!p || !p.id) throw new Error('Failed to create account');
-      return p.id;
-    });
-  }
-
-  function createContactUnderAccount(company, contactName, existingAcct, ef) {
-    ef = ef || {};
-    return fetch('/api/prospects', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        company:  company,
-        category: existingAcct ? (existingAcct.category || 'Unknown') : 'Unknown',
-        city:     ef.city    || (existingAcct ? (existingAcct.city  || null) : null),
-        state:    ef.state   || (existingAcct ? (existingAcct.state || 'GA') : 'GA'),
-        phone:    ef.phone   || null,
-        mobile:   ef.mobile  || null,
-        email:    ef.email   || null,
-        address:  ef.address || null,
-        zip:      ef.zip     || null,
-        website:  ef.website || null,
-        title:    ef.title   || null,
-        contact:  contactName,
-        source:   'Voice Logger',
-        status:   'New',
-        priority: 'Medium'
-      })
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(p) {
-      if (!p || !p.id) throw new Error('Failed to create contact');
       return p.id;
     });
   }
@@ -18351,7 +18565,7 @@ function findMissingPhones() {
   showToast('Looking up phone numbers…', 5000);
   enrichMissingLoop(null, {
     manual: true,
-    onDone: function(){ if (b) { b.disabled = false; b.textContent = '📞 Find phone #s'; } }
+    onDone: function(){ if (b) { b.disabled = false; b.textContent = '📞 Fill missing details'; } }
   });
 }
 
