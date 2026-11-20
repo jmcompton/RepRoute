@@ -2825,6 +2825,37 @@ function localYMD(d){ d = d || new Date(); return d.getFullYear()+'-'+String(d.g
   </div>
 
   <!-- DAILY RECAP PAGE -->
+  <div class="page" id="page-today2" style="overflow-y:auto;padding-bottom:90px">
+    <div class="a2-wrap">
+      <div>
+        <div class="t2-date" id="t2-date"></div>
+        <h1 class="a2-h1" id="t2-hello">Today</h1>
+      </div>
+      <section class="a2-card" style="padding:16px 18px">
+        <div class="t2-over-h"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1d6aff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg><span class="a2-h2" style="margin:0">Done overnight</span><span class="t2-muted" id="t2-over-sub">RepRoute got your day ready.</span></div>
+        <div class="t2-tiles" id="t2-tiles"></div>
+      </section>
+      <div class="a2-split">
+        <section class="a2-card" style="flex:2 1 520px;min-width:0">
+          <div class="t2-head">
+            <div><div class="a2-h2" style="margin:0">Your stops</div><div class="t2-muted" id="t2-route-sub"></div></div>
+            <div class="a2-actions">
+              <button type="button" class="a2-btn a2-sm" id="t2-order-btn" onclick="t2Optimize()">Best order</button>
+              <button type="button" class="a2-btn a2-sm" id="t2-plan-btn" onclick="t2Plan()">Fill my day</button>
+              <a class="a2-btn a2-sm" id="t2-maps" href="#" target="_blank" rel="noopener" style="text-decoration:none">Open in Maps</a>
+            </div>
+          </div>
+          <div id="t2-stops"></div>
+        </section>
+        <div style="flex:1 1 300px;min-width:0;display:flex;flex-direction:column;gap:14px">
+          <section class="a2-card"><div class="t2-head"><div class="a2-h2" style="margin:0">Waiting on you</div><span class="t2-count" id="t2-wait-n"></span></div><div id="t2-wait"></div></section>
+          <section class="a2-card"><div class="t2-head"><div class="a2-h2" style="margin:0">Due for a visit</div></div><div id="t2-due"></div></section>
+          <section class="a2-card" style="padding:14px 18px"><div class="a2-h2">This week</div><div class="t2-week" id="t2-week"></div></section>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="page" id="page-acctlist" style="overflow-y:auto;padding-bottom:90px">
     <div class="a2-wrap">
       <div class="a2-head">
@@ -2863,7 +2894,9 @@ function localYMD(d){ d = d || new Date(); return d.getFullYear()+'-'+String(d.g
             <div class="a2-h2">Find more now</div>
             <label class="a2-lbl" for="nl-seg">Business type</label>
             <select id="nl-seg" class="a2-sel" style="width:100%"></select>
-            <button type="button" id="nl-hunt-btn" class="a2-btn a2-pri" style="width:100%;margin-top:12px" onclick="nlHunt()">Search near me</button>
+            <label class="a2-lbl" for="nl-where">Where</label>
+            <select id="nl-where" class="a2-sel" style="width:100%"><option value="near">Near where I work</option><option value="route">Along today's stops</option></select>
+            <button type="button" id="nl-hunt-btn" class="a2-btn a2-pri" style="width:100%;margin-top:12px" onclick="nlHunt()">Search</button>
             <div id="nl-hunt-msg" class="a2-note"></div>
           </div>
           <div class="a2-card a2-info" style="padding:14px 16px">
@@ -4428,6 +4461,7 @@ var pageTitles = {
   recap: 'Daily Recap',
   documents: 'Documents',
   acctlist: 'Accounts',
+  today2: 'Today',
   newleads: 'New leads',
   sell: 'What you sell'
 };
@@ -4610,6 +4644,7 @@ function go(id) {
   if (id === 'samples') loadSamples();
   if (id === 'documents') loadDocuments();
   if (id === 'acctlist' && typeof loadAcctList === 'function') loadAcctList();
+  if (id === 'today2' && typeof loadToday2 === 'function') loadToday2();
   if (id === 'newleads' && typeof loadNewLeads === 'function') loadNewLeads();
   if (id === 'sell' && typeof loadSell === 'function') loadSell();
   if (id === 'time') loadTimeTracker();
@@ -6382,6 +6417,12 @@ function _todayIsActive() {
 function _todayAfterCallSave() {
   var sid = window._todayPendingStopId;
   window._todayPendingStopId = null;
+  var t2 = document.getElementById('page-today2');
+  if (t2 && t2.classList.contains('active') && typeof loadToday2 === 'function') {
+    (sid ? fetch('/api/planner/items/' + sid + '/done', { method: 'POST' }).catch(function(){}) : Promise.resolve())
+      .then(function(){ loadToday2(); });
+    return;
+  }
   if (sid) {
     fetch('/api/planner/items/' + sid + '/done', { method: 'POST' })
       .catch(function(){})
@@ -19616,7 +19657,8 @@ textarea.ag-in{min-height:220px;line-height:1.5;resize:vertical}
     { value: 'Roofing Subcontractor', group: 'Contractors' },
     { value: 'Fencing Subcontractor', group: 'Contractors' },
     { value: 'Precast', group: 'Specialty' },
-    { value: 'Floor Door', group: 'Specialty' }
+    { value: 'Floor Door', group: 'Specialty' },
+    { value: 'Closet & Shower Door', group: 'Specialty' }
   ];
   function addToSelect(sel) {
     if (!sel) return;
@@ -19672,6 +19714,28 @@ body.ui2.ui2-intern .bottom-nav #bn2-quotes{display:none}
 
 .a2-wrap{max-width:1180px;width:100%;min-width:0;flex:1 1 auto;box-sizing:border-box;margin:0 auto;padding:20px 24px 40px;display:flex;flex-direction:column;gap:14px}
 .a2-wrap>*{min-width:0}
+.t2-date{font-size:14px;color:var(--text2)}
+.t2-muted{font-size:13px;color:var(--text2)}
+.t2-over-h{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:12px}
+.t2-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.t2-tile{background:#f5f8ff;border:none;border-radius:10px;padding:12px 14px;text-align:left;font:inherit;cursor:pointer;color:var(--navy)}
+.t2-tile:hover{background:#eaf0fe}
+.t2-tile b{display:block;font-size:22px;font-weight:700}
+.t2-tile span{font-size:13px;color:#3d4654}
+.t2-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;padding:14px 18px;border-bottom:1px solid #eef1f5}
+.t2-stop{display:flex;align-items:flex-start;gap:12px;padding:14px 18px;border-bottom:1px solid #eef1f5}
+.t2-num{width:30px;height:30px;border-radius:50%;background:#eaf0fe;color:#1d4fbf;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.t2-num.done{background:#e6f4ea;color:#166534}
+.t2-name{font-size:16px;font-weight:600;color:var(--navy)}
+.t2-why{font-size:14px;color:#3d4654;margin-top:2px;line-height:1.4}
+.t2-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.t2-tag{font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.t2-row{display:flex;align-items:center;gap:10px;padding:12px 18px;border-bottom:1px solid #eef1f5}
+.t2-row:last-child,.t2-stop:last-child{border-bottom:none}
+.t2-count{font-size:12px;font-weight:700;color:#fff;background:#1d6aff;border-radius:999px;padding:2px 9px}
+.t2-week{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.t2-week b{display:block;font-size:20px;color:var(--navy)}.t2-week span{font-size:12.5px;color:var(--text2)}
+@media(max-width:768px){.t2-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.t2-stop,.t2-row,.t2-head{padding-left:14px;padding-right:14px}}
 body.ui2 #vcl-float-btn{display:none !important}
 .a2-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
 .a2-h1{margin:0;font-size:26px;font-weight:700;color:var(--navy);letter-spacing:-.01em}
@@ -19749,8 +19813,8 @@ body.ui2 #vcl-float-btn{display:none !important}
     more: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>',
     mic: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>'
   };
-  var SB2_PAGE = { today: 'today', acctlist: 'accts', newleads: 'accts', record: 'accts', deals: 'pipe', quotes: 'quotes' };
-  var BN2 = { today: 'bn2-today', acctlist: 'bn2-accts', newleads: 'bn2-accts', record: 'bn2-accts', deals: 'bn2-pipe', quotes: 'bn2-quotes' };
+  var SB2_PAGE = { today: 'today', today2: 'today', acctlist: 'accts', newleads: 'accts', record: 'accts', deals: 'pipe', quotes: 'quotes' };
+  var BN2 = { today: 'bn2-today', today2: 'bn2-today', acctlist: 'bn2-accts', newleads: 'bn2-accts', record: 'bn2-accts', deals: 'bn2-pipe', quotes: 'bn2-quotes' };
 
   function isNew() { return document.body.classList.contains('ui2'); }
   window.ui2Log = function() {
@@ -19790,7 +19854,6 @@ body.ui2 #vcl-float-btn{display:none !important}
     var lb = document.getElementById('sb-layout-btn'); if (lb) lb.textContent = on ? 'Back to the classic layout' : 'Try the new layout';
     var ml = document.getElementById('mm-layout-label'); if (ml) ml.textContent = on ? 'Back to the classic layout' : 'Try the new layout';
     if (on) refreshLeadBadge();
-    overnightStrip();
   }
   window.toggleLayout = function() {
     var next = isNew() ? 'classic' : 'new';
@@ -19815,10 +19878,10 @@ body.ui2 #vcl-float-btn{display:none !important}
   var _go = window.go;
   window.go = function(id) {
     if (isNew() && id === 'contacts') id = 'acctlist';
+    if (isNew() && (id === 'today' || id === 'dashboard' || id === 'home')) id = 'today2';
     if (isNew() && id === 'leads') id = 'newleads';
     _go(id);
     syncNav(id === 'dashboard' || id === 'home' ? 'today' : id);
-    if (id === 'today' || id === 'dashboard' || id === 'home') overnightStrip();
     if (typeof closeSidebar === 'function' && window.innerWidth <= 768) closeSidebar();
   };
 
@@ -19830,22 +19893,137 @@ body.ui2 #vcl-float-btn{display:none !important}
   }
   window.ui2RefreshLeads = refreshLeadBadge;
 
-  // Today: what the overnight hunt found, right at the top.
-  function overnightStrip() {
-    var brief = document.getElementById('today-brief'); if (!brief) return;
-    var el = document.getElementById('ui2-overnight');
-    if (!isNew()) { if (el) el.remove(); return; }
-    J('/api/leads/count').then(function(d) {
-      el = document.getElementById('ui2-overnight');
-      if (!d.count || !isNew()) { if (el) el.remove(); return; }
-      if (!el) { el = document.createElement('button'); el.type = 'button'; el.id = 'ui2-overnight'; brief.parentNode.insertBefore(el, brief); }
-      el.setAttribute('onclick', "go('newleads')");
-      el.style.cssText = 'order:-1;display:flex;align-items:center;gap:12px;width:100%;box-sizing:border-box;margin:0 0 12px;padding:14px 16px;border:none;border-radius:12px;background:#0f1b2d;color:#fff;font:inherit;text-align:left;cursor:pointer';
-      el.innerHTML = '<span style="flex:1"><span style="display:block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#9fc0ff">Found overnight</span>' +
-        '<span style="display:block;font-size:15px;margin-top:2px">' + d.count + ' new lead' + (d.count === 1 ? '' : 's') + ' that buy your lines</span></span>' +
-        '<span style="font-size:14px;font-weight:700;color:#9fc0ff;white-space:nowrap">See them</span>';
-    }).catch(function() {});
+  // ── Today (new layout) ──
+  var TAG = { followup: ['Follow-up', '#fdf1e2', '#8a4a0b'], quote: ['Quote', '#eaf0fe', '#1d4fbf'], sample: ['Sample', '#e7f5ec', '#166534'],
+    touch: ['Touch base', '#f1f3f6', '#3d4654'], new: ['New', '#eef2ff', '#3b3fb0'] };
+  function tag(kind) { var t = TAG[kind]; return t ? '<span class="t2-tag" style="background:' + t[1] + ';color:' + t[2] + '">' + t[0] + '</span>' : ''; }
+  function localDay() { return typeof localYMD === 'function' ? localYMD() : new Date().toISOString().slice(0, 10); }
+  function here() {
+    return new Promise(function(resolve) {
+      if (!navigator.geolocation) return resolve({});
+      var done = false, t = setTimeout(function() { if (!done) { done = true; resolve({}); } }, 4000);
+      navigator.geolocation.getCurrentPosition(function(p) { if (!done) { done = true; clearTimeout(t); resolve({ lat: p.coords.latitude, lng: p.coords.longitude }); } },
+        function() { if (!done) { done = true; clearTimeout(t); resolve({}); } }, { maximumAge: 300000, timeout: 3500 });
+    });
   }
+  function kindOf(s) {
+    var r = (s.reason || '').toLowerCase();
+    if (/^follow up/.test(r)) return 'followup';
+    if (/quote/.test(r)) return 'quote';
+    if (/sample/.test(r)) return 'sample';
+    if (/touch base|reconnect|going quiet/.test(r)) return 'touch';
+    if (/never visited|new lead|prospect/.test(r)) return 'new';
+    return '';
+  }
+  function mapsUrl(stops) {
+    var pts = stops.filter(function(s) { return !s.done && (s.lat != null || s.address); }).map(function(s) { return s.lat != null ? s.lat + ',' + s.lng : s.address; });
+    if (!pts.length) return null;
+    var dest = pts.pop();
+    return 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=' + encodeURIComponent(dest) +
+      (pts.length ? '&waypoints=' + encodeURIComponent(pts.slice(0, 9).join('|')) : '');
+  }
+  function routeMiles(stops) {
+    var pts = stops.filter(function(s) { return !s.done && s.lat != null; }), m = 0;
+    for (var i = 1; i < pts.length; i++) {
+      var a = pts[i - 1], b = pts[i], R = 3958.8, r = Math.PI / 180;
+      var h = Math.pow(Math.sin((b.lat - a.lat) * r / 2), 2) + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.pow(Math.sin((b.lng - a.lng) * r / 2), 2);
+      m += 2 * R * Math.asin(Math.sqrt(h));
+    }
+    return Math.round(m);
+  }
+  window._t2Stops = [];
+  window.loadToday2 = function() {
+    var day = localDay();
+    var d = new Date(day + 'T12:00:00');
+    document.getElementById('t2-date').textContent = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+    var hr = new Date().getHours(), name = ((window.__userData && window.__userData.name) || '').split(' ')[0];
+    document.getElementById('t2-hello').textContent = (hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening') + (name ? ', ' + name : '');
+    var stopsBox = document.getElementById('t2-stops');
+    if (!stopsBox.innerHTML) stopsBox.innerHTML = '<div class="a2-empty">Loading...</div>';
+    return Promise.all([J('/api/planner/today?date=' + day), J('/api/today/summary?date=' + day)]).then(function(res) {
+      var t = res[0], sm = res[1];
+      var stops = t.stops || [];
+      window._t2Stops = stops;
+      window._todayStops = window._todayStops || {};
+      stops.forEach(function(s) { window._todayStops[s.id] = s; });
+      var open = stops.filter(function(s) { return !s.done; }).length;
+      // Done overnight
+      var o = sm.overnight || {};
+      var tiles = [
+        [stops.length ? stops.length + ' stop' + (stops.length === 1 ? '' : 's') : 'No stops', o.stops ? 'planned for you' + (o.miles ? ', about ' + Math.round(o.miles) + ' mi' : '') : 'on your route', "document.getElementById('t2-stops').scrollIntoView({behavior:'smooth'})"],
+        [(o.leads || 0) + ' new lead' + (o.leads === 1 ? '' : 's'), o.fresh_leads ? o.fresh_leads + ' found last night' : 'that buy your lines', "go('newleads')"],
+        [(sm.waiting || []).length + ' waiting', 'follow-ups, quotes, samples', "document.getElementById('t2-wait').scrollIntoView({behavior:'smooth'})"],
+        [(sm.due || []).length + ' due', 'for a touch base', "document.getElementById('t2-due').scrollIntoView({behavior:'smooth'})"]
+      ];
+      document.getElementById('t2-tiles').innerHTML = tiles.map(function(x) {
+        return '<button type="button" class="t2-tile" onclick="' + x[2] + '"><b>' + esc(x[0]) + '</b><span>' + esc(x[1]) + '</span></button>';
+      }).join('');
+      document.getElementById('t2-over-sub').textContent = o.stops || o.fresh_leads ? 'RepRoute got your day ready while you were off.' : 'Here is where things stand.';
+      // Stops
+      var miles = routeMiles(stops);
+      document.getElementById('t2-route-sub').textContent = stops.length ? (stops.length - open) + ' of ' + stops.length + ' done' + (open > 1 && miles ? ' · about ' + miles + ' mi between stops' : '') : '';
+      var mu = mapsUrl(stops), ma = document.getElementById('t2-maps');
+      ma.style.display = mu ? '' : 'none'; if (mu) ma.href = mu;
+      document.getElementById('t2-order-btn').style.display = open > 2 ? '' : 'none';
+      document.getElementById('t2-plan-btn').textContent = stops.length ? 'Fill my day' : 'Plan my day';
+      document.getElementById('t2-plan-btn').className = 'a2-btn a2-sm' + (stops.length ? '' : ' a2-pri');
+      stopsBox.innerHTML = stops.length ? stops.map(function(s, i) {
+        var nav = s.lat != null ? s.lat + ',' + s.lng : (s.address || '');
+        var label = s.company || s.title || 'Stop';
+        return '<div class="t2-stop" id="t2s-' + s.id + '"><div class="t2-num' + (s.done ? ' done' : '') + '">' + (s.done ? '✓' : (i + 1)) + '</div>' +
+          '<div style="flex:1;min-width:0"><div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px"><span class="t2-name">' + esc(label) + '</span>' +
+          (s.city ? '<span class="t2-muted">' + esc(s.city) + '</span>' : '') + tag(kindOf(s)) + '</div>' +
+          (s.reason || s.prep ? '<div class="t2-why">' + esc(s.reason || s.prep) + '</div>' : '') +
+          (s.done ? '' : '<div class="t2-acts">' +
+            '<button type="button" class="a2-btn a2-pri a2-sm" onclick="todayVisit(' + s.id + ')">Log visit</button>' +
+            (nav ? '<a class="a2-btn a2-sm" style="text-decoration:none" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(nav) + '">Directions</a>' : '') +
+            (s.phone ? '<a class="a2-btn a2-sm" style="text-decoration:none" href="tel:' + esc(String(s.phone).replace(/[^0-9+]/g, '')) + '">Call</a>' : '') +
+            (s.account_id ? '<button type="button" class="a2-btn a2-sm" onclick="openAccount(' + s.account_id + ',true)">Account</button>' : '') +
+            '<button type="button" class="a2-link" style="font-size:13px;color:var(--text2);padding:0 6px" onclick="t2Remove(' + s.id + ')">Remove</button></div>') +
+          '</div></div>';
+      }).join('') : '<div class="a2-empty">Nothing planned yet. <b>Plan my day</b> picks the follow-ups, quotes and accounts due for a visit that sit close together, and puts them in driving order.</div>';
+      // Waiting on you
+      var W = sm.waiting || [];
+      document.getElementById('t2-wait-n').textContent = W.length || '';
+      document.getElementById('t2-wait-n').style.display = W.length ? '' : 'none';
+      document.getElementById('t2-wait').innerHTML = W.length ? W.map(function(w) {
+        var act = w.kind === 'followup' && w.call_id ? '<button type="button" class="a2-btn a2-sm" onclick="agentFollowup(' + w.call_id + ')">Draft email</button>'
+          : w.kind === 'quote' && w.quote_id ? '<button type="button" class="a2-btn a2-sm" onclick="agentQuoteNudge(' + w.quote_id + ')">Draft email</button>' : '';
+        return '<div class="t2-row"><div style="flex:1;min-width:0"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button type="button" class="a2-link" style="padding:0;font-size:14.5px" onclick="openAccount(' + w.account_id + ',true)">' + esc(w.company) + '</button>' + tag(w.kind) + '</div>' +
+          '<div class="t2-muted" style="margin-top:2px">' + esc(w.reason) + '</div>' +
+          '<div class="t2-acts">' + act + (w.on_route ? '<span class="t2-muted" style="align-self:center">On today\'s route</span>' : '<button type="button" class="a2-btn a2-sm" onclick="t2Add(' + w.account_id + ',this)">Add to today</button>') + '</div></div></div>';
+      }).join('') : '<div class="a2-empty" style="padding:18px">You are all caught up.</div>';
+      // Due for a visit
+      var D = sm.due || [];
+      document.getElementById('t2-due').innerHTML = D.length ? D.map(function(a) {
+        return '<div class="t2-row"><div style="flex:1;min-width:0"><button type="button" class="a2-link" style="padding:0;font-size:14.5px" onclick="openAccount(' + a.account_id + ',true)">' + esc(a.company) + '</button>' +
+          '<div class="t2-muted">' + esc((a.city ? a.city + ' · ' : '') + a.days_since + ' days, every ' + a.cadence_days + ' is the goal') + '</div></div>' +
+          '<button type="button" class="a2-btn a2-sm" onclick="t2Add(' + a.account_id + ',this)">Add to today</button></div>';
+      }).join('') : '<div class="a2-empty" style="padding:18px">Every account is inside its visit rhythm.</div>';
+      var wk = sm.week || {};
+      document.getElementById('t2-week').innerHTML = '<div><b>' + (wk.visits || 0) + '</b><span>visits</span></div><div><b>' + (wk.samples_out || 0) + '</b><span>samples out</span></div><div><b>' + (wk.open_quotes ? '$' + (wk.open_quotes >= 1000 ? (wk.open_quotes / 1000).toFixed(1) + 'k' : Math.round(wk.open_quotes)) : '$0') + '</b><span>open quotes</span></div>';
+    }).catch(function(e) { stopsBox.innerHTML = '<div class="a2-empty">' + esc(e.message) + '</div>'; });
+  };
+  window.t2Plan = function() {
+    var b = document.getElementById('t2-plan-btn'); b.disabled = true; b.textContent = 'Planning...';
+    here().then(function(g) { return post('/api/today/plan', Object.assign({ date: localDay() }, g)); })
+      .then(function(r) { toast(r.added ? 'Added ' + r.added + ' stop' + (r.added === 1 ? '' : 's') + ', in driving order' : 'Nothing else close by needs a visit today'); return loadToday2(); })
+      .catch(function(e) { toast(e.message); }).then(function() { b.disabled = false; });
+  };
+  window.t2Optimize = function() {
+    var b = document.getElementById('t2-order-btn'); b.disabled = true; b.textContent = 'Sorting...';
+    here().then(function(g) { return post('/api/today/optimize', Object.assign({ date: localDay() }, g)); })
+      .then(function(r) { toast(r.miles ? 'Best order: about ' + Math.round(r.miles) + ' mi round trip' : 'Stops put in driving order'); return loadToday2(); })
+      .catch(function(e) { toast(e.message); }).then(function() { b.disabled = false; b.textContent = 'Best order'; });
+  };
+  window.t2Add = function(aid, btn) {
+    if (btn) btn.disabled = true;
+    post('/api/today/add', { account_id: aid, date: localDay() }).then(function() { toast('Added to today'); loadToday2(); })
+      .catch(function(e) { if (btn) btn.disabled = false; toast(e.message); });
+  };
+  window.t2Remove = function(id) {
+    J('/api/planner/items/' + id, { method: 'DELETE' }).then(function() { loadToday2(); }).catch(function(e) { toast(e.message); });
+  };
 
   // ── Opening any account from a list, and the Recently viewed list ──
   function remember(id) {
@@ -19972,7 +20150,7 @@ body.ui2 #vcl-float-btn{display:none !important}
     });
   }
   function segLabel(s) {
-    var m = { 'Lumber / Building Supply': 'Lumber and building supply', 'Window/Door Installer': 'Window and door dealers and installers',
+    var m = { 'Lumber / Building Supply': 'Lumber and building supply', 'Window/Door Installer': 'Window and door dealers and installers', 'Closet & Shower Door Shop': 'Closet and shower door shops', 'Fence Contractor': 'Fence contractors',
       'Deck Distributor/Dealer': 'Deck supply dealers', 'Construction Fasteners': 'Contractor tool and fastener supply', 'Rebar / Concrete Supply': 'Rebar and concrete supply' };
     return m[s] || s;
   }
@@ -20015,15 +20193,15 @@ body.ui2 #vcl-float-btn{display:none !important}
   };
   window.nlHunt = function() {
     var btn = document.getElementById('nl-hunt-btn'), msg = document.getElementById('nl-hunt-msg');
-    var seg = document.getElementById('nl-seg').value;
+    var seg = document.getElementById('nl-seg').value, where = document.getElementById('nl-where').value;
     btn.disabled = true; btn.textContent = 'Searching...'; msg.textContent = '';
-    post('/api/leads/hunt', { segment: seg }).then(function(d) {
+    post('/api/leads/hunt', { segment: seg, mode: where }).then(function(d) {
       msg.textContent = d.found ? d.found + ' new lead' + (d.found === 1 ? '' : 's') + ' added.' :
         d.note === 'no location' ? 'Set a home base (Change territory) or add addresses to a few accounts so RepRoute knows where you work.' :
         'Nothing new for that type nearby. Try another type.';
       loadNewLeads();
     }).catch(function(e) { msg.textContent = e.message; })
-      .then(function() { btn.disabled = false; btn.textContent = 'Search near me'; });
+      .then(function() { btn.disabled = false; btn.textContent = 'Search'; });
   };
 
   // ── What you sell ──
@@ -20098,7 +20276,8 @@ body.ui2 #vcl-float-btn{display:none !important}
         clearInterval(t);
         applyLayout(window.__userData && window.__userData.ui_layout);
         var active = document.querySelector('.page.active');
-        syncNav(active ? active.id.replace('page-', '') : 'today');
+        var cur = active ? active.id.replace('page-', '') : 'today';
+        if (isNew() && (cur === 'today' || cur === 'dashboard')) go('today2'); else syncNav(cur);
       }
     }, 150);
   }

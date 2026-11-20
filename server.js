@@ -200,6 +200,7 @@ app.use('/api/shelf', requireAuthAPI, require('./routes/shelf'));
 app.use('/api/sell', requireAuthAPI, require('./routes/sell'));
 app.use('/api/leads', requireAuthAPI, require('./routes/leads'));
 app.use('/api/accounts-list', requireAuthAPI, require('./routes/accounts-list'));
+app.use('/api/today', requireAuthAPI, require('./routes/today'));
 app.use('/api/ai', requireAuthAPI, aiRoutes);
 app.use('/api/onboarding', requireAuthAPI, onboardingRoutes);
 app.use('/api/weekly', requireAuthAPI, weeklyRoutes);
@@ -312,7 +313,10 @@ setInterval(weeklyReportCron, 30 * 60 * 1000); // check every 30 min
 async function leadHuntCron() {
   try {
     const h = parseInt(new Intl.DateTimeFormat('en-US', { hour: 'numeric', hour12: false, timeZone: 'America/New_York' }).format(new Date()));
-    if (h >= 2 && h < 5) await require('./lib/lead-hunt').huntAll();
+    if (h >= 2 && h < 5) {
+      await require('./lib/lead-hunt').huntAll();
+      await require('./lib/day-plan').planAll();
+    }
   } catch (e) { console.error('lead-hunt cron error:', e.message); }
 }
 if (process.env.NODE_ENV !== 'test') setInterval(leadHuntCron, 20 * 60 * 1000);

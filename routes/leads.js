@@ -86,7 +86,13 @@ router.post('/hunt', async (req, res) => {
   const count = used && used.day === day ? used.n : 0;
   if (me.role !== 'manager' && count >= 2) return res.status(429).json({ error: 'That is today\'s searches. More leads come in tonight.' });
   manualRuns.set(me.id, { day, n: count + 1 });
-  res.json(await hunt.huntForRep(me, { segments: seg ? [seg] : undefined, perRun: 1 }));
+  let routeDate = null;
+  if ((req.body || {}).mode === 'route') {
+    routeDate = (await pool.query(`SELECT (NOW() AT TIME ZONE 'America/New_York')::date::text d`)).rows[0].d;
+    const stops = await pool.query('SELECT 1 FROM planner_items WHERE rep_id=$1 AND planned_date=$2 AND account_id IS NOT NULL LIMIT 1', [me.id, routeDate]);
+    if (!stops.rows.length) return res.status(400).json({ error: 'Nothing on today\'s route yet. Plan your day first, or search near you.' });
+  }
+  res.json(await hunt.huntForRep(me, { segments: seg ? [seg] : undefined, perRun: 1, routeDate }));
 });
 
 module.exports = router;

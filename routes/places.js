@@ -1960,7 +1960,7 @@ const ACCOUNT_CATEGORIES = [
   'Cornice Contractor', 'Construction Fasteners', 'Architect',
   'Spray Foam Contractor', 'Spray Foam Distributor', 'Paint Dealer', 'Concrete Company', 'Steel Company',
   'Manufacturer', 'Paint Contractor', 'Paint and Insulation Company', 'Glass Shop',
-  'Roofing Subcontractor', 'Fencing Subcontractor', 'Precast', 'Floor Door',
+  'Roofing Subcontractor', 'Fencing Subcontractor', 'Precast', 'Floor Door', 'Closet & Shower Door',
 ];
 
 function classifyAccountCategory(name, types) {

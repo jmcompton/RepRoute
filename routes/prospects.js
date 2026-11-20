@@ -33,7 +33,8 @@ const CONTRACTOR_CATEGORIES = new Set([
   'Roofing Subcontractor',
   'Fencing Subcontractor',
   'Precast',
-  'Floor Door'
+  'Floor Door',
+  'Closet & Shower Door'
 ]);
 
 // Manufacturers are neither — counted in their own bucket, not in the

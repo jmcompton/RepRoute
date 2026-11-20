@@ -214,6 +214,23 @@ const SEGMENT_SEARCH_CONFIG = {
     { query: 'masonry supply', score: 9, category: 'Rebar / Concrete Supply' },
     { query: 'fiberglass rebar supplier', score: 8, category: 'Rebar / Concrete Supply' },
   ],
+  // Fortress fence and railing buyers (Nov 20): fence builders and gate shops.
+  'Fence Contractor': [
+    { query: 'fence contractor', score: 10, category: 'Fence Contractor' },
+    { query: 'fence company', score: 10, category: 'Fence Contractor' },
+    { query: 'aluminum fence installer', score: 9, category: 'Fence Contractor' },
+    { query: 'ornamental iron fence and gate company', score: 9, category: 'Fence Contractor' },
+    { query: 'vinyl fence installation company', score: 8, category: 'Fence Contractor' },
+  ],
+  // Closet Maid and Virginia Mirror buyers (Daniel's commission book): custom
+  // closet companies and shower door / mirror shops.
+  'Closet & Shower Door Shop': [
+    { query: 'custom closet company', score: 10, category: 'Closet & Shower Door Shop' },
+    { query: 'closet organizer installer', score: 10, category: 'Closet & Shower Door Shop' },
+    { query: 'shower door installation company', score: 10, category: 'Closet & Shower Door Shop' },
+    { query: 'closet and shower door company', score: 9, category: 'Closet & Shower Door Shop' },
+    { query: 'frameless shower door and mirror company', score: 9, category: 'Closet & Shower Door Shop' },
+  ],
   // Spray foam insulation / SPF roofing installers. Queries lead with "spray foam"
   // so Google doesn't drift into generic fiberglass/blown-in insulation shops.
   'Spray Foam Contractor': [
@@ -277,6 +294,14 @@ const SEGMENT_RELEVANCE = {
     block: /pest control|exterminat|termite|foam (fabricat|rubber|packag|cushion)|mattress|upholster|packaging|car wash|\bpool\b/i,
     boost: /spray ?foam|\bspf\b|foam insulation|polyurethane|insulat/i,
   },
+  'Fence Contractor': {
+    block: /pool|\bdogs?\b|invisible fence|electric fence|\bpets?\b|rental|storage|farm supply|feed (store|and seed)|tractor supply|home depot|lowe'?s/i,
+    boost: /fence|fencing|gate|rail|ornamental|iron/i,
+  },
+  'Closet & Shower Door Shop': {
+    block: /storage units?|self.?storage|mini.?storage|moving|cleaning|maid service|plumb|auto|container store|ikea|home depot|lowe'?s/i,
+    boost: /closet|shower|mirror|glass|shelv|organiz/i,
+  },
   'Glass Shop': {
     block: /auto ?glass|windshield|windscreen|safelite|car glass|vehicle|\bauto\b|automotive|collision|tint|smoke|vape|hookah|head shop|\bpipes?\b|bong|glass ?blow|art glass|stained glass|glass art|studio|eyeglass|optical|eyewear|vision|bottle|recycl/i,
     boost: /\bglass\b|glazing|glazier|mirror|storefront|shower door|window/i,
@@ -292,7 +317,7 @@ const SEGMENT_RELEVANCE = {
 // dealers mostly furnish-and-install, so Google often types them general_contractor
 // or construction_company — the Dealer filter would wrongly drop real ones.
 // Glass shops: Google types many as building_materials_store, which the Contractor filter would drop.
-const CHANNEL_FILTER_EXEMPT = new Set(['Division 10 Dealer', 'Glass Shop', 'Rebar / Concrete Supply', 'Window/Door Installer']);
+const CHANNEL_FILTER_EXEMPT = new Set(['Division 10 Dealer', 'Glass Shop', 'Rebar / Concrete Supply', 'Window/Door Installer', 'Closet & Shower Door Shop']);
 
 // Legacy PRODUCT_SEARCH_CONFIG kept for backwards compat (not used by current UI)
 const PRODUCT_SEARCH_CONFIG = {
@@ -629,6 +654,8 @@ async function dailyLeadsHandler(req, res) {
     'Division 10 Dealer':    'Dealer',
     'Glass Shop':            'Contractor',
     'Rebar / Concrete Supply': 'Dealer',
+    'Fence Contractor':      'Contractor',
+    'Closet & Shower Door Shop': 'Contractor',
     'Contractor':            'Contractor',
     'Dealer':                'Dealer',
   };

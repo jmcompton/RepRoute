@@ -149,13 +149,13 @@ function stubGoogle(port) {
 
     // ── Layout switch ──
     r = await kody('GET', '/app/data');
-    assert.strictEqual(r.body.user.ui_layout, 'classic');
-    r = await kody('PUT', '/api/accounts-list/layout', { layout: 'new' });
-    assert.strictEqual(r.body.layout, 'new');
+    assert.strictEqual(r.body.user.ui_layout, 'new', 'new layout for everyone');
+    r = await kody('PUT', '/api/accounts-list/layout', { layout: 'classic' });
+    assert.strictEqual(r.body.layout, 'classic');
     r = await kody('GET', '/app/data');
-    assert.strictEqual(r.body.user.ui_layout, 'new');
+    assert.strictEqual(r.body.user.ui_layout, 'classic');
     r = await jack('GET', '/app/data');
-    assert.strictEqual(r.body.user.ui_layout, 'classic', 'per person');
+    assert.strictEqual(r.body.user.ui_layout, 'new', 'per person');
 
     // ── New leads ──
     r = await kody('GET', '/api/leads/count');

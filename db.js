@@ -939,6 +939,36 @@ async function initDB() {
       return { lines: seed.length };
     });
 
+    // The rest of what Compton sells, from the commission statements: every
+    // line with sales on file goes on What you sell. Buyers filled in where
+    // the commission data makes them clear (Daniel's book, Nov 20); the rest
+    // are left for a manager to set.
+    await runOnce('2026-11-20 what you sell from commissions', async () => {
+      const KNOWN = [
+        [/closet ?maid/, 'Closet and storage shelving systems.', ['Closet & Shower Door Shop', 'Lumber / Building Supply'], 'closet maid, closetmaid, shelving'],
+        [/virginia ?mirror/, 'Mirrors and shower door glass.', ['Glass Shop', 'Closet & Shower Door Shop'], 'virginia mirror, mirror, shower door'],
+        [/no ?burn/, 'Fire retardant coatings.', ['Spray Foam Contractor'], 'no burn, noburn, fire retardant'],
+        [/fortress/, null, ['Fence Contractor', 'Deck Contractor', 'Deck Distributor/Dealer'], null],
+        [/boss/, null, ['Roofing Contractor', 'Roofing Distributor', 'Spray Foam Contractor'], null]
+      ];
+      const lines = (await pool.query(
+        `SELECT l.id, l.name, l.featured, COALESCE(l.buyer_segments, '{}') AS segs, COALESCE(SUM(al.total_sales),0)::float AS sales
+           FROM lines l LEFT JOIN account_lines al ON al.line_id = l.id GROUP BY l.id`)).rows;
+      let added = 0, filled = 0;
+      for (const l of lines) {
+        const k = KNOWN.find(x => x[0].test(String(l.name).toLowerCase()));
+        if (!l.featured && l.sales > 0) {
+          await pool.query(`UPDATE lines SET featured=TRUE, sort_order=100 WHERE id=$1`, [l.id]); added++;
+        }
+        if (k && (l.featured || l.sales > 0)) {
+          const segs = [...new Set(l.segs.concat(k[2]))];
+          await pool.query(`UPDATE lines SET buyer_segments=$2, what=COALESCE(what,$3), match_words=COALESCE(match_words,$4) WHERE id=$1`, [l.id, segs, k[1], k[3]]);
+          filled++;
+        }
+      }
+      return { added, filled };
+    });
+
     // Overnight lead hunt results, one row per rep per Google listing.
     await pool.query(`CREATE TABLE IF NOT EXISTS leads (
       id SERIAL PRIMARY KEY,
@@ -955,8 +985,17 @@ async function initDB() {
     await pool.query(`CREATE TABLE IF NOT EXISTS lead_hunt_runs (
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, run_day DATE NOT NULL,
       found INTEGER DEFAULT 0, note TEXT, ran_at TIMESTAMPTZ DEFAULT NOW(), PRIMARY KEY (user_id, run_day))`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS day_plan_runs (
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, run_day DATE NOT NULL,
+      added INTEGER DEFAULT 0, miles NUMERIC, ran_at TIMESTAMPTZ DEFAULT NOW(), PRIMARY KEY (user_id, run_day))`);
     // Which layout a person uses: 'classic' until they switch to the new one.
-    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ui_layout TEXT DEFAULT 'classic'`);
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ui_layout TEXT DEFAULT 'new'`);
+    await pool.query(`ALTER TABLE users ALTER COLUMN ui_layout SET DEFAULT 'new'`);
+    // Nov 20: the new layout goes on for everyone (they can still switch back).
+    await runOnce('2026-11-20 new layout for everyone', async () => {
+      const r = await pool.query(`UPDATE users SET ui_layout='new' WHERE COALESCE(ui_layout,'classic') <> 'new'`);
+      return { switched: r.rowCount };
+    });
   } catch (e) {
     console.error('[migrate] one-time jobs:', e.message);
   }
