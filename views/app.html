@@ -5487,6 +5487,7 @@ function loadFamily(id) {
     var esc = function(x) { return String(x || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
     var t = d.totals || {};
     var money = function(n) { return '$' + Math.round(n || 0).toLocaleString('en-US'); };
+    var day = function(ymd) { return ymd ? new Date(ymd + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: ymd.slice(0, 4) === String(new Date().getFullYear()) ? undefined : 'numeric' }) : ''; };
     var html = '';
     if (d.parent) {
       html += '<div style="margin-bottom:8px">Location of <a href="#" onclick="viewTeamRecord(' + d.parent.id + ');return false" style="font-weight:700">' + esc(d.parent.company) + '</a>' +
@@ -5495,11 +5496,11 @@ function loadFamily(id) {
     if (d.locations && d.locations.length) {
       html += '<div style="font-weight:700;color:var(--navy);margin:4px 0">' + esc(d.root.company) + ': ' + (d.locations.length + 1) + ' locations</div>' +
         '<div style="font-size:12px;color:var(--text2);margin-bottom:8px">All locations: ' + t.visits_90d + ' visits in 90 days' +
-        (t.last_visit ? ', last ' + esc(t.last_visit) : '') + ' · ' + t.open_quotes + ' open quotes (' + money(t.open_amount) + ') · ' + t.won + ' won</div>' +
+        (t.last_visit ? ', last ' + esc(day(t.last_visit)) : '') + ' · ' + t.open_quotes + ' open quotes (' + money(t.open_amount) + ') · ' + t.won + ' won</div>' +
         d.locations.map(function(l) {
           return '<div onclick="viewTeamRecord(' + l.id + ')" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;margin-bottom:6px;cursor:pointer;background:#fff">' +
             '<div style="font-weight:600;color:var(--navy)">' + esc(l.company) + '</div>' +
-            '<div style="font-size:11px;color:var(--text3)">' + esc(l.city || 'No city') + ' · ' + esc(l.owner || '') + (l.last_visit ? ' · last visit ' + esc(l.last_visit) : '') + '</div></div>';
+            '<div style="font-size:11px;color:var(--text3)">' + esc(l.city || 'No city') + ' · ' + esc(l.owner || '') + (l.last_visit ? ' · last visit ' + esc(day(l.last_visit)) : '') + '</div></div>';
         }).join('');
     }
     if (!d.parent && !(d.locations && d.locations.length)) {
@@ -13757,7 +13758,7 @@ window.loadRecap = function() {
             window._recapItems[it.call_id] = it;
             editBtn = '<button onclick="recapEdit(' + it.call_id + ')" style="float:right;min-height:32px;padding:4px 12px;background:#fff;border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;color:var(--navy);cursor:pointer;font-family:inherit">Edit</button>';
           }
-          var fu = it.next_step_date ? '<div style="font-size:12px;color:#92400e;margin-top:4px">Follow up ' + _recapEscape(it.next_step_date) + (it.next_step ? ': ' + _recapEscape(it.next_step) : '') + '</div>' : '';
+          var fu = it.next_step_date ? '<div style="font-size:12px;color:#92400e;margin-top:4px">Follow up ' + _recapEscape(new Date(it.next_step_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })) + (it.next_step ? ': ' + _recapEscape(it.next_step) : '') + '</div>' : '';
           return '<div id="recap-item-' + (it.call_id || '') + '" style="padding:10px 0;border-top:1px solid var(--border)">' + editBtn +
                    '<div style="display:inline-block;font-size:10px;font-weight:700;color:#0369a1;background:#f0f9ff;border:1px solid #bae6fd;padding:1px 7px;border-radius:20px;margin-bottom:5px">' + tag + '</div>' +
                    metaLine + note + fu +
