@@ -1669,6 +1669,7 @@ function localYMD(d){ d = d || new Date(); return d.getFullYear()+'-'+String(d.g
     <button class="sb-item" data-roles="rep manager" onclick="go('quotes')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" style="width:14px;height:14px;flex-shrink:0"><path d="M3 2h10a1 1 0 011 1v11a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1zM5 7h6M5 9.5h4"/></svg>Quotes</button>
     <button class="sb-item" data-roles="rep manager" onclick="go('opportunities')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M8 1l2 4.5 4.9.4-3.7 3.2 1.1 4.8L8 11.5 3.7 13.9l1.1-4.8L1.1 5.9 6 5.5z"/></svg>Opportunities</button>
     <button class="sb-item" data-roles="rep intern manager" onclick="go('manufacturers')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 14V6l4-2v3l4-2v3l4-2v8z"/><path d="M2 14h12"/></svg>Manufacturers</button>
+    <button class="sb-item" data-roles="rep manager" onclick="go('commrep')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 14h12M4 11V7M8 11V3M12 11V6"/></svg>Commission reports</button>
     <button class="sb-item" data-roles="rep intern manager" onclick="go('sell')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 5l6-3 6 3-6 3z"/><path d="M2 8l6 3 6-3M2 11l6 3 6-3"/></svg>What you sell</button>
     <button class="sb-item" data-roles="rep intern manager" onclick="go('documents')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M4 1.5h5l3 3v10H4z"/><path d="M9 1.5v3h3M6 8h4M6 11h4"/></svg>Documents</button>
     <button class="sb-item" data-roles="rep intern manager" onclick="go('fortress')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="M2 14V5l3-2 3 2 3-2 3 2v9z"/><path d="M5 14V8M11 14V8M2 11h12"/></svg>Fortress Promo</button>
@@ -2853,6 +2854,20 @@ function localYMD(d){ d = d || new Date(); return d.getFullYear()+'-'+String(d.g
           <section class="a2-card" style="padding:14px 18px"><div class="a2-h2">This week</div><div class="t2-week" id="t2-week"></div></section>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div class="page" id="page-commrep" style="overflow-y:auto;padding-bottom:90px">
+    <div class="a2-wrap">
+      <div class="a2-head">
+        <div><h1 class="a2-h1">Commission reports</h1><p class="a2-sub" style="margin-bottom:0" id="cr-range">From the commission statements.</p></div>
+        <div class="a2-actions">
+          <select id="cr-rep" class="a2-sel" onchange="loadCommReports()" aria-label="Rep" style="display:none"></select>
+          <select id="cr-months" class="a2-sel" onchange="loadCommReports()" aria-label="Period"><option value="3">Last 3 months</option><option value="6">Last 6 months</option><option value="12" selected>Last 12 months</option><option value="24">Last 24 months</option></select>
+        </div>
+      </div>
+      <div class="t2-tiles" id="cr-tiles"></div>
+      <div id="cr-body"></div>
     </div>
   </div>
 
@@ -4462,6 +4477,7 @@ var pageTitles = {
   documents: 'Documents',
   acctlist: 'Accounts',
   today2: 'Today',
+  commrep: 'Commission reports',
   newleads: 'New leads',
   sell: 'What you sell'
 };
@@ -4645,6 +4661,7 @@ function go(id) {
   if (id === 'documents') loadDocuments();
   if (id === 'acctlist' && typeof loadAcctList === 'function') loadAcctList();
   if (id === 'today2' && typeof loadToday2 === 'function') loadToday2();
+  if (id === 'commrep' && typeof loadCommReports === 'function') loadCommReports();
   if (id === 'newleads' && typeof loadNewLeads === 'function') loadNewLeads();
   if (id === 'sell' && typeof loadSell === 'function') loadSell();
   if (id === 'time') loadTimeTracker();
@@ -12996,6 +13013,12 @@ fetch('/api/notifications/evaluate', { method: 'POST' }).then(function(r){ retur
       <svg class="mm-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg>
     </button>
 
+    <button onclick="goAndCloseMenu('commrep')" class="mm-item" data-roles="rep manager">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#1d6aff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 19h16M6 15V9M11 15V4M16 15V8"/></svg>
+      <span>Commission reports</span>
+      <svg class="mm-chev" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8a95a3" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg>
+    </button>
+
     <button onclick="goAndCloseMenu('sell')" class="mm-item">
       <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#1d6aff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l8-4 8 4-8 4z"/><path d="M3 11l8 4 8-4M3 15l8 4 8-4"/></svg>
       <span>What you sell</span>
@@ -20023,6 +20046,78 @@ body.ui2 #vcl-float-btn{display:none !important}
   };
   window.t2Remove = function(id) {
     J('/api/planner/items/' + id, { method: 'DELETE' }).then(function() { loadToday2(); }).catch(function(e) { toast(e.message); });
+  };
+
+  // ── Commission reports (Keith: 80/20, at risk, by line, trend) ──
+  function k(n) { n = Number(n) || 0; return n >= 1e6 ? '$' + (n / 1e6).toFixed(2) + 'M' : n >= 1e4 ? '$' + Math.round(n / 1000) + 'k' : '$' + Math.round(n).toLocaleString('en-US'); }
+  function monthName(m) { var p = m.split('-'); return new Date(+p[0], +p[1] - 1, 15).toLocaleDateString('en-US', { month: 'short' }) + " '" + p[0].slice(2); }
+  var crRepsLoaded = false;
+  window.loadCommReports = function() {
+    var me = window.__userData || {}, repSel = document.getElementById('cr-rep');
+    if (me.role === 'manager' && !crRepsLoaded) {
+      crRepsLoaded = true;
+      J('/api/commission-reports/reps').then(function(d) {
+        repSel.innerHTML = '<option value="">Whole company</option>' + (d.reps || []).map(function(r) { return '<option value="' + r.id + '">' + esc(r.name) + '</option>'; }).join('');
+        repSel.style.display = '';
+      }).catch(function() {});
+    }
+    var body = document.getElementById('cr-body');
+    body.innerHTML = '<div class="a2-empty">Loading...</div>';
+    var q = '?months=' + document.getElementById('cr-months').value + (repSel.value ? '&rep=' + repSel.value : '');
+    return J('/api/commission-reports' + q).then(function(d) {
+      var r = d.range || {};
+      if (!d.accounts.length && !d.by_month.length) {
+        document.getElementById('cr-tiles').innerHTML = '';
+        document.getElementById('cr-range').textContent = 'From the commission statements.';
+        body.innerHTML = '<div class="a2-card a2-empty">No commission statements loaded for this view yet.' +
+          (me.role === 'manager' ? '<br><button type="button" class="a2-btn a2-pri" style="margin-top:12px" onclick="go(\'commissions\')">Upload statements</button>' : '<br>A manager uploads them; your numbers show here after.') + '</div>';
+        return;
+      }
+      document.getElementById('cr-range').textContent = 'From the commission statements, ' + monthName(r.first.slice(0, 7)) + ' to ' + monthName(r.last.slice(0, 7)) + '.';
+      var ar = d.at_risk;
+      document.getElementById('cr-tiles').innerHTML = [
+        [k(r.commission), 'commission'], [k(r.sales), 'sales'], [r.accounts + '', 'accounts paying'],
+        [ar.count + ' at risk', k(ar.commission) + ', no visit in ' + d.at_risk_days + ' days']
+      ].map(function(x, i) { return '<div class="t2-tile" style="cursor:default' + (i === 3 && ar.count ? ';background:#fdf1e2' : '') + '"><b>' + esc(x[0]) + '</b><span>' + esc(x[1]) + '</span></div>'; }).join('');
+      var mine = function(a) { return a.owner_id === me.id; };
+      var visit = function(a) { return a.last_visit ? (a.days_since >= d.at_risk_days ? '<span style="color:#b42318;font-weight:600">' + a.days_since + ' days ago</span>' : a.days_since + ' days ago') : '<span style="color:#b42318;font-weight:600">Never visited</span>'; };
+      var P = d.pareto;
+      var pareto = '<section class="a2-card"><div class="t2-head"><div><div class="a2-h2" style="margin:0">80/20</div><div class="t2-muted">' + P.a_accounts + ' of ' + P.accounts + ' accounts make ' + Math.round(P.a_share * 100) + '% of the commission. Those are marked.</div></div></div>' +
+        d.accounts.slice(0, 60).map(function(a) {
+          return '<div class="t2-row" style="' + (a.a_account ? 'background:#f7faff' : '') + '"><div class="t2-num" style="' + (a.a_account ? '' : 'background:#f1f3f6;color:#3d4654') + '">' + a.rank + '</div>' +
+            '<div style="flex:1;min-width:0"><button type="button" class="a2-link" style="padding:0;font-size:14.5px" onclick="openAccount(' + a.id + ',' + mine(a) + ')">' + esc(a.company) + '</button>' +
+            '<div class="t2-muted">' + esc([a.city, a.owner, a.lines].filter(Boolean).join(' · ')) + '</div>' +
+            '<div class="t2-muted">Last visit: ' + visit(a) + '</div></div>' +
+            '<div style="text-align:right;min-width:86px"><div style="font-weight:700;color:var(--navy)">' + k(a.commission) + '</div><div class="t2-muted">' + Math.round(a.share * 100) + '% · ' + Math.round(a.cum_share * 100) + '% total</div></div></div>';
+        }).join('') + '</section>';
+      var risk = '<section class="a2-card"><div class="t2-head"><div><div class="a2-h2" style="margin:0">Paying accounts nobody has visited</div><div class="t2-muted">No visit in ' + d.at_risk_days + ' days, biggest first. Add them to a day before they go quiet.</div></div></div>' +
+        (ar.accounts.length ? ar.accounts.map(function(a) {
+          return '<div class="t2-row"><div style="flex:1;min-width:0"><button type="button" class="a2-link" style="padding:0;font-size:14.5px" onclick="openAccount(' + a.id + ',' + mine(a) + ')">' + esc(a.company) + '</button>' +
+            '<div class="t2-muted">' + k(a.commission) + ' commission · ' + visit(a) + (a.owner ? ' · ' + esc(a.owner) : '') + '</div></div>' +
+            (mine(a) ? '<button type="button" class="a2-btn a2-sm" onclick="t2Add(' + a.id + ',this)">Add to today</button>' : '') + '</div>';
+        }).join('') : '<div class="a2-empty" style="padding:18px">Every paying account has had a visit in the last ' + d.at_risk_days + ' days.</div>') + '</section>';
+      var months = d.by_month.map(function(m) { return m.m; });
+      var spark = function(series) {
+        var vals = months.map(function(m) { return series[m] || 0; }), max = Math.max.apply(null, vals.concat([1]));
+        if (vals.length < 2) return '';
+        var pts = vals.map(function(v, i) { return (i * 100 / (vals.length - 1)).toFixed(1) + ',' + (28 - v / max * 26).toFixed(1); }).join(' ');
+        return '<svg viewBox="0 0 100 30" preserveAspectRatio="none" style="width:110px;height:30px" role="img" aria-label="Monthly trend"><polyline points="' + pts + '" fill="none" stroke="#1d6aff" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>';
+      };
+      var lines = '<section class="a2-card"><div class="t2-head"><div class="a2-h2" style="margin:0">By manufacturer</div></div>' +
+        d.by_line.map(function(l) {
+          return '<div class="t2-row"><div style="flex:1;min-width:0"><div style="font-weight:600;color:var(--navy)">' + esc(l.line) + '</div><div class="t2-muted">' + k(l.sales) + ' sales</div></div>' + spark(l.months) +
+            '<div style="text-align:right;min-width:80px;font-weight:700;color:var(--navy)">' + k(l.commission) + '</div></div>';
+        }).join('') + '</section>';
+      var maxM = Math.max.apply(null, d.by_month.map(function(m) { return m.commission; }).concat([1]));
+      var trend = '<section class="a2-card"><div class="t2-head"><div class="a2-h2" style="margin:0">Month by month</div></div><div style="padding:12px 18px">' +
+        d.by_month.map(function(m) {
+          return '<div style="display:flex;align-items:center;gap:10px;margin:6px 0"><span style="width:58px;font-size:13px;color:var(--text2)">' + monthName(m.m) + '</span>' +
+            '<span style="flex:1;background:#eef1f5;border-radius:4px;height:14px"><span style="display:block;height:14px;border-radius:4px;background:#1d6aff;width:' + Math.max(2, m.commission / maxM * 100).toFixed(1) + '%"></span></span>' +
+            '<span style="width:70px;text-align:right;font-size:13px;font-weight:600;color:var(--navy)">' + k(m.commission) + '</span></div>';
+        }).join('') + '</div></section>';
+      body.innerHTML = '<div class="a2-split"><div style="flex:3 1 520px;min-width:0;display:flex;flex-direction:column;gap:14px">' + pareto + '</div>' +
+        '<div style="flex:2 1 320px;min-width:0;display:flex;flex-direction:column;gap:14px">' + risk + lines + trend + '</div></div>';
+    }).catch(function(e) { body.innerHTML = '<div class="a2-empty">' + esc(e.message) + '</div>'; });
   };
 
   // ── Opening any account from a list, and the Recently viewed list ──

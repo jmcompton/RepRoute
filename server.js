@@ -201,6 +201,7 @@ app.use('/api/sell', requireAuthAPI, require('./routes/sell'));
 app.use('/api/leads', requireAuthAPI, require('./routes/leads'));
 app.use('/api/accounts-list', requireAuthAPI, require('./routes/accounts-list'));
 app.use('/api/today', requireAuthAPI, require('./routes/today'));
+app.use('/api/commission-reports', requireAuthAPI, require('./routes/commission-reports'));
 app.use('/api/ai', requireAuthAPI, aiRoutes);
 app.use('/api/onboarding', requireAuthAPI, onboardingRoutes);
 app.use('/api/weekly', requireAuthAPI, weeklyRoutes);
