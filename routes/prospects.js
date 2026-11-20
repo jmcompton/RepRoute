@@ -28,7 +28,12 @@ const CONTRACTOR_CATEGORIES = new Set([
   'Steel Company',
   'Paint Contractor',
   'Paint and Insulation Company',
-  'Glass Shop'
+  'Glass Shop',
+  // Sean's list (Nov 20)
+  'Roofing Subcontractor',
+  'Fencing Subcontractor',
+  'Precast',
+  'Floor Door'
 ]);
 
 // Manufacturers are neither — counted in their own bucket, not in the
@@ -635,6 +640,50 @@ router.put('/:id/field-notes', async (req, res) => {
   const r = await pool.query('UPDATE prospects SET best_time=$2, specialty=$3 WHERE id=$1 RETURNING best_time, specialty',
     [pid, clip(b.best_time), clip(b.specialty)]);
   res.json(r.rows[0]);
+});
+
+// ── Parent companies (Sean): group locations like "CRS" and "CRS Internet
+// Sales" under one company. One level only: a parent can't itself be a location.
+router.get('/:id/family', async (req, res) => {
+  const pid = await teamAccount(req, req.params.id);
+  if (!pid) return res.status(404).json({ error: 'Account not found' });
+  const me = (await pool.query('SELECT id, company, city, parent_id FROM prospects WHERE id=$1', [pid])).rows[0];
+  const rootId = me.parent_id || me.id;
+  const root = (await pool.query('SELECT id, company, city FROM prospects WHERE id=$1', [rootId])).rows[0];
+  const locs = (await pool.query(
+    `SELECT p.id, p.company, p.city, COALESCE(NULLIF(TRIM(u.name),''), u.email) AS owner,
+            (SELECT MAX(call_date)::text FROM calls WHERE prospect_id = p.id) AS last_visit
+       FROM prospects p LEFT JOIN users u ON u.id = p.user_id
+      WHERE p.parent_id = $1 ORDER BY p.company, p.city`, [rootId])).rows;
+  const ids = [rootId].concat(locs.map(l => l.id));
+  const t = (await pool.query(
+    `SELECT (SELECT COUNT(*) FROM calls WHERE prospect_id = ANY($1::int[]) AND call_date >= CURRENT_DATE - 90)::int AS visits_90d,
+            (SELECT MAX(call_date)::text FROM calls WHERE prospect_id = ANY($1::int[])) AS last_visit,
+            (SELECT COUNT(*) FROM quotes WHERE prospect_id = ANY($1::int[]) AND status NOT IN ('Won','Lost'))::int AS open_quotes,
+            (SELECT COALESCE(SUM(NULLIF(regexp_replace(amount::text,'[^0-9.]','','g'),'')::numeric),0) FROM quotes
+              WHERE prospect_id = ANY($1::int[]) AND status NOT IN ('Won','Lost'))::float AS open_amount,
+            (SELECT COUNT(*) FROM quotes WHERE prospect_id = ANY($1::int[]) AND status = 'Won')::int AS won`, [ids])).rows[0];
+  res.json({ id: pid, is_parent: rootId === pid && locs.length > 0, parent: me.parent_id ? root : null,
+             root, locations: locs, totals: t });
+});
+
+router.put('/:id/parent', async (req, res) => {
+  const pid = await teamAccount(req, req.params.id);
+  if (!pid) return res.status(404).json({ error: 'Account not found' });
+  const raw = (req.body || {}).parent_id;
+  if (raw === null || raw === '' || raw === undefined) {
+    await pool.query('UPDATE prospects SET parent_id=NULL WHERE id=$1', [pid]);
+    return res.json({ success: true, parent_id: null });
+  }
+  const parentId = await teamAccount(req, raw);
+  if (!parentId) return res.status(400).json({ error: 'That company was not found' });
+  if (parentId === pid) return res.status(400).json({ error: "An account can't be its own parent" });
+  const par = (await pool.query('SELECT parent_id FROM prospects WHERE id=$1', [parentId])).rows[0];
+  if (par.parent_id) return res.status(400).json({ error: 'That account is itself a location. Pick its parent company instead.' });
+  const kids = (await pool.query('SELECT COUNT(*)::int n FROM prospects WHERE parent_id=$1', [pid])).rows[0].n;
+  if (kids) return res.status(400).json({ error: 'This account already has locations under it, so it stays a parent.' });
+  await pool.query('UPDATE prospects SET parent_id=$2 WHERE id=$1', [pid, parentId]);
+  res.json({ success: true, parent_id: parentId });
 });
 
 // POST /api/prospects/:id/contacts — add a contact under an account.

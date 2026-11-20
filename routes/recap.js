@@ -74,30 +74,50 @@ function fortressRepFromUser(user) {
 
 // ─── Gather today's activity for a rep ─────────────────────────────────────────
 // Merges two sources. Each item: { source, name, contact, time, outcome, note }.
-async function gatherTodayActivity(user) {
+// The day the recap covers, in the team's time zone (Railway runs on UTC, so
+// CURRENT_DATE flipped to "tomorrow" at 7pm Eastern). A rep may look back up to
+// 14 days to fix older entries.
+async function recapDay(requested) {
+  const r = await pool.query(`SELECT (NOW() AT TIME ZONE 'America/New_York')::date::text AS today`);
+  const today = r.rows[0].today;
+  if (typeof requested === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(requested)) {
+    const d = new Date(requested + 'T12:00:00Z'), t = new Date(today + 'T12:00:00Z');
+    const back = (t - d) / 86400000;
+    if (!isNaN(d) && back >= 0 && back <= 14) return requested;
+  }
+  return today;
+}
+
+async function gatherTodayActivity(user, day) {
   const uid = user.id;
   const items = [];
+  day = day || await recapDay();
 
   // (a) Today's call-log notes. Same date basis as the "calls logged today"
   //     counter the reps already see: calls.call_date = CURRENT_DATE.
   const calls = await pool.query(
-    `SELECT p.company AS name,
+    `SELECT c.id AS call_id, c.prospect_id, p.company AS name,
             p.contact AS contact,
             c.outcome AS outcome,
             c.notes   AS note,
             c.call_type AS call_type,
-            to_char(c.created_at, 'HH12:MI AM') AS time
+            c.next_step, c.next_step_date::text AS next_step_date,
+            to_char(c.created_at AT TIME ZONE 'America/New_York', 'HH12:MI AM') AS time
        FROM calls c
        JOIN prospects p ON c.prospect_id = p.id
-      WHERE c.user_id = $1 AND c.call_date = CURRENT_DATE AND COALESCE(c.call_type,'') <> 'Note'
+      WHERE c.user_id = $1 AND c.call_date = $2::date AND COALESCE(c.call_type,'') <> 'Note'
       ORDER BY c.created_at ASC`,
-    [uid]
+    [uid, day]
   );
   for (const r of calls.rows) {
     const company = (r.name || '').trim();
     const contact = (r.contact || '').trim();
     items.push({
       source: 'call',
+      call_id: r.call_id,
+      prospect_id: r.prospect_id,
+      next_step: r.next_step || '',
+      next_step_date: r.next_step_date || '',
       visit: /visit|person|drop/i.test(r.call_type || ''),
       company: company,                                  // raw account name (may be blank)
       name: company || contact || 'Unknown account',     // display / group key (contact fallback)
@@ -121,11 +141,11 @@ async function gatherTodayActivity(user) {
           `SELECT company AS name,
                   outcome AS outcome,
                   notes   AS note,
-                  to_char(visited_at, 'HH12:MI AM') AS time
+                  to_char(visited_at AT TIME ZONE 'America/New_York', 'HH12:MI AM') AS time
              FROM fortress_promo_stops
-            WHERE rep = $1 AND visited_at::date = CURRENT_DATE
+            WHERE rep = $1 AND (visited_at AT TIME ZONE 'America/New_York')::date = $2::date
             ORDER BY visited_at ASC`,
-          [repToken]
+          [repToken, day]
         );
         for (const r of fr.rows) {
           const company = (r.name || '').trim();
@@ -152,8 +172,9 @@ async function gatherTodayActivity(user) {
 // Today's date, formatted like "Wednesday, June 17, 2026", from the DB so it
 // uses the same CURRENT_DATE basis as the rest of the recap (and the calls
 // counter the reps already see).
-async function todayFormatted() {
-  const r = await pool.query("SELECT to_char(CURRENT_DATE, 'FMDay, FMMonth FMDD, YYYY') AS d");
+async function todayFormatted(day) {
+  day = day || await recapDay();
+  const r = await pool.query("SELECT to_char($1::date, 'FMDay, FMMonth FMDD, YYYY') AS d", [day]);
   return r.rows[0] ? r.rows[0].d : '';
 }
 
@@ -171,11 +192,14 @@ function groupByName(items) {
 // ─── GET /api/recap/today ──────────────────────────────────────────────────────
 router.get('/today', async (req, res) => {
   try {
-    const items = await gatherTodayActivity(req.session.user);
-    const date = await todayFormatted();
+    const day = await recapDay(req.query.date);
+    const items = await gatherTodayActivity(req.session.user, day);
+    const date = await todayFormatted(day);
     res.json({
       rep: req.session.user.name || 'Rep',
       date: date,
+      day: day,
+      is_today: day === await recapDay(),
       call_count: items.filter(i => i.source === 'call' && !i.visit).length,
       visit_count: items.filter(i => i.source === 'fortress' || i.visit).length,
       groups: groupByName(items)
@@ -192,12 +216,13 @@ router.get('/today', async (req, res) => {
 router.post('/generate-email', async (req, res) => {
   try {
     const user = req.session.user;
-    const items = await gatherTodayActivity(user);
+    const day = await recapDay((req.body || {}).date);
+    const items = await gatherTodayActivity(user, day);
     if (!items.length) {
       return res.json({ email: '' });
     }
 
-    const date = await todayFormatted();
+    const date = await todayFormatted(day);
     const repName = user.name || 'Rep';
 
     // Build the structured list the model writes from. Each entry carries the

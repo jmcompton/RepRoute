@@ -94,6 +94,68 @@ router.post('/', async (req, res) => {
   }
 });
 
+// PUT /api/calls/:id — fix a visit you logged (Kody: voice logs sometimes get
+// the account or names wrong). You can move it to the right account and fix
+// the notes, outcome and follow-up. If the visit had created a throwaway
+// account (a misheard name) that now has nothing else on it, that account is
+// archived so it doesn't linger as a duplicate.
+router.put('/:id', async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (!Number.isFinite(id)) return res.status(400).json({ error: 'Bad id' });
+  const me = req.session.user;
+  const cur = (await pool.query('SELECT * FROM calls WHERE id=$1', [id])).rows[0];
+  if (!cur) return res.status(404).json({ error: 'Not found' });
+  if (cur.user_id !== me.id) return res.status(403).json({ error: 'You can only edit visits you logged' });
+  const b = req.body || {};
+  const clip = (v, n) => (v == null ? null : String(v).slice(0, n));
+  let pid = cur.prospect_id;
+  if (b.prospect_id != null && !Number.isFinite(parseInt(b.prospect_id))) return res.status(400).json({ error: 'Pick an account' });
+  if (b.prospect_id != null && parseInt(b.prospect_id) !== cur.prospect_id) {
+    const t = await pool.query(
+      `SELECT p.id FROM prospects p JOIN users u ON u.id = p.user_id WHERE p.id=$1 AND u.disabled_at IS NULL`, [parseInt(b.prospect_id)]);
+    if (!t.rows.length) return res.status(400).json({ error: 'That account was not found' });
+    pid = t.rows[0].id;
+  }
+  const nsd = b.next_step_date === '' ? null : (b.next_step_date !== undefined ? b.next_step_date : cur.next_step_date);
+  if (nsd && !/^\d{4}-\d{2}-\d{2}$/.test(String(nsd).slice(0, 10))) return res.status(400).json({ error: 'Bad follow-up date' });
+  const r = await pool.query(
+    `UPDATE calls SET prospect_id=$2, outcome=$3, notes=$4, next_step=$5, next_step_date=$6
+      WHERE id=$1 RETURNING *`,
+    [id, pid,
+     b.outcome !== undefined ? clip(b.outcome, 100) : cur.outcome,
+     b.notes !== undefined ? clip(b.notes, 8000) : cur.notes,
+     b.next_step !== undefined ? clip(b.next_step, 500) : cur.next_step,
+     nsd ? String(nsd).slice(0, 10) : null]);
+  let archived = null;
+  if (pid !== cur.prospect_id) {
+    await pipeline.advance(pool, pid, pipeline.stageForOutcome(r.rows[0].outcome));
+    try {
+      const old = (await pool.query(
+        `SELECT p.* FROM prospects p WHERE p.id=$1 AND p.user_id=$2 AND p.source='Voice Logger'
+            AND p.created_at > NOW() - INTERVAL '30 days'
+            AND NOT EXISTS (SELECT 1 FROM calls WHERE prospect_id=p.id)
+            AND NOT EXISTS (SELECT 1 FROM quotes WHERE prospect_id=p.id)
+            AND NOT EXISTS (SELECT 1 FROM samples WHERE prospect_id=p.id)
+            AND NOT EXISTS (SELECT 1 FROM contacts WHERE prospect_id=p.id)
+            AND NOT EXISTS (SELECT 1 FROM shelf_photos WHERE prospect_id=p.id)
+            AND NOT EXISTS (SELECT 1 FROM account_documents WHERE prospect_id=p.id)
+            AND NOT EXISTS (SELECT 1 FROM prospects k WHERE k.parent_id=p.id)`, [cur.prospect_id, me.id])).rows[0];
+      if (old) {
+        // Copy first, then remove, in one transaction so nothing is lost either way.
+        const c = await pool.connect();
+        try {
+          await c.query('BEGIN');
+          await c.query(`INSERT INTO archived_records (table_name, original_id, data, reason) VALUES ('prospects',$1,$2,'emptied by a recap fix')`, [old.id, JSON.stringify(old)]);
+          await c.query('DELETE FROM prospects WHERE id=$1', [old.id]);
+          await c.query('COMMIT');
+          archived = old.company;
+        } catch (e) { await c.query('ROLLBACK').catch(() => {}); throw e; } finally { c.release(); }
+      }
+    } catch (e) { console.error('[calls] tidy old account:', e.message); }
+  }
+  res.json({ call: r.rows[0], archived_account: archived });
+});
+
 // Delete a note the rep added. Logged visits and calls stay: they're the
 // team's history for reports and commissions.
 router.delete('/:id', async (req, res) => {

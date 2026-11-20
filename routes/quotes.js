@@ -213,6 +213,39 @@ router.get('/search-accounts', async (req, res) => {
 
 // GET /contacts-for-account -- return ranked contact list for a given account name (team-wide)
 // Ranks by: (1) most recent call activity, (2) contact frequency, (3) alphabetical
+// GET /api/quotes/contact-lookup?q=CRS — type part of a company (or a person)
+// in the quote's Contact field and see every contact at matching accounts,
+// including other locations like "CRS Internet Sales". (Sean)
+router.get('/contact-lookup', async (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (q.length < 2) return res.json({ contacts: [] });
+  const like = '%' + q.replace(/[\\%_]/g, m => '\\' + m) + '%';
+  try {
+    const r = await pool.query(
+      `SELECT name, title, phone, email, company, city FROM (
+         SELECT TRIM(c.name) AS name, c.title, c.phone, c.email, p.company, p.city, c.created_at AS at
+           FROM contacts c JOIN prospects p ON p.id = c.prospect_id
+          WHERE TRIM(c.name) <> '' AND (p.company ILIKE $1 OR c.name ILIKE $1)
+         UNION ALL
+         SELECT TRIM(p.contact), p.title, p.phone, p.email, p.company, p.city, p.created_at
+           FROM prospects p
+          WHERE p.contact IS NOT NULL AND TRIM(p.contact) <> '' AND (p.company ILIKE $1 OR p.contact ILIKE $1)
+       ) x
+       ORDER BY (company ILIKE $2) DESC, company ASC, at DESC
+       LIMIT 200`, [like, q.replace(/[\\%_]/g, m => '\\' + m) + '%']);
+    const seen = new Set(); const contacts = [];
+    for (const row of r.rows) {
+      const k = (row.name + '|' + row.company).toLowerCase();
+      if (seen.has(k)) continue; seen.add(k); contacts.push(row);
+      if (contacts.length >= 40) break;
+    }
+    res.json({ contacts });
+  } catch (e) {
+    console.error('[quotes] contact-lookup:', e.message);
+    res.status(500).json({ contacts: [], error: e.message });
+  }
+});
+
 router.get('/contacts-for-account', async (req, res) => {
   try {
     const { account } = req.query;

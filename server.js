@@ -195,6 +195,8 @@ app.use('/', authRoutes);
 app.use('/app', requireAuth, dashRoutes);
 app.use('/api/prospects', requireAuthAPI, prospectsRoutes);
 app.use('/api/calls', requireAuthAPI, callsRoutes);
+app.use('/api/documents', requireAuthAPI, require('./routes/documents'));
+app.use('/api/shelf', requireAuthAPI, require('./routes/shelf'));
 app.use('/api/ai', requireAuthAPI, aiRoutes);
 app.use('/api/onboarding', requireAuthAPI, onboardingRoutes);
 app.use('/api/weekly', requireAuthAPI, weeklyRoutes);

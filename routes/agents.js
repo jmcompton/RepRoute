@@ -35,6 +35,33 @@ function templateDraft(ctx) {
   };
 }
 
+// ── POST /api/agents/after-visit { call_id } ────────────────────
+// The approval step after a visit: suggested next steps from what was logged.
+const afterVisit = require('../lib/after-visit');
+router.post('/after-visit', async (req, res) => {
+  const me = req.session.user;
+  const callId = parseInt((req.body || {}).call_id);
+  if (!Number.isFinite(callId)) return res.status(400).json({ error: 'call_id required' });
+  try {
+    const c = (await pool.query(
+      `SELECT c.*, c.call_date::text AS call_day, c.next_step_date::text AS next_day, p.company, p.contact
+         FROM calls c JOIN prospects p ON p.id = c.prospect_id WHERE c.id=$1`, [callId])).rows[0];
+    if (!c) return res.status(404).json({ error: 'Visit not found' });
+    if (c.user_id !== me.id) return res.status(403).json({ error: 'Not your visit' });
+    const sampleToday = (await pool.query(
+      `SELECT 1 FROM samples WHERE prospect_id=$1 AND sent_date >= $2::date - 1 LIMIT 1`, [c.prospect_id, c.call_day])).rows.length > 0;
+    const quoteSince = (await pool.query(
+      `SELECT 1 FROM quotes WHERE prospect_id=$1 AND created_at >= $2::date - 1 LIMIT 1`, [c.prospect_id, c.call_day])).rows.length > 0;
+    const steps = afterVisit.suggest({ outcome: c.outcome, notes: c.notes, next_step: c.next_step, next_step_date: c.next_day,
+      products_discussed: c.products_discussed, call_day: c.call_day }, { sampleToday, quoteSince });
+    res.json({ call_id: c.id, call_day: c.call_day, prospect_id: c.prospect_id, company: c.company, contact: c.contact || '',
+      next_step: c.next_step || '', next_step_date: c.next_day || '', steps });
+  } catch (e) {
+    console.error('[agents/after-visit]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 router.post('/followup', async (req, res) => {
   const me = req.session.user;
   const callId = parseInt((req.body || {}).call_id);
@@ -131,6 +158,56 @@ async function draftOrTemplate(tag, system, prompt, fallback) {
     return Object.assign({}, fallback, { ai: false });
   }
 }
+
+// ── POST /api/agents/stage-email { prospect_id, stage } ─────────
+// Moving a pipeline card offers the email that fits the new stage (Daniel):
+// Contacted → follow up on the visit, Sampled → how the sample is going,
+// Quoted → check on the quote, Closed Won → thank you and what's next.
+const STAGE_GOALS = {
+  'Contacted': ['Following up', 'Thank them for their time, recap in one line what you talked about, and suggest a next step (samples, a quote, or a quick stop-in).'],
+  'Sampled': ['How is the sample working?', "Ask how the sample is working out, offer to answer questions or bring more, and ask if they'd like pricing."],
+  'Quoted': ['Checking in on the quote', 'Ask if they have questions on the quote or are ready to move forward. Offer to adjust it or stop by. Do not restate the price.'],
+  'Closed Won': ['Thank you', "Thank them for the order, say you'll make sure it goes smoothly, and offer help with the next project or other lines you carry."]
+};
+router.post('/stage-email', async (req, res) => {
+  const me = req.session.user;
+  const pid = parseInt((req.body || {}).prospect_id);
+  const stage = String((req.body || {}).stage || '');
+  if (!Number.isFinite(pid) || !STAGE_GOALS[stage]) return res.status(400).json({ error: 'prospect_id and a pipeline stage required' });
+  try {
+    const p = (await pool.query(
+      `SELECT p.id, p.company, p.city, p.user_id,
+              (SELECT notes FROM calls WHERE prospect_id=p.id ORDER BY call_date DESC, id DESC LIMIT 1) AS last_notes,
+              (SELECT products_discussed FROM calls WHERE prospect_id=p.id ORDER BY call_date DESC, id DESC LIMIT 1) AS lines,
+              (SELECT products FROM quotes WHERE prospect_id=p.id ORDER BY id DESC LIMIT 1) AS quote_products,
+              (SELECT product_line FROM samples WHERE prospect_id=p.id ORDER BY id DESC LIMIT 1) AS sample_line
+         FROM prospects p WHERE p.id=$1`, [pid])).rows[0];
+    if (!p) return res.status(404).json({ error: 'Account not found' });
+    if (p.user_id !== me.id && me.role !== 'manager') return res.status(403).json({ error: 'Not your account' });
+    const contact = await mainContact(pid);
+    const rep = await repName(me.id);
+    const [subj, goal] = STAGE_GOALS[stage];
+    const what = stage === 'Sampled' ? (p.sample_line || p.lines) : stage === 'Quoted' ? (p.quote_products || p.lines) : p.lines;
+    const hi = contact && contact.name ? 'Hi ' + firstName(contact.name) + ',' : 'Hi,';
+    const fallbackBody = {
+      'Contacted': `${hi}\n\nThanks for your time${what ? ' talking about ' + what : ''}. Happy to get you samples or pricing, whichever helps most.\n\nI can stop by this week if that works.\n\nThanks,\n${firstName(rep)}`,
+      'Sampled': `${hi}\n\nWanted to check in on the ${what ? what + ' ' : ''}sample. How's it working out? Glad to bring more or answer any questions, and I can put pricing together whenever you're ready.\n\nThanks,\n${firstName(rep)}`,
+      'Quoted': `${hi}\n\nWanted to follow up on the ${what ? what + ' ' : ''}quote. Any questions, or anything I can adjust to make it work?\n\nHappy to stop by or jump on a quick call.\n\nThanks,\n${firstName(rep)}`,
+      'Closed Won': `${hi}\n\nThanks for the order. I'll make sure everything goes smoothly on our end. If anything comes up, or you have another project coming, just let me know.\n\nThanks,\n${firstName(rep)}`
+    }[stage];
+    const fallback = { subject: `${subj} | ${p.company}`, body: fallbackBody };
+    const prompt = `Write a short email (under 90 words) from ${rep} at Compton Sales to ${contact && contact.name ? contact.name : 'the buyer'} at ${p.company}${p.city ? ' in ' + p.city : ''}.
+Goal: ${goal}
+Products involved: ${what || 'not recorded'}.
+Last visit notes: ${clean(p.last_notes, 400) || 'none'}.
+Use only facts given here. Return ONLY JSON: {"subject":"...","body":"..."}`;
+    const d = await draftOrTemplate('stage-email', STYLE, prompt, fallback);
+    res.json(Object.assign(d, { channel: 'email', to_email: contact && contact.email || '', to_phone: contact && contact.phone || '', to_name: contact && contact.name || '', stage }));
+  } catch (e) {
+    console.error('[agents/stage-email]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
 
 // Going-cold accounts: one shared rule, see lib/going-cold.js.
 const { coldAccounts, COLD_DAYS } = require('../lib/going-cold');

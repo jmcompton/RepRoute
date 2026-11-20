@@ -833,7 +833,28 @@ async function initDB() {
     // Kody's field notes: when the buyer is actually there, and what this branch does.
     await pool.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS best_time TEXT`);
     await pool.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS specialty TEXT`);
+    // Parent company for multi-location accounts (CRS + CRS Internet Sales).
+    await pool.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS parent_id INTEGER REFERENCES prospects(id) ON DELETE SET NULL`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_prospects_parent ON prospects(parent_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_quotes_prospect ON quotes(prospect_id)`);
+    // Shared document library and shelf photos. The routes also create these
+    // on first use; having them here means every query can count on them.
+    await pool.query(`CREATE TABLE IF NOT EXISTS documents (
+      id SERIAL PRIMARY KEY, name TEXT NOT NULL, line TEXT, kind TEXT, filename TEXT NOT NULL,
+      mime TEXT NOT NULL, size INTEGER NOT NULL, data BYTEA NOT NULL,
+      uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL, created_at TIMESTAMPTZ DEFAULT NOW())`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS account_documents (
+      prospect_id INTEGER NOT NULL REFERENCES prospects(id) ON DELETE CASCADE,
+      document_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+      added_by INTEGER REFERENCES users(id) ON DELETE SET NULL, created_at TIMESTAMPTZ DEFAULT NOW(),
+      PRIMARY KEY (prospect_id, document_id))`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS shelf_photos (
+      id SERIAL PRIMARY KEY,
+      prospect_id INTEGER NOT NULL REFERENCES prospects(id) ON DELETE CASCADE,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      mime TEXT NOT NULL, size INTEGER NOT NULL, data BYTEA NOT NULL,
+      note TEXT, reading JSONB, read_error TEXT, created_at TIMESTAMPTZ DEFAULT NOW())`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_shelf_photos_prospect ON shelf_photos(prospect_id, created_at DESC)`);
     // Junk that got saved as accounts (meeting notes from an import, a test
     // account) and a test visit. Each row is copied into archived_records
     // first, so nothing is lost. Only removed when nothing hangs off it.
