@@ -13,7 +13,8 @@ const WINDOW = [
   P('Gainesville Window & Door Showroom', 34.29, -83.81, ['store']),
   P('Door4Life', 34.31, -83.83),
   P('Lakeside Millwork', 34.32, -83.84, ['store']),
-  P('Carter Lumber', 34.30, -83.82, ['store'])
+  P('Carter Lumber', 34.30, -83.82, ['store']),
+  P('Knoxville Window Supply', 35.96, -83.92, ['store'])
 ];
 const calls = [];
 function stubGoogle(port) {
@@ -158,6 +159,12 @@ function stubGoogle(port) {
     assert.strictEqual(r.body.user.ui_layout, 'new', 'per person');
 
     // ── New leads ──
+    // Nov 23 call: a few of Kody's accounts are mapped in Tennessee. Leads must
+    // still come from his Territory (Atlanta Metro), not the middle of his pins.
+    for (const [nm, la, lo] of [['TN One', 35.95, -83.9], ['TN Two', 35.97, -83.93], ['TN Three', 35.96, -83.91], ['TN Four', 35.94, -83.92]])
+      await pool.query(`INSERT INTO prospects (user_id, company, category, lat, lng) VALUES ($1,$2,'Contractor',$3,$4)`, [ids.kody, nm, la, lo]);
+    r = await kody('GET', '/api/leads');
+    assert.deepStrictEqual(r.body.area, { label: 'Atlanta Metro', source: 'territory' }, JSON.stringify(r.body.area));
     r = await kody('GET', '/api/leads/count');
     assert.strictEqual(r.body.count, 0);
     r = await kody('POST', '/api/leads/hunt', { segment: 'Bogus' });
@@ -172,6 +179,7 @@ function stubGoogle(port) {
     assert.ok(ln.includes('Gainesville Window & Door Showroom') && ln.includes('Lakeside Millwork'), ln.join(', '));
     assert.ok(!ln.includes('Door4Life'), 'junk filter applied');
     assert.ok(!ln.includes('Carter Lumber'), 'already an account');
+    assert.ok(!ln.includes('Knoxville Window Supply'), 'nothing outside the territory');
     const show = r.body.leads.find(l => l.company === 'Gainesville Window & Door Showroom');
     assert.ok(/Window and door dealer or installer\. Under a mile from Carter Lumber\./.test(show.why), show.why);
     assert.strictEqual(show.pitch, 'Soudal, ShurTape');
@@ -209,6 +217,16 @@ function stubGoogle(port) {
     assert.strictEqual(r.status, 429, 'two searches a day for reps');
     r = await sean('POST', '/api/leads/hunt', {});
     assert.notStrictEqual(r.status, 429, 'managers not limited');
+    // Near me right now: searches where the phone is
+    r = await sean('POST', '/api/leads/hunt', { segment: 'Window/Door Installer', mode: 'gps' });
+    assert.strictEqual(r.status, 400, 'needs a location');
+    r = await sean('POST', '/api/leads/hunt', { segment: 'Window/Door Installer', mode: 'gps', lat: 35.96, lng: -83.92 });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+    r = await sean('GET', '/api/leads');
+    const knox = r.body.leads.find(l => l.company === 'Knoxville Window Supply');
+    assert.ok(knox, r.body.leads.map(l => l.company).join(', '));
+    assert.ok(/from where you are/.test(knox.why), knox.why);
+    assert.ok(!r.body.leads.some(l => l.company === 'Lakeside Millwork' && /where you are/.test(l.why)), 'Gainesville is too far from Knoxville');
 
     // The nightly run: only people out selling, once a day each
     process.env.GOOGLE_PLACES_API_KEY = 'stub';

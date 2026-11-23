@@ -10,7 +10,9 @@ router.get('/', async (req, res) => {
     `SELECT id, company, segment, category, address, city, state, phone, website, score, why, pitch, found_at
        FROM leads WHERE user_id=$1 AND status='new' ORDER BY score DESC, found_at DESC, id LIMIT 100`, [uid]);
   const last = (await pool.query(`SELECT run_day::text, found, note FROM lead_hunt_runs WHERE user_id=$1 ORDER BY run_day DESC LIMIT 1`, [uid])).rows[0] || null;
-  res.json({ leads: r.rows.map(l => Object.assign(l, { segment_label: hunt.label(l.segment) })), last_run: last });
+  const area = await require('../lib/work-area').workCenter(uid).catch(() => null);
+  res.json({ leads: r.rows.map(l => Object.assign(l, { segment_label: hunt.label(l.segment) })), last_run: last,
+    area: area ? { label: area.label, source: area.source } : null });
 });
 
 router.get('/count', async (req, res) => {
@@ -92,7 +94,13 @@ router.post('/hunt', async (req, res) => {
     const stops = await pool.query('SELECT 1 FROM planner_items WHERE rep_id=$1 AND planned_date=$2 AND account_id IS NOT NULL LIMIT 1', [me.id, routeDate]);
     if (!stops.rows.length) return res.status(400).json({ error: 'Nothing on today\'s route yet. Plan your day first, or search near you.' });
   }
-  res.json(await hunt.huntForRep(me, { segments: seg ? [seg] : undefined, perRun: 1, routeDate }));
+  let gps = null;
+  if ((req.body || {}).mode === 'gps') {
+    const lat = parseFloat(req.body.lat), lng = parseFloat(req.body.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return res.status(400).json({ error: 'Couldn\'t get your location. Allow location for RepRoute, or search your territory.' });
+    gps = { lat, lng, label: 'where you are' };
+  }
+  res.json(await hunt.huntForRep(me, { segments: seg ? [seg] : undefined, perRun: 1, routeDate, gps, max: 15 }));
 });
 
 module.exports = router;

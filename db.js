@@ -985,6 +985,15 @@ async function initDB() {
     await pool.query(`CREATE TABLE IF NOT EXISTS lead_hunt_runs (
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, run_day DATE NOT NULL,
       found INTEGER DEFAULT 0, note TEXT, ran_at TIMESTAMPTZ DEFAULT NOW(), PRIMARY KEY (user_id, run_day))`);
+    // Nov 23: leads were searched around the middle of each rep's mapped
+    // accounts, which a few mis-mapped accounts pulled into Tennessee. Clear
+    // those and search again around each rep's Territory shortly after start.
+    await runOnce('2026-11-23 redo leads around territory', async () => {
+      const r = await pool.query(`UPDATE leads SET status='expired', decided_at=NOW() WHERE status='new'`);
+      await pool.query(`DELETE FROM lead_hunt_runs WHERE run_day >= (NOW() AT TIME ZONE 'America/New_York')::date`);
+      if (process.env.NODE_ENV !== 'test') setTimeout(() => { require('./lib/lead-hunt').huntAll().catch(e => console.error('[lead-hunt] rerun', e.message)); }, 90 * 1000);
+      return { expired: r.rowCount };
+    });
     await pool.query(`CREATE TABLE IF NOT EXISTS day_plan_runs (
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, run_day DATE NOT NULL,
       added INTEGER DEFAULT 0, miles NUMERIC, ran_at TIMESTAMPTZ DEFAULT NOW(), PRIMARY KEY (user_id, run_day))`);

@@ -2910,7 +2910,8 @@ function localYMD(d){ d = d || new Date(); return d.getFullYear()+'-'+String(d.g
             <label class="a2-lbl" for="nl-seg">Business type</label>
             <select id="nl-seg" class="a2-sel" style="width:100%"></select>
             <label class="a2-lbl" for="nl-where">Where</label>
-            <select id="nl-where" class="a2-sel" style="width:100%"><option value="near">Near where I work</option><option value="route">Along today's stops</option></select>
+            <select id="nl-where" class="a2-sel" style="width:100%"><option value="area" id="nl-where-area">In my territory</option><option value="gps">Near me right now</option><option value="route">Along today's stops</option></select>
+            <div class="a2-note" id="nl-area-note"></div>
             <button type="button" id="nl-hunt-btn" class="a2-btn a2-pri" style="width:100%;margin-top:12px" onclick="nlHunt()">Search</button>
             <div id="nl-hunt-msg" class="a2-note"></div>
           </div>
@@ -4837,6 +4838,7 @@ function ckManager(stats, panel, opps){
   '</div>';
 }
 
+function firstNameOf(n) { n = String(n || '').trim().split(/\s+/)[0] || ''; return n ? n.charAt(0).toUpperCase() + n.slice(1) : ''; }
 function loadDashboard() {
   // Set greeting and date
   var hours = new Date().getHours();
@@ -4844,7 +4846,7 @@ function loadDashboard() {
   var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   var now = new Date();
-  var userName = (currentUser && currentUser.name) ? currentUser.name.split(' ')[0] : '';
+  var userName = firstNameOf(currentUser && currentUser.name);
   document.getElementById('dash-greeting').textContent = greet + (userName ? ', ' + userName : '');
   document.getElementById('dash-date').textContent = days[now.getDay()] + ', ' + months[now.getMonth()] + ' ' + now.getDate() + ' · ' + ((currentUser && currentUser.territory) || 'Southeast');
 
@@ -4946,7 +4948,7 @@ function loadMorningBriefing(force) {
     .then(data => {
       if (data.error) return;
       // Greeting
-      var firstName = (data.user.name || '').split(' ')[0] || 'there';
+      var firstName = firstNameOf(data.user.name) || 'there';
       var greetEl = document.getElementById('dash-greeting');
       if (greetEl) greetEl.innerHTML = 'Good morning, <span style="color:var(--accent)">' + firstName + '</span>';
       // Date
@@ -19959,7 +19961,7 @@ body.ui2 #vcl-float-btn{display:none !important}
     var day = localDay();
     var d = new Date(day + 'T12:00:00');
     document.getElementById('t2-date').textContent = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-    var hr = new Date().getHours(), name = ((window.__userData && window.__userData.name) || '').split(' ')[0];
+    var hr = new Date().getHours(), name = firstNameOf(window.__userData && window.__userData.name);
     document.getElementById('t2-hello').textContent = (hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening') + (name ? ', ' + name : '');
     var stopsBox = document.getElementById('t2-stops');
     if (!stopsBox.innerHTML) stopsBox.innerHTML = '<div class="a2-empty">Loading...</div>';
@@ -20255,6 +20257,10 @@ body.ui2 #vcl-float-btn{display:none !important}
     loadSegments().catch(function() {});
     return J('/api/leads').then(function(d) {
       var L = d.leads || [];
+      var areaName = d.area ? d.area.label : '';
+      var wa = document.getElementById('nl-where-area'); if (wa) wa.textContent = areaName ? 'In my territory (' + areaName + ')' : 'In my territory';
+      var an = document.getElementById('nl-area-note');
+      if (an) an.innerHTML = areaName ? 'Searching around ' + esc(areaName) + '. Wrong area? <button type="button" class="a2-link" style="display:inline;padding:0;font-size:13px" onclick="openTerritoryModal()">Change territory</button>' : 'No territory set. <button type="button" class="a2-link" style="display:inline;padding:0;font-size:13px" onclick="openTerritoryModal()">Set your territory</button>';
       if (!L.length) {
         var lr = d.last_run;
         box.innerHTML = '<div class="a2-empty">No new leads right now.' + (lr && lr.note ? '<br><span style="font-size:13px">Last search: ' + esc(lr.note) + '</span>' : '<br><span style="font-size:13px">New ones come in overnight, or search now on the right.</span>') + '</div>';
@@ -20290,9 +20296,12 @@ body.ui2 #vcl-float-btn{display:none !important}
     var btn = document.getElementById('nl-hunt-btn'), msg = document.getElementById('nl-hunt-msg');
     var seg = document.getElementById('nl-seg').value, where = document.getElementById('nl-where').value;
     btn.disabled = true; btn.textContent = 'Searching...'; msg.textContent = '';
-    post('/api/leads/hunt', { segment: seg, mode: where }).then(function(d) {
+    (where === 'gps' ? here() : Promise.resolve({})).then(function(g) {
+      if (where === 'gps' && g.lat == null) throw new Error('Couldn\'t get your location. Allow location for RepRoute, or search your territory.');
+      return post('/api/leads/hunt', Object.assign({ segment: seg, mode: where }, g));
+    }).then(function(d) {
       msg.textContent = d.found ? d.found + ' new lead' + (d.found === 1 ? '' : 's') + ' added.' :
-        d.note === 'no location' ? 'Set a home base (Change territory) or add addresses to a few accounts so RepRoute knows where you work.' :
+        d.note === 'no location' ? 'Set your territory (bottom left of the menu) so RepRoute knows where you work.' :
         'Nothing new for that type nearby. Try another type.';
       loadNewLeads();
     }).catch(function(e) { msg.textContent = e.message; })
